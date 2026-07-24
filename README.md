@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 23 个零依赖交互式 AI 可视化项目，184+ 模块，纯 HTML/CSS/JS + SVG。把 AI 的黑箱拆成你能看见的零件。
+> 29 个零依赖交互式 AI 可视化项目，232+ 模块，纯 HTML/CSS/JS + SVG。把 AI 的黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -35,6 +35,12 @@
 | 21 | 语音处理可视化实验室 | ASR、TTS、VAD、声码器、Whisper 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/speech-viz-lab/) |
 | 22 | 序列模型可视化实验室 | RNN/LSTM、Mamba、RWKV、线性注意力等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/sequence-viz-lab/) |
 | 23 | AutoML 与压缩可视化实验室 | NAS、剪枝、蒸馏、量化、集成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/automl-viz-lab/) |
+| 24 | 计算机视觉可视化实验室 | CNN、ResNet、YOLO、U-Net、ViT、NMS 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/cv-viz-lab/) |
+| 25 | 生成模型可视化实验室 | GAN、VAE、归一化流、自回归、模式崩塌等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/generative-viz-lab/) |
+| 26 | 优化算法可视化实验室 | SGD、Adam、Lion、学习率调度、损失地形等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/optimizer-viz-lab/) |
+| 27 | MLOps 与部署可视化实验室 | 模型服务、Canary、漂移检测、A/B 测试等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/mlops-viz-lab/) |
+| 28 | 图神经网络可视化实验室 | 消息传递、GCN、GAT、GraphSAGE 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/gnn-viz-lab/) |
+| 29 | 联邦学习与隐私计算实验室 | FedAvg、差分隐私、同态加密、SMPC 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/federated-viz-lab/) |
 
 ## 技术栈
 
