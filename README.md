@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 41 个零依赖交互式可视化项目，328+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础，把黑箱拆成你能看见的零件。
+> 47 个零依赖交互式可视化项目，376+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础，把黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -53,6 +53,12 @@
 | 39 | 密码学可视化实验室 | AES、RSA、SHA-256、数字签名、TLS、ZKP 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/crypto-viz-lab/) |
 | 40 | 编译原理可视化实验室 | 词法分析、语法分析、语义分析、IR、优化等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/compiler-viz-lab/) |
 | 41 | 流处理系统可视化实验室 | 事件时间、窗口语义、精确一次、Kafka、Watermark 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/streaming-viz-lab/) |
+| 42 | 操作系统内核可视化实验室 | 进程调度、虚拟内存、磁盘I/O、文件系统、锁、中断等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/os-viz-lab/) |
+| 43 | 计算机网络可视化实验室 | TCP 握手、拥塞控制、HTTP、DNS、路由、CDN、NAT、TLS 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/network-viz-lab/) |
+| 44 | 数据结构与算法可视化实验室 | 排序、BFS/DFS、最短路径、DP、贪心、回溯、并查集、线段树等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/algorithm-viz-lab/) |
+| 45 | 前端工程可视化实验室 | 浏览器渲染、Event Loop、V8 JIT、虚拟DOM、CSS布局、打包工具等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/frontend-viz-lab/) |
+| 46 | 区块链可视化实验室 | 区块结构、PoW/PoS/DPoS、默克尔树、EVM、闪电网络、DeFi、跨链等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/blockchain-viz-lab/) |
+| 47 | 网络安全可视化实验室 | DDoS、SQL注入、XSS/CSRF、渗透测试、WAF、IDS/IPS、蜜罐、零信任等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/security-viz-lab/) |
 
 ## 技术栈
 
