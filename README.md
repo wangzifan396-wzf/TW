@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 17 个零依赖交互式 AI 可视化项目，136+ 模块，纯 HTML/CSS/JS + SVG。把 AI 的黑箱拆成你能看见的零件。
+> 23 个零依赖交互式 AI 可视化项目，184+ 模块，纯 HTML/CSS/JS + SVG。把 AI 的黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -29,6 +29,12 @@
 | 15 | 多模态融合可视化实验室 | CLIP、ViT、VQA、音频融合等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multimodal-viz-lab/) |
 | 16 | AI 评估与基准可视化实验室 | MMLU、HumanEval、Arena Elo 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/eval-viz-lab/) |
 | 17 | 知识图谱与推理可视化实验室 | 实体抽取、GraphRAG、GNN 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/kg-viz-lab/) |
+| 18 | 可解释性可视化实验室 | SHAP、注意力解释、TCAV、反事实等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/interpretability-viz-lab/) |
+| 19 | 强化学习基础可视化实验室 | Q-Learning、DQN、PPO、MCTS 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/rl-viz-lab/) |
+| 20 | AI 安全与对抗可视化实验室 | 对抗样本、红队、越狱、水印、护栏等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-safety-viz-lab/) |
+| 21 | 语音处理可视化实验室 | ASR、TTS、VAD、声码器、Whisper 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/speech-viz-lab/) |
+| 22 | 序列模型可视化实验室 | RNN/LSTM、Mamba、RWKV、线性注意力等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/sequence-viz-lab/) |
+| 23 | AutoML 与压缩可视化实验室 | NAS、剪枝、蒸馏、量化、集成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/automl-viz-lab/) |
 
 ## 技术栈
 
