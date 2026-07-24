@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 29 个零依赖交互式 AI 可视化项目，232+ 模块，纯 HTML/CSS/JS + SVG。把 AI 的黑箱拆成你能看见的零件。
+> 41 个零依赖交互式可视化项目，328+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础，把黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -41,6 +41,18 @@
 | 27 | MLOps 与部署可视化实验室 | 模型服务、Canary、漂移检测、A/B 测试等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/mlops-viz-lab/) |
 | 28 | 图神经网络可视化实验室 | 消息传递、GCN、GAT、GraphSAGE 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/gnn-viz-lab/) |
 | 29 | 联邦学习与隐私计算实验室 | FedAvg、差分隐私、同态加密、SMPC 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/federated-viz-lab/) |
+| 30 | AI 芯片与硬件架构实验室 | GPU/TPU、Tensor Core、显存、NVLink、Roofline 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hardware-viz-lab/) |
+| 31 | 推荐系统可视化实验室 | 协同过滤、双塔、DIN、多目标排序等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/recsys-viz-lab/) |
+| 32 | 时间序列预测可视化实验室 | ARIMA、Prophet、DeepAR、PatchTST、TFT 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/timeseries-viz-lab/) |
+| 33 | 因果推断可视化实验室 | DAG、do-算子、反事实、倾向匹配、DiD 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/causal-viz-lab/) |
+| 34 | 3D 视觉与神经渲染实验室 | NeRF、Gaussian Splatting、点云、3D 重建等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/nerf-3dviz-lab/) |
+| 35 | 代码生成与程序合成实验室 | AST、Copilot 补全、Code LLM、RAG、Agent 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/codegen-viz-lab/) |
+| 36 | 分布式系统可视化实验室 | Raft 共识、Paxos、分布式事务、CRDT、领导者选举等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/distributed-viz-lab/) |
+| 37 | 数据库内核可视化实验室 | B+Tree、LSM-Tree、MVCC、WAL、Buffer Pool 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/database-viz-lab/) |
+| 38 | 搜索引擎可视化实验室 | 倒排索引、TF-IDF、BM25、PageRank、爬虫架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/search-viz-lab/) |
+| 39 | 密码学可视化实验室 | AES、RSA、SHA-256、数字签名、TLS、ZKP 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/crypto-viz-lab/) |
+| 40 | 编译原理可视化实验室 | 词法分析、语法分析、语义分析、IR、优化等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/compiler-viz-lab/) |
+| 41 | 流处理系统可视化实验室 | 事件时间、窗口语义、精确一次、Kafka、Watermark 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/streaming-viz-lab/) |
 
 ## 技术栈
 
