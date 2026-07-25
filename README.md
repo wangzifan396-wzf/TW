@@ -35,7 +35,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 配套工具
 
-除了 130 个可视化实验室，TW 生态还包含八个独立的大型交互工具：
+除了 130 个可视化实验室，TW 生态还包含九个独立的大型交互工具：
 
 | 工具 | 描述 | 链接 |
 |------|------|------|
@@ -47,6 +47,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | TW Glossary | 交互式技术百科，205 个术语 × 4 分类，搜索筛选与交叉引用 | [打开](https://wangzifan396-wzf.github.io/TW/tw-glossary.html) |
 | TW Flashcards | 间隔重复记忆系统，119 张卡 × SM-2 算法，3D 翻转与进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-flashcards.html) |
 | TW Dashboard | 学习驾驶舱，跨工具进度聚合，活动热力图 + 雷达图 + 成就徽章 + 智能推荐 | [打开](https://wangzifan396-wzf.github.io/TW/tw-dashboard.html) |
+| TW Cheatsheet | 开发者速查手册，11 张表 258 行，Big-O/排序/设计模式/ML公式/Git/SQL/Python/Docker | [打开](https://wangzifan396-wzf.github.io/TW/tw-cheatsheet.html) |
 
 ## 快速统计
 
