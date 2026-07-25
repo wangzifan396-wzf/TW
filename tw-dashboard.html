@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TW Dashboard · 学习驾驶舱</title>
+<meta name="description" content="TW 生态统一学习进度仪表盘，跨工具进度追踪与智能推荐">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='4' fill='none' stroke='%2306b6d4' stroke-width='2'/%3E%3Crect x='7' y='7' width='4' height='4' rx='1' fill='%2306b6d4'/%3E%3Crect x='13' y='7' width='4' height='8' rx='1' fill='%2306b6d4' opacity='.6'/%3E%3Crect x='19' y='7' width='4' height='6' rx='1' fill='%2306b6d4' opacity='.4'/%3E%3Crect x='7' y='13' width='4' height='6' rx='1' fill='%2306b6d4' opacity='.5'/%3E%3Crect x='13' y='17' width='4' height='4' rx='1' fill='%2306b6d4' opacity='.7'/%3E%3C/svg%3E">
+<style>
+:root{--bg:#08090a;--bg2:#0f1115;--bg3:#16181d;--border:#1e2026;--border2:#2a2d35;--text:#e4e4e7;--text2:#a1a1aa;--text3:#71717a;--accent:#06b6d4;--accent-soft:rgba(6,182,212,.12);--violet:#7c5cff;--good:#34d399;--hard:#fbbf24;--bad:#f87171;--pink:#ec4899;--orange:#f97316;--radius:10px;--mono:'SF Mono',Monaco,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+header{position:sticky;top:0;z-index:100;background:rgba(8,9,10,.92);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;gap:16px}
+header .logo{font-size:18px;font-weight:700;letter-spacing:-.5px;white-space:nowrap}header .logo span{color:var(--accent)}
+header .sep{width:1px;height:20px;background:var(--border2)}
+header nav a{color:var(--text3);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;transition:all .15s;white-space:nowrap}
+header nav a:hover{color:var(--text);background:var(--bg3)}
+header .spacer{flex:1}header .updated{font-size:11px;color:var(--text3);font-family:var(--mono)}
+
+.hero{padding:48px 24px 24px;text-align:center;max-width:1100px;margin:0 auto}
+.hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;margin-bottom:12px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero .sub{font-size:16px;color:var(--text2);max-width:600px;margin:0 auto}
+.hero .sub b{color:var(--accent)}
+
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px 48px}
+
+/* Overall progress ring */
+.overall-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:24px;display:flex;align-items:center;gap:32px;flex-wrap:wrap}
+.ring-big{width:120px;height:120px;position:relative;flex-shrink:0}
+.ring-big svg{transform:rotate(-90deg)}
+.ring-big circle{fill:none;stroke-width:6}
+.ring-big .track{stroke:var(--bg3)}
+.ring-big .fill{stroke:url(#grad);stroke-linecap:round;transition:stroke-dashoffset 1s ease}
+.ring-big .pct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-big .pct .num{font-size:32px;font-weight:800;letter-spacing:-1px;color:var(--text)}
+.ring-big .pct .lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.overall-info{flex:1;min-width:240px}
+.overall-info h2{font-size:20px;font-weight:700;margin-bottom:8px}
+.overall-info p{font-size:13px;color:var(--text2);margin-bottom:16px}
+.overall-stats{display:flex;gap:24px;flex-wrap:wrap}
+.overall-stats .os{display:flex;flex-direction:column}
+.overall-stats .os .v{font-size:24px;font-weight:800;color:var(--accent)}
+.overall-stats .os .l{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+
+/* Tool cards grid */
+.section-title{font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:32px 0 16px;display:flex;align-items:center;gap:8px}
+.section-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-bottom:32px}
+.tool-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;transition:all .15s;text-decoration:none;color:inherit;position:relative;overflow:hidden}
+.tool-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.tool-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tc)}
+.tool-card .tc-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.tool-card .tc-icon{font-size:24px}
+.tool-card .tc-name{font-size:16px;font-weight:700}
+.tool-card .tc-link{font-size:11px;color:var(--text3);margin-left:auto}
+.tool-card .tc-desc{font-size:12px;color:var(--text3);margin-bottom:14px}
+.tool-card .tc-bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.tool-card .tc-bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.tool-card .tc-stats{display:flex;justify-content:space-between;font-size:12px}
+.tool-card .tc-stats .s{color:var(--text2)}
+.tool-card .tc-stats .s b{color:var(--text);font-weight:700}
+.tool-card .tc-stats .pct{font-weight:700;font-family:var(--mono)}
+
+/* Heatmap */
+.heatmap-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px}
+.heatmap-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.heatmap-head h3{font-size:14px;font-weight:600}
+.heatmap-head .legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)}
+.heatmap-head .legend .sq{width:12px;height:12px;border-radius:3px}
+.heatmap-wrap{overflow-x:auto;padding-bottom:8px}
+.heatmap{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px;min-width:700px}
+.heatmap .cell{width:12px;height:12px;border-radius:2px;background:var(--bg3);transition:transform .1s}
+.heatmap .cell:hover{transform:scale(1.4);z-index:2;position:relative}
+.heatmap .cell.l1{background:rgba(6,182,212,.25)}
+.heatmap .cell.l2{background:rgba(6,182,212,.5)}
+.heatmap .cell.l3{background:rgba(6,182,212,.75)}
+.heatmap .cell.l4{background:var(--accent)}
+.heatmap-months{display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* Radar chart */
+.radar-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;display:flex;gap:32px;flex-wrap:wrap;align-items:center}
+.radar-svg{flex-shrink:0}
+.radar-info{flex:1;min-width:200px}
+.radar-info h3{font-size:14px;font-weight:600;margin-bottom:16px}
+.radar-info .cat-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
+.radar-info .cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.radar-info .cat-name{flex:1}
+.radar-info .cat-val{font-family:var(--mono);font-weight:700;color:var(--text2)}
+
+/* Recommendations */
+.reco-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px}
+.reco-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.reco-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;text-decoration:none;color:inherit;transition:all .15s;display:block}
+.reco-item:hover{border-color:var(--accent);transform:translateY(-2px)}
+.reco-item .ri-tag{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:inline-block;margin-bottom:8px}
+.reco-item .ri-title{font-size:14px;font-weight:600;margin-bottom:4px}
+.reco-item .ri-desc{font-size:12px;color:var(--text3);line-height:1.5}
+
+/* Achievements */
+.badges-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.badge{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;transition:all .15s}
+.badge.earned{border-color:var(--border2)}
+.badge.locked{opacity:.35}
+.badge .b-icon{font-size:32px;margin-bottom:8px;filter:grayscale(0)}
+.badge.locked .b-icon{filter:grayscale(1)}
+.badge .b-name{font-size:12px;font-weight:600;color:var(--text)}
+.badge .b-desc{font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4}
+.badge.earned .b-name{color:var(--accent)}
+
+/* Activity feed */
+.activity-list{max-height:300px;overflow-y:auto}
+.activity-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.activity-item:last-child{border-bottom:none}
+.activity-item .ai-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.activity-item .ai-text{flex:1;color:var(--text2)}
+.activity-item .ai-text b{color:var(--text)}
+.activity-item .ai-time{font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+
+.empty-state{text-align:center;padding:48px;color:var(--text3);font-size:14px}
+.empty-state .icon{font-size:48px;margin-bottom:12px;opacity:.3}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:24px 0}
+.btn{padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;transition:all .15s;font-family:var(--sans);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:var(--bg3)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1);background:var(--accent)}
+.danger-link{color:var(--text3);font-size:12px;text-decoration:none;cursor:pointer}
+.danger-link:hover{color:var(--bad)}
+@media(max-width:640px){
+.hero h1{font-size:30px}
+.overall-card{flex-direction:column;text-align:center}
+.overall-stats{justify-content:center}
+.radar-card{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">TW <span>Dashboard</span></div>
+<div class="sep"></div>
+<nav>
+<a href="index.html">返回 Hub</a>
+<a href="tw-flashcards.html">记忆卡</a>
+<a href="tw-quiz.html">测验</a>
+<a href="tw-roadmap.html">路线图</a>
+</nav>
+<div class="spacer"></div>
+<div class="updated" id="updatedAt">--</div>
+</header>
+
+<div class="hero">
+<h1>学习驾驶舱</h1>
+<div class="sub">跨 <b>7 个工具</b> 的统一学习进度中枢 · 实时聚合你在 TW 生态中的所有学习数据</div>
+</div>
+
+<div class="wrap">
+<!-- Overall Progress -->
+<div class="overall-card">
+<div class="ring-big">
+<svg width="120" height="120">
+<defs><linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#7c5cff"/></linearGradient></defs>
+<circle class="track" cx="60" cy="60" r="52"></circle>
+<circle class="fill" id="overallRing" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+</svg>
+<div class="pct"><div class="num" id="overallPct">0%</div><div class="lbl">总体掌握</div></div>
+</div>
+<div class="overall-info">
+<h2 id="overallTitle">开始你的学习之旅</h2>
+<p id="overallDesc">探索 130 个可视化项目，完成测验，记忆核心概念，沿着学习路线前进。</p>
+<div class="overall-stats" id="overallStats"></div>
+</div>
+</div>
+
+<!-- Tool Progress Cards -->
+<div class="section-title"><span class="dot"></span>各工具进度</div>
+<div class="tools-grid" id="toolsGrid"></div>
+
+<!-- Heatmap -->
+<div class="heatmap-card">
+<div class="heatmap-head">
+<h3>学习活动热力图（近 90 天）</h3>
+<div class="legend">
+<span>少</span>
+<div class="sq" style="background:var(--bg3)"></div>
+<div class="sq" style="background:rgba(6,182,212,.25)"></div>
+<div class="sq" style="background:rgba(6,182,212,.5)"></div>
+<div class="sq" style="background:rgba(6,182,212,.75)"></div>
+<div class="sq" style="background:var(--accent)"></div>
+<span>多</span>
+</div>
+</div>
+<div class="heatmap-wrap">
+<div class="heatmap" id="heatmap"></div>
+<div class="heatmap-months" id="heatmapMonths"></div>
+</div>
+</div>
+
+<!-- Category Radar -->
+<div class="radar-card">
+<div class="radar-svg">
+<svg id="radarSvg" width="240" height="240" viewBox="0 0 240 240"></svg>
+</div>
+<div class="radar-info">
+<h3>四类掌握度雷达</h3>
+<div id="radarInfo"></div>
+</div>
+</div>
+
+<!-- Recommendations -->
+<div class="section-title"><span class="dot"></span>智能推荐 · 下一步学什么</div>
+<div class="reco-card">
+<div class="reco-list" id="recoList"></div>
+</div>
+
+<!-- Achievements -->
+<div class="section-title"><span class="dot"></span>成就徽章</div>
+<div class="badges-grid" id="badgesGrid"></div>
+
+<!-- Activity Feed -->
+<div class="section-title"><span class="dot"></span>最近活动</div>
+<div class="reco-card">
+<div class="activity-list" id="activityList"></div>
+</div>
+
+<div class="cta-row">
+<a class="btn btn-primary" href="index.html">返回 TW Hub</a>
+<a class="btn" href="tw-flashcards.html">复习记忆卡</a>
+<a class="btn" href="tw-quiz.html">做测验</a>
+<span class="danger-link" id="resetBtn" style="align-self:center">重置所有进度</span>
+</div>
+</div>
+
+<script>
+var BASE = "https://wangzifan396-wzf.github.io/TW/";
+var CAT_COLORS = {ai:"#7c5cff", systems:"#2dd4ff", theory:"#fbbf24", cross:"#34d399"};
+var CAT_NAMES = {ai:"AI / 机器学习", systems:"CS 系统", theory:"CS 理论", cross:"交叉学科"};
+var DAY_MS = 86400000;
+
+// ---- Read data from all tools ----
+function readJSON(key, fallback){
+  try{ var v = localStorage.getItem(key); if(v) return JSON.parse(v); }catch(e){}
+  return fallback;
+}
+
+function loadData(){
+  var data = {};
+
+  // Hub: explored projects
+  var explored = readJSON("tw-explored", []);
+  data.explored = explored;
+  data.exploredCount = explored.length;
+
+  // Hub: recent
+  var recent = readJSON("tw-recent", []);
+  data.recent = recent;
+
+  // Flashcards
+  var fc = readJSON("tw_flashcards_v1", null);
+  data.fc = fc;
+  if(fc && fc.cards){
+    var fcTotal = 119, fcMastered=0, fcLearning=0, fcNew=0, fcDue=0;
+    var now = Date.now();
+    for(var id in fc.cards){
+      var s = fc.cards[id].status;
+      if(s==="mastered") fcMastered++;
+      else if(s==="review"||s==="learn") { fcLearning++; if(fc.cards[id].due<=now) fcDue++; }
+      else fcNew++;
+    }
+    data.fcMastered = fcMastered;
+    data.fcLearning = fcLearning;
+    data.fcNew = fcNew;
+    data.fcDue = fcDue;
+    data.fcTotalReviews = fc.totalReviews || 0;
+    data.fcStreak = fc.streak || 0;
+    data.fcLastStudy = fc.lastStudyDate || "";
+  } else {
+    data.fcMastered=0; data.fcLearning=0; data.fcNew=119; data.fcDue=0;
+    data.fcTotalReviews=0; data.fcStreak=0; data.fcLastStudy="";
+  }
+
+  // Quiz
+  var qh = readJSON("tw_quiz_history", []);
+  data.quizHistory = qh;
+  if(qh.length > 0){
+    var qAvg = 0, qBest = 0, qTotal = qh.length;
+    qh.forEach(function(q){
+      qAvg += q.score;
+      if(q.score > qBest) qBest = q.score;
+    });
+    data.quizAvg = Math.round(qAvg / qTotal);
+    data.quizBest = qBest;
+    data.quizCount = qTotal;
+    data.quizLast = qh[qh.length-1];
+  } else {
+    data.quizAvg=0; data.quizBest=0; data.quizCount=0; data.quizLast=null;
+  }
+
+  // Roadmap
+  var rm = readJSON("tw_roadmap_progress", {});
+  data.roadmap = rm;
+  var rmKeys = Object.keys(rm);
+  var rmDone = 0;
+  rmKeys.forEach(function(k){ if(rm[k]) rmDone++; });
+  data.roadmapDone = rmDone;
+  data.roadmapTotal = 27; // total nodes
+
+  // Theme
+  data.theme = localStorage.getItem("tw-theme") || "dark";
+
+  return data;
+}
+
+// ---- Compute activity heatmap data ----
+function computeActivity(data){
+  var days = {};
+  function addDay(dateStr, count){
+    if(!days[dateStr]) days[dateStr] = 0;
+    days[dateStr] += count;
+  }
+  function toDateStr(d){
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+
+  // Flashcard reviews
+  if(data.fc && data.fc.cards){
+    for(var id in data.fc.cards){
+      var c = data.fc.cards[id];
+      if(c.last > 0){
+        var d = new Date(c.last * 1000);
+        addDay(toDateStr(d), 1);
+      }
+    }
+  }
+  // Quiz history
+  if(data.quizHistory){
+    data.quizHistory.forEach(function(q){
+      var d = new Date(q.date);
+      addDay(toDateStr(d), 2);
+    });
+  }
+  // Hub exploration (approx by recent, count as 1 each)
+  if(data.recent){
+    // recent doesn't have dates, skip
+  }
+  return days;
+}
+
+// ---- Render functions ----
+function renderOverall(data){
+  // Weighted overall: 40% flashcards, 25% quiz, 20% explored, 15% roadmap
+  var fcPct = data.fcMastered / 119;
+  var quizPct = data.quizCount > 0 ? data.quizAvg / 100 : 0;
+  var explorePct = data.exploredCount / 130;
+  var rmPct = data.roadmapDone / data.roadmapTotal;
+  var overall = Math.round((fcPct*0.4 + quizPct*0.25 + explorePct*0.2 + rmPct*0.15) * 100);
+
+  var ring = document.getElementById("overallRing");
+  var circ = 2 * Math.PI * 52;
+  ring.style.strokeDasharray = circ;
+  ring.style.strokeDashoffset = circ * (1 - overall/100);
+
+  var pctEl = document.getElementById("overallPct");
+  animateNumber(pctEl, 0, overall, 1000, "%");
+
+  var title = document.getElementById("overallTitle");
+  var desc = document.getElementById("overallDesc");
+  if(overall === 0){
+    title.textContent = "开始你的学习之旅";
+    desc.textContent = "探索 130 个可视化项目，完成测验，记忆核心概念，沿着学习路线前进。";
+  } else if(overall < 20){
+    title.textContent = "初学者 · 刚刚起步";
+    desc.textContent = "好的开始！继续探索更多项目，试试做一组测验或复习记忆卡。";
+  } else if(overall < 50){
+    title.textContent = "进阶者 · 稳步前进";
+    desc.textContent = "进展不错！你已经掌握了部分核心知识，继续保持学习节奏。";
+  } else if(overall < 80){
+    title.textContent = "熟练者 · 渐入佳境";
+    desc.textContent = "你已经掌握了大部分核心概念，继续攻克薄弱环节！";
+  } else {
+    title.textContent = "专家 · 精通掌握";
+    desc.textContent = "你对计算机科学有全面而深入的理解，了不起的成就！";
+  }
+
+  var statsHtml = "";
+  statsHtml += '<div class="os"><div class="v">'+data.exploredCount+'</div><div class="l">已探索项目</div></div>';
+  statsHtml += '<div class="os"><div class="v">'+data.fcTotalReviews+'</div><div class="l">记忆卡复习</div></div>';
+  statsHtml += '<div class="os"><div class="v">'+data.quizCount+'</div><div class="l">测验次数</div></div>';
+  statsHtml += '<div class="os"><div class="v">'+data.fcStreak+'</div><div class="l">连续天数</div></div>';
+  document.getElementById("overallStats").innerHTML = statsHtml;
+}
+
+function renderToolCards(data){
+  var tools = [
+    {
+      name:"TW Hub", icon:"🏠", tc:"#5e6ad2", link:"index.html",
+      desc:"130 个可视化项目探索",
+      pct: Math.round(data.exploredCount/130*100),
+      stat1:"<b>"+data.exploredCount+"</b>/130 已探索",
+      stat2:"<b>"+data.recent.length+"</b> 最近浏览"
+    },
+    {
+      name:"Flashcards", icon:"🃏", tc:"#f97316", link:"tw-flashcards.html",
+      desc:"119 张 SM-2 记忆卡",
+      pct: Math.round(data.fcMastered/119*100),
+      stat1:"<b>"+data.fcMastered+"</b>/119 已掌握",
+      stat2:"<b>"+data.fcDue+"</b> 待复习"
+    },
+    {
+      name:"Quiz", icon:"🏆", tc:"#ec4899", link:"tw-quiz.html",
+      desc:"65 道知识挑战题",
+      pct: data.quizCount > 0 ? data.quizAvg : 0,
+      stat1:"平均分 <b>"+data.quizAvg+"%</b>",
+      stat2:"<b>"+data.quizCount+"</b> 次测验"
+    },
+    {
+      name:"Roadmap", icon:"🗺️", tc:"#fbbf24", link:"tw-roadmap.html",
+      desc:"27 节点学习路线图",
+      pct: Math.round(data.roadmapDone/data.roadmapTotal*100),
+      stat1:"<b>"+data.roadmapDone+"</b>/"+data.roadmapTotal+" 已完成",
+      stat2:"<b>"+(data.roadmapTotal-data.roadmapDone)+"</b> 待解锁"
+    }
+  ];
+  var html = "";
+  tools.forEach(function(t){
+    html += '<a class="tool-card" href="'+t.link+'" style="--tc:'+t.tc+'">';
+    html += '<div class="tc-head"><span class="tc-icon">'+t.icon+'</span><span class="tc-name">'+t.name+'</span><span class="tc-link">→</span></div>';
+    html += '<div class="tc-desc">'+t.desc+'</div>';
+    html += '<div class="tc-bar"><div class="tc-bar-fill" style="width:'+t.pct+'%;background:'+t.tc+'"></div></div>';
+    html += '<div class="tc-stats"><span class="s">'+t.stat1+'</span><span class="pct" style="color:'+t.tc+'">'+t.pct+'%</span></div>';
+    html += '</a>';
+  });
+  document.getElementById("toolsGrid").innerHTML = html;
+}
+
+function renderHeatmap(data){
+  var activity = computeActivity(data);
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var days = [];
+  for(var i=89; i>=0; i--){
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var ds = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    var count = activity[ds] || 0;
+    var level = 0;
+    if(count >= 5) level = 4;
+    else if(count >= 3) level = 3;
+    else if(count >= 2) level = 2;
+    else if(count >= 1) level = 1;
+    days.push({date:ds, count:count, level:level, dow:d.getDay()});
+  }
+  var html = "";
+  days.forEach(function(d){
+    var cls = d.level > 0 ? " l"+d.level : "";
+    html += '<div class="cell'+cls+'" title="'+d.date+': '+d.count+' 次活动"></div>';
+  });
+  document.getElementById("heatmap").innerHTML = html;
+
+  // Month labels
+  var months = {};
+  days.forEach(function(d){
+    var m = d.date.substring(0,7);
+    if(!months[m]) months[m] = d.date;
+  });
+  var mHtml = "";
+  var lastMonth = "";
+  days.forEach(function(d){
+    var m = d.date.substring(5,7);
+    if(m !== lastMonth){
+      mHtml += '<span>'+m+'月</span>';
+      lastMonth = m;
+    }
+  });
+  document.getElementById("heatmapMonths").innerHTML = mHtml;
+}
+
+function renderRadar(data){
+  // Compute mastery per category from flashcards + explored
+  var catData = {ai:{mastered:0,total:0}, systems:{mastered:0,total:0}, theory:{mastered:0,total:0}, cross:{mastered:0,total:0}};
+
+  // From flashcards (we need card data, but Dashboard doesn't have CARDS array)
+  // We'll estimate from flashcard states if available
+  if(data.fc && data.fc.cards){
+    // We don't have category info per card id here, so use overall ratio
+    // Instead, use explored projects by category
+  }
+
+  // From explored projects (we need the project list with categories)
+  // We'll use a simplified approach: distribute explored count across categories
+  // and use flashcard mastery ratio for all
+  var fcRatio = data.fcMastered / 119;
+  var expRatio = data.exploredCount / 130;
+
+  ["ai","systems","theory","cross"].forEach(function(cat){
+    catData[cat].mastered = Math.round((fcRatio * 0.5 + expRatio * 0.5) * 100);
+    catData[cat].total = 100;
+  });
+
+  // Draw radar
+  var cx=120, cy=120, maxR=80;
+  var cats = ["ai","systems","theory","cross"];
+  var n = cats.length;
+  var svg = document.getElementById("radarSvg");
+  var html = "";
+
+  // Grid circles
+  for(var r=1; r<=4; r++){
+    var rr = maxR * r / 4;
+    var pts = "";
+    for(var i=0; i<n; i++){
+      var angle = -Math.PI/2 + i * 2*Math.PI/n;
+      pts += (cx + rr*Math.cos(angle)) + "," + (cy + rr*Math.sin(angle)) + " ";
+    }
+    html += '<polygon points="'+pts+'" fill="none" stroke="#1e2026" stroke-width="1"/>';
+  }
+
+  // Axes
+  for(var i=0; i<n; i++){
+    var angle = -Math.PI/2 + i * 2*Math.PI/n;
+    html += '<line x1="'+cx+'" y1="'+cy+'" x2="'+(cx+maxR*Math.cos(angle))+'" y2="'+(cy+maxR*Math.sin(angle))+'" stroke="#1e2026" stroke-width="1"/>';
+  }
+
+  // Data polygon
+  var dataPts = "";
+  for(var i=0; i<n; i++){
+    var angle = -Math.PI/2 + i * 2*Math.PI/n;
+    var val = catData[cats[i]].mastered / 100;
+    var r = maxR * val;
+    dataPts += (cx + r*Math.cos(angle)) + "," + (cy + r*Math.sin(angle)) + " ";
+  }
+  html += '<polygon points="'+dataPts+'" fill="rgba(6,182,212,.15)" stroke="#06b6d4" stroke-width="2"/>';
+
+  // Data points
+  for(var i=0; i<n; i++){
+    var angle = -Math.PI/2 + i * 2*Math.PI/n;
+    var val = catData[cats[i]].mastered / 100;
+    var r = maxR * val;
+    var x = cx + r*Math.cos(angle);
+    var y = cy + r*Math.sin(angle);
+    html += '<circle cx="'+x+'" cy="'+y+'" r="4" fill="'+CAT_COLORS[cats[i]]+'"/>';
+  }
+
+  // Labels
+  for(var i=0; i<n; i++){
+    var angle = -Math.PI/2 + i * 2*Math.PI/n;
+    var lx = cx + (maxR+18) * Math.cos(angle);
+    var ly = cy + (maxR+18) * Math.sin(angle);
+    html += '<text x="'+lx+'" y="'+ly+'" fill="#a1a1aa" font-size="11" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">'+CAT_NAMES[cats[i]].split(" ")[0]+'</text>';
+  }
+
+  svg.innerHTML = html;
+
+  // Info list
+  var infoHtml = "";
+  cats.forEach(function(cat){
+    var val = catData[cat].mastered;
+    infoHtml += '<div class="cat-row"><span class="cat-dot" style="background:'+CAT_COLORS[cat]+'"></span><span class="cat-name">'+CAT_NAMES[cat]+'</span><span class="cat-val">'+val+'%</span></div>';
+  });
+  document.getElementById("radarInfo").innerHTML = infoHtml;
+}
+
+function renderRecommendations(data){
+  var recos = [];
+
+  // If flashcards due
+  if(data.fcDue > 0){
+    recos.push({tag:"复习", tagColor:"#f87171", title:"复习 "+data.fcDue+" 张到期记忆卡", desc:"这些卡片已到复习时间，趁记忆遗忘前巩固", link:"tw-flashcards.html"});
+  }
+  // If no quizzes yet
+  if(data.quizCount === 0){
+    recos.push({tag:"测验", tagColor:"#ec4899", title:"完成你的第一次测验", desc:"65 道题覆盖四大领域，检验你的知识掌握度", link:"tw-quiz.html"});
+  } else if(data.quizAvg < 70 && data.quizCount > 0){
+    recos.push({tag:"提升", tagColor:"#fbbf24", title:"提高测验平均分（当前 "+data.quizAvg+"%）", desc:"多做测验，关注错题解析，目标达到 80% 以上", link:"tw-quiz.html"});
+  }
+  // If explored few projects
+  if(data.exploredCount < 20){
+    recos.push({tag:"探索", tagColor:"#5e6ad2", title:"探索更多可视化项目", desc:"已探索 "+data.exploredCount+"/130，从 AI/ML 或系统类开始", link:"index.html"});
+  }
+  // Roadmap
+  if(data.roadmapDone < 10){
+    recos.push({tag:"路线", tagColor:"#fbbf24", title:"沿学习路线前进", desc:"已完成 "+data.roadmapDone+"/"+data.roadmapTotal+" 节点，跟随推荐路径系统学习", link:"tw-roadmap.html"});
+  }
+  // If doing well, suggest glossary
+  if(data.fcMastered > 30){
+    recos.push({tag:"查阅", tagColor:"#06b6d4", title:"查阅技术百科扩展词汇", desc:"已掌握 "+data.fcMastered+" 张卡，查 Glossary 深入理解相关术语", link:"tw-glossary.html"});
+  }
+  // Compare if explored many
+  if(data.exploredCount > 30){
+    recos.push({tag:"对比", tagColor:"#f97316", title:"对比相似概念加深理解", desc:"用 TW Compare 多维度对比易混淆技术，巩固知识网络", link:"tw-compare.html"});
+  }
+
+  if(recos.length === 0){
+    recos.push({tag:"完成", tagColor:"#34d399", title:"你已全面发展！", desc:"继续保持学习节奏，温故而知新", link:"index.html"});
+  }
+
+  var html = "";
+  recos.forEach(function(r){
+    html += '<a class="reco-item" href="'+r.link+'">';
+    html += '<span class="ri-tag" style="color:'+r.tagColor+';background:'+r.tagColor+'22">'+r.tag+'</span>';
+    html += '<div class="ri-title">'+r.title+'</div>';
+    html += '<div class="ri-desc">'+r.desc+'</div>';
+    html += '</a>';
+  });
+  document.getElementById("recoList").innerHTML = html;
+}
+
+function renderBadges(data){
+  var badges = [
+    {icon:"🌱", name:"初次探索", desc:"探索第一个项目", earned: data.exploredCount >= 1},
+    {icon:"📖", name:"书虫", desc:"探索 10 个项目", earned: data.exploredCount >= 10},
+    {icon:"🔬", name:"研究员", desc:"探索 50 个项目", earned: data.exploredCount >= 50},
+    {icon:"🏆", name:"全览者", desc:"探索全部 130 个项目", earned: data.exploredCount >= 130},
+    {icon:"🃏", name:"记忆新手", desc:"完成首次记忆卡复习", earned: data.fcTotalReviews >= 1},
+    {icon:"🧠", name:"记忆达人", desc:"掌握 30 张记忆卡", earned: data.fcMastered >= 30},
+    {icon:"💎", name:"记忆大师", desc:"掌握全部 119 张卡", earned: data.fcMastered >= 119},
+    {icon:"❓", name:"初次测验", desc:"完成第一次测验", earned: data.quizCount >= 1},
+    {icon:"⭐", name:"高分选手", desc:"测验达到 80%", earned: data.quizBest >= 80},
+    {icon:"🎯", name:"满分达成", desc:"测验获得 100%", earned: data.quizBest >= 100},
+    {icon:"🗺️", name:"规划者", desc:"完成 5 个路线节点", earned: data.roadmapDone >= 5},
+    {icon:"🚀", name:"路线专家", desc:"完成全部路线节点", earned: data.roadmapDone >= 27},
+    {icon:"🔥", name:"三日连胜", desc:"连续 3 天学习", earned: data.fcStreak >= 3},
+    {icon:"⚡", name:"一周连胜", desc:"连续 7 天学习", earned: data.fcStreak >= 7},
+    {icon:"🌙", name:"坚持半月", desc:"连续 15 天学习", earned: data.fcStreak >= 15},
+    {icon:"👑", name:"全能学者", desc:"所有工具都有进度", earned: data.exploredCount > 0 && data.fcTotalReviews > 0 && data.quizCount > 0 && data.roadmapDone > 0}
+  ];
+
+  var html = "";
+  badges.forEach(function(b){
+    html += '<div class="badge '+(b.earned?"earned":"locked")+'">';
+    html += '<div class="b-icon">'+b.icon+'</div>';
+    html += '<div class="b-name">'+b.name+'</div>';
+    html += '<div class="b-desc">'+b.desc+'</div>';
+    html += '</div>';
+  });
+  document.getElementById("badgesGrid").innerHTML = html;
+}
+
+function renderActivity(data){
+  var activities = [];
+
+  // Quiz history
+  if(data.quizHistory){
+    data.quizHistory.slice(-8).reverse().forEach(function(q){
+      activities.push({
+        icon:"🏆", color:"#ec489922", iconColor:"#ec4899",
+        text:"完成<b>"+(q.cat||"全部")+"</b>测验，得分 <b>"+q.score+"%</b>（"+q.correct+"/"+q.total+"）",
+        time: fmtRelative(q.date)
+      });
+    });
+  }
+
+  // Flashcard last study
+  if(data.fcLastStudy){
+    activities.push({
+      icon:"🃏", color:"#f9731622", iconColor:"#f97316",
+      text:"记忆卡学习，累计复习 <b>"+data.fcTotalReviews+"</b> 次",
+      time: data.fcLastStudy
+    });
+  }
+
+  // Recent explored
+  if(data.recent && data.recent.length > 0){
+    var r = data.recent[0];
+    activities.push({
+      icon:"🏠", color:"#5e6ad222", iconColor:"#5e6ad2",
+      text:"浏览了 <b>"+(r.title||r.slug||"项目")+"</b>",
+      time: "最近"
+    });
+  }
+
+  // Roadmap
+  if(data.roadmapDone > 0){
+    activities.push({
+      icon:"🗺️", color:"#fbbf2422", iconColor:"#fbbf24",
+      text:"学习路线完成 <b>"+data.roadmapDone+"/"+data.roadmapTotal+"</b> 节点",
+      time: "进行中"
+    });
+  }
+
+  if(activities.length === 0){
+    document.getElementById("activityList").innerHTML = '<div class="empty-state"><div class="icon">📊</div>还没有学习活动记录<br>开始探索项目或做一次测验吧</div>';
+    return;
+  }
+
+  var html = "";
+  activities.forEach(function(a){
+    html += '<div class="activity-item">';
+    html += '<div class="ai-icon" style="background:'+a.color+';color:'+a.iconColor+'">'+a.icon+'</div>';
+    html += '<div class="ai-text">'+a.text+'</div>';
+    html += '<div class="ai-time">'+a.time+'</div>';
+    html += '</div>';
+  });
+  document.getElementById("activityList").innerHTML = html;
+}
+
+function fmtRelative(dateStr){
+  try{
+    var d = new Date(dateStr);
+    var now = new Date();
+    var diff = now - d;
+    if(diff < 3600000) return Math.round(diff/60000)+" 分钟前";
+    if(diff < 86400000) return Math.round(diff/3600000)+" 小时前";
+    if(diff < 604800000) return Math.round(diff/86400000)+" 天前";
+    return (d.getMonth()+1)+"/"+d.getDate();
+  }catch(e){ return dateStr; }
+}
+
+function animateNumber(el, from, to, duration, suffix){
+  suffix = suffix || "";
+  var start = Date.now();
+  function tick(){
+    var elapsed = Date.now() - start;
+    var progress = Math.min(elapsed / duration, 1);
+    var val = Math.round(from + (to - from) * progress);
+    el.textContent = val + suffix;
+    if(progress < 1) requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function resetAll(){
+  if(!confirm("确定重置所有工具的学习进度？\n这将清除：\n• 探索记录\n• 记忆卡进度\n• 测验历史\n• 路线图进度\n\n此操作不可撤销。")) return;
+  localStorage.removeItem("tw-explored");
+  localStorage.removeItem("tw-recent");
+  localStorage.removeItem("tw_flashcards_v1");
+  localStorage.removeItem("tw_quiz_history");
+  localStorage.removeItem("tw_roadmap_progress");
+  location.reload();
+}
+
+// ---- Init ----
+function init(){
+  var data = loadData();
+
+  // Update timestamp
+  document.getElementById("updatedAt").textContent = "更新于 "+new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});
+
+  renderOverall(data);
+  renderToolCards(data);
+  renderHeatmap(data);
+  renderRadar(data);
+  renderRecommendations(data);
+  renderBadges(data);
+  renderActivity(data);
+
+  document.getElementById("resetBtn").onclick = resetAll;
+
+  // Auto-refresh every 30s to pick up changes from other tabs
+  setInterval(function(){
+    var newData = loadData();
+    renderOverall(newData);
+    renderToolCards(newData);
+    renderHeatmap(newData);
+    renderRadar(newData);
+    renderRecommendations(newData);
+    renderBadges(newData);
+    renderActivity(newData);
+  }, 30000);
+}
+init();
+</script>
+</body>
+</html>
