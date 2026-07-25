@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TW Git — Git 可视化学习器</title>
+<style>
+  :root {
+    --bg: #08090a;
+    --bg-elev: #0d0e10;
+    --bg-elev2: #131517;
+    --bg-elev3: #181a1d;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+    --text: #e7e8ea;
+    --text-dim: #8b9099;
+    --text-faint: #555a63;
+    --accent: #ea580c;
+    --accent-soft: rgba(234, 88, 12, 0.14);
+    --accent-line: rgba(234, 88, 12, 0.35);
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #e3b341;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --cyan: #39d0d8;
+    --pink: #f778ba;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* ---------- Layout ---------- */
+  .app {
+    display: grid;
+    grid-template-rows: 52px 1fr 44px;
+    height: 100vh;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 18px;
+    background: linear-gradient(180deg, #0c0d0f 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  header::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-line) 50%, transparent);
+    opacity: 0.5;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    font-size: 14px;
+  }
+  .logo-mark {
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    color: var(--accent);
+  }
+  .logo b { color: var(--accent); font-weight: 700; }
+  .logo span { color: var(--text-dim); font-weight: 500; }
+
+  .header-spacer { flex: 1; }
+
+  .ctrl {
+    display: flex; align-items: center; gap: 10px;
+  }
+  select.tut-select {
+    appearance: none;
+    background: var(--bg-elev2);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 30px 6px 10px;
+    font-family: var(--sans);
+    font-size: 12px;
+    cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+  }
+  select.tut-select:hover { border-color: var(--accent-line); }
+
+  .mode-toggle {
+    display: flex;
+    background: var(--bg-elev2);
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    padding: 2px;
+  }
+  .mode-toggle button {
+    background: transparent;
+    color: var(--text-dim);
+    border: 0;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+    border-radius: 5px;
+    transition: color .15s, background .15s;
+  }
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .icon-btn {
+    background: var(--bg-elev2);
+    color: var(--text-dim);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: color .15s, border-color .15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent-line); }
+
+  /* ---------- Workspace ---------- */
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    min-height: 0;
+  }
+  .left-pane {
+    display: grid;
+    grid-template-rows: 1fr 188px;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  /* ---------- Graph ---------- */
+  .graph-wrap {
+    position: relative;
+    min-height: 0;
+    overflow: auto;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0) 0 0 / 22px 22px,
+      var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .graph-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, rgba(8,9,10,0.96), rgba(8,9,10,0.6));
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .graph-toolbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .graph-toolbar .head-info { margin-left: auto; font-family: var(--mono); text-transform: none; letter-spacing: 0; color: var(--text); }
+  .graph-toolbar .head-info .br { color: var(--accent); }
+
+  .graph-scroll { padding: 18px; min-width: min-content; }
+  svg.graph { display: block; }
+  svg.graph .edge { fill: none; stroke-width: 2; opacity: 0.55; }
+  svg.graph .edge-merge { stroke-dasharray: 1 0; opacity: 0.7; }
+  svg.graph .node { cursor: default; }
+  svg.graph .node-core { stroke-width: 2; }
+  svg.graph .node-ring { fill: none; stroke-width: 2; }
+  svg.graph .head-ring { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+  svg.graph .label-rect { stroke-width: 1; }
+  svg.graph .label-text { font-family: var(--mono); font-size: 9.5px; fill: var(--text); }
+  svg.graph .msg-hash { font-family: var(--mono); font-size: 10px; fill: var(--text-faint); }
+  svg.graph .msg-text { font-family: var(--sans); font-size: 11.5px; fill: var(--text); }
+  svg.graph .lane-label { font-family: var(--mono); font-size: 9px; fill: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .empty-state {
+    color: var(--text-faint);
+    font-size: 13px;
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .empty-state code { color: var(--accent); font-family: var(--mono); }
+
+  @keyframes nodePop { from { transform: scale(0.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes edgeDraw { from { stroke-dashoffset: 200; } to { stroke-dashoffset: 0; } }
+  svg.graph .node-core, svg.graph .node-ring { transform-box: fill-box; transform-origin: center; animation: nodePop .28s cubic-bezier(.2,.9,.3,1.2); }
+  svg.graph .edge { stroke-dasharray: 200; animation: edgeDraw .4s ease forwards; }
+
+  /* ---------- File panel ---------- */
+  .files-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 0;
+    background: var(--bg-elev);
+  }
+  .files-col {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+  .files-col:last-child { border-right: 0; }
+  .files-col-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev2);
+  }
+  .files-col-head .pip { width: 8px; height: 8px; border-radius: 2px; }
+  .pip.staged { background: var(--green); }
+  .pip.working { background: var(--yellow); }
+  .files-list { overflow: auto; padding: 6px; flex: 1; }
+  .file-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 9px;
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+  }
+  .file-row:hover { background: var(--bg-elev2); }
+  .file-badge {
+    font-size: 9.5px;
+    font-family: var(--mono);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .b-new { color: var(--green); background: rgba(63,185,80,0.13); }
+  .b-mod { color: var(--yellow); background: rgba(227,179,65,0.13); }
+  .b-del { color: var(--red); background: rgba(248,81,73,0.13); }
+  .b-conf { color: var(--red); background: rgba(248,81,73,0.18); }
+  .file-name { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files-empty { color: var(--text-faint); font-size: 11px; padding: 10px 14px; font-style: italic; }
+
+  /* ---------- Terminal ---------- */
+  .terminal {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: #060708;
+    border-left: 1px solid var(--border);
+  }
+  .term-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .term-head .dots { display: flex; gap: 6px; }
+  .term-head .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .term-head .dots .r { background: #ff5f57; }
+  .term-head .dots .y { background: #febc2e; }
+  .term-head .dots .g { background: #28c840; }
+  .term-head .title { font-family: var(--mono); text-transform: none; letter-spacing: 0; color: var(--text-dim); }
+  .term-head .title b { color: var(--text); }
+
+  .term-output {
+    flex: 1;
+    overflow: auto;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .term-line { white-space: pre-wrap; word-break: break-word; }
+  .term-line.cmd { color: var(--text); }
+  .term-line.cmd .prompt { color: var(--accent); margin-right: 7px; }
+  .term-line.out { color: var(--text-dim); }
+  .term-line.ok { color: var(--green); }
+  .term-line.err { color: var(--red); }
+  .term-line.warn { color: var(--yellow); }
+  .term-line.hint { color: var(--blue); }
+  .term-line.dim { color: var(--text-faint); }
+  .term-line.title { color: var(--accent); font-weight: 600; }
+  .term-line .h { color: var(--text); }
+  .term-line .g { color: var(--green); }
+  .term-line .r { color: var(--red); }
+  .term-line .y { color: var(--yellow); }
+  .term-line .b { color: var(--blue); }
+  .term-line .a { color: var(--accent); }
+  .term-line .d { color: var(--text-dim); }
+  .term-line .m { color: var(--purple); }
+
+  .term-input-line {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elev);
+  }
+  .term-input-line .prompt { color: var(--accent); font-family: var(--mono); font-size: 13px; font-weight: 700; }
+  #termInput {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    caret-color: var(--accent);
+  }
+  .term-caret { width: 8px; height: 15px; background: var(--accent); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- Footer ---------- */
+  footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 18px;
+    background: var(--bg-elev);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .progress-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .progress-label { color: var(--text-dim); white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+  .progress-bar { flex: 1; max-width: 260px; height: 6px; background: var(--bg-elev3); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #f97316); border-radius: 3px; transition: width .3s ease; }
+  .step-hint { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step-hint .k { color: var(--accent); font-family: var(--mono); }
+  .footer-status { color: var(--text-dim); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+  .footer-status .ok { color: var(--green); }
+
+  /* ---------- Scrollbars ---------- */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-elev3); border-radius: 5px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #2a2d31; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 980px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .terminal { border-left: 0; border-top: 1px solid var(--border); }
+    .left-pane { grid-template-rows: 1fr 150px; }
+  }
+  @media (max-width: 620px) {
+    .app { grid-template-rows: 48px 1fr 40px; }
+    header { gap: 8px; padding: 0 10px; }
+    .logo span { display: none; }
+    select.tut-select { padding: 6px 26px 6px 8px; font-size: 11px; }
+    .files-panel { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .files-col { border-right: 0; border-bottom: 1px solid var(--border); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <span class="logo-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/>
+          <path d="M6 8.4v7.2"/><path d="M6 12h6a3 3 0 0 0 3-3V8.4"/>
+        </svg>
+      </span>
+      <b>TW</b><span>Git</span>
+    </div>
+    <select class="tut-select" id="tutSelect" title="选择课程"></select>
+    <div class="header-spacer"></div>
+    <div class="mode-toggle" id="modeToggle">
+      <button data-mode="tutorial" class="active">教程</button>
+      <button data-mode="free">自由</button>
+    </div>
+    <button class="icon-btn" id="resetRepoBtn" title="重置当前仓库">重置仓库</button>
+  </header>
+
+  <!-- Workspace -->
+  <div class="workspace">
+    <div class="left-pane">
+      <div class="graph-wrap">
+        <div class="graph-toolbar">
+          <span class="dot"></span>
+          <span>提交图</span>
+          <span class="head-info" id="headInfo"></span>
+        </div>
+        <div class="graph-scroll" id="graphScroll">
+          <div class="empty-state" id="graphEmpty">
+            仓库尚未初始化。在右侧终端运行 <code>git init</code> 开始。
+          </div>
+          <svg class="graph" id="graph" xmlns="http://www.w3.org/2000/svg" style="display:none"></svg>
+        </div>
+      </div>
+      <div class="files-panel">
+        <div class="files-col">
+          <div class="files-col-head"><span class="pip staged"></span>暂存区 / Staged</div>
+          <div class="files-list" id="stagedList"><div class="files-empty">无暂存改动</div></div>
+        </div>
+        <div class="files-col">
+          <div class="files-col-head"><span class="pip working"></span>工作区 / Working</div>
+          <div class="files-list" id="workingList"><div class="files-empty">工作区干净</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="term-head">
+        <span class="dots"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <span class="title">tw-git — <b>bash</b></span>
+      </div>
+      <div class="term-output" id="termOutput"></div>
+      <div class="term-input-line">
+        <span class="prompt">$</span>
+        <input id="termInput" autofocus autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="输入 git 命令，例如 git init" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="progress-wrap">
+      <span class="progress-label" id="progressLabel">课程 0/10</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+    <div class="step-hint" id="stepHint">选择一门课程开始学习</div>
+    <div class="footer-status" id="footerStatus"></div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   TW Git — 单文件 Git 可视化学习器
+   纯 JS 对象维护 Git 模型，SVG 渲染提交图
+   ============================================================ */
+
+/* ---------------- 仓库模型 ---------------- */
+const Git = {
+  commits: {},        // hash -> { hash, message, parents:[], time, branch, author, files:{} }
+  branches: {},       // name -> hash
+  head: { type: "branch", name: "main" }, // {type:'branch'|'detached', name|hash}
+  index: {},          // 暂存区: filename -> content (相对 HEAD 的增量)
+  working: {},        // 工作区: filename -> content
+  tags: {},           // name -> hash
+  stash: [],          // [{ files, branch, head }]
+  initialized: false,
+  time: 0,            // 单调递增计数器，用于提交排序
+  mergeInProgress: null, // { target, theirs, conflictedFiles:[] }
+  remote: null        // 简化远程指针
+};
+
+const BRANCH_COLORS = ["#57606a", "#ea580c", "#58a6ff", "#3fb950", "#bc8cff", "#e3b341", "#39d0d8", "#f778ba", "#f85149"];
+const STORAGE_REPO = "tw-git-repo";
+const STORAGE_TUT = "tw-git-tutorial";
+const STORAGE_DONE = "tw-git-completed";
+
+/* ---------------- 工具函数 ---------------- */
+function nextTime() { Git.time += 1; return Git.time; }
+
+function genHash() {
+  const chars = "0123456789abcdef";
+  let h = "";
+  for (let i = 0; i < 7; i++) h += chars[Math.floor(Math.random() * 16)];
+  if (Git.commits[h]) return genHash();
+  return h;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function currentHeadHash() {
+  if (Git.head.type === "branch") return Git.branches[Git.head.name] || null;
+  return Git.head.hash || null;
+}
+
+function getHeadFiles() {
+  const h = currentHeadHash();
+  if (!h || !Git.commits[h]) return {};
+  return Git.commits[h].files || {};
+}
+
+function laneColor(lane) {
+  return BRANCH_COLORS[lane % BRANCH_COLORS.length];
+}
+
+/* ---------------- 仓库初始化 / 重置 ---------------- */
+function initRepo() {
+  Git.commits = {};
+  Git.branches = { main: null };
+  Git.head = { type: "branch", name: "main" };
+  Git.index = {};
+  Git.working = {};
+  Git.tags = {};
+  Git.stash = [];
+  Git.initialized = true;
+  Git.time = 0;
+  Git.mergeInProgress = null;
+  Git.remote = null;
+}
+
+function resetRepo() {
+  Git.commits = {};
+  Git.branches = {};
+  Git.head = { type: "branch", name: "main" };
+  Git.index = {};
+  Git.working = {};
+  Git.tags = {};
+  Git.stash = [];
+  Git.initialized = false;
+  Git.time = 0;
+  Git.mergeInProgress = null;
+  Git.remote = null;
+}
+
+function syncToHead() {
+  Git.working = { ...getHeadFiles() };
+  Git.index = {};
+}
+
+/* ---------------- 底层提交（供 setup 使用） ---------------- */
+function rawCommit(branch, message, fileDelta) {
+  if (!Git.branches.hasOwnProperty(branch)) {
+    const from = Git.head.type === "branch" ? Git.branches[Git.head.name] : (Git.head.type === "detached" ? Git.head.hash : null);
+    Git.branches[branch] = from || null;
+  }
+  Git.head = { type: "branch", name: branch };
+  const parent = Git.branches[branch];
+  const parentFiles = parent ? Git.commits[parent].files : {};
+  const files = { ...parentFiles, ...fileDelta };
+  const hash = genHash();
+  Git.commits[hash] = {
+    hash, message,
+    parents: parent ? [parent] : [],
+    time: nextTime(),
+    branch,
+    author: "TW Git",
+    files
+  };
+  Git.branches[branch] = hash;
+  return hash;
+}
+
+function commitDelta(c) {
+  const parentFiles = c.parents[0] ? Git.commits[c.parents[0]].files : {};
+  const delta = {};
+  for (const f in c.files) {
+    if (c.files[f] !== parentFiles[f]) delta[f] = c.files[f];
+  }
+  return delta;
+}
+
+/* ---------------- 状态计算 ---------------- */
+function computeStatus() {
+  const head = getHeadFiles();
+  const staged = [], unstaged = [], untracked = [];
+  for (const f in Git.index) {
+    if (Git.index[f] !== head[f]) {
+      staged.push({ file: f, label: (f in head) ? "modified" : "new file" });
+    }
+  }
+  for (const f in Git.working) {
+    const tracked = (f in head) || (f in Git.index);
+    const base = (f in Git.index) ? Git.index[f] : head[f];
+    if (!tracked) untracked.push({ file: f, label: "untracked" });
+    else if (Git.working[f] !== base) unstaged.push({ file: f, label: "modified" });
+  }
+  for (const f in head) {
+    if (!(f in Git.working) && !(f in Git.index)) {
+      unstaged.push({ file: f, label: "deleted" });
+    }
+  }
+  if (Git.mergeInProgress) {
+    Git.mergeInProgress.conflictedFiles.forEach(f => {
+      staged.push({ file: f, label: "conflict" });
+    });
+  }
+  return { staged, unstaged, untracked };
+}
+
+function hasStagedChanges() {
+  const head = getHeadFiles();
+  for (const f in Git.index) {
+    if (Git.index[f] !== head[f]) return true;
+  }
+  if (Git.mergeInProgress && Git.mergeInProgress.conflictedFiles.length) {
+    // 冲突未解决
+  }
+  return false;
+}
+
+/* ---------------- 提交创建 ---------------- */
+function createCommit(message, extraParents) {
+  const parent = currentHeadHash();
+  const parents = parent ? [parent] : [];
+  if (extraParents && extraParents.length) parents.push(...extraParents);
+  const hash = genHash();
+  const files = { ...getHeadFiles(), ...Git.index };
+  const branch = Git.head.type === "branch" ? Git.head.name : "detached";
+  Git.commits[hash] = {
+    hash, message, parents, time: nextTime(),
+    branch, author: "TW Git", files
+  };
+  if (Git.head.type === "branch") Git.branches[Git.head.name] = hash;
+  Git.index = {};
+  return hash;
+}
+
+/* ---------------- 引用解析 ---------------- */
+function resolveRef(ref) {
+  if (!ref) return currentHeadHash();
+  if (ref === "HEAD") return currentHeadHash();
+  if (ref === "HEAD^" || ref === "HEAD~1") {
+    const h = currentHeadHash();
+    return h && Git.commits[h] ? Git.commits[h].parents[0] || null : null;
+  }
+  const m = ref.match(/^HEAD~(\d+)$/);
+  if (m) {
+    let h = currentHeadHash();
+    for (let i = 0; i < parseInt(m[1], 10); i++) {
+      if (h && Git.commits[h] && Git.commits[h].parents[0]) h = Git.commits[h].parents[0];
+      else return null;
+    }
+    return h;
+  }
+  if (Git.branches[ref]) return Git.branches[ref];
+  if (Git.tags[ref]) return Git.tags[ref];
+  if (Git.commits[ref]) return ref;
+  const matches = Object.keys(Git.commits).filter(h => h.startsWith(ref));
+  if (matches.length === 1) return matches[0];
+  return null;
+}
+
+/* ---------------- DAG 祖先 / merge-base ---------------- */
+function ancestors(hash) {
+  const set = new Set();
+  const stack = [hash];
+  while (stack.length) {
+    const h = stack.pop();
+    if (set.has(h) || !Git.commits[h]) continue;
+    set.add(h);
+    Git.commits[h].parents.forEach(p => stack.push(p));
+  }
+  return set;
+}
+
+function mergeBase(a, b) {
+  if (!a || !b) return null;
+  const aa = ancestors(a);
+  const visited = new Set();
+  const queue = [b];
+  while (queue.length) {
+    const h = queue.shift();
+    if (visited.has(h) || !Git.commits[h]) continue;
+    visited.add(h);
+    if (aa.has(h)) return h;
+    Git.commits[h].parents.forEach(p => queue.push(p));
+  }
+  return null;
+}
+
+/* ============================================================
+   命令实现
+   ============================================================ */
+
+function cmdInit() {
+  if (Git.initialized) { printErr("fatal: 仓库已初始化（重新初始化请先点击「重置仓库」）"); return; }
+  initRepo();
+  print("Initialized empty Git repository in /tw-git/.git/", "ok");
+}
+
+function cmdAdd(args) {
+  if (!args.length) { printErr("nothing specified, nothing added."); return; }
+  const head = getHeadFiles();
+  let added = 0;
+  for (const a of args) {
+    if (a === "." || a === "-A" || a === "--all") {
+      for (const f in Git.working) { Git.index[f] = Git.working[f]; added++; }
+    } else if (a === "-u") {
+      for (const f in Git.working) { if (f in head) { Git.index[f] = Git.working[f]; added++; } }
+    } else {
+      if (a in Git.working) { Git.index[a] = Git.working[a]; added++; }
+      else { printErr(`fatal: pathspec '${a}' did not match any files`); }
+    }
+  }
+  if (added) print(`已暂存 ${added} 个文件`, "dim");
+}
+
+function cmdCommit(args) {
+  let msg = "";
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-m") { msg = args[i + 1] || ""; break; }
+    if (args[i].startsWith("-m") && args[i].length > 2) { msg = args[i].slice(2); break; }
+  }
+  if (!msg) { printErr('error: 请使用 -m 提供提交信息，例如 git commit -m "消息"'); return; }
+
+  if (Git.mergeInProgress) {
+    if (Git.mergeInProgress.conflictedFiles.length) {
+      const resolved = Git.mergeInProgress.conflictedFiles.every(f => f in Git.index);
+      if (!resolved) { printErr("error: 仍有未解决的冲突，请先 git add 已解决的文件"); return; }
+    }
+    const mp = Git.mergeInProgress;
+    const hash = createCommit(`Merge branch '${mp.target}'`, [mp.theirs]);
+    Git.mergeInProgress = null;
+    print(`[${Git.head.type === "branch" ? Git.head.name : "detached"} ${hash}] Merge branch '${mp.target}'`, "ok");
+    return;
+  }
+
+  if (!hasStagedChanges()) {
+    print("nothing to commit, working tree clean", "warn");
+    return;
+  }
+  const hash = createCommit(msg);
+  const branch = Git.head.type === "branch" ? Git.head.name : "detached";
+  const n = Object.keys(Git.index).length || Object.keys(getHeadFiles()).length;
+  print(`[${branch} ${hash}] ${escapeHtml(msg)}`, "ok");
+  print(` ${n} file changed`, "dim");
+}
+
+function cmdStatus() {
+  const branch = Git.head.type === "branch" ? Git.head.name : `HEAD (detached at ${currentHeadHash()})`;
+  print(`On branch ${branch}`);
+  if (Git.head.type === "branch" && Git.head.name === "main" && !Git.remote) {
+    print("No remote repository configured", "dim");
+  }
+  const s = computeStatus();
+  if (Git.mergeInProgress) {
+    print(`You have unmerged paths.`, "r");
+    print(`  (fix conflicts and run "git commit")`, "d");
+    print("");
+  }
+  if (s.staged.length) {
+    print("Changes to be committed:");
+    s.staged.forEach(x => print(`  ${x.label === "new file" ? "new file:" : x.label === "conflict" ? "both modified:" : "modified:  "}   ${escapeHtml(x.file)}`, "g"));
+    print("");
+  }
+  if (s.unstaged.length) {
+    print("Changes not staged for commit:");
+    s.unstaged.forEach(x => print(`  ${x.label === "deleted" ? "deleted:   " : "modified:  "}   ${escapeHtml(x.file)}`, "y"));
+    print("");
+  }
+  if (s.untracked.length) {
+    print("Untracked files:");
+    s.untracked.forEach(x => print(`  ${escapeHtml(x.file)}`, "r"));
+    print("");
+  }
+  if (!s.staged.length && !s.unstaged.length && !s.untracked.length && !Git.mergeInProgress) {
+    print("nothing to commit, working tree clean", "ok");
+  }
+}
+
+function cmdLog(arg) {
+  const commits = Object.values(Git.commits).sort((a, b) => b.time - a.time);
+  if (!commits.length) { printErr("fatal: your current branch does not have any commits yet"); return; }
+  let limit = commits.length;
+  if (arg && /^\d+$/.test(arg)) limit = Math.min(parseInt(arg, 10), commits.length);
+  let count = 0;
+  for (const c of commits) {
+    if (count >= limit) break;
+    print(`commit ${c.hash}` + (c.parents.length > 1 ? ` (merge)` : ""));
+    print(`Author: ${c.author} <tw-git@local>`);
+    print(`    ${escapeHtml(c.message)}`);
+    print("");
+    count++;
+  }
+}
+
+function cmdBranch(args) {
+  if (!args.length) {
+    const cur = Git.head.type === "branch" ? Git.head.name : null;
+    Object.keys(Git.branches).sort().forEach(name => {
+      const mark = name === cur ? "* " : "  ";
+      const tip = Git.branches[name] || "(no commits)";
+      print(`${mark}${name}` + (tip !== "(no commits)" ? `    ${tip}` : ""), name === cur ? "h" : "out");
+    });
+    return;
+  }
+  if (args[0] === "-d" || args[0] === "-D") {
+    const name = args[1];
+    if (!Git.branches[name]) { printErr(`error: branch '${name}' not found.`); return; }
+    if (Git.head.type === "branch" && Git.head.name === name) { printErr(`error: Cannot delete the currently checked out branch '${name}'.`); return; }
+    const was = Git.branches[name];
+    delete Git.branches[name];
+    print(`Deleted branch ${name} (was ${was || "gone"}).`, "ok");
+    return;
+  }
+  const name = args[0];
+  const from = args[1] ? resolveRef(args[1]) : currentHeadHash();
+  if (Git.branches[name]) { printErr(`fatal: a branch named '${name}' already exists`); return; }
+  Git.branches[name] = from;
+  print(`Created branch ${name}` + (from ? ` at ${from}` : ""), "dim");
+}
+
+function checkoutTarget(target) {
+  if (Git.branches[target]) {
+    if (Git.mergeInProgress) { printErr("error: you need to resolve your current index first"); return; }
+    Git.head = { type: "branch", name: target };
+    syncToHead();
+    print(`Switched to branch '${target}'`, "ok");
+    return true;
+  }
+  const h = resolveRef(target);
+  if (h && Git.commits[h]) {
+    if (Git.mergeInProgress) { printErr("error: you need to resolve your current index first"); return false; }
+    Git.head = { type: "detached", hash: h };
+    syncToHead();
+    print(`HEAD is now at ${h} ${escapeHtml(Git.commits[h].message)}`, "ok");
+    return true;
+  }
+  printErr(`error: pathspec '${target}' did not match any known branch or commit`);
+  return false;
+}
+
+function cmdCheckout(args) {
+  if (!args.length) { printErr("error: you must specify a branch"); return; }
+  if (args[0] === "-b") {
+    const name = args[1];
+    const from = args[2] ? resolveRef(args[2]) : currentHeadHash();
+    if (!name) { printErr("error: missing branch name"); return; }
+    if (Git.branches[name]) { printErr(`fatal: a branch named '${name}' already exists`); return; }
+    Git.branches[name] = from;
+    Git.head = { type: "branch", name };
+    syncToHead();
+    print(`Switched to a new branch '${name}'`, "ok");
+    return;
+  }
+  checkoutTarget(args[0]);
+}
+
+function cmdSwitch(args) {
+  if (!args.length) { printErr("error: you must specify a branch"); return; }
+  if (args[0] === "-c" || args[0] === "--create") {
+    const name = args[1];
+    const from = args[2] ? resolveRef(args[2]) : currentHeadHash();
+    if (!name) { printErr("error: missing branch name"); return; }
+    if (Git.branches[name]) { printErr(`fatal: a branch named '${name}' already exists`); return; }
+    Git.branches[name] = from;
+    Git.head = { type: "branch", name };
+    syncToHead();
+    print(`Switched to a new branch '${name}'`, "ok");
+    return;
+  }
+  checkoutTarget(args[0]);
+}
+
+function cmdMerge(args) {
+  if (!args.length) { printErr("error: you must specify a branch to merge"); return; }
+  const target = args[0];
+  if (!Git.branches[target]) { printErr(`merge: ${target} - not something we can merge`); return; }
+  if (Git.mergeInProgress) { printErr("error: merge is already in progress"); return; }
+  const ours = currentHeadHash();
+  const theirs = Git.branches[target];
+  if (ours === theirs) { print("Already up to date.", "ok"); return; }
+  const base = mergeBase(ours, theirs);
+  if (base === theirs) { print("Already up to date.", "ok"); return; }
+  if (base === ours) {
+    // fast-forward
+    if (Git.head.type === "branch") Git.branches[Git.head.name] = theirs;
+    syncToHead();
+    print(`Updating ${ours || "(empty)"}..${theirs}`, "ok");
+    print("Fast-forward", "ok");
+    return;
+  }
+  // three-way merge
+  const ourFiles = ours ? Git.commits[ours].files : {};
+  const theirFiles = Git.commits[theirs].files;
+  const baseFiles = base ? Git.commits[base].files : {};
+  const allFiles = new Set([...Object.keys(ourFiles), ...Object.keys(theirFiles), ...Object.keys(baseFiles)]);
+  const conflicts = [];
+  const mergedFiles = {};
+  allFiles.forEach(f => {
+    const o = ourFiles[f], t = theirFiles[f], b = baseFiles[f];
+    if (o === t) { if (o !== undefined) mergedFiles[f] = o; }
+    else if (o === b) { if (t !== undefined) mergedFiles[f] = t; }
+    else if (t === b) { if (o !== undefined) mergedFiles[f] = o; }
+    else {
+      conflicts.push(f);
+      mergedFiles[f] = `<<<<<<< ours\n${o || ""}\n=======\n${t || ""}\n>>>>>>> ${target}`;
+    }
+  });
+  if (conflicts.length) {
+    Git.mergeInProgress = { target, theirs, conflictedFiles: conflicts };
+    Git.working = { ...Git.working, ...mergedFiles };
+    Git.index = {};
+    print(`Auto-merging files...`, "warn");
+    print(`CONFLICT (content): Merge conflict in ${conflicts.join(", ")}`, "r");
+    print("Automatic merge failed; fix conflicts and then commit the result.", "r");
+    return;
+  }
+  // no conflict → merge commit
+  Git.index = mergedFiles;
+  Git.working = { ...Git.working, ...mergedFiles };
+  const hash = createCommit(`Merge branch '${target}'`, [theirs]);
+  print(`Merge made by the 'recursive' strategy.`, "ok");
+  print(`[${Git.head.type === "branch" ? Git.head.name : "detached"} ${hash}] Merge branch '${target}'`, "ok");
+}
+
+function cmdRebase(args) {
+  if (!args.length) { printErr("error: you must specify a branch to rebase onto"); return; }
+  const target = args[0];
+  if (!Git.branches[target]) { printErr(`fatal: invalid upstream '${target}'`); return; }
+  if (Git.head.type !== "branch") { printErr("fatal: cannot rebase in detached HEAD"); return; }
+  const branch = Git.head.name;
+  const onto = Git.branches[target];
+  const tip = Git.branches[branch];
+  if (!tip) { printErr("fatal: current branch has no commits"); return; }
+  const base = mergeBase(tip, onto);
+  if (base === tip) { print("Current branch is up to date.", "ok"); return; }
+  // collect commits base..tip
+  const toReplay = [];
+  let h = tip;
+  while (h && h !== base) {
+    toReplay.unshift(h);
+    if (!Git.commits[h] || !Git.commits[h].parents[0]) break;
+    h = Git.commits[h].parents[0];
+  }
+  let cur = onto;
+  Git.branches[branch] = onto;
+  toReplay.forEach(ch => {
+    const old = Git.commits[ch];
+    const delta = commitDelta(old);
+    const newHash = genHash();
+    Git.commits[newHash] = {
+      hash: newHash,
+      message: old.message,
+      parents: [cur],
+      time: nextTime(),
+      branch,
+      author: old.author,
+      files: { ...Git.commits[cur].files, ...delta }
+    };
+    Git.branches[branch] = newHash;
+    cur = newHash;
+  });
+  syncToHead();
+  print(`Successfully rebased and updated refs/heads/${branch}.`, "ok");
+  print(`提示：变基后提交的 hash 已改变（${toReplay.length} 个提交被重放）`, "hint");
+}
+
+function cmdCherryPick(args) {
+  if (!args.length) { printErr("error: you must specify a commit to cherry-pick"); return; }
+  const ref = args[0];
+  const h = resolveRef(ref);
+  if (!h || !Git.commits[h]) { printErr(`fatal: bad revision '${ref}'`); return; }
+  const c = Git.commits[h];
+  const delta = commitDelta(c);
+  Git.index = { ...delta };
+  Git.working = { ...Git.working, ...delta };
+  const newHash = createCommit(c.message);
+  print(`[${Git.head.type === "branch" ? Git.head.name : "detached"} ${newHash}] ${escapeHtml(c.message)}`, "ok");
+  print(`(cherry picked from commit ${h})`, "dim");
+}
+
+function cmdRevert(args) {
+  if (!args.length) { printErr("error: you must specify a commit to revert"); return; }
+  const h = resolveRef(args[0]);
+  if (!h || !Git.commits[h]) { printErr(`fatal: bad revision '${args[0]}'`); return; }
+  const c = Git.commits[h];
+  const parentFiles = c.parents[0] ? Git.commits[c.parents[0]].files : {};
+  const delta = commitDelta(c);
+  const indexDelta = {};
+  for (const f in delta) {
+    if (f in parentFiles) indexDelta[f] = parentFiles[f];
+  }
+  Git.index = indexDelta;
+  Git.working = { ...Git.working, ...indexDelta };
+  const newHash = createCommit(`Revert "${c.message}"`);
+  print(`[${Git.head.type === "branch" ? Git.head.name : "detached"} ${newHash}] Revert "${escapeHtml(c.message)}"`, "ok");
+  print(`This reverts commit ${h}.`, "dim");
+}
+
+function cmdReset(args) {
+  let mode = "mixed";
+  let ref = null;
+  for (const a of args) {
+    if (a === "--soft") mode = "soft";
+    else if (a === "--mixed") mode = "mixed";
+    else if (a === "--hard") mode = "hard";
+    else if (a === "--keep") mode = "mixed";
+    else ref = a;
+  }
+  if (!ref) { printErr("error: you must specify a commit/branch to reset to"); return; }
+  const target = resolveRef(ref);
+  if (!target || !Git.commits[target]) { printErr(`fatal: ambiguous argument '${ref}': unknown revision`); return; }
+  const oldTip = currentHeadHash();
+  const oldFiles = oldTip ? Git.commits[oldTip].files : {};
+  if (Git.head.type === "branch") Git.branches[Git.head.name] = target;
+  else Git.head.hash = target;
+  const targetFiles = Git.commits[target].files;
+  if (mode === "soft") {
+    // 暂存被回退的改动：将 oldTip 相对 target 的差异放入暂存区
+    const idx = {};
+    for (const f in oldFiles) {
+      if (oldFiles[f] !== targetFiles[f]) idx[f] = oldFiles[f];
+    }
+    Git.index = idx;
+  } else if (mode === "mixed") {
+    Git.index = {};
+  } else if (mode === "hard") {
+    Git.index = {};
+    Git.working = { ...targetFiles };
+  }
+  Git.mergeInProgress = null;
+  print(`HEAD is now at ${target} ${escapeHtml(Git.commits[target].message)}`, "ok");
+  if (mode === "hard") print("(工作区与暂存区已重置)", "dim");
+  else if (mode === "soft") print("(暂存区与工作区保留，提交改动已变为暂存)", "hint");
+  else print("(暂存区已重置，工作区保留)", "dim");
+}
+
+function cmdStash(args) {
+  if (args[0] === "pop") {
+    if (!Git.stash.length) { printErr("fatal: No stash entries found."); return; }
+    const s = Git.stash.pop();
+    Git.working = { ...Git.working, ...s.files };
+    print(`Dropped refs/stash@{0} (恢复 ${Object.keys(s.files).length} 个文件改动)`, "ok");
+    return;
+  }
+  if (args[0] === "list") {
+    if (!Git.stash.length) { print("No stash entries.", "dim"); return; }
+    Git.stash.forEach((s, i) => print(`stash@{${i}}: WIP on ${s.branch}: ${s.head} (改动 ${Object.keys(s.files).length} 文件)`));
+    return;
+  }
+  if (args[0] === "drop") {
+    if (!Git.stash.length) { printErr("fatal: No stash entries found."); return; }
+    Git.stash.pop();
+    print("Dropped stash@{0}", "ok");
+    return;
+  }
+  // stash push (default)
+  const head = getHeadFiles();
+  const changes = {};
+  for (const f in Git.working) {
+    if (Git.working[f] !== head[f]) changes[f] = Git.working[f];
+  }
+  if (!Object.keys(changes).length) { print("No local changes to save", "warn"); return; }
+  Git.stash.push({ files: changes, branch: Git.head.type === "branch" ? Git.head.name : "detached", head: currentHeadHash() });
+  Git.working = { ...head };
+  Git.index = {};
+  print(`Saved working directory and index state WIP on ${Git.head.type === "branch" ? Git.head.name : "detached"}`, "ok");
+}
+
+function cmdTag(args) {
+  if (!args.length) {
+    const tags = Object.keys(Git.tags);
+    if (!tags.length) { print("(无标签)", "dim"); return; }
+    tags.forEach(t => print(t));
+    return;
+  }
+  const name = args[0];
+  const ref = args[1] ? resolveRef(args[1]) : currentHeadHash();
+  if (!ref || !Git.commits[ref]) { printErr(`fatal: Failed to resolve '${args[1] || "HEAD"}'`); return; }
+  if (Git.tags[name]) { printErr(`fatal: tag '${name}' already exists`); return; }
+  Git.tags[name] = ref;
+  print(`Created tag ${name} -> ${ref}`, "ok");
+}
+
+function cmdDiff() {
+  const head = getHeadFiles();
+  const s = computeStatus();
+  if (!s.unstaged.length && !s.staged.length) { print("(无差异)", "dim"); return; }
+  print("diff --git a/working b/index", "d");
+  s.unstaged.forEach(x => {
+    print(`--- a/${escapeHtml(x.file)}`, "r");
+    print(`+++ b/${escapeHtml(x.file)}`, "g");
+    print(`@@ 工作区修改 @@`, "d");
+    print(`- ${escapeHtml(head[x.file] || "")}`, "r");
+    print(`+ ${escapeHtml(Git.working[x.file] || "")}`, "g");
+  });
+}
+
+function cmdShow(args) {
+  const ref = args[0] ? args[0] : "HEAD";
+  const h = resolveRef(ref);
+  if (!h || !Git.commits[h]) { printErr(`fatal: ambiguous argument '${ref}'`); return; }
+  const c = Git.commits[h];
+  print(`commit ${c.hash}` + (c.parents.length > 1 ? " (merge)" : ""));
+  print(`Author: ${c.author} <tw-git@local>`);
+  print(`    ${escapeHtml(c.message)}`);
+  print("");
+  const parentFiles = c.parents[0] ? Git.commits[c.parents[0]].files : {};
+  const delta = commitDelta(c);
+  if (!Object.keys(delta).length) { print("(无文件改动)", "dim"); return; }
+  for (const f in delta) {
+    print(`diff --git a/${escapeHtml(f)} b/${escapeHtml(f)}`, "d");
+    if (!(f in parentFiles)) {
+      print(`new file: ${escapeHtml(f)}`, "g");
+      print(`+ ${escapeHtml(delta[f])}`, "g");
+    } else {
+      print(`--- a/${escapeHtml(f)}`, "r");
+      print(`+++ b/${escapeHtml(f)}`, "g");
+      print(`- ${escapeHtml(parentFiles[f])}`, "r");
+      print(`+ ${escapeHtml(delta[f])}`, "g");
+    }
+  }
+}
+
+function cmdClone(args) {
+  resetRepo();
+  initRepo();
+  // 模拟远程已有两个提交
+  rawCommit("main", "Initial commit", { "README.md": "# TW Git" });
+  rawCommit("main", "Add project scaffold", { "index.html": "<h1>Hello</h1>" });
+  Git.remote = Git.branches.main;
+  syncToHead();
+  print(`Cloning into '${args[0] || "tw-git"}'...`, "dim");
+  print(`remote: Enumerating objects: 6, done.`, "dim");
+  print(`Receiving objects: 100% (6/6), done.`, "ok");
+  print(`已从远程克隆仓库，包含 ${Object.keys(Git.commits).length} 个提交。`, "hint");
+}
+
+function cmdPush() {
+  if (!Git.initialized) { printErr("fatal: not a git repository"); return; }
+  if (Git.head.type !== "branch") { printErr("fatal: HEAD is detached"); return; }
+  Git.remote = Git.branches[Git.head.name];
+  print(`To origin`, "dim");
+  print(` * [new branch]   ${Git.head.name} -> ${Git.head.name}`, "ok");
+  print(`(已将 ${Git.head.name} 推送到远程)`, "hint");
+}
+
+function cmdPull() {
+  if (!Git.initialized) { printErr("fatal: not a git repository"); return; }
+  if (!Git.remote) { printErr("fatal: no remote configured, run git clone or git push first"); return; }
+  print(`remote: Enumerating objects: done.`, "dim");
+  print(`From origin`, "dim");
+  print(` * branch            -> FETCH_HEAD`, "ok");
+  print(`(远程无新提交，已是最新)`, "hint");
+}
+
+function cmdFetch() {
+  if (!Git.initialized) { printErr("fatal: not a git repository"); return; }
+  if (!Git.remote) { printErr("fatal: no remote configured"); return; }
+  print(`remote: Enumerating objects: done.`, "dim");
+  print(`From origin`, "dim");
+  print(` * [new ref]        -> origin/HEAD`, "ok");
+}
+
+/* ---------------- 非 git 命令 ---------------- */
+function cmdTouch(args) {
+  args.forEach(f => { if (!(f in Git.working)) Git.working[f] = ""; });
+  print(`(创建文件: ${args.join(", ")})`, "dim");
+}
+
+function cmdEcho(args) {
+  // echo "content" > file  或  echo content > file
+  const gtIdx = args.indexOf(">");
+  if (gtIdx === -1) {
+    print(args.join(" "));
+    return;
+  }
+  const content = args.slice(0, gtIdx).join(" ");
+  const file = args[gtIdx + 1];
+  if (!file) { printErr("echo: 重定向目标缺失"); return; }
+  Git.working[file] = content;
+  print(`(写入 ${file})`, "dim");
+}
+
+function cmdLs() {
+  const files = Object.keys(Git.working);
+  if (!files.length) { print("(空)", "dim"); return; }
+  files.forEach(f => print(f));
+}
+
+function printHelp() {
+  print("TW Git — 可用命令", "title");
+  print("");
+  print("  仓库:    git init | git clone [url] | git status | git log [n]", "out");
+  print("  暂存:    git add <file|.| -A> | git commit -m \"msg\" | git diff", "out");
+  print("  分支:    git branch [name] | git checkout <b> | git switch [-c] <b>", "out");
+  print("  合并:    git merge <b> | git rebase <b> | git cherry-pick <hash>", "out");
+  print("  回退:    git revert <hash> | git reset --soft|--mixed|--hard <ref>", "out");
+  print("  暂存:    git stash | git stash pop | git stash list", "out");
+  print("  标签:    git tag [name] [ref] | git show <ref>", "out");
+  print("  远程:    git push | git pull | git fetch", "out");
+  print("  其他:    touch <f> | echo \"text\" > <f> | ls | clear | help", "out");
+  print("");
+  print("  引用可用: 分支名 / 标签名 / 提交hash / HEAD / HEAD~N / HEAD^", "hint");
+}
+
+/* ============================================================
+   命令解析与分发
+   ============================================================ */
+function parseCommand(raw) {
+  let s = raw.trim();
+  if (s.startsWith("git ")) s = s.slice(4);
+  else if (s === "git") s = "";
+  const parts = s.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  return parts.map(p => p.replace(/^["']|["']$/g, ""));
+}
+
+function runCommand(input) {
+  const raw = input.trim();
+  // 回显命令
+  if (raw) {
+    const line = document.createElement("div");
+    line.className = "term-line cmd";
+    line.innerHTML = `<span class="prompt">$</span>${escapeHtml(raw)}`;
+    termOutput.appendChild(line);
+  }
+  if (!raw) { scrollTerm(); return; }
+  history.push(raw);
+  histIdx = history.length;
+
+  const parts = parseCommand(raw);
+  if (!parts.length) { scrollTerm(); return; }
+  const cmd = parts[0];
+  const args = parts.slice(1);
+
+  // 非 git 命令始终可用
+  if (cmd === "clear") { termOutput.innerHTML = ""; scrollTerm(); return; }
+  if (cmd === "help" || cmd === "--help" || cmd === "-h") { printHelp(); afterCommand(); return; }
+  if (cmd === "touch") { cmdTouch(args); afterCommand(); return; }
+  if (cmd === "echo") { cmdEcho(args); afterCommand(); return; }
+  if (cmd === "ls") { cmdLs(); afterCommand(); return; }
+
+  // 未初始化时只允许 init / clone
+  if (!Git.initialized && cmd !== "init" && cmd !== "clone") {
+    printErr("fatal: 不是一个 git 仓库（请先运行 git init 或 git clone）");
+    afterCommand();
+    return;
+  }
+
+  switch (cmd) {
+    case "init": cmdInit(); break;
+    case "add": cmdAdd(args); break;
+    case "commit": cmdCommit(args); break;
+    case "status": cmdStatus(); break;
+    case "log": cmdLog(args[0]); break;
+    case "branch": cmdBranch(args); break;
+    case "checkout": cmdCheckout(args); break;
+    case "switch": cmdSwitch(args); break;
+    case "merge": cmdMerge(args); break;
+    case "rebase": cmdRebase(args); break;
+    case "cherry-pick": cmdCherryPick(args); break;
+    case "revert": cmdRevert(args); break;
+    case "reset": cmdReset(args); break;
+    case "stash": cmdStash(args); break;
+    case "tag": cmdTag(args); break;
+    case "diff": cmdDiff(); break;
+    case "show": cmdShow(args); break;
+    case "clone": cmdClone(args); break;
+    case "push": cmdPush(); break;
+    case "pull": cmdPull(); break;
+    case "fetch": cmdFetch(); break;
+    default:
+      printErr(`git: '${cmd}' 不是一个 git 命令。输入 help 查看可用命令。`);
+  }
+  afterCommand();
+}
+
+function afterCommand() {
+  scrollTerm();
+  renderAll();
+  checkTutorialStep();
+  save();
+}
+
+/* ============================================================
+   终端输出
+   ============================================================ */
+const termOutput = document.getElementById("termOutput");
+const termInput = document.getElementById("termInput");
+let history = [];
+let histIdx = 0;
+
+function print(text, cls) {
+  const div = document.createElement("div");
+  div.className = "term-line " + (cls || "out");
+  div.innerHTML = text; // 允许带 span 的着色
+  termOutput.appendChild(div);
+  scrollTerm();
+}
+
+function printErr(text) { print(text, "err"); }
+
+function scrollTerm() {
+  termOutput.scrollTop = termOutput.scrollHeight;
+}
+
+termInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const v = termInput.value;
+    termInput.value = "";
+    runCommand(v);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (histIdx > 0) { histIdx--; termInput.value = history[histIdx] || ""; }
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (histIdx < history.length) { histIdx++; termInput.value = history[histIdx] || ""; }
+  } else if (e.key === "Tab") {
+    e.preventDefault();
+    tabComplete();
+  } else if (e.key === "l" && e.ctrlKey) {
+    e.preventDefault();
+    termOutput.innerHTML = "";
+  }
+});
+
+const COMMAND_NAMES = ["init", "add", "commit", "status", "log", "branch", "checkout", "switch", "merge", "rebase", "cherry-pick", "revert", "reset", "stash", "tag", "diff", "show", "clone", "push", "pull", "fetch"];
+
+function tabComplete() {
+  const v = termInput.value;
+  if (!v.startsWith("git ")) return;
+  const tail = v.slice(4);
+  const match = COMMAND_NAMES.filter(c => c.startsWith(tail));
+  if (match.length === 1) termInput.value = "git " + match[0] + " ";
+  else if (match.length > 1) print(match.join("   "), "dim");
+}
+
+/* ============================================================
+   SVG 提交图渲染
+   ============================================================ */
+const graph = document.getElementById("graph");
+const graphEmpty = document.getElementById("graphEmpty");
+const graphScroll = document.getElementById("graphScroll");
+
+function assignLanes(commits) {
+  commits.sort((a, b) => a.time - b.time);
+  const branchLane = { main: 0 };
+  let nextLane = 1;
+  commits.forEach(c => {
+    if (!(c.branch in branchLane)) branchLane[c.branch] = nextLane++;
+    c.lane = branchLane[c.branch];
+  });
+  Git._maxLane = Math.max(nextLane - 1, 0);
+}
+
+// 计算从所有引用可达的提交集合
+function reachableCommits() {
+  const set = new Set();
+  const stack = [];
+  const push = h => { if (h && Git.commits[h] && !set.has(h)) { set.add(h); stack.push(h); } };
+  Object.values(Git.branches).forEach(push);
+  Object.values(Git.tags).forEach(push);
+  push(currentHeadHash());
+  Git.stash.forEach(s => push(s.head));
+  while (stack.length) {
+    const h = stack.pop();
+    Git.commits[h].parents.forEach(push);
+  }
+  return set;
+}
+
+function renderGraph() {
+  const reach = reachableCommits();
+  const commits = Object.values(Git.commits).filter(c => reach.has(c.hash));
+  if (!commits.length || !Git.initialized) {
+    graph.style.display = "none";
+    graphEmpty.style.display = "block";
+    graphEmpty.textContent = Git.initialized
+      ? "尚无提交。使用 git add 暂存文件，再 git commit 创建第一个提交。"
+      : "仓库尚未初始化。在右侧终端运行 git init 开始。";
+    return;
+  }
+  graph.style.display = "block";
+  graphEmpty.style.display = "none";
+
+  assignLanes(commits);
+  const sorted = commits.sort((a, b) => b.time - a.time); // 最新在上
+
+  const laneW = 58;
+  const rowH = 50;
+  const padX = 30;
+  const padTop = 46;
+  const padBottom = 30;
+  const maxLane = Git._maxLane || 0;
+  const messageX = padX + maxLane * laneW + 34;
+  const width = Math.max(messageX + 320, 360);
+  const height = padTop + padBottom + Math.max(sorted.length - 1, 0) * rowH;
+
+  sorted.forEach((c, i) => {
+    c.x = padX + c.lane * laneW;
+    c.y = padTop + i * rowH;
+  });
+
+  graph.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  graph.setAttribute("width", width);
+  graph.setAttribute("height", height);
+
+  let svg = "";
+
+  // 背景泳道引导线
+  for (let l = 0; l <= maxLane; l++) {
+    const x = padX + l * laneW;
+    svg += `<line x1="${x}" y1="${padTop - 26}" x2="${x}" y2="${height - padBottom + 14}" stroke="rgba(255,255,255,0.035)" stroke-width="1"/>`;
+  }
+
+  // 分支泳道标签
+  const laneBranches = {};
+  Object.entries(Git.branches).forEach(([name, hash]) => {
+    if (hash && Git.commits[hash]) {
+      const l = Git.commits[hash].lane;
+      (laneBranches[l] = laneBranches[l] || []).push(name);
+    }
+  });
+  for (const l in laneBranches) {
+    const x = padX + parseInt(l, 10) * laneW;
+    const names = laneBranches[l].join(" / ");
+    svg += `<text class="lane-label" x="${x}" y="${padTop - 28}" text-anchor="middle">${escapeHtml(names)}</text>`;
+  }
+
+  // 边
+  sorted.forEach(c => {
+    c.parents.forEach((ph, idx) => {
+      const p = Git.commits[ph];
+      if (!p) return;
+      const x1 = c.x, y1 = c.y, x2 = p.x, y2 = p.y;
+      let d, cls = "edge";
+      if (Math.abs(x1 - x2) < 1) {
+        d = `M${x1},${y1} L${x2},${y2}`;
+      } else {
+        const my = y1 + (y2 - y1) * 0.5;
+        d = `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+        cls = "edge edge-merge";
+      }
+      const color = idx === 0 ? laneColor(c.lane) : laneColor(p.lane);
+      svg += `<path class="${cls}" d="${d}" stroke="${color}"/>`;
+    });
+  });
+
+  // 节点
+  const headHash = currentHeadHash();
+  sorted.forEach(c => {
+    const color = laneColor(c.lane);
+    const isHead = c.hash === headHash;
+    if (isHead) {
+      svg += `<circle class="head-ring" cx="${c.x}" cy="${c.y}" r="13"/>`;
+    }
+    svg += `<g class="node">`;
+    svg += `<circle class="node-core" cx="${c.x}" cy="${c.y}" r="7" fill="${color}" stroke="${color}" />`;
+    svg += `<circle cx="${c.x}" cy="${c.y}" r="3" fill="#08090a" />`;
+    svg += `</g>`;
+    // 消息
+    svg += `<text class="msg-hash" x="${messageX}" y="${c.y - 2}">${c.hash}</text>`;
+    svg += `<text class="msg-text" x="${messageX}" y="${c.y + 11}">${escapeHtml(c.message)}</text>`;
+  });
+
+  // 分支/标签指针（在 tip 节点上方）
+  const tips = {};
+  Object.entries(Git.branches).forEach(([name, hash]) => {
+    if (hash) (tips[hash] = tips[hash] || []).push({ name, type: "branch" });
+  });
+  Object.entries(Git.tags).forEach(([name, hash]) => {
+    (tips[hash] = tips[hash] || []).push({ name, type: "tag" });
+  });
+  if (headHash) {
+    (tips[headHash] = tips[headHash] || []).push({ name: "HEAD", type: "head" });
+  }
+  Object.entries(tips).forEach(([hash, labels]) => {
+    const c = Git.commits[hash];
+    if (!c) return;
+    // 排序：HEAD 优先，其次当前分支
+    labels.sort((a, b) => {
+      const rank = t => t.type === "head" ? 0 : (t.type === "branch" && t.name === Git.head.name ? 1 : 2);
+      return rank(a) - rank(b);
+    });
+    let totalW = 0;
+    const widths = labels.map(l => l.name.length * 6.2 + 14);
+    totalW = widths.reduce((a, b) => a + b, 0) + (labels.length - 1) * 4;
+    let cx = c.x - totalW / 2;
+    labels.forEach((l, i) => {
+      const w = widths[i];
+      const lx = cx + w / 2;
+      const ly = c.y - 18;
+      const isCur = l.type === "branch" && l.name === Git.head.name;
+      const isHead = l.type === "head";
+      const fill = l.type === "tag" ? "rgba(227,179,65,0.16)" : (isHead ? "rgba(234,88,12,0.28)" : (isCur ? "rgba(234,88,12,0.22)" : "rgba(255,255,255,0.06)"));
+      const stroke = l.type === "tag" ? "rgba(227,179,65,0.5)" : (isHead || isCur ? "#ea580c" : "rgba(255,255,255,0.18)");
+      const tcolor = l.type === "tag" ? "#e3b341" : (isHead || isCur ? "#ea580c" : "#cfd2d6");
+      svg += `<g>`;
+      svg += `<rect class="label-rect" x="${lx - w / 2}" y="${ly - 7}" width="${w}" height="14" rx="3" fill="${fill}" stroke="${stroke}"/>`;
+      svg += `<text class="label-text" x="${lx}" y="${ly + 3}" text-anchor="middle" fill="${tcolor}">${escapeHtml(l.name)}</text>`;
+      svg += `</g>`;
+      cx += w + 4;
+    });
+  });
+
+  graph.innerHTML = svg;
+}
+
+/* ============================================================
+   文件面板渲染
+   ============================================================ */
+const stagedList = document.getElementById("stagedList");
+const workingList = document.getElementById("workingList");
+
+function badgeClass(label) {
+  if (label === "new file") return "b-new";
+  if (label === "modified") return "b-mod";
+  if (label === "deleted") return "b-del";
+  if (label === "conflict") return "b-conf";
+  if (label === "untracked") return "b-new";
+  return "b-mod";
+}
+
+function renderFiles() {
+  const s = computeStatus();
+  // staged
+  if (s.staged.length) {
+    stagedList.innerHTML = s.staged.map(x =>
+      `<div class="file-row"><span class="file-badge ${badgeClass(x.label)}">${x.label === "new file" ? "A" : x.label === "conflict" ? "U" : "M"}</span><span class="file-name">${escapeHtml(x.file)}</span></div>`
+    ).join("");
+  } else {
+    stagedList.innerHTML = `<div class="files-empty">无暂存改动</div>`;
+  }
+  // working
+  const items = [...s.unstaged, ...s.untracked];
+  if (items.length) {
+    workingList.innerHTML = items.map(x =>
+      `<div class="file-row"><span class="file-badge ${badgeClass(x.label)}">${x.label === "untracked" ? "?" : x.label === "deleted" ? "D" : "M"}</span><span class="file-name">${escapeHtml(x.file)}</span></div>`
+    ).join("");
+  } else {
+    workingList.innerHTML = `<div class="files-empty">工作区干净</div>`;
+  }
+}
+
+/* ============================================================
+   头部信息 / 状态渲染
+   ============================================================ */
+const headInfo = document.getElementById("headInfo");
+const footerStatus = document.getElementById("footerStatus");
+
+function renderInfo() {
+  if (!Git.initialized) {
+    headInfo.innerHTML = `<span class="d">未初始化</span>`;
+    footerStatus.textContent = "";
+    return;
+  }
+  const h = currentHeadHash();
+  if (Git.head.type === "branch") {
+    headInfo.innerHTML = `HEAD → <span class="br">${escapeHtml(Git.head.name)}</span>${h ? ` @ ${h}` : ""}`;
+  } else {
+    headInfo.innerHTML = `HEAD → <span class="br">detached</span> @ ${h || ""}`;
+  }
+  const nc = Object.keys(Git.commits).length;
+  const nb = Object.keys(Git.branches).length;
+  const parts = [`${nc} 提交`, `${nb} 分支`];
+  if (Git.stash.length) parts.push(`${Git.stash.length} stash`);
+  if (Git.mergeInProgress) parts.push("合并中");
+  footerStatus.innerHTML = parts.map(p => `<span class="${p === "合并中" ? "ok" : ""}">${p}</span>`).join(" · ");
+}
+
+function renderAll() {
+  renderGraph();
+  renderFiles();
+  renderInfo();
+  renderProgress();
+}
+
+/* ============================================================
+   教程系统
+   ============================================================ */
+const tutorials = [
+  {
+    title: "1. 初始化与首次提交",
+    intro: "本课学习创建仓库并完成第一次提交。提交是 Git 的核心：它保存工作区的一个快照。",
+    setup() { resetRepo(); },
+    steps: [
+      { hint: "初始化仓库：运行 <span class='k'>git init</span>", test: () => Git.initialized },
+      { hint: "创建一个文件：<span class='k'>touch readme.md</span>", test: () => "readme.md" in Git.working },
+      { hint: "将文件加入暂存区：<span class='k'>git add readme.md</span>", test: () => "readme.md" in Git.index },
+      { hint: "提交：<span class='k'>git commit -m \"initial commit\"</span>", test: () => Object.keys(Git.commits).length >= 1 }
+    ]
+  },
+  {
+    title: "2. 多次提交",
+    intro: "本课在已有仓库基础上连续提交，理解暂存区 → 提交的流转。仓库已有一个初始提交。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      syncToHead();
+    },
+    steps: [
+      { hint: "创建并暂存 app.js：<span class='k'>touch app.js</span> 然后 <span class='k'>git add app.js</span>", test: () => "app.js" in Git.index },
+      { hint: "提交：<span class='k'>git commit -m \"add app.js\"</span>", test: () => Object.keys(Git.commits).length >= 2 },
+      { hint: "再创建 style.css，暂存并提交：<span class='k'>touch style.css && git add . && git commit -m \"add styles\"</span>", test: () => Object.keys(Git.commits).length >= 3 }
+    ]
+  },
+  {
+    title: "3. 创建分支",
+    intro: "分支是指向某个提交的指针。本课在不切换的情况下创建多个分支。仓库已含两个提交。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      rawCommit("main", "add feature", { "app.js": "console.log(1)" });
+      syncToHead();
+    },
+    steps: [
+      { hint: "创建 feature 分支：<span class='k'>git branch feature</span>", test: () => "feature" in Git.branches },
+      { hint: "再创建 dev 分支：<span class='k'>git branch dev</span>", test: () => "dev" in Git.branches },
+      { hint: "查看所有分支（观察 * 标记）：<span class='k'>git branch</span>", test: () => "feature" in Git.branches && "dev" in Git.branches }
+    ]
+  },
+  {
+    title: "4. 切换分支",
+    intro: "checkout/switch 移动 HEAD 到目标分支。在不同分支上提交互不影响。仓库已含两个提交与 feature 分支。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      rawCommit("main", "add feature", { "app.js": "console.log(1)" });
+      Git.branches["feature"] = Git.branches["main"];
+      syncToHead();
+    },
+    steps: [
+      { hint: "切换到 feature：<span class='k'>git checkout feature</span>（或 git switch feature）", test: () => Git.head.type === "branch" && Git.head.name === "feature" },
+      { hint: "在 feature 上提交：先 <span class='k'>touch login.js</span>，再 <span class='k'>git add login.js</span>，最后 <span class='k'>git commit -m \"add login\"</span>", test: () => Git.branches["feature"] && Git.branches["feature"] !== Git.branches["main"] },
+      { hint: "切回 main：<span class='k'>git checkout main</span>（注意 main 上没有 login.js）", test: () => Git.head.type === "branch" && Git.head.name === "main" }
+    ]
+  },
+  {
+    title: "5. Fast-forward 合并",
+    intro: "当目标分支是当前的直接后代时，合并只需把指针前移，称为 fast-forward。仓库已含 main 两个提交、feature 指向同一位置。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      rawCommit("main", "base work", { "app.js": "console.log(1)" });
+      Git.branches["feature"] = Git.branches["main"];
+      syncToHead();
+    },
+    steps: [
+      { hint: "切换到 feature：<span class='k'>git checkout feature</span>", test: () => Git.head.name === "feature" },
+      { hint: "在 feature 上提交：<span class='k'>touch auth.js && git add auth.js && git commit -m \"add auth\"</span>", test: () => Git.branches["feature"] !== Git.branches["main"] },
+      { hint: "切回 main：<span class='k'>git checkout main</span>", test: () => Git.head.name === "main" },
+      { hint: "合并 feature（快进合并）：<span class='k'>git merge feature</span>", test: () => Git.branches["main"] === Git.branches["feature"] }
+    ]
+  },
+  {
+    title: "6. 三方合并与冲突",
+    intro: "两条分支各自有新提交时需三方合并。若改动同一文件将产生冲突，需手动解决后提交。仓库中 main 与 feature 各自修改了同一文件。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "config.txt": "base" });
+      const baseHash = Git.branches["main"];
+      Git.branches["feature"] = baseHash;
+      // feature 修改
+      Git.head = { type: "branch", name: "feature" };
+      rawCommit("feature", "feature edit", { "config.txt": "feature-value" });
+      // main 修改
+      Git.head = { type: "branch", name: "main" };
+      rawCommit("main", "main edit", { "config.txt": "main-value" });
+      syncToHead();
+    },
+    steps: [
+      { hint: "在 main 上合并 feature（将产生冲突）：<span class='k'>git merge feature</span>", test: () => !!Git.mergeInProgress },
+      { hint: "查看冲突状态：<span class='k'>git status</span>，然后标记已解决：<span class='k'>git add config.txt</span>", test: () => "config.txt" in Git.index },
+      { hint: "完成合并提交：<span class='k'>git commit -m \"merge feature\"</span>", test: () => {
+        const h = Git.branches["main"];
+        return h && Git.commits[h] && Git.commits[h].parents.length === 2 && !Git.mergeInProgress;
+      } }
+    ]
+  },
+  {
+    title: "7. Rebase 变基",
+    intro: "rebase 把当前分支的提交「移植」到目标分支顶端，保持线性历史。注意提交 hash 会改变。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      rawCommit("main", "main work", { "app.js": "v1" });
+      const baseHash = Git.branches["main"];
+      // feature 从 base 分出，并新增一个提交
+      Git.branches["feature"] = baseHash;
+      Git.head = { type: "branch", name: "feature" };
+      rawCommit("feature", "feature work", { "login.js": "v1" });
+      // main 再前进一个提交
+      Git.head = { type: "branch", name: "main" };
+      rawCommit("main", "main advance", { "app.js": "v2" });
+      // 回到 feature
+      Git.head = { type: "branch", name: "feature" };
+      syncToHead();
+    },
+    steps: [
+      { hint: "确认在 feature 分支上（已是），执行变基：<span class='k'>git rebase main</span>", test: () => {
+        const ftip = Git.branches["feature"];
+        const mtip = Git.branches["main"];
+        if (!ftip || !mtip) return false;
+        // feature tip 的第一父链应包含 main tip
+        return ancestors(ftip).has(mtip);
+      } },
+      { hint: "查看线性历史：<span class='k'>git log</span>", test: () => {
+        const ftip = Git.branches["feature"];
+        return ftip && ancestors(ftip).has(Git.branches["main"]);
+      } }
+    ]
+  },
+  {
+    title: "8. Cherry-pick 摘取提交",
+    intro: "cherry-pick 把指定提交的改动应用到当前分支，生成一个新提交。下面把 feature 上的提交应用到 main。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "readme.md": "# Project" });
+      const baseHash = Git.branches["main"];
+      Git.branches["feature"] = baseHash;
+      Git.head = { type: "branch", name: "feature" };
+      rawCommit("feature", "add helper", { "helper.js": "module.exports = {}" });
+      Git.head = { type: "branch", name: "main" };
+      syncToHead();
+    },
+    steps: [
+      { hint: () => `摘取 feature 上的提交到 main：<span class='k'>git cherry-pick ${Git.branches["feature"] || "<hash>"}</span>`, test: () => {
+        const mtip = Git.branches["main"];
+        return mtip && Git.commits[mtip] && Git.commits[mtip].message === "add helper";
+      } },
+      { hint: "查看 main 历史：<span class='k'>git log</span>", test: () => {
+        const mtip = Git.branches["main"];
+        return mtip && Git.commits[mtip] && Git.commits[mtip].message === "add helper";
+      } }
+    ]
+  },
+  {
+    title: "9. Reset 回退",
+    intro: "reset 移动当前分支指针。--soft 保留暂存区与工作区；--mixed 重置暂存区保留工作区；--hard 全部重置。仓库已含 4 个提交。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "commit A", { "a.txt": "A" });
+      rawCommit("main", "commit B", { "b.txt": "B" });
+      rawCommit("main", "commit C", { "c.txt": "C" });
+      rawCommit("main", "commit D", { "d.txt": "D" });
+      syncToHead();
+    },
+    steps: [
+      { hint: "软回退一步（D 的改动进入暂存）：<span class='k'>git reset --soft HEAD~1</span>", test: () => Git.branches["main"] && Git.commits[Git.branches["main"]].message === "commit C" },
+      { hint: "混合回退一步（C 改动变为工作区）：<span class='k'>git reset --mixed HEAD~1</span>", test: () => Git.branches["main"] && Git.commits[Git.branches["main"]].message === "commit B" },
+      { hint: "硬回退一步（彻底丢弃）：<span class='k'>git reset --hard HEAD~1</span>", test: () => Git.branches["main"] && Git.commits[Git.branches["main"]].message === "commit A" }
+    ]
+  },
+  {
+    title: "10. Stash 暂存",
+    intro: "stash 临时保存工作区改动，便于切换分支。稍后用 stash pop 恢复。仓库含 main 与 feature 两个分支。",
+    setup() {
+      resetRepo(); initRepo();
+      rawCommit("main", "initial commit", { "app.js": "v1" });
+      Git.branches["feature"] = Git.branches["main"];
+      syncToHead();
+    },
+    steps: [
+      { hint: "修改 app.js：<span class='k'>echo \"wip code\" > app.js</span>", test: () => Git.working["app.js"] === "wip code" },
+      { hint: "暂存改动：<span class='k'>git stash</span>", test: () => Git.stash.length >= 1 && Git.working["app.js"] === "v1" },
+      { hint: "切换到 feature：<span class='k'>git checkout feature</span>", test: () => Git.head.name === "feature" },
+      { hint: "切回 main 并恢复：<span class='k'>git checkout main && git stash pop</span>", test: () => Git.head.name === "main" && Git.working["app.js"] === "wip code" }
+    ]
+  }
+];
+
+const Tutorial = {
+  mode: "tutorial",
+  current: 0,
+  step: 0,
+  completed: new Set()
+};
+
+const tutSelect = document.getElementById("tutSelect");
+const progressLabel = document.getElementById("progressLabel");
+const progressFill = document.getElementById("progressFill");
+const stepHint = document.getElementById("stepHint");
+
+function buildTutorialOptions() {
+  let opts = `<option value="free">— 自由模式 —</option>`;
+  tutorials.forEach((t, i) => {
+    const done = Tutorial.completed.has(i) ? " ✓" : "";
+    opts += `<option value="${i}">${t.title}${done}</option>`;
+  });
+  tutSelect.innerHTML = opts;
+  tutSelect.value = Tutorial.mode === "tutorial" ? String(Tutorial.current) : "free";
+}
+
+function getHint(step) {
+  if (!step) return "";
+  return typeof step.hint === "function" ? step.hint() : step.hint;
+}
+
+function startLesson(idx) {
+  Tutorial.current = idx;
+  Tutorial.step = 0;
+  Tutorial.mode = "tutorial";
+  const t = tutorials[idx];
+  print("", "dim");
+  print(`▶ 课程 ${idx + 1}/${tutorials.length}：${t.title}`, "title");
+  print(t.intro, "hint");
+  print(`步骤 1/${t.steps.length}：${getHint(t.steps[0])}`, "out");
+  print("", "dim");
+  try { t.setup(); } catch (e) { printErr("课程初始化失败: " + e.message); }
+  renderAll();
+  save();
+}
+
+function checkTutorialStep() {
+  if (Tutorial.mode !== "tutorial") return;
+  const t = tutorials[Tutorial.current];
+  if (!t) return;
+  if (Tutorial.step >= t.steps.length) return;
+  const step = t.steps[Tutorial.step];
+  let ok = false;
+  try { ok = step.test(); } catch (e) { ok = false; }
+  if (ok) {
+    Tutorial.step++;
+    if (Tutorial.step >= t.steps.length) {
+      Tutorial.completed.add(Tutorial.current);
+      print("", "dim");
+      print(`✓ 课程完成：${t.title}`, "ok");
+      const nxt = Tutorial.current + 1;
+      if (nxt < tutorials.length) {
+        print(`输入下一条或选择课程继续：下一课「${tutorials[nxt].title}」`, "hint");
+      } else {
+        print("恭喜！你已完成全部 10 课。可在自由模式自由探索。", "ok");
+      }
+      buildTutorialOptions();
+    } else {
+      print("", "dim");
+      print(`✓ 步骤完成。步骤 ${Tutorial.step + 1}/${t.steps.length}：${getHint(t.steps[Tutorial.step])}`, "hint");
+    }
+    renderProgress();
+  }
+}
+
+function renderProgress() {
+  if (Tutorial.mode === "free") {
+    progressLabel.textContent = "自由模式";
+    progressFill.style.width = "100%";
+    stepHint.innerHTML = `自由探索 — 输入 <span class="k">help</span> 查看全部命令`;
+    return;
+  }
+  const t = tutorials[Tutorial.current];
+  if (!t) return;
+  const total = t.steps.length;
+  const done = Math.min(Tutorial.step, total);
+  progressLabel.textContent = `课程 ${Tutorial.current + 1}/${tutorials.length} · 步骤 ${done}/${total}`;
+  const overall = ((Tutorial.current + done / total) / tutorials.length) * 100;
+  progressFill.style.width = overall + "%";
+  if (Tutorial.step >= total) {
+    stepHint.innerHTML = `<span class="k">✓ 已完成本课</span> — 可选择下一课或切换自由模式`;
+  } else {
+    stepHint.innerHTML = getHint(t.steps[Tutorial.step]);
+  }
+}
+
+tutSelect.addEventListener("change", () => {
+  const v = tutSelect.value;
+  if (v === "free") {
+    Tutorial.mode = "free";
+    renderProgress();
+    return;
+  }
+  startLesson(parseInt(v, 10));
+});
+
+document.getElementById("modeToggle").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const mode = btn.dataset.mode;
+  document.querySelectorAll("#modeToggle button").forEach(b => b.classList.toggle("active", b === btn));
+  if (mode === "free") {
+    Tutorial.mode = "free";
+    tutSelect.value = "free";
+    renderProgress();
+  } else {
+    Tutorial.mode = "tutorial";
+    if (tutSelect.value === "free") {
+      startLesson(Tutorial.current);
+    } else {
+      tutSelect.value = String(Tutorial.current);
+    }
+  }
+});
+
+document.getElementById("resetRepoBtn").addEventListener("click", () => {
+  resetRepo();
+  print("仓库已重置。", "warn");
+  if (Tutorial.mode === "tutorial") {
+    startLesson(Tutorial.current);
+  } else {
+    renderAll();
+  }
+  save();
+});
+
+/* ============================================================
+   持久化
+   ============================================================ */
+function save() {
+  try {
+    const data = {
+      commits: Git.commits,
+      branches: Git.branches,
+      head: Git.head,
+      index: Git.index,
+      working: Git.working,
+      tags: Git.tags,
+      stash: Git.stash,
+      initialized: Git.initialized,
+      time: Git.time,
+      mergeInProgress: Git.mergeInProgress,
+      remote: Git.remote
+    };
+    localStorage.setItem(STORAGE_REPO, JSON.stringify(data));
+    localStorage.setItem(STORAGE_TUT, JSON.stringify({ mode: Tutorial.mode, current: Tutorial.current, step: Tutorial.step }));
+    localStorage.setItem(STORAGE_DONE, JSON.stringify([...Tutorial.completed]));
+  } catch (e) { /* 忽略配额错误 */ }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_REPO);
+    if (raw) {
+      const d = JSON.parse(raw);
+      Object.assign(Git, d);
+    }
+    const t = localStorage.getItem(STORAGE_TUT);
+    if (t) {
+      const td = JSON.parse(t);
+      Tutorial.mode = td.mode || "tutorial";
+      Tutorial.current = td.current || 0;
+      Tutorial.step = td.step || 0;
+    }
+    const done = localStorage.getItem(STORAGE_DONE);
+    if (done) Tutorial.completed = new Set(JSON.parse(done));
+  } catch (e) { /* 忽略 */ }
+}
+
+/* ============================================================
+   启动
+   ============================================================ */
+function boot() {
+  load();
+  buildTutorialOptions();
+  if (Tutorial.mode === "tutorial" && Git.initialized === false && Object.keys(Git.commits).length === 0) {
+    // 首次进入：启动第一课
+    print("TW Git — Git 可视化学习器", "title");
+    print("通过 10 课交互式教程掌握 Git。在右侧终端输入命令，左侧实时可视化。", "hint");
+    print("输入 help 查看全部命令；Tab 可补全。", "dim");
+    startLesson(0);
+  } else {
+    print("TW Git — Git 可视化学习器（已恢复上次会话）", "title");
+    print("输入 help 查看命令，或在顶部选择课程。", "hint");
+    if (Tutorial.mode === "tutorial") {
+      // 恢复时若课程进度已乱，重置当前课
+      renderProgress();
+    }
+    renderAll();
+  }
+  termInput.focus();
+}
+
+// 点击终端任意位置聚焦输入
+document.querySelector(".terminal").addEventListener("click", e => {
+  if (window.getSelection().toString()) return;
+  termInput.focus();
+});
+
+boot();
+</script>
+</body>
+</html>

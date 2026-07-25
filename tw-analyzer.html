@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Analyzer — 代码复杂度分析器</title>
+<style>
+  :root {
+    --bg: #08090a;
+    --bg-elev: #0d0f12;
+    --bg-elev2: #12151a;
+    --bg-elev3: #171a20;
+    --border: #1c1f26;
+    --border-strong: #2a2f3a;
+    --text: #e6e8eb;
+    --text-dim: #8b9098;
+    --text-faint: #565b66;
+    --accent: #0891b2;
+    --accent-bright: #06b6d4;
+    --accent-dim: #0e4a5a;
+    --green: #10b981;
+    --green-dim: #0a3d31;
+    --yellow: #f59e0b;
+    --yellow-dim: #3d2c08;
+    --red: #ef4444;
+    --red-dim: #3d1414;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  body {
+    background:
+      radial-gradient(900px 500px at 100% -10%, rgba(8, 145, 178, 0.06), transparent 60%),
+      radial-gradient(700px 400px at -10% 110%, rgba(8, 145, 178, 0.04), transparent 60%),
+      var(--bg);
+  }
+
+  a { color: var(--accent-bright); text-decoration: none; }
+
+  /* ===== Header ===== */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(8, 9, 10, 0.92);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .brand { display: flex; align-items: center; gap: 11px; margin-right: 6px; }
+  .brand .mark {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    background: linear-gradient(145deg, var(--accent), #0a6d85);
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 1px rgba(8,145,178,0.35), 0 6px 18px -8px rgba(8,145,178,0.6);
+  }
+  .brand .mark svg { display: block; }
+  .brand .name { font-weight: 650; letter-spacing: -0.01em; font-size: 15.5px; }
+  .brand .name span { color: var(--accent-bright); }
+  .brand .tag {
+    font-size: 10.5px; color: var(--text-faint);
+    letter-spacing: 0.14em; text-transform: uppercase;
+    border-left: 1px solid var(--border-strong);
+    padding-left: 10px; margin-left: 2px;
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+
+  .seg {
+    display: inline-flex; background: var(--bg-elev2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 2px;
+  }
+  .seg button {
+    background: transparent; border: 0; color: var(--text-dim);
+    font-family: var(--sans); font-size: 12.5px; font-weight: 550;
+    padding: 6px 13px; border-radius: 6px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.active { background: var(--accent-dim); color: var(--accent-bright); }
+
+  .field { position: relative; }
+  select, .btn {
+    font-family: var(--sans); font-size: 12.5px;
+    background: var(--bg-elev2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; outline: none;
+    transition: border-color .15s, background .15s;
+  }
+  select:hover, .btn:hover { border-color: var(--border-strong); }
+  select { padding-right: 28px; appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%238b9098' stroke-width='1.5'/></svg>");
+    background-repeat: no-repeat; background-position: right 11px center;
+  }
+
+  .btn-primary {
+    background: var(--accent); color: #04161c; border-color: var(--accent);
+    font-weight: 650; letter-spacing: 0.01em;
+  }
+  .btn-primary:hover { background: var(--accent-bright); border-color: var(--accent-bright); }
+  .btn-ghost { background: transparent; }
+  .btn-ghost:hover { background: var(--bg-elev2); }
+
+  .kbd {
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-faint);
+    border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: 1px 5px; margin-left: 6px;
+  }
+
+  /* ===== Layout ===== */
+  main {
+    padding: 18px 22px 60px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 18px;
+    max-width: 1680px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg-elev2), transparent);
+  }
+  .panel-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .panel-head h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .panel-head .meta { margin-left: auto; font-size: 11px; color: var(--text-faint); font-family: var(--mono); }
+
+  .col-left { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .col-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .full { grid-column: 1 / -1; }
+
+  /* ===== Editor ===== */
+  .editor-wrap { display: flex; flex-direction: column; min-height: 0; }
+  .editor {
+    display: flex; height: 64vh; min-height: 360px;
+    background: var(--bg-elev2);
+  }
+  .gutter {
+    padding: 12px 10px 12px 14px; text-align: right;
+    color: var(--text-faint); background: var(--bg-elev);
+    user-select: none; overflow: hidden;
+    font-family: var(--mono); font-size: 12.5px; line-height: 20px;
+    border-right: 1px solid var(--border); min-width: 52px;
+    white-space: pre;
+  }
+  #codeInput {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--text); font-family: var(--mono); font-size: 12.5px;
+    line-height: 20px; padding: 12px 14px; resize: none;
+    white-space: pre; overflow: auto; tab-size: 2;
+    caret-color: var(--accent-bright);
+  }
+  .editor-foot {
+    display: flex; align-items: center; gap: 16px;
+    padding: 9px 16px; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text-faint); font-family: var(--mono);
+    background: var(--bg-elev);
+  }
+  .editor-foot .sep { width: 1px; height: 12px; background: var(--border-strong); }
+  .editor-foot b { color: var(--text-dim); font-weight: 550; }
+
+  /* ===== Dashboard ===== */
+  .dash-grid {
+    display: grid; grid-template-columns: 168px 1fr; gap: 18px; padding: 18px;
+    align-items: center;
+  }
+  .gauge { position: relative; width: 168px; height: 168px; }
+  .gauge svg { display: block; }
+  .gauge .center {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    text-align: center;
+  }
+  .gauge .grade { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .gauge .score { font-size: 11px; color: var(--text-faint); font-family: var(--mono); margin-top: 4px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .metric {
+    background: var(--bg-elev2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 11px 13px;
+  }
+  .metric .k { font-size: 10.5px; color: var(--text-faint); letter-spacing: 0.08em; text-transform: uppercase; }
+  .metric .v { font-size: 22px; font-weight: 650; font-family: var(--mono); margin-top: 3px; letter-spacing: -0.02em; }
+  .metric .sub { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; font-family: var(--mono); }
+  .metric.accent .v { color: var(--accent-bright); }
+  .metric .v.green { color: var(--green); }
+  .metric .v.yellow { color: var(--yellow); }
+  .metric .v.red { color: var(--red); }
+
+  /* ===== Tables ===== */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    text-align: left; padding: 10px 14px; font-size: 10.5px;
+    color: var(--text-faint); letter-spacing: 0.09em; text-transform: uppercase;
+    font-weight: 600; border-bottom: 1px solid var(--border);
+    background: var(--bg-elev2); white-space: nowrap;
+  }
+  tbody td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-elev2); }
+  .fn-name { color: var(--text); font-weight: 550; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    font-family: var(--sans); letter-spacing: 0.02em;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+  .pill.green { color: var(--green); background: var(--green-dim); }
+  .pill.green::before { background: var(--green); }
+  .pill.yellow { color: var(--yellow); background: var(--yellow-dim); }
+  .pill.yellow::before { background: var(--yellow); }
+  .pill.red { color: var(--red); background: var(--red-dim); }
+  .pill.red::before { background: var(--red); }
+
+  /* ===== Chart ===== */
+  .chart-wrap { padding: 16px; overflow-x: auto; }
+  .chart svg { display: block; width: 100%; min-width: 480px; }
+  .chart .bar { transition: opacity .15s; }
+  .chart .bar:hover { opacity: 0.8; }
+  .chart .axis { stroke: var(--border); }
+  .chart .grid { stroke: var(--border); stroke-dasharray: 2 3; }
+  .chart .lbl { fill: var(--text-faint); font-size: 9.5px; font-family: var(--mono); }
+  .chart .vlbl { fill: var(--text-dim); font-size: 9.5px; font-family: var(--mono); }
+  .chart .tip { fill: var(--text); font-size: 10px; font-family: var(--mono); }
+
+  /* ===== Smells ===== */
+  .smell-list { padding: 6px 0; max-height: 360px; overflow-y: auto; }
+  .smell {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 12px;
+    padding: 11px 16px; border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .smell:last-child { border-bottom: 0; }
+  .smell .ln {
+    font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+    background: var(--bg-elev2); border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 6px; text-align: center; min-width: 44px;
+  }
+  .smell .body { min-width: 0; }
+  .smell .body .t { font-size: 13px; font-weight: 550; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .smell .body .d { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
+  .smell .body .fix { font-size: 11.5px; color: var(--accent-bright); margin-top: 3px; font-family: var(--mono); }
+  .smell .sev { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 5px; letter-spacing: 0.04em; }
+  .sev.high { color: var(--red); background: var(--red-dim); }
+  .sev.mid { color: var(--yellow); background: var(--yellow-dim); }
+  .sev.low { color: var(--green); background: var(--green-dim); }
+
+  /* ===== Heatmap ===== */
+  .heat-controls { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
+  .heat-legend { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .heat-legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .heat-body {
+    max-height: 460px; overflow: auto; padding: 8px 0;
+    background: var(--bg-elev2); font-family: var(--mono); font-size: 12.5px; line-height: 20px;
+  }
+  .hline { display: flex; align-items: stretch; }
+  .hline .hn {
+    width: 52px; flex-shrink: 0; text-align: right; padding: 0 12px;
+    color: var(--text-faint); user-select: none; border-right: 1px solid var(--border);
+  }
+  .hline .hc {
+    padding: 0 14px; white-space: pre; border-left: 3px solid transparent;
+    min-width: 0; flex: 1;
+  }
+  .hline.heat-0 .hc { border-left-color: rgba(139,144,152,0.18); }
+  .hline.heat-1 .hc { border-left-color: var(--green); background: rgba(16,185,129,0.05); }
+  .hline.heat-2 .hc { border-left-color: var(--green); background: rgba(16,185,129,0.10); }
+  .hline.heat-3 .hc { border-left-color: var(--yellow); background: rgba(245,158,11,0.08); }
+  .hline.heat-4 .hc { border-left-color: var(--yellow); background: rgba(245,158,11,0.14); }
+  .hline.heat-5 .hc { border-left-color: var(--red); background: rgba(239,68,68,0.10); }
+  .hline.heat-6 .hc { border-left-color: var(--red); background: rgba(239,68,68,0.18); }
+  .tok-kw { color: #c678dd; }
+  .tok-str { color: #98c379; }
+  .tok-num { color: #d19a66; }
+  .tok-com { color: var(--text-faint); font-style: italic; }
+  .tok-fn { color: var(--accent-bright); }
+
+  /* ===== Empty state ===== */
+  .empty { padding: 48px 24px; text-align: center; color: var(--text-faint); }
+  .empty .ic { font-size: 30px; margin-bottom: 10px; opacity: 0.5; }
+  .empty .t { font-size: 13px; }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-elev3); border: 1px solid var(--border-strong);
+    color: var(--text); padding: 10px 18px; border-radius: 9px;
+    font-size: 12.5px; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ===== Scrollbars ===== */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #363c48; }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 980px) {
+    main { grid-template-columns: 1fr; }
+    .editor { height: 50vh; }
+    .dash-grid { grid-template-columns: 1fr; justify-items: center; }
+    .metrics { width: 100%; }
+    .brand .tag { display: none; }
+  }
+  @media (max-width: 560px) {
+    header { padding: 12px 14px; gap: 10px; }
+    main { padding: 14px; }
+    .toolbar { width: 100%; }
+    .metrics { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 11 L6 5 L9 9 L14 3" stroke="#04161c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="14" cy="3" r="1.6" fill="#04161c"/>
+      </svg>
+    </div>
+    <div>
+      <div class="name">TW <span>Analyzer</span></div>
+    </div>
+    <div class="tag">Code Complexity</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" id="langSeg" role="tablist" aria-label="语言选择">
+      <button data-lang="js" class="active">JavaScript</button>
+      <button data-lang="python">Python</button>
+      <button data-lang="java">Java</button>
+    </div>
+    <div class="field">
+      <select id="exampleSelect" aria-label="预置示例">
+        <option value="">加载示例…</option>
+        <option value="clean">① 简洁的好代码 (A)</option>
+        <option value="nested">② 过度嵌套</option>
+        <option value="long">③ 长函数 (&gt;100行)</option>
+        <option value="cc">④ 高圈复杂度</option>
+        <option value="dup">⑤ 重复代码</option>
+        <option value="cb">⑥ 回调地狱</option>
+        <option value="eng">⑦ 合理的工程代码</option>
+        <option value="refactor">⑧ 需要重构</option>
+      </select>
+    </div>
+    <button class="btn btn-ghost" id="clearBtn" title="清空编辑器">清空</button>
+    <button class="btn btn-primary" id="analyzeBtn">分析 <span class="kbd">Ctrl+↵</span></button>
+  </div>
+</header>
+
+<main>
+  <!-- Left: Editor -->
+  <section class="col-left">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot"></span>
+        <h2>代码编辑器</h2>
+        <span class="meta" id="editorMeta">— · —</span>
+      </div>
+      <div class="editor-wrap">
+        <div class="editor">
+          <div class="gutter" id="gutter">1</div>
+          <textarea id="codeInput" spellcheck="false" placeholder="// 粘贴 JS / Python / Java 代码，或从顶部加载示例…&#10;// 按 Ctrl + Enter 运行分析"></textarea>
+        </div>
+        <div class="editor-foot">
+          <span>行 <b id="footLines">0</b></span><span class="sep"></span>
+          <span>字符 <b id="footChars">0</b></span><span class="sep"></span>
+          <span>语言 <b id="footLang">JavaScript</b></span><span class="sep"></span>
+          <span id="footHint">就绪</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Right: Results -->
+  <section class="col-right">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot"></span>
+        <h2>总体健康度</h2>
+        <span class="meta" id="dashMeta">未分析</span>
+      </div>
+      <div class="dash-grid">
+        <div class="gauge" id="gauge"></div>
+        <div class="metrics" id="metrics"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot"></span>
+        <h2>函数复杂度排行</h2>
+        <span class="meta" id="fnMeta">0 个函数</span>
+      </div>
+      <div class="table-wrap">
+        <table id="fnTable">
+          <thead>
+            <tr>
+              <th>函数</th><th>行数</th><th>参数</th><th>圈复杂度</th><th>认知复杂度</th><th>风险</th>
+            </tr>
+          </thead>
+          <tbody id="fnBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot"></span>
+        <h2>复杂度分布</h2>
+        <span class="meta">圈复杂度 / 函数</span>
+      </div>
+      <div class="chart-wrap"><div class="chart" id="chart"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="dot"></span>
+        <h2>代码异味清单</h2>
+        <span class="meta" id="smellMeta">0 项</span>
+      </div>
+      <div class="smell-list" id="smellList"></div>
+    </div>
+  </section>
+
+  <!-- Full width: Heatmap -->
+  <section class="panel full">
+    <div class="panel-head">
+      <span class="dot"></span>
+      <h2>代码热力图</h2>
+      <span class="meta" id="heatMeta">按行复杂度着色</span>
+      <div class="heat-legend">
+        <span class="sw" style="background:rgba(139,144,152,0.3)"></span>简单
+        <span class="sw" style="background:var(--green)"></span>低
+        <span class="sw" style="background:var(--yellow)"></span>中
+        <span class="sw" style="background:var(--red)"></span>高
+      </div>
+    </div>
+    <div class="heat-body" id="heatBody"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+ * TW Analyzer — 代码复杂度分析器
+ * 纯正则 + 状态机实现，无外部依赖
+ * ============================================================ */
+
+var TW = (function () {
+
+  /* ---------- 常量 ---------- */
+  var LS_PREFIX = "tw-analyzer-";
+  var RISK = {
+    green: { label: "低", cls: "green" },
+    yellow: { label: "中", cls: "yellow" },
+    red: { label: "高", cls: "red" }
+  };
+
+  /* ---------- 工具函数 ---------- */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function countNL(str, upto) {
+    var n = 0;
+    for (var i = 0; i < upto && i < str.length; i++) if (str.charCodeAt(i) === 10) n++;
+    return n;
+  }
+  function idxToLine(code, idx) { return countNL(code, idx) + 1; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._t);
+    t._t = setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  /* ---------- 语言配置 ---------- */
+  var LANG = {
+    js: {
+      name: "JavaScript",
+      lineComment: "//",
+      blockComment: true,
+      strings: ["'", '"', "`"],
+      controlKw: ["if", "for", "while", "switch", "catch", "try"],
+      siblingKw: ["else"],
+      decision: [
+        { re: /\bif\b/g, w: 1 },
+        { re: /\bfor\b/g, w: 1 },
+        { re: /\bwhile\b/g, w: 1 },
+        { re: /\bcase\b/g, w: 1 },
+        { re: /\bcatch\b/g, w: 1 },
+        { re: /&&/g, w: 1 },
+        { re: /\|\|/g, w: 1 },
+        { re: /\?\?/g, w: 1 }
+      ],
+      ternary: /\?/g,
+      importRe: /\b(?:import\s+[\s\S]*?from\s+['"][^'"]+['"]|require\s*\(\s*['"][^'"]+['"]\s*\))/g,
+      fnPatterns: [
+        /function\s+(\w+)\s*\(([^)]*)\)/g,
+        /(\w+)\s*[:=]\s*(?:async\s*)?function\s*\(([^)]*)\)/g,
+        /(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/g,
+        /(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(\w+)\s*=>/g
+      ],
+      methodPattern: /(?:^|[\s;{])(\w+)\s*\(([^)]*)\)\s*\{/g,
+      braceBody: true
+    },
+    python: {
+      name: "Python",
+      lineComment: "#",
+      blockComment: false,
+      strings: ["'", '"'],
+      controlKw: ["if", "for", "while", "except", "with", "try"],
+      siblingKw: ["elif", "else", "except"],
+      decision: [
+        { re: /\bif\b/g, w: 1 },
+        { re: /\belif\b/g, w: 1 },
+        { re: /\bfor\b/g, w: 1 },
+        { re: /\bwhile\b/g, w: 1 },
+        { re: /\bexcept\b/g, w: 1 },
+        { re: /\band\b/g, w: 1 },
+        { re: /\bor\b/g, w: 1 }
+      ],
+      ternary: null,
+      importRe: /^\s*(?:import\s+\S+|from\s+\S+\s+import\s+.*)$/gm,
+      fnPatterns: [/^\s*def\s+(\w+)\s*\(([^)]*)\)/gm],
+      methodPattern: null,
+      braceBody: false
+    },
+    java: {
+      name: "Java",
+      lineComment: "//",
+      blockComment: true,
+      strings: ["'", '"'],
+      controlKw: ["if", "for", "while", "switch", "catch", "try"],
+      siblingKw: ["else"],
+      decision: [
+        { re: /\bif\b/g, w: 1 },
+        { re: /\bfor\b/g, w: 1 },
+        { re: /\bwhile\b/g, w: 1 },
+        { re: /\bcase\b/g, w: 1 },
+        { re: /\bcatch\b/g, w: 1 },
+        { re: /&&/g, w: 1 },
+        { re: /\|\|/g, w: 1 }
+      ],
+      ternary: /\?/g,
+      importRe: /^\s*import\s+[\w.*]+;/gm,
+      fnPatterns: [
+        /(?:public|private|protected|static|final|synchronized|abstract)\s+(?:[\w<>\[\],\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*(?:throws[\w\s,.*]+)?\s*\{/g,
+        /\b(?:public|private|protected)\s+(\w+)\s*\(([^)]*)\)\s*(?:throws[\w\s,.*]+)?\s*\{/g
+      ],
+      methodPattern: null,
+      braceBody: true
+    }
+  };
+
+  /* ---------- 代码清洗：去除字符串与注释（保留长度与换行） ---------- */
+  function cleanCode(code, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    var out = [];
+    var i = 0, n = code.length;
+    while (i < n) {
+      var c = code[i];
+      var two = code.substr(i, 2);
+      var three = code.substr(i, 3);
+      // line comment
+      if (lang === "python" && c === "#") {
+        while (i < n && code[i] !== "\n") { out.push(" "); i++; }
+        continue;
+      }
+      if (two === cfg.lineComment) {
+        while (i < n && code[i] !== "\n") { out.push(" "); i++; }
+        continue;
+      }
+      // block comment
+      if (cfg.blockComment && two === "/*") {
+        out.push(" ", " "); i += 2;
+        while (i < n && code.substr(i, 2) !== "*/") {
+          out.push(code[i] === "\n" ? "\n" : " "); i++;
+        }
+        if (i < n) { out.push(" ", " "); i += 2; }
+        continue;
+      }
+      // python triple strings
+      if (lang === "python" && (three === '"""' || three === "'''")) {
+        out.push(" ", " ", " "); i += 3;
+        while (i < n && code.substr(i, 3) !== three) {
+          out.push(code[i] === "\n" ? "\n" : " "); i++;
+        }
+        if (i < n) { out.push(" ", " ", " "); i += 3; }
+        continue;
+      }
+      // strings
+      if (cfg.strings.indexOf(c) !== -1) {
+        out.push(" "); i++;
+        while (i < n && code[i] !== c) {
+          if (code[i] === "\\" && i + 1 < n) { out.push(" ", " "); i += 2; continue; }
+          out.push(code[i] === "\n" ? "\n" : " "); i++;
+        }
+        if (i < n) { out.push(" "); i++; }
+        continue;
+      }
+      out.push(c); i++;
+    }
+    return out.join("");
+  }
+
+  /* ---------- 行统计 ---------- */
+  function countLines(code, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    var lines = code.split("\n");
+    var total = lines.length;
+    var blank = 0, comment = 0, code_ = 0;
+    var inBlock = false;
+    for (var i = 0; i < lines.length; i++) {
+      var raw = lines[i];
+      var t = raw.trim();
+      if (!t) { blank++; continue; }
+      if (inBlock) {
+        comment++;
+        if (cfg.blockComment && t.indexOf("*/") !== -1) inBlock = false;
+        else if (lang === "python" && (t.indexOf('"""') !== -1 || t.indexOf("'''") !== -1)) inBlock = false;
+        continue;
+      }
+      if (lang === "python" && t[0] === "#") { comment++; continue; }
+      if (cfg.blockComment && t.indexOf("/*") === 0) {
+        comment++;
+        if (t.indexOf("*/", 2) === -1) inBlock = true;
+        continue;
+      }
+      if (lang === "python" && (t.indexOf('"""') === 0 || t.indexOf("'''") === 0)) {
+        comment++;
+        var q = t.substr(0, 3);
+        if (t.indexOf(q, 3) === -1) inBlock = true;
+        continue;
+      }
+      if (cfg.lineComment && t.indexOf(cfg.lineComment) === 0) { comment++; continue; }
+      code_++;
+    }
+    return { total: total, code: code_, comment: comment, blank: blank };
+  }
+
+  /* ---------- 圈复杂度（McCabe） ---------- */
+  function cyclomatic(cleaned, cfg) {
+    var dec = 1;
+    for (var i = 0; i < cfg.decision.length; i++) {
+      var d = cfg.decision[i];
+      var m = cleaned.match(d.re);
+      if (m) dec += m.length * d.w;
+    }
+    // ternary (JS/Java): count ? minus ?. and ??
+    if (cfg.ternary) {
+      var q = (cleaned.match(/\?/g) || []).length;
+      var opt = (cleaned.match(/\?\./g) || []).length;
+      var nul = (cleaned.match(/\?\?/g) || []).length;
+      var tern = q - opt - nul;
+      if (tern > 0) dec += tern;
+    }
+    return dec;
+  }
+
+  function cyclomaticPerLine(cleaned, cfg) {
+    var lines = cleaned.split("\n");
+    var per = new Array(lines.length).fill(0);
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+      var cnt = 0;
+      for (var i = 0; i < cfg.decision.length; i++) {
+        var d = cfg.decision[i];
+        d.re.lastIndex = 0;
+        var m = d.re.exec(line);
+        while (m) { cnt += d.w; m = d.re.exec(line); }
+      }
+      if (cfg.ternary) {
+        var q = (line.match(/\?/g) || []).length;
+        var opt = (line.match(/\?\./g) || []).length;
+        var nul = (line.match(/\?\?/g) || []).length;
+        var tern = q - opt - nul;
+        if (tern > 0) cnt += tern;
+      }
+      per[li] = cnt;
+    }
+    return per;
+  }
+
+  /* ---------- 认知复杂度（SonarSource 近似） ---------- */
+  function cognitiveBrace(cleaned, cfg) {
+    var cog = 0;
+    var braceDepth = 0;
+    var parenDepth = 0;
+    var controlStack = []; // brace depths where control blocks opened
+    var pending = []; // expected brace depths for upcoming control "{"
+    var i = 0, n = cleaned.length;
+    var controlSet = {};
+    cfg.controlKw.forEach(function (k) { controlSet[k] = true; });
+    var sibSet = {};
+    cfg.siblingKw.forEach(function (k) { sibSet[k] = true; });
+
+    while (i < n) {
+      var c = cleaned[i];
+      if (c === "(") { parenDepth++; i++; continue; }
+      if (c === ")") { if (parenDepth > 0) parenDepth--; i++; continue; }
+      if (c === "{") {
+        braceDepth++;
+        if (pending.length && pending[0] === braceDepth) {
+          controlStack.push(braceDepth);
+          pending.shift();
+        }
+        i++; continue;
+      }
+      if (c === "}") {
+        braceDepth--;
+        if (braceDepth < 0) braceDepth = 0;
+        while (controlStack.length && controlStack[controlStack.length - 1] > braceDepth) {
+          controlStack.pop();
+        }
+        // clear pending at top level (control without braces ended by closing block)
+        pending = [];
+        i++; continue;
+      }
+      if (c === ";") {
+        if (parenDepth === 0) pending = [];
+        i++; continue;
+      }
+      // word
+      if (/[a-zA-Z_$]/.test(c)) {
+        var j = i;
+        while (j < n && /[a-zA-Z0-9_$]/.test(cleaned[j])) j++;
+        var word = cleaned.slice(i, j);
+        i = j;
+        if (controlSet[word] && word !== "try" || word === "try") {
+          if (sibSet[word]) {
+            cog += 1; // sibling continuation
+          } else {
+            cog += 1 + controlStack.length;
+            pending.push(braceDepth + 1);
+          }
+        } else if (sibSet[word]) {
+          cog += 1;
+        }
+        continue;
+      }
+      // logical operators
+      if (c === "&" && cleaned[i + 1] === "&") { cog += 1; i += 2; continue; }
+      if (c === "|" && cleaned[i + 1] === "|") { cog += 1; i += 2; continue; }
+      if (c === "?" && cleaned[i + 1] === "?") { cog += 1; i += 2; continue; }
+      if (c === "?" && cleaned[i + 1] !== ".") { cog += 1; i++; continue; }
+      i++;
+    }
+    return cog;
+  }
+
+  function cognitivePython(cleaned) {
+    var lines = cleaned.split("\n");
+    var cog = 0;
+    var stack = []; // {indent}
+    var controlRe = /^\s*(if|elif|else|for|while|except|with|try)\b/;
+    var andRe = /\band\b/g, orRe = /\bor\b/g;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var indent = 0;
+      while (indent < line.length && line[indent] === " ") indent++;
+      var trimmed = line.trim();
+      if (!trimmed) continue;
+      var m = trimmed.match(controlRe);
+      var kw = m ? m[1] : null;
+      var isCont = kw === "elif" || kw === "else" || kw === "except";
+      if (!isCont) {
+        while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+      } else {
+        while (stack.length && stack[stack.length - 1].indent > indent) stack.pop();
+      }
+      if (kw) {
+        if (isCont) { cog += 1; }
+        else { cog += 1 + stack.length; stack.push({ indent: indent }); }
+      } else {
+        // logical operators on non-control lines
+        var a = (trimmed.match(andRe) || []).length;
+        var o = (trimmed.match(orRe) || []).length;
+        cog += a + o;
+      }
+    }
+    return cog;
+  }
+
+  function cognitive(cleaned, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    if (lang === "python") return cognitivePython(cleaned);
+    return cognitiveBrace(cleaned, cfg);
+  }
+
+  /* ---------- 函数提取 ---------- */
+  function findMatchingBrace(cleaned, openIdx) {
+    var depth = 0;
+    for (var i = openIdx; i < cleaned.length; i++) {
+      if (cleaned[i] === "{") depth++;
+      else if (cleaned[i] === "}") {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  function extractFunctions(code, cleaned, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    var funcs = [];
+    var seen = {};
+
+    function add(name, params, startIdx, bodyOpenIdx, endIdx) {
+      if (seen[name + ":" + startIdx]) return;
+      seen[name + ":" + startIdx] = true;
+      var sLine = idxToLine(code, startIdx);
+      var eLine = endIdx > 0 ? idxToLine(code, endIdx) : sLine;
+      var body = endIdx > 0 ? cleaned.slice(bodyOpenIdx, endIdx + 1) : "";
+      var paramCount = params ? params.split(",").filter(function (p) { return p.trim().length > 0; }).length : 0;
+      var cc = cyclomatic(body, cfg);
+      var cog = lang === "python" ? cognitivePython(body) : cognitiveBrace(body, cfg);
+      funcs.push({
+        name: name, params: params || "", paramCount: paramCount,
+        startLine: sLine, endLine: eLine, lines: Math.max(1, eLine - sLine + 1),
+        cc: cc, cognitive: cog
+      });
+    }
+
+    if (lang === "python") {
+      var re = /^\s*def\s+(\w+)\s*\(([^)]*)\)/gm;
+      var m;
+      while ((m = re.exec(cleaned)) !== null) {
+        var name = m[1];
+        var params = m[2];
+        var startIdx = m.index;
+        var sLine = idxToLine(code, startIdx);
+        // find end by dedent: next line with indent <= def indent (non-blank, non-comment)
+        var lines = cleaned.split("\n");
+        var defIndent = 0;
+        var lineStr = lines[sLine - 1] || "";
+        while (defIndent < lineStr.length && lineStr[defIndent] === " ") defIndent++;
+        var endLine = lines.length;
+        for (var li = sLine; li < lines.length; li++) {
+          var t = (lines[li] || "").trim();
+          if (!t) continue;
+          var ind = 0;
+          while (ind < (lines[li] || "").length && (lines[li][ind] === " ")) ind++;
+          if (ind <= defIndent) { endLine = li; break; }
+        }
+        var bodyStart = lines.slice(0, sLine - 1).join("\n").length + (sLine > 1 ? 1 : 0);
+        var bodyText = lines.slice(sLine - 1, endLine).join("\n");
+        var cc = cyclomatic(bodyText, cfg);
+        var cog = cognitivePython(bodyText);
+        funcs.push({
+          name: name, params: params, paramCount: countParams(params),
+          startLine: sLine, endLine: endLine, lines: Math.max(1, endLine - sLine + 1),
+          cc: cc, cognitive: cog
+        });
+      }
+      return funcs;
+    }
+
+    // JS / Java brace-based
+    cfg.fnPatterns.forEach(function (re) {
+      re.lastIndex = 0;
+      var mm;
+      while ((mm = re.exec(cleaned)) !== null) {
+        var name = mm[1];
+        var params = mm[2] || "";
+        var startIdx = mm.index;
+        // find next "{" after match
+        var searchFrom = startIdx + mm[0].length;
+        var bo = cleaned.indexOf("{", searchFrom);
+        if (bo === -1) continue;
+        var eo = findMatchingBrace(cleaned, bo);
+        if (eo === -1) continue;
+        add(name, params, startIdx, bo, eo);
+      }
+    });
+
+    // JS method shorthand: name(params) {  (only when not already a function)
+    if (cfg.methodPattern && lang === "js") {
+      var mre = cfg.methodPattern;
+      mre.lastIndex = 0;
+      var mm2;
+      while ((mm2 = mre.exec(cleaned)) !== null) {
+        var name2 = mm2[1];
+        var params2 = mm2[2] || "";
+        // skip control keywords
+        if (["if", "for", "while", "switch", "catch", "function", "return", "else"].indexOf(name2) !== -1) continue;
+        var startIdx2 = mm2.index + mm2[0].indexOf(name2);
+        var bo2 = cleaned.indexOf("{", mm2.index + mm2[0].length);
+        if (bo2 === -1 || bo2 - (mm2.index + mm2[0].length) > 3) continue;
+        var eo2 = findMatchingBrace(cleaned, bo2);
+        if (eo2 === -1) continue;
+        // avoid duplicates with declarations
+        var dup = funcs.some(function (f) { return Math.abs(f.startLine - idxToLine(code, startIdx2)) < 2; });
+        if (dup) continue;
+        add(name2, params2, startIdx2, bo2, eo2);
+      }
+    }
+
+    funcs.sort(function (a, b) { return a.startLine - b.startLine; });
+    return funcs;
+  }
+
+  function countParams(params) {
+    if (!params) return 0;
+    return params.split(",").filter(function (p) { return p.trim().length > 0; }).length;
+  }
+
+  /* ---------- 依赖分析 ---------- */
+  function analyzeDeps(code, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    var m = code.match(cfg.importRe) || [];
+    return { count: m.length, items: m.map(function (s) { return s.trim(); }) };
+  }
+
+  /* ---------- 深度计算（按行） ---------- */
+  function depthPerLine(cleaned, lang) {
+    var lines = cleaned.split("\n");
+    var depth = new Array(lines.length).fill(0);
+    if (lang === "python") {
+      var stack = [];
+      for (var i = 0; i < lines.length; i++) {
+        var ind = 0;
+        while (ind < lines[i].length && lines[i][ind] === " ") ind++;
+        while (stack.length && stack[stack.length - 1] >= ind) stack.pop();
+        depth[i] = stack.length;
+        if (/^\s*(if|for|while|def|class|with|try|except|elif|else)\b/.test(lines[i])) stack.push(ind);
+      }
+    } else {
+      var d = 0;
+      for (var j = 0; j < lines.length; j++) {
+        depth[j] = d;
+        var line = lines[j];
+        for (var k = 0; k < line.length; k++) {
+          if (line[k] === "{") d++;
+          else if (line[k] === "}") { d = Math.max(0, d - 1); }
+        }
+      }
+    }
+    return depth;
+  }
+
+  /* ---------- 代码异味检测 ---------- */
+  function detectSmells(code, cleaned, funcs, lang, depthArr) {
+    var smells = [];
+    var lines = code.split("\n");
+
+    // 长函数 > 50 行
+    funcs.forEach(function (f) {
+      if (f.lines > 100) {
+        smells.push({ line: f.startLine, sev: "high", type: "长函数", desc: f.name + " 共 " + f.lines + " 行（>100）", fix: "拆分为多个职责单一的子函数" });
+      } else if (f.lines > 50) {
+        smells.push({ line: f.startLine, sev: "mid", type: "长函数", desc: f.name + " 共 " + f.lines + " 行（>50）", fix: "考虑提取子函数，降低单函数体量" });
+      }
+    });
+
+    // 高圈复杂度
+    funcs.forEach(function (f) {
+      if (f.cc > 15) {
+        smells.push({ line: f.startLine, sev: "high", type: "高圈复杂度", desc: f.name + " 圈复杂度 " + f.cc, fix: "使用多态/策略模式或提前 return 替代分支" });
+      } else if (f.cc > 10) {
+        smells.push({ line: f.startLine, sev: "mid", type: "高圈复杂度", desc: f.name + " 圈复杂度 " + f.cc, fix: "拆分条件分支，提取判定函数" });
+      }
+    });
+
+    // 高认知复杂度
+    funcs.forEach(function (f) {
+      if (f.cognitive > 20) {
+        smells.push({ line: f.startLine, sev: "high", type: "高认知复杂度", desc: f.name + " 认知复杂度 " + f.cognitive, fix: "降低嵌套层级，扁平化逻辑" });
+      }
+    });
+
+    // 长参数列表 > 4
+    funcs.forEach(function (f) {
+      if (f.paramCount > 6) {
+        smells.push({ line: f.startLine, sev: "high", type: "长参数列表", desc: f.name + " 有 " + f.paramCount + " 个参数", fix: "封装为参数对象 / 配置项" });
+      } else if (f.paramCount > 4) {
+        smells.push({ line: f.startLine, sev: "mid", type: "长参数列表", desc: f.name + " 有 " + f.paramCount + " 个参数", fix: "考虑封装为参数对象" });
+      }
+    });
+
+    // 深嵌套 > 4
+    var reportedNest = {};
+    for (var i = 0; i < depthArr.length; i++) {
+      if (depthArr[i] > 4 && !reportedNest[i]) {
+        // mark a block
+        var start = i;
+        var maxD = depthArr[i];
+        while (i + 1 < depthArr.length && depthArr[i + 1] > 4) { i++; if (depthArr[i] > maxD) maxD = depthArr[i]; }
+        reportedNest[start] = true;
+        smells.push({ line: start + 1, sev: maxD > 5 ? "high" : "mid", type: "深嵌套", desc: "嵌套深度 " + maxD + " 层（>4）", fix: "使用卫语句 / 提前 return 拍平嵌套" });
+      }
+    }
+
+    // 魔法数字
+    var magicCount = 0;
+    var cfg = LANG[lang] || LANG.js;
+    var cleanedLines = cleaned.split("\n");
+    for (var li = 0; li < cleanedLines.length && magicCount < 8; li++) {
+      var lc = cleanedLines[li];
+      // skip lines that look like constant decl UPPER_CASE or const
+      if (lang === "python" && /^\s*\w+\s*=\s*\d/.test(lines[li]) && /^[A-Z_]+$/.test((lines[li].split("=")[0] || "").trim())) continue;
+      if (lang !== "python" && /\b(const|static final|final)\b/.test(lines[li]) && /[A-Z_]+/.test(lines[li])) continue;
+      var nums = lc.match(/\b\d+(\.\d+)?\b/g) || [];
+      for (var ni = 0; ni < nums.length; ni++) {
+        var v = parseFloat(nums[ni]);
+        if (v === 0 || v === 1 || v === 2 || v === -1) continue;
+        magicCount++;
+        smells.push({ line: li + 1, sev: "low", type: "魔法数字", desc: "字面量 " + nums[ni], fix: "提取为具名常量并注释含义" });
+        if (magicCount >= 8) break;
+      }
+    }
+
+    // 重复代码块 (>= 4 行连续重复)
+    var dups = findDuplicates(lines);
+    dups.forEach(function (d) {
+      smells.push({ line: d.a + 1, sev: d.len >= 6 ? "high" : "mid", type: "重复代码", desc: "与第 " + (d.b + 1) + " 行重复 " + d.len + " 行", fix: "提取公共函数，消除复制粘贴" });
+    });
+
+    // 回调地狱检测：连续 >= 3 层嵌套的回调（箭头函数 / function）
+    if (lang === "js") {
+      var cb = detectCallbackHell(cleaned);
+      if (cb.depth >= 3) {
+        smells.push({ line: cb.line > 0 ? cb.line : 1, sev: "high", type: "回调地狱", desc: "回调嵌套 " + cb.depth + " 层", fix: "使用 Promise / async-await 扁平化异步流程" });
+      }
+    }
+
+    smells.sort(function (a, b) { return a.line - b.line; });
+    return smells;
+  }
+
+  /* 结构指纹：归一化标识符与字面量，保留关键字与运算符，用于检测复制粘贴 */
+  var KW_SET = {};
+  ("var let const function if else for while do switch case default break continue return throw try catch finally new typeof instanceof in of delete void this class extends super static get set async await yield import export from as with implements interface package private protected public enum true false null undefined None True False def pass lambda self nonlocal global raise except and or not is abstract final native synchronized boolean int long float double char byte short").split(/\s+/).forEach(function (k) { if (k) KW_SET[k] = true; });
+
+  function fingerprintLine(line) {
+    var s = line;
+    s = s.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "S");
+    s = s.replace(/\b\d+(?:\.\d+)?\b/g, "N");
+    s = s.replace(/[A-Za-z_$][\w$]*/g, function (w) { return KW_SET[w] ? w : "ID"; });
+    s = s.replace(/\s+/g, " ").trim();
+    return s;
+  }
+
+  function findDuplicates(lines) {
+    var norm = lines.map(fingerprintLine);
+    var result = [];
+    var used = {};
+    var minLen = 4, maxLen = 14;
+    for (var i = 0; i < norm.length; i++) {
+      if (used[i] || !norm[i]) continue;
+      var foundLen = 0, foundJs = [];
+      for (var L = Math.min(maxLen, norm.length - i); L >= minLen; L--) {
+        var key = norm.slice(i, i + L).join("\n");
+        if (key.replace(/[\sNID]/g, "").length < 5) continue;
+        var js = [];
+        for (var j = i + L; j <= norm.length - L; j++) {
+          if (used[j]) continue;
+          if (norm.slice(j, j + L).join("\n") === key) js.push(j);
+        }
+        if (js.length) { foundLen = L; foundJs = js; break; }
+      }
+      if (foundLen && result.length < 6) {
+        foundJs.forEach(function (j) {
+          if (result.length >= 6) return;
+          result.push({ a: i, b: j, len: foundLen });
+          for (var u = 0; u < foundLen; u++) used[j + u] = true;
+        });
+        for (var u2 = 0; u2 < foundLen; u2++) used[i + u2] = true;
+      }
+    }
+    return result;
+  }
+
+  /* 回调地狱扫描器：仅追踪 function(...)/=> 回调括号深度，忽略 if/for 等块 */
+  function detectCallbackHell(cleaned) {
+    var totalBrace = 0, curDepth = 0, maxDepth = 0, line = 1, startLine = -1, maxLine = -1;
+    var cbAt = [];
+    var i = 0, n = cleaned.length;
+    while (i < n) {
+      var c = cleaned[i];
+      if (c === "\n") { line++; i++; continue; }
+      if (c === "{") {
+        totalBrace++;
+        var before = cleaned.slice(Math.max(0, i - 60), i);
+        var isCb = /(?:=>|function\s*\([^)]*\))\s*$/.test(before);
+        if (isCb) {
+          curDepth++;
+          if (curDepth === 1) startLine = line;
+          if (curDepth > maxDepth) { maxDepth = curDepth; maxLine = startLine; }
+        }
+        cbAt[totalBrace] = isCb ? 1 : 0;
+        i++; continue;
+      }
+      if (c === "}") {
+        if (cbAt[totalBrace]) curDepth = Math.max(0, curDepth - 1);
+        if (totalBrace > 0) totalBrace--;
+        i++; continue;
+      }
+      i++;
+    }
+    return { depth: maxDepth, line: maxLine };
+  }
+
+  /* ---------- 热力图数据 ---------- */
+  function buildHeatmap(cleaned, decPerLine, depthArr, lang) {
+    var lines = cleaned.split("\n");
+    var heat = new Array(lines.length).fill(0);
+    for (var i = 0; i < lines.length; i++) {
+      var score = decPerLine[i] + Math.max(0, depthArr[i] - 1) * 0.5;
+      if (score <= 0.4) heat[i] = 0;
+      else if (score <= 1) heat[i] = 1;
+      else if (score <= 2) heat[i] = 2;
+      else if (score <= 3) heat[i] = 3;
+      else if (score <= 4) heat[i] = 4;
+      else if (score <= 6) heat[i] = 5;
+      else heat[i] = 6;
+    }
+    return heat;
+  }
+
+  /* ---------- 风险评级 ---------- */
+  function riskOf(f) {
+    if (f.cc > 15 || f.lines > 100 || f.cognitive > 20) return RISK.red;
+    if (f.cc > 10 || f.lines > 50 || f.cognitive > 15) return RISK.yellow;
+    return RISK.green;
+  }
+
+  /* ---------- 健康度评分 ---------- */
+  function healthScore(stats, funcs, smells) {
+    var score = 100;
+    var ccAvg = funcs.length ? funcs.reduce(function (s, f) { return s + f.cc; }, 0) / funcs.length : stats.cc;
+    if (ccAvg > 5) score -= (ccAvg - 5) * 3;
+    var maxCc = funcs.length ? Math.max.apply(null, funcs.map(function (f) { return f.cc; })) : stats.cc;
+    if (maxCc > 10) score -= (maxCc - 10) * 2;
+    var maxCog = funcs.length ? Math.max.apply(null, funcs.map(function (f) { return f.cognitive; })) : stats.cognitive;
+    if (maxCog > 15) score -= (maxCog - 15) * 1.5;
+    smells.forEach(function (s) {
+      if (s.sev === "high") score -= 6;
+      else if (s.sev === "mid") score -= 3;
+      else score -= 0.8;
+    });
+    var longFns = funcs.filter(function (f) { return f.lines > 50; }).length;
+    score -= longFns * 3;
+    return clamp(Math.round(score), 0, 100);
+  }
+
+  function gradeOf(score) {
+    if (score >= 90) return { grade: "A", color: "#10b981" };
+    if (score >= 80) return { grade: "B", color: "#84cc16" };
+    if (score >= 70) return { grade: "C", color: "#f59e0b" };
+    if (score >= 55) return { grade: "D", color: "#f97316" };
+    if (score >= 40) return { grade: "E", color: "#ef4444" };
+    return { grade: "F", color: "#dc2626" };
+  }
+
+  /* ---------- 简易语法高亮（热力图用） ---------- */
+  function highlight(line, lang) {
+    var escaped = esc(line);
+    var cfg = LANG[lang] || LANG.js;
+    var out = escaped;
+    if (lang === "python") {
+      out = out.replace(/(#.*$)/g, '<span class="tok-com">$1</span>');
+    } else {
+      out = out.replace(/(\/\/.*$)/g, '<span class="tok-com">$1</span>');
+    }
+    out = out.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '<span class="tok-str">$&</span>');
+    out = out.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tok-num">$1</span>');
+    var kws = lang === "python"
+      ? "def|class|if|elif|else|for|while|return|import|from|try|except|finally|with|as|in|not|and|or|None|True|False|lambda|yield|pass|break|continue|raise"
+      : "function|const|let|var|if|else|for|while|return|class|extends|new|try|catch|finally|switch|case|break|continue|throw|import|export|from|default|typeof|instanceof|async|await|yield|this|null|undefined|true|false|void|public|private|protected|static|final|abstract|interface|implements|throws";
+    out = out.replace(new RegExp("\\b(" + kws + ")\\b", "g"), '<span class="tok-kw">$1</span>');
+    return out || "&nbsp;";
+  }
+
+  /* ============================================================
+   *  渲染
+   * ============================================================ */
+  function renderGauge(score, grade) {
+    var r = 64, cx = 84, cy = 84;
+    var circ = 2 * Math.PI * r;
+    var pct = score / 100;
+    var offset = circ * (1 - pct);
+    var g = gradeOf(score);
+    $("gauge").innerHTML =
+      '<svg viewBox="0 0 168 168" width="168" height="168">' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#1c1f26" stroke-width="12"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + g.color + '" stroke-width="12" ' +
+      'stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cy + ')" ' +
+      'stroke-dasharray="' + circ.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '"/>' +
+      '<circle cx="' + cx + '" cy="' + (cy - r) + '" r="3" fill="' + g.color + '"/>' +
+      '</svg>' +
+      '<div class="center"><div><div class="grade" style="color:' + g.color + '">' + g.grade + '</div>' +
+      '<div class="score">' + score + ' / 100</div></div></div>';
+  }
+
+  function renderMetrics(stats, funcs, deps) {
+    var avgCc = funcs.length ? (funcs.reduce(function (s, f) { return s + f.cc; }, 0) / funcs.length) : stats.cc;
+    var avgCog = funcs.length ? (funcs.reduce(function (s, f) { return s + f.cognitive; }, 0) / funcs.length) : stats.cognitive;
+    var ccCls = avgCc <= 5 ? "green" : avgCc <= 10 ? "yellow" : "red";
+    var cogCls = avgCog <= 10 ? "green" : avgCog <= 20 ? "yellow" : "red";
+    $("metrics").innerHTML =
+      metric("圈复杂度", stats.cc, "全文件 McCabe", "accent") +
+      metric("认知复杂度", stats.cognitive, "SonarSource", "accent") +
+      metric("函数数量", funcs.length, "已识别", "") +
+      metric("平均圈复杂度", avgCc.toFixed(1), "每个函数", ccCls) +
+      metric("代码行数", stats.code, "总 " + stats.total + " · 注释 " + stats.comment, "") +
+      metric("依赖项", deps.count, "import / require", "") +
+      metric("平均认知复杂度", avgCog.toFixed(1), "每个函数", cogCls) +
+      metric("空行/注释", (stats.blank + stats.comment), "可优化空间", "");
+  }
+
+  function metric(k, v, sub, cls) {
+    var vcls = cls === "green" ? "v green" : cls === "yellow" ? "v yellow" : cls === "red" ? "v red" : "v";
+    var cardCls = cls === "accent" ? "metric accent" : "metric";
+    return '<div class="' + cardCls + '"><div class="k">' + esc(k) + '</div>' +
+      '<div class="' + vcls + '">' + esc(v) + '</div>' +
+      '<div class="sub">' + esc(sub) + '</div></div>';
+  }
+
+  function renderFnTable(funcs) {
+    if (!funcs.length) {
+      $("fnBody").innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-faint);padding:30px;font-family:var(--sans)">未识别到函数</td></tr>';
+      return;
+    }
+    var sorted = funcs.slice().sort(function (a, b) { return b.cc - a.cc; });
+    var html = "";
+    sorted.forEach(function (f) {
+      var r = riskOf(f);
+      html += '<tr>' +
+        '<td><div class="fn-name" title="' + esc(f.name + "(" + f.params + ")") + '">' + esc(f.name) + '</div></td>' +
+        '<td>' + f.lines + '</td>' +
+        '<td>' + f.paramCount + '</td>' +
+        '<td>' + f.cc + '</td>' +
+        '<td>' + f.cognitive + '</td>' +
+        '<td><span class="pill ' + r.cls + '">' + r.label + '</span></td>' +
+        '</tr>';
+    });
+    $("fnBody").innerHTML = html;
+  }
+
+  function renderChart(funcs) {
+    var el = $("chart");
+    if (!funcs.length) {
+      el.innerHTML = '<div class="empty"><div class="ic">▁▂▄▆█</div><div class="t">无函数可绘制</div></div>';
+      return;
+    }
+    var sorted = funcs.slice().sort(function (a, b) { return b.cc - a.cc; }).slice(0, 16);
+    var maxCc = Math.max.apply(null, sorted.map(function (f) { return f.cc; }));
+    maxCc = Math.max(maxCc, 5);
+    var W = Math.max(480, sorted.length * 52);
+    var H = 200;
+    var padL = 36, padR = 14, padT = 16, padB = 44;
+    var plotW = W - padL - padR;
+    var plotH = H - padT - padB;
+    var bw = plotW / sorted.length;
+    var ticks = 4;
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '">';
+    // grid + y labels
+    for (var t = 0; t <= ticks; t++) {
+      var yv = Math.round(maxCc * t / ticks);
+      var yy = padT + plotH - (plotH * t / ticks);
+      svg += '<line class="grid" x1="' + padL + '" y1="' + yy + '" x2="' + (W - padR) + '" y2="' + yy + '"/>';
+      svg += '<text class="lbl" x="' + (padL - 6) + '" y="' + (yy + 3) + '" text-anchor="end">' + yv + '</text>';
+    }
+    svg += '<line class="axis" x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '"/>';
+    sorted.forEach(function (f, i) {
+      var h = (f.cc / maxCc) * plotH;
+      var x = padL + i * bw + bw * 0.18;
+      var w = bw * 0.64;
+      var y = padT + plotH - h;
+      var r = riskOf(f);
+      var color = r.cls === "red" ? "#ef4444" : r.cls === "yellow" ? "#f59e0b" : "#10b981";
+      svg += '<rect class="bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="' + color + '" opacity="0.85"><title>' + esc(f.name) + ' — CC ' + f.cc + ', 认知 ' + f.cognitive + '</title></rect>';
+      svg += '<text class="tip" x="' + (x + w / 2).toFixed(1) + '" y="' + (y - 4) + '" text-anchor="middle">' + f.cc + '</text>';
+      var nm = f.name.length > 8 ? f.name.slice(0, 7) + "…" : f.name;
+      svg += '<text class="vlbl" x="' + (x + w / 2).toFixed(1) + '" y="' + (H - padB + 14) + '" text-anchor="middle" transform="rotate(-20 ' + (x + w / 2).toFixed(1) + ' ' + (H - padB + 14) + ')">' + esc(nm) + '</text>';
+    });
+    svg += '</svg>';
+    el.innerHTML = svg;
+  }
+
+  function renderSmells(smells) {
+    if (!smells.length) {
+      $("smellList").innerHTML = '<div class="empty"><div class="ic">✓</div><div class="t">未检测到代码异味</div></div>';
+      return;
+    }
+    var html = "";
+    smells.forEach(function (s) {
+      var sevTxt = s.sev === "high" ? "高" : s.sev === "mid" ? "中" : "低";
+      html += '<div class="smell">' +
+        '<div class="ln">L' + s.line + '</div>' +
+        '<div class="body"><div class="t">' + esc(s.type) + '</div>' +
+        '<div class="d">' + esc(s.desc) + '</div>' +
+        '<div class="fix">→ ' + esc(s.fix) + '</div></div>' +
+        '<div class="sev ' + s.sev + '">' + sevTxt + '</div></div>';
+    });
+    $("smellList").innerHTML = html;
+  }
+
+  function renderHeatmap(code, heat, lang) {
+    var lines = code.split("\n");
+    var html = "";
+    for (var i = 0; i < lines.length; i++) {
+      var lvl = heat[i] || 0;
+      var content = highlight(lines[i], lang);
+      if (!content) content = "&nbsp;";
+      html += '<div class="hline heat-' + lvl + '"><div class="hn">' + (i + 1) + '</div><div class="hc">' + content + '</div></div>';
+    }
+    $("heatBody").innerHTML = html;
+  }
+
+  /* ============================================================
+   *  主分析流程
+   * ============================================================ */
+  function analyze(code, lang) {
+    var cfg = LANG[lang] || LANG.js;
+    var cleaned = cleanCode(code, lang);
+    var lineStats = countLines(code, lang);
+    var funcs = extractFunctions(code, cleaned, lang);
+    var deps = analyzeDeps(code, lang);
+    var decPerLine = cyclomaticPerLine(cleaned, cfg);
+    var depthArr = depthPerLine(cleaned, lang);
+    var smells = detectSmells(code, cleaned, funcs, lang, depthArr);
+    var heat = buildHeatmap(cleaned, decPerLine, depthArr, lang);
+
+    var cc = cyclomatic(cleaned, cfg);
+    var cog = cognitive(cleaned, lang);
+    var stats = { cc: cc, cognitive: cog, total: lineStats.total, code: lineStats.code, comment: lineStats.comment, blank: lineStats.blank };
+
+    var score = healthScore(stats, funcs, smells);
+    var grade = gradeOf(score);
+
+    renderGauge(score, grade);
+    renderMetrics(stats, funcs, deps);
+    renderFnTable(funcs);
+    renderChart(funcs);
+    renderSmells(smells);
+    renderHeatmap(code, heat, lang);
+
+    $("dashMeta").textContent = grade.grade + " · " + score + " 分";
+    $("fnMeta").textContent = funcs.length + " 个函数";
+    $("smellMeta").textContent = smells.length + " 项";
+    $("heatMeta").textContent = funcs.length + " 函数 · " + lineStats.total + " 行";
+  }
+
+  /* ============================================================
+   *  示例代码
+   * ============================================================ */
+  var EXAMPLES = {
+    clean:
+'// 简洁的好代码：单一职责，命名清晰，复杂度低，无常量魔法数字\n' +
+'const CENTS_PER_DOLLAR = 100;\n' +
+'\n' +
+'function calculateAverage(numbers) {\n' +
+'  if (!numbers || numbers.length === 0) {\n' +
+'    return 0;\n' +
+'  }\n' +
+'  const sum = numbers.reduce((acc, n) => acc + n, 0);\n' +
+'  return sum / numbers.length;\n' +
+'}\n' +
+'\n' +
+'function formatPrice(cents) {\n' +
+'  return "$" + (cents / CENTS_PER_DOLLAR).toFixed(2);\n' +
+'}\n' +
+'\n' +
+'function isEven(n) {\n' +
+'  return n % 2 === 0;\n' +
+'}\n',
+
+    nested:
+'// 过度嵌套：典型深嵌套示例\n' +
+'function processOrder(order) {\n' +
+'  if (order) {\n' +
+'    if (order.items) {\n' +
+'      for (let i = 0; i < order.items.length; i++) {\n' +
+'        const item = order.items[i];\n' +
+'        if (item.price > 100) {\n' +
+'          if (item.quantity > 2) {\n' +
+'            if (order.customer && order.customer.isVip) {\n' +
+'              if (item.category === "electronics") {\n' +
+'                item.discount = item.price * 0.2;\n' +
+'                item.note = "VIP 电子品折扣";\n' +
+'              } else if (item.category === "clothing") {\n' +
+'                item.discount = item.price * 0.15;\n' +
+'              } else {\n' +
+'                item.discount = item.price * 0.1;\n' +
+'              }\n' +
+'            }\n' +
+'          }\n' +
+'        }\n' +
+'      }\n' +
+'    }\n' +
+'  }\n' +
+'  return order;\n' +
+'}\n',
+
+    long:
+'// 长函数：超过 100 行，职责混杂\n' +
+'function processUserData(users) {\n' +
+'  const results = [];\n' +
+'  for (let i = 0; i < users.length; i++) {\n' +
+'    const user = users[i];\n' +
+'    const record = {};\n' +
+'    record.id = user.id;\n' +
+'    record.name = user.name;\n' +
+'    record.email = user.email;\n' +
+'    record.phone = user.phone;\n' +
+'    record.address = user.address;\n' +
+'    record.city = user.city;\n' +
+'    record.country = user.country;\n' +
+'    record.postalCode = user.postalCode;\n' +
+'    record.status = user.status;\n' +
+'    record.createdAt = user.createdAt;\n' +
+'    record.updatedAt = user.updatedAt;\n' +
+'    record.lastLogin = user.lastLogin;\n' +
+'    record.loginCount = user.loginCount;\n' +
+'    record.role = user.role;\n' +
+'    record.department = user.department;\n' +
+'    record.manager = user.manager;\n' +
+'    record.salary = user.salary;\n' +
+'    record.bonus = user.bonus;\n' +
+'    record.taxRate = user.taxRate;\n' +
+'    record.vacationDays = user.vacationDays;\n' +
+'    record.sickDays = user.sickDays;\n' +
+'    record.team = user.team;\n' +
+'    record.project = user.project;\n' +
+'    record.skills = user.skills;\n' +
+'    record.certifications = user.certifications;\n' +
+'    record.education = user.education;\n' +
+'    record.experience = user.experience;\n' +
+'    if (user.status === "active") {\n' +
+'      record.isActive = true;\n' +
+'      record.verified = true;\n' +
+'    } else if (user.status === "pending") {\n' +
+'      record.isActive = false;\n' +
+'      record.verified = false;\n' +
+'    } else if (user.status === "suspended") {\n' +
+'      record.isActive = false;\n' +
+'      record.verified = true;\n' +
+'    } else {\n' +
+'      record.isActive = false;\n' +
+'      record.verified = false;\n' +
+'    }\n' +
+'    if (user.role === "admin") {\n' +
+'      record.permissions = "all";\n' +
+'    } else if (user.role === "manager") {\n' +
+'      record.permissions = "department";\n' +
+'    } else if (user.role === "editor") {\n' +
+'      record.permissions = "content";\n' +
+'    } else if (user.role === "viewer") {\n' +
+'      record.permissions = "read";\n' +
+'    } else {\n' +
+'      record.permissions = "none";\n' +
+'    }\n' +
+'    let baseSalary = user.salary;\n' +
+'    if (user.experience > 10) {\n' +
+'      baseSalary = baseSalary * 1.3;\n' +
+'    } else if (user.experience > 5) {\n' +
+'      baseSalary = baseSalary * 1.2;\n' +
+'    } else if (user.experience > 2) {\n' +
+'      baseSalary = baseSalary * 1.1;\n' +
+'    }\n' +
+'    if (user.performance === "excellent") {\n' +
+'      baseSalary += 5000;\n' +
+'    } else if (user.performance === "good") {\n' +
+'      baseSalary += 2000;\n' +
+'    }\n' +
+'    record.computedSalary = baseSalary;\n' +
+'    record.taxAmount = baseSalary * user.taxRate;\n' +
+'    record.netSalary = baseSalary - record.taxAmount;\n' +
+'    if (user.vacationDays > 20) {\n' +
+'      record.vacationStatus = "excessive";\n' +
+'    } else if (user.vacationDays > 10) {\n' +
+'      record.vacationStatus = "normal";\n' +
+'    } else {\n' +
+'      record.vacationStatus = "low";\n' +
+'    }\n' +
+'    record.fullName = user.name + " (" + user.department + ")";\n' +
+'    record.contact = user.email + " | " + user.phone;\n' +
+'    record.location = user.city + ", " + user.country;\n' +
+'    record.tenure = new Date().getFullYear() - new Date(user.createdAt).getFullYear();\n' +
+'    if (record.tenure > 5) {\n' +
+'      record.isVeteran = true;\n' +
+'    } else {\n' +
+'      record.isVeteran = false;\n' +
+'    }\n' +
+'    results.push(record);\n' +
+'  }\n' +
+'  return results;\n' +
+'}\n',
+
+    cc:
+'// 高圈复杂度：大量 if-else 分支\n' +
+'function getDiscountRate(customerType, tier, season, isHoliday, isVip, isEmployee) {\n' +
+'  let rate = 0;\n' +
+'  if (customerType === "regular") {\n' +
+'    if (tier === "silver") {\n' +
+'      rate = 0.05;\n' +
+'    } else if (tier === "gold") {\n' +
+'      rate = 0.1;\n' +
+'    } else if (tier === "platinum") {\n' +
+'      rate = 0.15;\n' +
+'    } else {\n' +
+'      rate = 0;\n' +
+'    }\n' +
+'  } else if (customerType === "wholesale") {\n' +
+'    if (tier === "silver") {\n' +
+'      rate = 0.12;\n' +
+'    } else if (tier === "gold") {\n' +
+'      rate = 0.18;\n' +
+'    } else if (tier === "platinum") {\n' +
+'      rate = 0.25;\n' +
+'    } else {\n' +
+'      rate = 0.08;\n' +
+'    }\n' +
+'  } else if (customerType === "vip") {\n' +
+'    if (isVip && isHoliday) {\n' +
+'      rate = 0.3;\n' +
+'    } else if (isVip) {\n' +
+'      rate = 0.22;\n' +
+'    } else {\n' +
+'      rate = 0.18;\n' +
+'    }\n' +
+'  } else if (customerType === "employee") {\n' +
+'    if (isEmployee) {\n' +
+'      rate = 0.4;\n' +
+'    } else {\n' +
+'      rate = 0.05;\n' +
+'    }\n' +
+'  } else {\n' +
+'    rate = 0;\n' +
+'  }\n' +
+'  if (season === "winter") {\n' +
+'    rate += 0.05;\n' +
+'  } else if (season === "summer") {\n' +
+'    rate += 0.03;\n' +
+'  } else if (season === "spring") {\n' +
+'    rate += 0.02;\n' +
+'  } else if (season === "autumn") {\n' +
+'    rate += 0.04;\n' +
+'  }\n' +
+'  if (isHoliday && isVip && tier === "platinum") {\n' +
+'    rate += 0.1;\n' +
+'  }\n' +
+'  if (rate > 0.5) {\n' +
+'    rate = 0.5;\n' +
+'  }\n' +
+'  return rate;\n' +
+'}\n',
+
+    dup:
+'// 重复代码：明显的复制粘贴\n' +
+'function formatUser(user) {\n' +
+'  const result = {};\n' +
+'  result.id = user.id;\n' +
+'  result.name = user.name;\n' +
+'  result.email = user.email;\n' +
+'  result.phone = user.phone;\n' +
+'  result.address = user.address;\n' +
+'  result.createdAt = formatDate(user.createdAt);\n' +
+'  result.label = user.name + " <" + user.email + ">";\n' +
+'  return result;\n' +
+'}\n' +
+'\n' +
+'function formatAdmin(admin) {\n' +
+'  const result = {};\n' +
+'  result.id = admin.id;\n' +
+'  result.name = admin.name;\n' +
+'  result.email = admin.email;\n' +
+'  result.phone = admin.phone;\n' +
+'  result.address = admin.address;\n' +
+'  result.createdAt = formatDate(admin.createdAt);\n' +
+'  result.label = admin.name + " <" + admin.email + ">";\n' +
+'  return result;\n' +
+'}\n' +
+'\n' +
+'function formatGuest(guest) {\n' +
+'  const result = {};\n' +
+'  result.id = guest.id;\n' +
+'  result.name = guest.name;\n' +
+'  result.email = guest.email;\n' +
+'  result.phone = guest.phone;\n' +
+'  result.address = guest.address;\n' +
+'  result.createdAt = formatDate(guest.createdAt);\n' +
+'  result.label = guest.name + " <" + guest.email + ">";\n' +
+'  return result;\n' +
+'}\n',
+
+    cb:
+'// 回调地狱：多层嵌套回调\n' +
+'function fetchUserData(userId, callback) {\n' +
+'  api.get("/users/" + userId, function (err, user) {\n' +
+'    if (err) { callback(err); return; }\n' +
+'    api.get("/users/" + userId + "/orders", function (err, orders) {\n' +
+'      if (err) { callback(err); return; }\n' +
+'      api.get("/users/" + userId + "/settings", function (err, settings) {\n' +
+'        if (err) { callback(err); return; }\n' +
+'        api.get("/users/" + userId + "/profile", function (err, profile) {\n' +
+'          if (err) { callback(err); return; }\n' +
+'          api.get("/users/" + userId + "/activity", function (err, activity) {\n' +
+'            if (err) { callback(err); return; }\n' +
+'            api.get("/users/" + userId + "/notifications", function (err, notifs) {\n' +
+'              if (err) { callback(err); return; }\n' +
+'              callback(null, { user: user, orders: orders, settings: settings, profile: profile, activity: activity, notifs: notifs });\n' +
+'            });\n' +
+'          });\n' +
+'        });\n' +
+'      });\n' +
+'    });\n' +
+'  });\n' +
+'}\n',
+
+    eng:
+'// 合理的工程代码：职责分离，命名清晰\n' +
+'const MAX_RETRIES = 3;\n' +
+'const TIMEOUT_MS = 5000;\n' +
+'\n' +
+'function parseConfig(raw) {\n' +
+'  if (!raw) return { defaults: true };\n' +
+'  try {\n' +
+'    return JSON.parse(raw);\n' +
+'  } catch (e) {\n' +
+'    return { defaults: true, error: e.message };\n' +
+'  }\n' +
+'}\n' +
+'\n' +
+'function fetchWithRetry(url, retries) {\n' +
+'  return new Promise((resolve, reject) => {\n' +
+'    let attempt = 0;\n' +
+'    function run() {\n' +
+'      attempt++;\n' +
+'      fetch(url)\n' +
+'        .then((res) => { if (res.ok) resolve(res.json()); else throw new Error(res.status); })\n' +
+'        .catch((err) => {\n' +
+'          if (attempt > retries) reject(err);\n' +
+'          else setTimeout(run, 100 * attempt);\n' +
+'        });\n' +
+'    }\n' +
+'    run();\n' +
+'  });\n' +
+'}\n' +
+'\n' +
+'function buildSummary(items) {\n' +
+'  return items.reduce((acc, item) => {\n' +
+'    acc.count += 1;\n' +
+'    acc.total += item.value;\n' +
+'    return acc;\n' +
+'  }, { count: 0, total: 0 });\n' +
+'}\n' +
+'\n' +
+'module.exports = { parseConfig, fetchWithRetry, buildSummary };\n',
+
+    refactor:
+'// 需要重构：混合了长函数、深嵌套、魔法数字、高复杂度\n' +
+'function handleRequest(req, res) {\n' +
+'  const type = req.type;\n' +
+'  const data = req.data;\n' +
+'  if (type === "order") {\n' +
+'    if (data) {\n' +
+'      if (data.items && data.items.length > 0) {\n' +
+'        let total = 0;\n' +
+'        for (let i = 0; i < data.items.length; i++) {\n' +
+'          const it = data.items[i];\n' +
+'          if (it.price > 0 && it.qty > 0) {\n' +
+'            if (it.discount) {\n' +
+'              if (it.discountType === "percent") {\n' +
+'                total += it.price * it.qty * (1 - it.discount / 100);\n' +
+'              } else if (it.discountType === "fixed") {\n' +
+'                total += (it.price * it.qty) - it.discount;\n' +
+'              } else {\n' +
+'                total += it.price * it.qty;\n' +
+'              }\n' +
+'            } else {\n' +
+'              total += it.price * it.qty;\n' +
+'            }\n' +
+'            if (total > 1000) {\n' +
+'              total = total * 0.92;\n' +
+'            }\n' +
+'            if (total > 5000) {\n' +
+'              total = total * 0.88;\n' +
+'            }\n' +
+'          }\n' +
+'        }\n' +
+'        if (data.coupon === "SAVE10") {\n' +
+'          total = total * 0.9;\n' +
+'        } else if (data.coupon === "SAVE20") {\n' +
+'          total = total * 0.8;\n' +
+'        } else if (data.coupon === "SAVE50") {\n' +
+'          total = total * 0.5;\n' +
+'        }\n' +
+'        if (data.shipping === "express") {\n' +
+'          total += 25;\n' +
+'        } else if (data.shipping === "priority") {\n' +
+'          total += 15;\n' +
+'        } else {\n' +
+'          total += 5;\n' +
+'        }\n' +
+'        res.json({ ok: true, total: total, items: data.items.length });\n' +
+'      } else {\n' +
+'        res.json({ ok: false, error: "empty" });\n' +
+'      }\n' +
+'    } else {\n' +
+'      res.json({ ok: false, error: "no data" });\n' +
+'    }\n' +
+'  } else if (type === "refund") {\n' +
+'    if (data && data.amount > 0) {\n' +
+'      res.json({ ok: true, refund: data.amount });\n' +
+'    } else {\n' +
+'      res.json({ ok: false, error: "invalid" });\n' +
+'    }\n' +
+'  } else {\n' +
+'    res.json({ ok: false, error: "unknown" });\n' +
+'  }\n' +
+'}\n'
+  };
+
+  /* ============================================================
+   *  UI 控制器
+   * ============================================================ */
+  var state = { lang: "js" };
+
+  function updateGutter() {
+    var ta = $("codeInput");
+    var lines = ta.value.split("\n").length;
+    var nums = [];
+    for (var i = 1; i <= lines; i++) nums.push(i);
+    $("gutter").textContent = nums.join("\n");
+    $("footLines").textContent = lines;
+    $("footChars").textContent = ta.value.length;
+    $("editorMeta").textContent = lines + " 行 · " + state.lang.toUpperCase();
+  }
+
+  function loadExample(key) {
+    if (!EXAMPLES[key]) return;
+    $("codeInput").value = EXAMPLES[key];
+    updateGutter();
+    persist();
+    runAnalysis();
+    toast("已加载示例：" + $("exampleSelect").options[$("exampleSelect").selectedIndex].text);
+  }
+
+  function setLang(lang) {
+    state.lang = lang;
+    document.querySelectorAll("#langSeg button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.lang === lang);
+    });
+    $("footLang").textContent = LANG[lang].name;
+    updateGutter();
+    persist();
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(LS_PREFIX + "code", $("codeInput").value);
+      localStorage.setItem(LS_PREFIX + "lang", state.lang);
+    } catch (e) { /* ignore */ }
+  }
+
+  function restore() {
+    try {
+      var lang = localStorage.getItem(LS_PREFIX + "lang");
+      var code = localStorage.getItem(LS_PREFIX + "code");
+      if (lang && LANG[lang]) setLang(lang);
+      if (code != null) $("codeInput").value = code;
+    } catch (e) { /* ignore */ }
+  }
+
+  function runAnalysis() {
+    var code = $("codeInput").value;
+    if (!code.trim()) {
+      toast("请先粘贴代码或加载示例");
+      return;
+    }
+    var t0 = performance.now();
+    analyze(code, state.lang);
+    var dt = Math.round(performance.now() - t0);
+    $("footHint").textContent = "分析耗时 " + dt + "ms";
+    persist();
+  }
+
+  function clearAll() {
+    $("codeInput").value = "";
+    updateGutter();
+    persist();
+    toast("已清空");
+  }
+
+  /* ---------- 编辑器增强：Tab 缩进 + 滚动同步 ---------- */
+  function initEditor() {
+    var ta = $("codeInput");
+    var gutter = $("gutter");
+
+    ta.addEventListener("input", function () {
+      updateGutter();
+      persist();
+    });
+
+    ta.addEventListener("scroll", function () {
+      gutter.scrollTop = ta.scrollTop;
+    });
+
+    ta.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        var s = ta.selectionStart, en = ta.selectionEnd;
+        ta.value = ta.value.slice(0, s) + "  " + ta.value.slice(en);
+        ta.selectionStart = ta.selectionEnd = s + 2;
+        updateGutter();
+        persist();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        runAnalysis();
+      }
+    });
+  }
+
+  function init() {
+    restore();
+    if (!$("codeInput").value) {
+      $("codeInput").value = EXAMPLES.clean;
+    }
+    updateGutter();
+
+    document.querySelectorAll("#langSeg button").forEach(function (b) {
+      b.addEventListener("click", function () { setLang(b.dataset.lang); runAnalysis(); });
+    });
+    $("exampleSelect").addEventListener("change", function () {
+      var v = this.value;
+      if (v) { loadExample(v); this.value = ""; }
+    });
+    $("analyzeBtn").addEventListener("click", runAnalysis);
+    $("clearBtn").addEventListener("click", clearAll);
+
+    initEditor();
+    runAnalysis();
+  }
+
+  return { init: init };
+})();
+
+document.addEventListener("DOMContentLoaded", function () { TW.init(); });
+</script>
+</body>
+</html>

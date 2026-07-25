@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Detective — Bug 侦探</title>
+<style>
+/* ============ RESET & BASE ============ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #08090a;
+  --bg-elev: #0d0e10;
+  --bg-elev2: #111316;
+  --bg-elev3: #16181c;
+  --border: #1e2024;
+  --border-hi: #2a2d33;
+  --border-active: #3a3d44;
+  --text: #e8e9ea;
+  --text-dim: #9ea2a8;
+  --text-mute: #5c6066;
+  --red: #dc2626;
+  --red-bright: #ef4444;
+  --red-dim: #991b1b;
+  --red-glow: rgba(220, 38, 38, 0.12);
+  --red-glow-strong: rgba(220, 38, 38, 0.22);
+  --green: #22c55e;
+  --green-dim: #15803d;
+  --green-glow: rgba(34, 197, 94, 0.12);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.12);
+  --blue: #3b82f6;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Source Code Pro", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 6px;
+  --radius-sm: 4px;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+button { font-family: var(--sans); cursor: pointer; border: none; background: none; color: inherit; }
+textarea { font-family: var(--mono); resize: vertical; }
+::selection { background: var(--red-glow-strong); }
+
+/* ============ SCROLLBARS ============ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+
+/* ============ TOPBAR ============ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 24px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { width: 28px; height: 28px; flex-shrink: 0; }
+.brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+.brand-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--red);
+  padding: 2px 6px;
+  border: 1px solid var(--red-dim);
+  border-radius: var(--radius-sm);
+  background: var(--red-glow);
+}
+.topbar-sep { width: 1px; height: 28px; background: var(--border); }
+.stat-box { display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.stat-value { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-value.red { color: var(--red-bright); }
+.rank-bar {
+  width: 80px;
+  height: 3px;
+  background: var(--bg-elev3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.rank-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--red-dim), var(--red));
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.combo-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--amber-glow);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  animation: comboPulse 0.4s ease;
+}
+@keyframes comboPulse {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.level-tabs { display: flex; gap: 4px; margin-left: auto; background: var(--bg-elev2); padding: 3px; border-radius: var(--radius); border: 1px solid var(--border); }
+.level-tab {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.level-tab:hover { color: var(--text); background: var(--bg-elev3); }
+.level-tab.active {
+  background: var(--red);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--red-dim);
+}
+
+/* ============ MAIN LAYOUT ============ */
+.game-area {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  padding: 16px 24px;
+  max-width: 1600px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* ============ CODE PANEL ============ */
+.code-panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.question-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev2);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.q-meta { display: flex; align-items: center; gap: 10px; }
+.q-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--red-bright);
+  letter-spacing: 0.05em;
+}
+.q-progress { font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.q-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.q-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: var(--bg-elev3);
+  border: 1px solid var(--border-hi);
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.q-tag.linked { color: var(--blue); border-color: rgba(59,130,246,0.3); cursor: pointer; }
+.q-tag.linked:hover { background: rgba(59,130,246,0.1); }
+.q-body { padding: 18px; }
+.q-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+.q-desc { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.6; }
+
+/* ============ CODE BLOCK ============ */
+.code-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: auto;
+  position: relative;
+}
+.code-block::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 28px;
+  background: var(--bg-elev2);
+  border-bottom: 1px solid var(--border);
+  z-index: 0;
+}
+.code-dots { position: absolute; top: 8px; left: 14px; display: flex; gap: 6px; z-index: 1; }
+.code-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-hi); }
+.code-dot:nth-child(1) { background: #dc262644; }
+.code-lang { position: absolute; top: 6px; right: 14px; font-size: 10px; color: var(--text-mute); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; z-index: 1; }
+.code-lines { padding-top: 28px; }
+.code-line {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  position: relative;
+  z-index: 1;
+}
+.code-line:hover { background: rgba(255,255,255,0.03); }
+.code-line.marked {
+  background: var(--red-glow);
+  box-shadow: inset 2px 0 0 var(--red);
+}
+.code-line.marked:hover { background: var(--red-glow-strong); }
+.line-num {
+  flex-shrink: 0;
+  width: 44px;
+  padding: 0 12px 0 8px;
+  text-align: right;
+  color: var(--text-mute);
+  user-select: none;
+  font-size: 12px;
+  border-right: 1px solid var(--border);
+  transition: color 0.1s ease;
+}
+.code-line.marked .line-num { color: var(--red-bright); font-weight: 700; }
+.code-line:hover .line-num { color: var(--text-dim); }
+.line-code {
+  flex: 1;
+  padding: 0 16px;
+  white-space: pre;
+  color: var(--text);
+}
+.code-line .line-marker {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0;
+}
+.code-line.marked .line-marker { opacity: 1; }
+
+/* syntax tokens */
+.tok-kw { color: #ff7b72; }
+.tok-str { color: #a5d6ff; }
+.tok-com { color: #6e7681; font-style: italic; }
+.tok-num { color: #d2a8ff; }
+.tok-fn { color: #ffa657; }
+
+/* ============ CONTROL PANEL ============ */
+.control-panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: sticky;
+  top: 72px;
+}
+.ctrl-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.ctrl-section:last-child { border-bottom: none; }
+.ctrl-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* timer */
+.timer-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.timer-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); line-height: 1; }
+.timer-unit { font-size: 13px; color: var(--text-mute); font-weight: 600; }
+.timer-bar { height: 4px; background: var(--bg-elev3); border-radius: 2px; overflow: hidden; }
+.timer-fill { height: 100%; border-radius: 2px; transition: width 1s linear, background 0.3s ease; background: var(--green); }
+.timer-fill.warn { background: var(--amber); }
+.timer-fill.danger { background: var(--red); }
+.timer-value.danger { color: var(--red-bright); animation: timerBlink 0.6s ease infinite; }
+@keyframes timerBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* marked lines */
+.marked-list { display: flex; flex-wrap: wrap; gap: 5px; min-height: 26px; align-items: center; }
+.marked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--red-glow);
+  border: 1px solid rgba(220,38,38,0.3);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--red-bright);
+}
+.marked-chip .rm { cursor: pointer; opacity: 0.6; }
+.marked-chip .rm:hover { opacity: 1; }
+.marked-empty { font-size: 12px; color: var(--text-mute); font-style: italic; }
+
+/* fix input */
+.fix-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.fix-input:focus { border-color: var(--border-active); }
+.fix-input::placeholder { color: var(--text-mute); }
+
+/* hints */
+.hints-list { display: flex; flex-direction: column; gap: 6px; }
+.hint-item {
+  padding: 8px 10px;
+  background: var(--amber-glow);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-left: 2px solid var(--amber);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  animation: hintReveal 0.3s ease;
+}
+@keyframes hintReveal { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+.hint-num { color: var(--amber); font-weight: 700; margin-right: 4px; }
+
+/* action buttons */
+.action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-buttons .primary { grid-column: 1 / -1; }
+.btn {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hi);
+  background: var(--bg-elev2);
+  color: var(--text-dim);
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.btn:hover:not(:disabled) { background: var(--bg-elev3); color: var(--text); border-color: var(--border-active); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+.btn.primary:hover:not(:disabled) { background: var(--red-bright); border-color: var(--red-bright); }
+.btn.ghost { background: transparent; }
+.btn.hint-btn { color: var(--amber); border-color: rgba(245,158,11,0.3); }
+.btn.hint-btn:hover:not(:disabled) { background: var(--amber-glow); }
+
+/* ============ RESULT MODAL ============ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal-overlay.show { display: flex; animation: overlayIn 0.2s ease; }
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: modalIn 0.25s ease;
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.modal-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.result-icon { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.result-icon.correct { background: var(--green-glow); color: var(--green); }
+.result-icon.partial { background: var(--amber-glow); color: var(--amber); }
+.result-icon.wrong { background: var(--red-glow); color: var(--red-bright); }
+.result-title { font-size: 17px; font-weight: 700; }
+.result-sub { font-size: 12px; color: var(--text-dim); }
+.modal-body { padding: 18px 22px; }
+.result-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.result-row:last-child { border-bottom: none; }
+.result-row .check { width: 18px; height: 18px; flex-shrink: 0; }
+.result-row .label { color: var(--text-dim); min-width: 90px; }
+.result-row .value { color: var(--text); font-weight: 600; }
+.result-points {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--bg-elev2);
+  border-radius: var(--radius-sm);
+  margin: 12px 0;
+}
+.result-points .pt-label { font-size: 12px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.result-points .pt-value { font-size: 22px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
+.result-points .pt-value.zero { color: var(--text-mute); }
+.result-points .pt-value.negative { color: var(--red-bright); }
+.answer-block { margin-top: 12px; }
+.answer-block-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 6px; }
+.answer-code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--green);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.explanation {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg-elev2);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  border-left: 2px solid var(--blue);
+}
+.modal-footer { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ============ BOTTOM AREA ============ */
+.bottom-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 16px 24px 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.bottom-panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.bottom-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bottom-header h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); }
+.bottom-header .count { font-size: 11px; color: var(--text-mute); margin-left: auto; font-variant-numeric: tabular-nums; }
+.bottom-body { padding: 8px; max-height: 280px; overflow-y: auto; }
+
+/* history items */
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  transition: background 0.1s ease;
+}
+.history-item:hover { background: var(--bg-elev2); }
+.history-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.history-status.correct { background: var(--green); }
+.history-status.partial { background: var(--amber); }
+.history-status.wrong { background: var(--red); }
+.history-status.skipped { background: var(--text-mute); }
+.history-qid { font-family: var(--mono); font-size: 11px; color: var(--text-dim); min-width: 50px; }
+.history-title { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-pts { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; }
+.history-pts.zero { color: var(--text-mute); }
+.empty-state { padding: 24px 16px; text-align: center; color: var(--text-mute); font-size: 12px; }
+
+/* achievements */
+.achv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: background 0.1s ease;
+}
+.achv-item.unlocked { background: var(--bg-elev2); }
+.achv-item.locked { opacity: 0.4; }
+.achv-icon {
+  width: 30px; height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev3);
+  border: 1px solid var(--border-hi);
+}
+.achv-item.unlocked .achv-icon { background: var(--red-glow); border-color: rgba(220,38,38,0.3); color: var(--red-bright); }
+.achv-item.locked .achv-icon { color: var(--text-mute); }
+.achv-info { flex: 1; min-width: 0; }
+.achv-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.achv-desc { font-size: 11px; color: var(--text-mute); }
+
+/* leaderboard */
+.lb-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.lb-item:hover { background: var(--bg-elev2); }
+.lb-rank {
+  width: 22px; height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+  background: var(--bg-elev3);
+  color: var(--text-dim);
+}
+.lb-rank.gold { background: rgba(245,158,11,0.15); color: var(--amber); }
+.lb-rank.silver { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.lb-rank.bronze { background: rgba(180,83,9,0.15); color: #b45309; }
+.lb-info { flex: 1; min-width: 0; }
+.lb-date { font-size: 11px; color: var(--text-mute); }
+.lb-level { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.lb-score { font-weight: 700; color: var(--red-bright); font-variant-numeric: tabular-nums; }
+
+/* ============ TOAST ============ */
+.toast-container { position: fixed; top: 70px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 10px 16px;
+  background: var(--bg-elev2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards;
+  border-left: 3px solid var(--red);
+}
+.toast.success { border-left-color: var(--green); }
+.toast.info { border-left-color: var(--blue); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+
+/* ============ INTRO OVERLAY ============ */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 24px;
+}
+.intro-overlay.hide { display: none; }
+.intro-card {
+  max-width: 560px;
+  text-align: center;
+}
+.intro-card svg { width: 64px; height: 64px; margin-bottom: 20px; }
+.intro-card h1 { font-size: 28px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 8px; }
+.intro-card .subtitle { font-size: 14px; color: var(--text-dim); margin-bottom: 28px; line-height: 1.7; }
+.intro-features { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; text-align: left; }
+.intro-feature { display: flex; gap: 10px; align-items: flex-start; padding: 12px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); }
+.intro-feature-num { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--red-bright); flex-shrink: 0; }
+.intro-feature-text { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+.intro-feature-text strong { color: var(--text); display: block; font-size: 13px; margin-bottom: 2px; }
+.intro-start {
+  padding: 14px 40px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--red);
+  color: #fff;
+  border-radius: var(--radius);
+  transition: background 0.15s ease;
+}
+.intro-start:hover { background: var(--red-bright); }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 1000px) {
+  .game-area { grid-template-columns: 1fr; }
+  .control-panel { position: static; }
+  .bottom-area { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .topbar { padding: 10px 14px; gap: 12px; }
+  .stat-box { min-width: auto; }
+  .brand-tag { display: none; }
+  .game-area { padding: 12px 14px; }
+  .bottom-area { padding: 12px 14px 24px; }
+  .intro-features { grid-template-columns: 1fr; }
+  .q-title { font-size: 16px; }
+  .line-num { width: 36px; padding: 0 8px 0 6px; }
+}
+
+/* ============ REDUCED MOTION ============ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ INTRO ============ -->
+<div class="intro-overlay" id="introOverlay">
+  <div class="intro-card">
+    <svg viewBox="0 0 64 64" fill="none">
+      <circle cx="26" cy="28" r="14" stroke="#dc2626" stroke-width="3"/>
+      <line x1="36" y1="38" x2="52" y2="54" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="26" cy="28" r="6" fill="#dc2626" opacity="0.3"/>
+      <path d="M22 24 L22 22 M30 24 L30 22 M24 30 Q26 32 28 30" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+    </svg>
+    <h1>TW Detective</h1>
+    <p class="subtitle">Bug 侦探游戏。审查有缺陷的代码，定位 bug 行号，写出修复方案。<br>三个难度，28 道真实场景题，从逻辑错误到安全漏洞。</p>
+    <div class="intro-features">
+      <div class="intro-feature">
+        <span class="intro-feature-num">01</span>
+        <div class="intro-feature-text"><strong>点击行号标记</strong>在代码区点击可疑行号，定位 bug 位置</div>
+      </div>
+      <div class="intro-feature">
+        <span class="intro-feature-num">02</span>
+        <div class="intro-feature-text"><strong>写出修复方案</strong>描述如何修复，系统智能匹配关键词</div>
+      </div>
+      <div class="intro-feature">
+        <span class="intro-feature-num">03</span>
+        <div class="intro-feature-text"><strong>限时 + 连击</strong>每题限时作答，连续答对获得连击奖励</div>
+      </div>
+      <div class="intro-feature">
+        <span class="intro-feature-num">04</span>
+        <div class="intro-feature-text"><strong>侦探等级</strong>从实习生到传奇侦探，积分解锁成就</div>
+      </div>
+    </div>
+    <button class="intro-start" id="introStart">开始调查</button>
+  </div>
+</div>
+
+<!-- ============ TOPBAR ============ -->
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" fill="none">
+      <circle cx="26" cy="28" r="14" stroke="#dc2626" stroke-width="3"/>
+      <line x1="36" y1="38" x2="52" y2="54" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="26" cy="28" r="6" fill="#dc2626" opacity="0.3"/>
+      <path d="M22 24 L22 22 M30 24 L30 22 M24 30 Q26 32 28 30" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="brand-name">TW DETECTIVE</span>
+    <span class="brand-tag">BUG HUNTER</span>
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="stat-box">
+    <div class="stat-label">侦探等级</div>
+    <div class="stat-value" id="rankName" style="font-size:13px">实习生</div>
+    <div class="rank-bar"><div class="rank-fill" id="rankFill" style="width:0%"></div></div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">总分</div>
+    <div class="stat-value red" id="totalScore">0</div>
+  </div>
+  <div id="comboWrap" style="display:none">
+    <div class="combo-pill">
+      <span id="comboCount">x0</span>
+      <span style="font-size:11px;opacity:0.8">连击</span>
+    </div>
+  </div>
+  <nav class="level-tabs">
+    <button class="level-tab active" data-level="L1">L1 入门</button>
+    <button class="level-tab" data-level="L2">L2 进阶</button>
+    <button class="level-tab" data-level="L3">L3 困难</button>
+  </nav>
+</header>
+
+<!-- ============ GAME AREA ============ -->
+<main class="game-area">
+  <section class="code-panel">
+    <div class="question-header">
+      <div class="q-meta">
+        <span class="q-num" id="qNum">L1 · 01</span>
+        <span class="q-progress" id="qProgress">1 / 10</span>
+      </div>
+      <div class="q-tags" id="qTags"></div>
+    </div>
+    <div class="q-body">
+      <h2 class="q-title" id="qTitle"></h2>
+      <p class="q-desc" id="qDesc"></p>
+      <div class="code-block" id="codeBlock">
+        <div class="code-dots"><div class="code-dot"></div><div class="code-dot"></div><div class="code-dot"></div></div>
+        <div class="code-lang" id="codeLang">javascript</div>
+        <div class="code-lines" id="codeLines"></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="control-panel">
+    <div class="ctrl-section">
+      <div class="ctrl-label">倒计时</div>
+      <div class="timer-row">
+        <span class="timer-value" id="timerValue">120</span>
+        <span class="timer-unit">秒</span>
+      </div>
+      <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">
+        <span>标记的 Bug 行</span>
+        <span style="text-transform:none;font-weight:400" id="markedCount">0 行</span>
+      </div>
+      <div class="marked-list" id="markedList">
+        <span class="marked-empty">点击代码左侧行号标记</span>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">修复方案</div>
+      <textarea class="fix-input" id="fixInput" placeholder="描述你的修复方案，例如：将第 3 行的 <= 改为 <"></textarea>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">
+        <span>提示</span>
+        <span style="text-transform:none;font-weight:400" id="hintCount">0 / 3</span>
+      </div>
+      <div class="hints-list" id="hintsList"></div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="action-buttons">
+        <button class="btn hint-btn" id="hintBtn">使用提示 -25</button>
+        <button class="btn ghost" id="skipBtn">跳过</button>
+        <button class="btn primary" id="submitBtn">提交答案</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ============ BOTTOM ============ -->
+<section class="bottom-area">
+  <div class="bottom-panel">
+    <div class="bottom-header">
+      <h3>答题历史</h3>
+      <span class="count" id="historyCount">0</span>
+    </div>
+    <div class="bottom-body" id="historyList">
+      <div class="empty-state">尚无答题记录</div>
+    </div>
+  </div>
+  <div class="bottom-panel">
+    <div class="bottom-header">
+      <h3>成就</h3>
+      <span class="count" id="achvCount">0 / 8</span>
+    </div>
+    <div class="bottom-body" id="achvList"></div>
+  </div>
+  <div class="bottom-panel">
+    <div class="bottom-header">
+      <h3>排行榜</h3>
+      <span class="count" id="lbCount">0</span>
+    </div>
+    <div class="bottom-body" id="lbList">
+      <div class="empty-state">尚无成绩记录</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULT MODAL ============ -->
+<div class="modal-overlay" id="resultModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="result-icon" id="resultIcon"></div>
+      <div>
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-sub" id="resultSub"></div>
+      </div>
+    </div>
+    <div class="modal-body" id="resultBody"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="resultClose">关闭</button>
+      <button class="btn primary" id="resultNext">下一题</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOASTS ============ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+"use strict";
+/* ================================================================
+   TW DETECTIVE — Bug 侦探游戏
+   ================================================================ */
+
+/* ============ QUESTION BANK ============ */
+var QUESTIONS = {
+  L1: [
+    {
+      id: "L1-01",
+      title: "数组求和越界",
+      desc: "这个函数应该返回数组所有元素的和，但结果总是 NaN。找出 bug 并修复。",
+      lang: "javascript",
+      code: [
+        "function sumArray(arr) {",
+        "    let sum = 0;",
+        "    for (let i = 0; i <= arr.length; i++) {",
+        "        sum += arr[i];",
+        "    }",
+        "    return sum;",
+        "}"
+      ],
+      bugLines: [3],
+      fixAccept: [["<"]],
+      fixAnswer: "将第 3 行的 i <= arr.length 改为 i < arr.length",
+      explanation: "循环条件使用了 <=，当 i 等于 arr.length 时，arr[i] 为 undefined，与数字相加导致 sum 变为 NaN。数组有效索引为 0 到 length-1，应使用严格小于 <。",
+      hints: [
+        "检查循环的边界条件，i 的取值范围是什么？",
+        "数组的有效索引范围是 0 到 length-1，i 能等于 length 吗？",
+        "i <= arr.length 会导致最后一次访问 arr[arr.length] 越界，应改为 i < arr.length"
+      ],
+      tags: ["TW Code Reviewer", "边界检查"]
+    },
+    {
+      id: "L1-02",
+      title: "权限判断失效",
+      desc: "无论用户角色是什么，这个函数总是返回 true。找出原因。",
+      lang: "javascript",
+      code: [
+        "function checkAdmin(user) {",
+        "    if (user.role = 'admin') {",
+        "        return true;",
+        "    }",
+        "    return false;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["==="], ["=="]],
+      fixAnswer: "将第 2 行的 user.role = 'admin' 改为 user.role === 'admin'",
+      explanation: "单等号 = 是赋值运算符而非比较。user.role = 'admin' 会将 role 赋值为 'admin'，赋值表达式的值为 'admin'（truthy），条件永远为真。应使用 === 严格比较。",
+      hints: [
+        "仔细看 if 条件里用的是什么运算符？",
+        "赋值和比较用的是同一个符号吗？",
+        "= 是赋值，=== 才是比较运算符，这里误用了赋值"
+      ],
+      tags: ["TW Linter", "静态分析"]
+    },
+    {
+      id: "L1-03",
+      title: "取不到第一个元素",
+      desc: "函数应该返回数组的第一个元素，但总是返回第二个。",
+      lang: "javascript",
+      code: [
+        "function getFirstElement(arr) {",
+        "    return arr[1];",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["arr[0]"], ["[0]"]],
+      fixAnswer: "将第 2 行的 arr[1] 改为 arr[0]",
+      explanation: "数组索引从 0 开始，第一个元素的索引是 0 而不是 1。arr[1] 实际返回的是第二个元素。",
+      hints: [
+        "数组的索引从几开始？",
+        "第一个元素的索引是 0 还是 1？",
+        "arr[1] 是第二个元素，第一个元素应该是 arr[0]"
+      ],
+      tags: ["TW Code Reviewer", "基础概念"]
+    },
+    {
+      id: "L1-04",
+      title: "计算结果为 NaN",
+      desc: "计算总价时结果总是 NaN，但参数明明传了正确的值。",
+      lang: "javascript",
+      code: [
+        "function calculateTotal(price, quantity) {",
+        "    let total = price * quantitiy;",
+        "    return total;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["quantity"]],
+      fixAnswer: "将第 2 行的 quantitiy 改为 quantity",
+      explanation: "变量名拼写错误，quantitiy 未定义（在非严格模式下为 undefined），与 price 相乘得到 NaN。正确拼写是 quantity。",
+      hints: [
+        "仔细检查变量名的拼写，对比参数声明和使用处",
+        "quantitiy 这个拼写对吗？和参数名一致吗？",
+        "quantitiy 多了一个 i，正确拼写是 quantity"
+      ],
+      tags: ["TW Linter", "拼写检查"]
+    },
+    {
+      id: "L1-05",
+      title: "奇数判断返回 undefined",
+      desc: "判断偶数的函数，奇数输入时返回 undefined 而不是 false。",
+      lang: "javascript",
+      code: [
+        "function isEven(n) {",
+        "    if (n % 2 === 0) {",
+        "        return true;",
+        "    } else {",
+        "        return;",
+        "    }",
+        "}"
+      ],
+      bugLines: [5],
+      fixAccept: [["false"]],
+      fixAnswer: "将第 5 行的 return 改为 return false",
+      explanation: "else 分支中 return 没有返回值，默认返回 undefined。应明确返回 false，使函数在所有路径上都返回布尔值。",
+      hints: [
+        "检查 else 分支的 return 语句",
+        "return 后面缺少什么？",
+        "return; 等价于 return undefined，应改为 return false"
+      ],
+      tags: ["TW Code Reviewer", "返回值"]
+    },
+    {
+      id: "L1-06",
+      title: "18岁不算成年？",
+      desc: "刚满 18 岁的用户被判定为未成年。找出问题。",
+      lang: "javascript",
+      code: [
+        "function isAdult(age) {",
+        "    if (age > 18) {",
+        "        return true;",
+        "    }",
+        "    return false;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [[">="]],
+      fixAnswer: "将第 2 行的 age > 18 改为 age >= 18",
+      explanation: "使用了严格大于 >，当 age 恰好等于 18 时返回 false。成年应包含 18 岁，应使用 >= 大于等于。",
+      hints: [
+        "检查比较运算符是否包含了边界值",
+        "18 岁应该算成年吗？",
+        "> 不包含等于的情况，18 会被判为未成年，应改为 >="
+      ],
+      tags: ["TW Code Reviewer", "边界条件"]
+    },
+    {
+      id: "L1-07",
+      title: "分页少了一页",
+      desc: "计算分页数时，有余数的物品总是少算一页。",
+      lang: "javascript",
+      code: [
+        "function totalPages(items, perPage) {",
+        "    return Math.floor(items / perPage);",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["ceil"]],
+      fixAnswer: "将第 2 行的 Math.floor 改为 Math.ceil",
+      explanation: "Math.floor 向下取整，有余数时会丢弃最后一页。应使用 Math.ceil 向上取整，确保不足一页的部分也算一页。",
+      hints: [
+        "有余数时应该怎么处理最后一页？",
+        "Math.floor 是向下还是向上取整？",
+        "Math.floor 向下取整会丢失最后一页，应用 Math.ceil 向上取整"
+      ],
+      tags: ["TW Code Reviewer", "数学计算"]
+    },
+    {
+      id: "L1-08",
+      title: "0 被当作默认值",
+      desc: "当 obj.value 为 0 时，函数错误地返回 'default'。",
+      lang: "javascript",
+      code: [
+        "function getValue(obj) {",
+        "    return obj && obj.value || 'default';",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["??"], ["nullish"]],
+      fixAnswer: "使用 nullish 合并运算符：return obj?.value ?? 'default'",
+      explanation: "|| 会将所有 falsy 值（0、''、false）视为需要取默认值。0 是合法值但为 falsy，所以被跳过。应使用 ??（nullish 合并）仅在 null/undefined 时取默认值。",
+      hints: [
+        "0 是 falsy 值吗？|| 会怎么处理它？",
+        "|| 和 ?? 的区别是什么？",
+        "|| 对 0 也会触发默认值，应改用 ?? 只对 null/undefined 触发"
+      ],
+      tags: ["TW Linter", "类型陷阱"]
+    },
+    {
+      id: "L1-09",
+      title: "倒计时变成无限循环",
+      desc: "这个倒计时函数永远不会结束。",
+      lang: "javascript",
+      code: [
+        "function countDown(n) {",
+        "    while (n > 0) {",
+        "        console.log(n);",
+        "        n += 1;",
+        "    }",
+        "}"
+      ],
+      bugLines: [4],
+      fixAccept: [["-="], ["n--"], ["n - 1"]],
+      fixAnswer: "将第 4 行的 n += 1 改为 n -= 1",
+      explanation: "倒计时应该递减，但代码用了 += 1 递增，n 越来越大，循环条件 n > 0 永远为真，造成无限循环。应改为 n -= 1 递减。",
+      hints: [
+        "循环变量应该增加还是减少？",
+        "n += 1 让 n 变大还是变小？",
+        "倒计时应递减，n += 1 应改为 n -= 1"
+      ],
+      tags: ["TW Profiler", "循环逻辑"]
+    },
+    {
+      id: "L1-10",
+      title: "阶乘结果总是 0",
+      desc: "计算阶乘时结果总是 0。",
+      lang: "javascript",
+      code: [
+        "function factorial(n) {",
+        "    let result = 0;",
+        "    for (let i = 1; i <= n; i++) {",
+        "        result *= i;",
+        "    }",
+        "    return result;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["= 1"], ["1;"]],
+      fixAnswer: "将第 2 行的 let result = 0 改为 let result = 1",
+      explanation: "阶乘是累乘运算，初始值应为 1 而非 0。0 乘以任何数都是 0，所以结果永远是 0。",
+      hints: [
+        "累乘的初始值应该是多少？",
+        "0 乘以任何数等于什么？",
+        "result 初始化为 0 导致乘积始终为 0，应改为 1"
+      ],
+      tags: ["TW Code Reviewer", "初始化"]
+    }
+  ],
+  L2: [
+    {
+      id: "L2-01",
+      title: "属性访问崩溃",
+      desc: "当 user 或 profile 为 null 时，函数抛出 TypeError。",
+      lang: "javascript",
+      code: [
+        "function getUserName(user) {",
+        "    return user.profile.name.toUpperCase();",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["?."], ["&&"], ["if"]],
+      fixAnswer: "使用可选链：return user?.profile?.name?.toUpperCase()",
+      explanation: "直接链式属性访问，任何一环为 null/undefined 都会抛出 TypeError: Cannot read property of null。应使用可选链 ?. 安全访问，或提前做空值检查。",
+      hints: [
+        "哪一步可能为 null 或 undefined？",
+        "如何安全地访问可能为空的嵌套属性？",
+        "使用可选链 ?. 操作符避免空指针异常"
+      ],
+      tags: ["TW Memory Analyzer", "空安全"]
+    },
+    {
+      id: "L2-02",
+      title: "缓存失效导致重复计算",
+      desc: "并发调用时，昂贵的计算被执行了多次。",
+      lang: "javascript",
+      code: [
+        "let result = null;",
+        "async function compute() {",
+        "    if (result === null) {",
+        "        result = await heavyCompute();",
+        "    }",
+        "    return result;",
+        "}"
+      ],
+      bugLines: [3, 4],
+      fixAccept: [["promise"], ["pending"], ["lock"], ["inflight"]],
+      fixAnswer: "缓存 Promise 而非结果：if (!promise) { promise = heavyCompute(); } return promise;",
+      explanation: "两个并发调用同时检查 result === null 都为真，都发起计算。应在检查后立即缓存 Promise（进行中的请求），让后续调用复用同一个 Promise，避免重复执行。",
+      hints: [
+        "两个调用同时读到 null 会发生什么？",
+        "应该缓存最终结果还是缓存进行中的 Promise？",
+        "缓存 Promise 而非最终值，后续调用复用同一个进行中的请求"
+      ],
+      tags: ["TW Profiler", "并发控制"]
+    },
+    {
+      id: "L2-03",
+      title: "定时器输出错误",
+      desc: "期望输出 0, 1, 2，但实际输出 3, 3, 3。",
+      lang: "javascript",
+      code: [
+        "for (var i = 0; i < 3; i++) {",
+        "    setTimeout(() => console.log(i), 100);",
+        "}"
+      ],
+      bugLines: [1],
+      fixAccept: [["let"]],
+      fixAnswer: "将第 1 行的 var i 改为 let i",
+      explanation: "var 声明的 i 是函数作用域，三个回调共享同一个变量，循环结束时 i=3。let 是块作用域，每次迭代创建新的绑定，回调各自捕获对应的值。",
+      hints: [
+        "var 和 let 的作用域有什么不同？",
+        "所有回调是否共享同一个 i 变量？",
+        "var 是函数作用域共享变量，改用 let 创建块作用域绑定"
+      ],
+      tags: ["TW Code Reviewer", "作用域"]
+    },
+    {
+      id: "L2-04",
+      title: "0.1 + 0.2 不等于 0.3",
+      desc: "金额计算出现精度问题：0.1 + 0.2 = 0.30000000000000004。",
+      lang: "javascript",
+      code: [
+        "function addMoney(a, b) {",
+        "    return a + b;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["toFixed"], ["Math.round"], ["100"], ["cents"], ["分"]],
+      fixAnswer: "转为整数分计算：return Math.round((a + b) * 100) / 100",
+      explanation: "IEEE 754 浮点数无法精确表示 0.1 和 0.2，相加产生精度误差。金额应转为整数（分）计算后转回，或使用 toFixed / 专用 decimal 库。",
+      hints: [
+        "浮点数能精确表示 0.1 吗？",
+        "金额计算应该用什么单位来避免误差？",
+        "转为整数（分）计算，或用 Math.round / toFixed 处理"
+      ],
+      tags: ["TW Code Reviewer", "数值精度"]
+    },
+    {
+      id: "L2-05",
+      title: "配置修改互相影响",
+      desc: "克隆配置后修改副本的嵌套属性，原配置也被改了。",
+      lang: "javascript",
+      code: [
+        "function cloneConfig(config) {",
+        "    return Object.assign({}, config);",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["structuredClone"], ["JSON.parse"], ["深拷贝"], ["deep"], ["递归"]],
+      fixAnswer: "使用深拷贝：return structuredClone(config)",
+      explanation: "Object.assign 只做浅拷贝，嵌套对象仍是引用共享。修改副本的嵌套属性会影响原对象。应使用 structuredClone 或递归深拷贝。",
+      hints: [
+        "Object.assign 是浅拷贝还是深拷贝？",
+        "嵌套对象会被复制还是共享引用？",
+        "Object.assign 浅拷贝，嵌套对象仍共享引用，应用 structuredClone 深拷贝"
+      ],
+      tags: ["TW Memory Analyzer", "引用 vs 值"]
+    },
+    {
+      id: "L2-06",
+      title: "危险的合并函数",
+      desc: "这个合并函数可被利用进行原型链污染攻击。",
+      lang: "javascript",
+      code: [
+        "function merge(target, source) {",
+        "    for (const key in source) {",
+        "        target[key] = source[key];",
+        "    }",
+        "    return target;",
+        "}"
+      ],
+      bugLines: [2, 3],
+      fixAccept: [["hasOwnProperty"], ["Object.create(null)"], ["__proto__"], ["getOwnPropertyNames"]],
+      fixAnswer: "添加 hasOwnProperty 检查：if (Object.prototype.hasOwnProperty.call(source, key)) target[key] = source[key]",
+      explanation: "for...in 会遍历原型链上的属性，攻击者可通过传入 {__proto__: {polluted: true}} 污染所有对象的原型。应使用 hasOwnProperty 过滤自有属性，或用 Object.create(null) 创建无原型的对象。",
+      hints: [
+        "for...in 会遍历哪些属性？",
+        "__proto__ 这个键有什么危险？",
+        "for...in 遍历原型链，应加 hasOwnProperty 检查防止 __proto__ 污染"
+      ],
+      tags: ["TW Security Scanner", "原型安全"]
+    },
+    {
+      id: "L2-07",
+      title: "内存持续增长",
+      desc: "反复调用 setupHandler 后，内存持续增长且事件被重复触发。",
+      lang: "javascript",
+      code: [
+        "function setupHandler() {",
+        "    const btn = document.getElementById('btn');",
+        "    btn.addEventListener('click', () => {",
+        "        handleClick();",
+        "    });",
+        "}"
+      ],
+      bugLines: [3],
+      fixAccept: [["removeEventListener"], ["AbortController"], ["once"]],
+      fixAnswer: "保存监听器引用并在适当时机 removeEventListener，或使用 {once: true} 选项",
+      explanation: "每次调用都添加新的匿名监听器且从不移除，监听器累积导致内存泄漏和重复触发。应保存函数引用在不需要时移除，或使用 once 选项自动移除。",
+      hints: [
+        "监听器会被移除吗？",
+        "匿名箭头函数能被 removeEventListener 移除吗？",
+        "addEventListener 未配对 removeEventListener，应保存引用并移除"
+      ],
+      tags: ["TW Memory Analyzer", "资源管理"]
+    },
+    {
+      id: "L2-08",
+      title: "两个任务互相等待",
+      desc: "task1 和 task2 同时运行时偶尔会卡死（死锁）。",
+      lang: "javascript",
+      code: [
+        "async function task1() {",
+        "    await lockA.acquire();",
+        "    await lockB.acquire();",
+        "}",
+        "",
+        "async function task2() {",
+        "    await lockB.acquire();",
+        "    await lockA.acquire();",
+        "}"
+      ],
+      bugLines: [7, 8],
+      fixAccept: [["顺序"], ["order"], ["相同"], ["lockA", "lockB"], ["一致"]],
+      fixAnswer: "让 task2 也按 lockA -> lockB 的相同顺序获取锁",
+      explanation: "task1 先获取 A 再 B，task2 先获取 B 再 A。当 task1 持有 A 等待 B、task2 持有 B 等待 A 时，形成循环等待导致死锁。应统一锁的获取顺序。",
+      hints: [
+        "两个任务获取锁的顺序一致吗？",
+        "循环等待会导致什么问题？",
+        "锁获取顺序不一致导致死锁，应统一为先 A 后 B"
+      ],
+      tags: ["TW Profiler", "并发控制"]
+    },
+    {
+      id: "L2-09",
+      title: "字符串通过了数字检查",
+      desc: "传入字符串 '18' 被当作数字 18 通过了校验。",
+      lang: "javascript",
+      code: [
+        "function checkAge(age) {",
+        "    if (age == 18) {",
+        "        return 'adult';",
+        "    }",
+        "    return 'minor';",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["==="]],
+      fixAnswer: "将第 2 行的 age == 18 改为 age === 18",
+      explanation: "== 会进行类型强制转换，'18' == 18 为 true（字符串被转为数字比较）。应使用 === 严格相等，不做类型转换，避免隐式类型转换带来的安全风险。",
+      hints: [
+        "== 和 === 有什么区别？",
+        "== 会做类型转换吗？",
+        "== 触发类型强制转换，应改用 === 严格比较"
+      ],
+      tags: ["TW Linter", "类型安全"]
+    }
+  ],
+  L3: [
+    {
+      id: "L3-01",
+      title: "用户查询被注入",
+      desc: "这个用户查询接口存在 SQL 注入漏洞，攻击者可绕过认证或执行任意 SQL。",
+      lang: "javascript",
+      code: [
+        "function getUser(name) {",
+        "    const sql = `SELECT * FROM users WHERE name = '${name}'`;",
+        "    return db.query(sql);",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["?"], ["参数化"], ["prepared"], ["placeholder"], ["占位符"]],
+      fixAnswer: "使用参数化查询：return db.query('SELECT * FROM users WHERE name = ?', [name])",
+      explanation: "直接拼接用户输入到 SQL 中，攻击者可输入 ' OR '1'='1 绕过认证或通过 ; 执行任意 SQL。应使用参数化查询（预编译语句），将输入作为参数绑定而非拼接。",
+      hints: [
+        "用户输入直接拼接到 SQL 字符串里安全吗？",
+        "如何防止 SQL 注入攻击？",
+        "用参数化查询（占位符 ?）替代字符串拼接，让数据库安全处理输入"
+      ],
+      tags: ["TW Security Scanner", "注入防护"]
+    },
+    {
+      id: "L3-02",
+      title: "评论被注入脚本",
+      desc: "渲染用户评论时存在 XSS 漏洞，攻击者可注入恶意脚本。",
+      lang: "javascript",
+      code: [
+        "function renderComment(text) {",
+        "    document.getElementById('comment').innerHTML = text;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["textContent"], ["escapeHTML"], ["escape"], ["转义"], ["sanitize"]],
+      fixAnswer: "使用 textContent 代替 innerHTML，或对内容进行 HTML 转义",
+      explanation: "innerHTML 会将文本解析为 HTML，攻击者可注入 <script> 标签或 onerror 事件处理器执行任意代码。应使用 textContent（纯文本）或对内容进行 HTML 转义后再设置。",
+      hints: [
+        "innerHTML 会把文本解析为 HTML 吗？",
+        "如何安全地设置纯文本内容？",
+        "用 textContent 替代 innerHTML，或对 HTML 特殊字符进行转义"
+      ],
+      tags: ["TW Security Scanner", "XSS 防护"]
+    },
+    {
+      id: "L3-03",
+      title: "C 字符串拷贝溢出",
+      desc: "这个 C 函数存在缓冲区溢出漏洞，可被用于执行任意代码。",
+      lang: "c",
+      code: [
+        "void copy_data(char *input) {",
+        "    char buf[64];",
+        "    strcpy(buf, input);",
+        "}"
+      ],
+      bugLines: [3],
+      fixAccept: [["strncpy"], ["snprintf"], ["strlcpy"], ["sizeof"]],
+      fixAnswer: "使用 strncpy 限制长度：strncpy(buf, input, sizeof(buf) - 1); buf[sizeof(buf)-1] = '\\0';",
+      explanation: "strcpy 不检查目标缓冲区大小，当 input 超过 64 字节时会溢出 buf，覆盖栈上的返回地址等数据，可被用于执行任意代码（栈溢出攻击）。应使用 strncpy 等带长度限制的函数。",
+      hints: [
+        "strcpy 会检查目标缓冲区的大小吗？",
+        "如果 input 超过 64 字节会怎样？",
+        "strcpy 不限制长度，应用 strncpy 限制拷贝大小为 buf 容量"
+      ],
+      tags: ["TW Security Scanner", "内存安全"]
+    },
+    {
+      id: "L3-04",
+      title: "不存在的 key 击穿缓存",
+      desc: "大量查询不存在的用户时，数据库被打满（缓存穿透）。",
+      lang: "javascript",
+      code: [
+        "function getUser(id) {",
+        "    const cached = cache.get(id);",
+        "    if (cached) return cached;",
+        "    const user = db.query(id);",
+        "    if (!user) {",
+        "        return null;",
+        "    }",
+        "    cache.set(id, user);",
+        "    return user;",
+        "}"
+      ],
+      bugLines: [5, 6],
+      fixAccept: [["null", "缓存"], ["空值", "缓存"], ["布隆"], ["bloom"], ["缓存空"]],
+      fixAnswer: "缓存空结果（短 TTL）：if (!user) { cache.set(id, null, 60); return null; }",
+      explanation: "查询不存在的 id 时，结果 null 未被缓存，每次请求都穿透到数据库。攻击者可用大量不存在的 id 击穿缓存打挂数据库。应缓存空结果（短 TTL）或使用布隆过滤器拦截不存在的 key。",
+      hints: [
+        "查询结果为 null 时被缓存了吗？",
+        "不存在的 key 每次请求会怎样？",
+        "缓存空结果（短 TTL）或用布隆过滤器拦截不存在的 key"
+      ],
+      tags: ["TW Profiler", "缓存策略"]
+    },
+    {
+      id: "L3-05",
+      title: "正则导致 CPU 飙升",
+      desc: "恶意输入导致这个邮箱校验正则卡死（ReDoS）。",
+      lang: "javascript",
+      code: [
+        "function validateEmail(email) {",
+        "    const re = /^([a-zA-Z0-9._%+-]+)+@/;",
+        "    return re.test(email);",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["嵌套"], ["回溯"], ["简化"], ["去掉"], ["单一"]],
+      fixAnswer: "移除嵌套的 + 量词：const re = /^[a-zA-Z0-9._%+-]+@/",
+      explanation: "([a-zA-Z0-9._%+-]+)+ 嵌套量词导致灾难性回溯（catastrophic backtracking）。恶意输入如 aaaa...! 不匹配时，正则引擎会指数级尝试所有分组方式，耗尽 CPU。应移除冗余的分组和量词。",
+      hints: [
+        "正则中有没有嵌套的量词？",
+        "(...+)+ 这种模式会导致什么？",
+        "嵌套 + 量词导致灾难性回溯，应移除冗余分组简化为单一 +"
+      ],
+      tags: ["TW Profiler", "正则安全"]
+    },
+    {
+      id: "L3-06",
+      title: "缓存无限增长",
+      desc: "这个缓存 Map 随时间无限增长，最终导致 OOM。",
+      lang: "javascript",
+      code: [
+        "const cache = new Map();",
+        "function addToCache(key, value) {",
+        "    cache.set(key, value);",
+        "}"
+      ],
+      bugLines: [3],
+      fixAccept: [["WeakMap"], ["LRU"], ["delete"], ["限制"], ["TTL"], ["过期"], ["evict"]],
+      fixAnswer: "使用 LRU 缓存限制大小，或用 WeakMap 让 key 可被回收，或定期 delete 过期项",
+      explanation: "Map 持有所有 key 的强引用，条目永不回收，随数据增长最终内存溢出（OOM）。应使用 LRU 缓存（限制大小并淘汰最久未使用项）、WeakMap（key 可被 GC 回收）或 TTL 过期机制。",
+      hints: [
+        "缓存条目会被清理吗？",
+        "Map 的强引用会阻止垃圾回收吗？",
+        "Map 持强引用永不释放，应用 LRU 限制大小或 WeakMap 允许回收"
+      ],
+      tags: ["TW Memory Analyzer", "内存管理"]
+    },
+    {
+      id: "L3-07",
+      title: "Go map 并发写入崩溃",
+      desc: "多个 goroutine 同时调用此函数时程序 panic。",
+      lang: "go",
+      code: [
+        "var m = make(map[string]int)",
+        "",
+        "func increment(key string) {",
+        "    m[key]++",
+        "}"
+      ],
+      bugLines: [4],
+      fixAccept: [["Mutex"], ["sync.Map"], ["锁"], ["lock"], ["RLock"]],
+      fixAnswer: "使用 sync.Mutex 保护：mu.Lock(); m[key]++; mu.Unlock()",
+      explanation: "Go 的内置 map 不是并发安全的，多个 goroutine 同时读写会触发 fatal error: concurrent map writes（不可恢复的 panic）。应使用 sync.Mutex 互斥锁保护，或使用并发安全的 sync.Map。",
+      hints: [
+        "Go 的 map 是并发安全的吗？",
+        "多个 goroutine 同时写 map 会怎样？",
+        "map 非并发安全，应用 sync.Mutex 加锁或使用 sync.Map"
+      ],
+      tags: ["TW Profiler", "并发安全"]
+    },
+    {
+      id: "L3-08",
+      title: "令牌比较泄露信息",
+      desc: "这个 token 比较函数可通过计时攻击逐字符推断出正确 token。",
+      lang: "javascript",
+      code: [
+        "function compareTokens(a, b) {",
+        "    if (a === b) {",
+        "        return true;",
+        "    }",
+        "    return false;",
+        "}"
+      ],
+      bugLines: [2],
+      fixAccept: [["constant"], ["常量时间"], ["恒定时间"], ["timingSafe"], ["逐字符"], ["XOR"]],
+      fixAnswer: "使用常量时间比较：逐字符比较所有字符，不提前返回（如 crypto.timingSafeEqual）",
+      explanation: "=== 在发现第一个不匹配字符时立即返回 false，比较耗时与匹配前缀长度正相关。攻击者可通过测量响应时间逐字符推断 token 内容。应使用常量时间比较，遍历所有字符且不提前返回。",
+      hints: [
+        "=== 在什么时候返回？比较耗时和内容有关吗？",
+        "提前返回会泄露什么信息？",
+        "=== 提前返回泄露匹配前缀长度，应用常量时间比较遍历全部字符"
+      ],
+      tags: ["TW Security Scanner", "时序安全"]
+    }
+  ]
+};
+
+/* ============ CONSTANTS ============ */
+var TIME_LIMITS = { L1: 120, L2: 180, L3: 300 };
+var BASE_POINTS = { L1: 100, L2: 200, L3: 300 };
+var HINT_PENALTY = 25;
+var RANKS = [
+  { name: "实习生", min: 0 },
+  { name: "初级侦探", min: 500 },
+  { name: "高级侦探", min: 1500 },
+  { name: "首席侦探", min: 3000 },
+  { name: "传奇侦探", min: 6000 }
+];
+var ACHIEVEMENTS = [
+  { id: "first", name: "首次破案", desc: "完成第一道题", icon: "M20 6L9 17l-5-5" },
+  { id: "combo5", name: "连击大师", desc: "连续答对 5 题", icon: "M13 2L3 14h9l-1 8 10-12h-9l1-8z" },
+  { id: "combo10", name: "连击之王", desc: "连续答对 10 题", icon: "M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z" },
+  { id: "perfect", name: "完美侦探", desc: "无提示答对一题", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "speed", name: "速度之星", desc: "30 秒内答对一题", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "allround", name: "全能侦探", desc: "三个难度各答对一题", icon: "M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20" },
+  { id: "score1000", name: "千分先生", desc: "总分达到 1000", icon: "M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" },
+  { id: "score5000", name: "五千宗师", desc: "总分达到 5000", icon: "M12 15a3 3 0 100-6 3 3 0 000 6zm0-13v6m0 10v6m-9-9h6m6 0h6" }
+];
+var LS_KEY = "tw-detective-state-v1";
+
+/* ============ STATE ============ */
+var state = {
+  level: "L1",
+  qIndex: 0,
+  totalScore: 0,
+  combo: 0,
+  maxCombo: 0,
+  hintsUsed: 0,
+  markedLines: {},
+  timeLeft: 0,
+  timerId: null,
+  questionStart: 0,
+  answered: false,
+  history: [],
+  achievements: {},
+  solvedIds: {},
+  l1Solved: false,
+  l2Solved: false,
+  l3Solved: false,
+  perfectCount: 0,
+  speedCount: 0,
+  sessions: []
+};
+
+/* ============ DOM ============ */
+var D = {};
+function cacheDom() {
+  var ids = ["introOverlay","introStart","rankName","rankFill","totalScore","comboWrap","comboCount",
+    "qNum","qProgress","qTags","qTitle","qDesc","codeBlock","codeLines","codeLang",
+    "timerValue","timerFill","markedList","markedCount","fixInput","hintCount","hintsList",
+    "hintBtn","skipBtn","submitBtn","historyList","historyCount","achvList","achvCount",
+    "lbList","lbCount","resultModal","resultIcon","resultTitle","resultSub","resultBody",
+    "resultClose","resultNext","toastContainer"];
+  for (var i = 0; i < ids.length; i++) { D[ids[i]] = document.getElementById(ids[i]); }
+}
+
+/* ============ PERSISTENCE ============ */
+function loadState() {
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    state.totalScore = saved.totalScore || 0;
+    state.maxCombo = saved.maxCombo || 0;
+    state.history = saved.history || [];
+    state.achievements = saved.achievements || {};
+    state.solvedIds = saved.solvedIds || {};
+    state.l1Solved = saved.l1Solved || false;
+    state.l2Solved = saved.l2Solved || false;
+    state.l3Solved = saved.l3Solved || false;
+    state.perfectCount = saved.perfectCount || 0;
+    state.speedCount = saved.speedCount || 0;
+    state.sessions = saved.sessions || [];
+  } catch (e) { /* ignore */ }
+}
+function saveState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      totalScore: state.totalScore,
+      maxCombo: state.maxCombo,
+      history: state.history,
+      achievements: state.achievements,
+      solvedIds: state.solvedIds,
+      l1Solved: state.l1Solved,
+      l2Solved: state.l2Solved,
+      l3Solved: state.l3Solved,
+      perfectCount: state.perfectCount,
+      speedCount: state.speedCount,
+      sessions: state.sessions
+    }));
+  } catch (e) { /* ignore */ }
+}
+
+/* ============ SYNTAX HIGHLIGHTING ============ */
+var KW_LIST = "function|func|return|if|else|for|while|do|var|let|const|async|await|new|class|this|typeof|instanceof|in|of|break|continue|switch|case|default|try|catch|finally|throw|extends|super|static|import|export|from|null|undefined|true|false|void|char|int|float|double|struct|typedef|unsigned|long|short|sizeof|type|map|make|chan|go|defer|range|package|interface|sync|Mutex|string|bool";
+var HL_RE = new RegExp(
+  "(\\/\\/[^\\n]*)" +
+  "|(`[^`]*`|\"[^\"]*\"|'[^']*')" +
+  "|\\b(" + KW_LIST + ")\\b" +
+  "|\\b(\\d+\\.?\\d*)\\b" +
+  "|\\b([a-zA-Z_]\\w*)(?=\\s*\\()",
+  "g"
+);
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function highlightLine(text) {
+  var escaped = escapeHtml(text);
+  return escaped.replace(HL_RE, function(m, com, str, kw, num, fn) {
+    if (com) return '<span class="tok-com">' + com + "</span>";
+    if (str) return '<span class="tok-str">' + str + "</span>";
+    if (kw) return '<span class="tok-kw">' + kw + "</span>";
+    if (num) return '<span class="tok-num">' + num + "</span>";
+    if (fn) return '<span class="tok-fn">' + fn + "</span>";
+    return m;
+  });
+}
+
+/* ============ RENDERING ============ */
+function getCurrentQuestion() {
+  return QUESTIONS[state.level][state.qIndex];
+}
+function renderQuestion() {
+  var q = getCurrentQuestion();
+  D.qNum.textContent = q.id.replace("-", " · ");
+  var total = QUESTIONS[state.level].length;
+  D.qProgress.textContent = (state.qIndex + 1) + " / " + total;
+  D.qTitle.textContent = q.title;
+  D.qDesc.textContent = q.desc;
+  D.codeLang.textContent = q.lang;
+  // tags
+  D.qTags.innerHTML = "";
+  for (var i = 0; i < q.tags.length; i++) {
+    var span = document.createElement("span");
+    span.className = "q-tag linked";
+    span.textContent = q.tags[i];
+    D.qTags.appendChild(span);
+  }
+  // code
+  D.codeLines.innerHTML = "";
+  for (var j = 0; j < q.code.length; j++) {
+    var line = document.createElement("div");
+    line.className = "code-line";
+    line.setAttribute("data-line", String(j + 1));
+    var num = document.createElement("span");
+    num.className = "line-num";
+    num.textContent = String(j + 1);
+    var code = document.createElement("span");
+    code.className = "line-code";
+    code.innerHTML = highlightLine(q.code[j]) || "&nbsp;";
+    var marker = document.createElement("span");
+    marker.className = "line-marker";
+    marker.textContent = "BUG";
+    line.appendChild(num);
+    line.appendChild(code);
+    line.appendChild(marker);
+    D.codeLines.appendChild(line);
+  }
+  // reset state
+  state.markedLines = {};
+  state.hintsUsed = 0;
+  state.answered = false;
+  D.fixInput.value = "";
+  D.hintsList.innerHTML = "";
+  D.hintCount.textContent = "0 / 3";
+  D.hintBtn.disabled = false;
+  D.hintBtn.textContent = "使用提示 -" + HINT_PENALTY;
+  D.submitBtn.disabled = false;
+  D.skipBtn.disabled = false;
+  D.fixInput.disabled = false;
+  renderMarkedLines();
+  startTimer();
+}
+
+function renderMarkedLines() {
+  var keys = Object.keys(state.markedLines).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+  D.markedCount.textContent = keys.length + " 行";
+  if (keys.length === 0) {
+    D.markedList.innerHTML = '<span class="marked-empty">点击代码左侧行号标记</span>';
+    return;
+  }
+  D.markedList.innerHTML = "";
+  for (var i = 0; i < keys.length; i++) {
+    var chip = document.createElement("span");
+    chip.className = "marked-chip";
+    chip.innerHTML = "L" + keys[i] + ' <span class="rm" data-line="' + keys[i] + '">×</span>';
+    D.markedList.appendChild(chip);
+  }
+}
+
+function toggleMark(lineNum) {
+  if (state.answered) return;
+  var key = String(lineNum);
+  if (state.markedLines[key]) {
+    delete state.markedLines[key];
+  } else {
+    state.markedLines[key] = true;
+  }
+  // update code line styles
+  var lines = D.codeLines.querySelectorAll(".code-line");
+  for (var i = 0; i < lines.length; i++) {
+    var ln = parseInt(lines[i].getAttribute("data-line"));
+    if (state.markedLines[String(ln)]) {
+      lines[i].classList.add("marked");
+    } else {
+      lines[i].classList.remove("marked");
+    }
+  }
+  renderMarkedLines();
+}
+
+/* ============ TIMER ============ */
+function startTimer() {
+  stopTimer();
+  var total = TIME_LIMITS[state.level];
+  state.timeLeft = total;
+  state.questionStart = Date.now();
+  updateTimerDisplay(total);
+  state.timerId = setInterval(function() {
+    state.timeLeft--;
+    updateTimerDisplay(total);
+    if (state.timeLeft <= 0) {
+      stopTimer();
+      submitAnswer(true);
+    }
+  }, 1000);
+}
+function stopTimer() {
+  if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+}
+function updateTimerDisplay(total) {
+  D.timerValue.textContent = String(state.timeLeft);
+  var pct = (state.timeLeft / total) * 100;
+  D.timerFill.style.width = pct + "%";
+  D.timerFill.classList.remove("warn", "danger");
+  D.timerValue.classList.remove("danger");
+  if (pct < 25) {
+    D.timerFill.classList.add("danger");
+    D.timerValue.classList.add("danger");
+  } else if (pct < 50) {
+    D.timerFill.classList.add("warn");
+  }
+}
+
+/* ============ HINTS ============ */
+function useHint() {
+  if (state.answered) return;
+  var q = getCurrentQuestion();
+  if (state.hintsUsed >= q.hints.length) return;
+  var idx = state.hintsUsed;
+  state.hintsUsed++;
+  var item = document.createElement("div");
+  item.className = "hint-item";
+  item.innerHTML = '<span class="hint-num">提示 ' + (idx + 1) + ":</span>" + escapeHtml(q.hints[idx]);
+  D.hintsList.appendChild(item);
+  D.hintCount.textContent = state.hintsUsed + " / " + q.hints.length;
+  if (state.hintsUsed >= q.hints.length) {
+    D.hintBtn.disabled = true;
+  }
+}
+
+/* ============ ANSWER CHECKING ============ */
+function checkBugLine(q) {
+  var marked = Object.keys(state.markedLines).map(function(k){ return parseInt(k); });
+  if (marked.length === 0) return false;
+  // any marked line matches any expected bug line
+  for (var i = 0; i < marked.length; i++) {
+    for (var j = 0; j < q.bugLines.length; j++) {
+      if (marked[i] === q.bugLines[j]) return true;
+    }
+  }
+  return false;
+}
+function checkFix(q) {
+  var text = D.fixInput.value.toLowerCase().trim();
+  if (!text) return false;
+  for (var i = 0; i < q.fixAccept.length; i++) {
+    var alt = q.fixAccept[i];
+    var allFound = true;
+    for (var j = 0; j < alt.length; j++) {
+      if (text.indexOf(alt[j].toLowerCase()) === -1) { allFound = false; break; }
+    }
+    if (allFound) return true;
+  }
+  return false;
+}
+
+/* ============ SCORING ============ */
+function submitAnswer(isTimeout) {
+  if (state.answered) return;
+  state.answered = true;
+  stopTimer();
+  D.submitBtn.disabled = true;
+  D.skipBtn.disabled = true;
+  D.hintBtn.disabled = true;
+  D.fixInput.disabled = true;
+
+  var q = getCurrentQuestion();
+  var lineOk = checkBugLine(q);
+  var fixOk = checkFix(q);
+  var elapsed = Math.floor((Date.now() - state.questionStart) / 1000);
+  var base = BASE_POINTS[state.level];
+  var total = TIME_LIMITS[state.level];
+
+  var points = 0;
+  var status = "wrong";
+  if (lineOk && fixOk) {
+    status = "correct";
+    points = base;
+    // time bonus
+    var timeBonus = Math.round((state.timeLeft / total) * base * 0.5);
+    points += timeBonus;
+    // combo bonus
+    if (state.combo > 0) {
+      points += state.combo * 25;
+    }
+    // hint penalty
+    points -= state.hintsUsed * HINT_PENALTY;
+    if (points < 10) points = 10;
+  } else if (lineOk || fixOk) {
+    status = "partial";
+    points = Math.round(base * 0.3);
+    points -= state.hintsUsed * HINT_PENALTY;
+    if (points < 0) points = 0;
+  } else {
+    points = 0;
+  }
+
+  // update state
+  if (status === "correct") {
+    state.combo++;
+    if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+    state.solvedIds[q.id] = true;
+    if (state.level === "L1") state.l1Solved = true;
+    if (state.level === "L2") state.l2Solved = true;
+    if (state.level === "L3") state.l3Solved = true;
+    if (state.hintsUsed === 0) state.perfectCount++;
+    if (elapsed <= 30 && !isTimeout) state.speedCount++;
+  } else {
+    state.combo = 0;
+  }
+  state.totalScore += points;
+
+  // history
+  state.history.unshift({
+    id: q.id,
+    title: q.title,
+    level: state.level,
+    status: status,
+    points: points,
+    time: elapsed
+  });
+  if (state.history.length > 50) state.history = state.history.slice(0, 50);
+
+  checkAchievements();
+  saveState();
+  updateTopBar();
+  renderHistory();
+  renderAchievements();
+  showResult(status, lineOk, fixOk, points, q, isTimeout);
+}
+
+function showResult(status, lineOk, fixOk, points, q, isTimeout) {
+  var icon, title, sub;
+  if (status === "correct") {
+    icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    title = "破案成功";
+    sub = "Bug 行和修复方案均正确";
+  } else if (status === "partial") {
+    icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+    title = "部分正确";
+    sub = "仅答对一部分，获得部分积分";
+  } else {
+    icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    title = isTimeout ? "时间到" : "未能破案";
+    sub = isTimeout ? "超时未提交" : "Bug 行和修复方案均不正确";
+  }
+  D.resultIcon.className = "result-icon " + status;
+  D.resultIcon.innerHTML = icon;
+  D.resultTitle.textContent = title;
+  D.resultSub.textContent = sub;
+
+  var body = "";
+  body += '<div class="result-row"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="' + (lineOk ? "#22c55e" : "#dc2626") + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' + (lineOk ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>') + '</svg><span class="label">Bug 行定位</span><span class="value">' + (lineOk ? "正确 (L" + q.bugLines.join(", L") + ")" : "未命中") + '</span></div>';
+  body += '<div class="result-row"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="' + (fixOk ? "#22c55e" : "#dc2626") + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' + (fixOk ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>') + '</svg><span class="label">修复方案</span><span class="value">' + (fixOk ? "正确" : "未匹配") + '</span></div>';
+
+  var ptClass = points > 0 ? "" : "zero";
+  body += '<div class="result-points"><span class="pt-label">获得积分</span><span class="pt-value ' + ptClass + '">+' + points + '</span></div>';
+
+  body += '<div class="answer-block"><div class="answer-block-title">正确答案</div><div class="answer-code">' + escapeHtml(q.fixAnswer) + '</div></div>';
+  body += '<div class="answer-block"><div class="answer-block-title">详细解释</div><div class="explanation">' + escapeHtml(q.explanation) + '</div></div>';
+
+  D.resultBody.innerHTML = body;
+
+  // next button text
+  var isLast = state.qIndex >= QUESTIONS[state.level].length - 1;
+  D.resultNext.textContent = isLast ? "完成本轮" : "下一题";
+  D.resultModal.classList.add("show");
+}
+
+function nextQuestion() {
+  D.resultModal.classList.remove("show");
+  var total = QUESTIONS[state.level].length;
+  if (state.qIndex >= total - 1) {
+    // session complete
+    var sessionScore = 0;
+    var sessionCorrect = 0;
+    for (var i = 0; i < state.history.length; i++) {
+      if (state.history[i].level === state.level) {
+        sessionScore += state.history[i].points;
+        if (state.history[i].status === "correct") sessionCorrect++;
+      }
+    }
+    state.sessions.unshift({
+      date: new Date().toLocaleString("zh-CN"),
+      level: state.level,
+      score: sessionScore,
+      correct: sessionCorrect,
+      total: total
+    });
+    if (state.sessions.length > 20) state.sessions = state.sessions.slice(0, 20);
+    saveState();
+    renderLeaderboard();
+    toast("本轮完成！答对 " + sessionCorrect + "/" + total + " 题，获得 " + sessionScore + " 分", "success");
+    state.qIndex = 0;
+  } else {
+    state.qIndex++;
+  }
+  renderQuestion();
+}
+
+function skipQuestion() {
+  if (state.answered) return;
+  state.answered = true;
+  stopTimer();
+  state.combo = 0;
+  var q = getCurrentQuestion();
+  state.history.unshift({
+    id: q.id,
+    title: q.title,
+    level: state.level,
+    status: "skipped",
+    points: 0,
+    time: Math.floor((Date.now() - state.questionStart) / 1000)
+  });
+  if (state.history.length > 50) state.history = state.history.slice(0, 50);
+  saveState();
+  updateTopBar();
+  renderHistory();
+  // show answer
+  showResult("wrong", false, false, 0, q, false);
+  D.resultTitle.textContent = "已跳过";
+  D.resultSub.textContent = "查看正确答案和解析";
+  var isLast = state.qIndex >= QUESTIONS[state.level].length - 1;
+  D.resultNext.textContent = isLast ? "完成本轮" : "下一题";
+}
+
+/* ============ RANKS ============ */
+function getRank() {
+  var rank = RANKS[0];
+  for (var i = 0; i < RANKS.length; i++) {
+    if (state.totalScore >= RANKS[i].min) rank = RANKS[i];
+  }
+  return rank;
+}
+function updateTopBar() {
+  D.totalScore.textContent = String(state.totalScore);
+  var rank = getRank();
+  D.rankName.textContent = rank.name;
+  var idx = RANKS.indexOf(rank);
+  var next = RANKS[idx + 1];
+  if (next) {
+    var pct = ((state.totalScore - rank.min) / (next.min - rank.min)) * 100;
+    D.rankFill.style.width = Math.min(100, Math.max(0, pct)) + "%";
+  } else {
+    D.rankFill.style.width = "100%";
+  }
+  // combo
+  if (state.combo >= 2) {
+    D.comboWrap.style.display = "block";
+    D.comboCount.textContent = "x" + state.combo;
+  } else {
+    D.comboWrap.style.display = "none";
+  }
+}
+
+/* ============ ACHIEVEMENTS ============ */
+function checkAchievements() {
+  var checks = {
+    first: Object.keys(state.solvedIds).length >= 1,
+    combo5: state.maxCombo >= 5,
+    combo10: state.maxCombo >= 10,
+    perfect: state.perfectCount >= 1,
+    speed: state.speedCount >= 1,
+    allround: state.l1Solved && state.l2Solved && state.l3Solved,
+    score1000: state.totalScore >= 1000,
+    score5000: state.totalScore >= 5000
+  };
+  for (var id in checks) {
+    if (checks[id] && !state.achievements[id]) {
+      state.achievements[id] = true;
+      var achv = null;
+      for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+        if (ACHIEVEMENTS[i].id === id) { achv = ACHIEVEMENTS[i]; break; }
+      }
+      if (achv) toast("成就解锁：" + achv.name, "success");
+    }
+  }
+}
+function renderAchievements() {
+  var unlocked = 0;
+  D.achvList.innerHTML = "";
+  for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+    var a = ACHIEVEMENTS[i];
+    var isUnlocked = !!state.achievements[a.id];
+    if (isUnlocked) unlocked++;
+    var item = document.createElement("div");
+    item.className = "achv-item " + (isUnlocked ? "unlocked" : "locked");
+    item.innerHTML =
+      '<div class="achv-icon">' + (isUnlocked
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + a.icon + '"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>') + '</div>' +
+      '<div class="achv-info"><div class="achv-name">' + a.name + '</div><div class="achv-desc">' + a.desc + '</div></div>';
+    D.achvList.appendChild(item);
+  }
+  D.achvCount.textContent = unlocked + " / " + ACHIEVEMENTS.length;
+}
+
+/* ============ HISTORY ============ */
+function renderHistory() {
+  D.historyCount.textContent = String(state.history.length);
+  if (state.history.length === 0) {
+    D.historyList.innerHTML = '<div class="empty-state">尚无答题记录</div>';
+    return;
+  }
+  D.historyList.innerHTML = "";
+  for (var i = 0; i < state.history.length; i++) {
+    var h = state.history[i];
+    var item = document.createElement("div");
+    item.className = "history-item";
+    var ptClass = h.points > 0 ? "" : "zero";
+    item.innerHTML =
+      '<div class="history-status ' + h.status + '"></div>' +
+      '<span class="history-qid">' + h.id + '</span>' +
+      '<span class="history-title">' + escapeHtml(h.title) + '</span>' +
+      '<span class="history-pts ' + ptClass + '">+' + h.points + '</span>';
+    D.historyList.appendChild(item);
+  }
+}
+
+/* ============ LEADERBOARD ============ */
+function renderLeaderboard() {
+  D.lbCount.textContent = String(state.sessions.length);
+  if (state.sessions.length === 0) {
+    D.lbList.innerHTML = '<div class="empty-state">完成一轮答题后记录成绩</div>';
+    return;
+  }
+  var sorted = state.sessions.slice().sort(function(a, b) { return b.score - a.score; });
+  D.lbList.innerHTML = "";
+  for (var i = 0; i < Math.min(sorted.length, 10); i++) {
+    var s = sorted[i];
+    var rankClass = "";
+    if (i === 0) rankClass = "gold";
+    else if (i === 1) rankClass = "silver";
+    else if (i === 2) rankClass = "bronze";
+    var item = document.createElement("div");
+    item.className = "lb-item";
+    item.innerHTML =
+      '<div class="lb-rank ' + rankClass + '">' + (i + 1) + '</div>' +
+      '<div class="lb-info"><div class="lb-level">' + s.level + ' · ' + s.correct + '/' + s.total + ' 正确</div><div class="lb-date">' + escapeHtml(s.date) + '</div></div>' +
+      '<span class="lb-score">' + s.score + '</span>';
+    D.lbList.appendChild(item);
+  }
+}
+
+/* ============ TOAST ============ */
+function toast(msg, type) {
+  var t = document.createElement("div");
+  t.className = "toast " + (type || "");
+  t.textContent = msg;
+  D.toastContainer.appendChild(t);
+  setTimeout(function() {
+    if (t.parentNode) t.parentNode.removeChild(t);
+  }, 2600);
+}
+
+/* ============ LEVEL SWITCH ============ */
+function selectLevel(level) {
+  if (state.level === level && !state.answered) return;
+  state.level = level;
+  state.qIndex = 0;
+  // update tabs
+  var tabs = document.querySelectorAll(".level-tab");
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle("active", tabs[i].getAttribute("data-level") === level);
+  }
+  renderQuestion();
+}
+
+/* ============ EVENT BINDING ============ */
+function bindEvents() {
+  // intro
+  D.introStart.addEventListener("click", function() {
+    D.introOverlay.classList.add("hide");
+  });
+  // level tabs
+  var tabs = document.querySelectorAll(".level-tab");
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener("click", function() {
+      selectLevel(this.getAttribute("data-level"));
+    });
+  }
+  // code line click (event delegation)
+  D.codeLines.addEventListener("click", function(e) {
+    var line = e.target.closest(".code-line");
+    if (!line) return;
+    var ln = parseInt(line.getAttribute("data-line"));
+    toggleMark(ln);
+  });
+  // marked chip remove (event delegation)
+  D.markedList.addEventListener("click", function(e) {
+    if (e.target.classList.contains("rm")) {
+      var ln = parseInt(e.target.getAttribute("data-line"));
+      toggleMark(ln);
+    }
+  });
+  // buttons
+  D.hintBtn.addEventListener("click", useHint);
+  D.submitBtn.addEventListener("click", function() { submitAnswer(false); });
+  D.skipBtn.addEventListener("click", skipQuestion);
+  D.resultClose.addEventListener("click", function() { D.resultModal.classList.remove("show"); });
+  D.resultNext.addEventListener("click", nextQuestion);
+  // keyboard: Ctrl+Enter to submit
+  D.fixInput.addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      submitAnswer(false);
+    }
+  });
+}
+
+/* ============ INIT ============ */
+function init() {
+  cacheDom();
+  loadState();
+  bindEvents();
+  updateTopBar();
+  renderHistory();
+  renderAchievements();
+  renderLeaderboard();
+  renderQuestion();
+}
+init();
+</script>
+</body>
+</html>

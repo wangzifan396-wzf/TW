@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TW Assembly · 可视化汇编学习器</title>
+<style>
+:root{
+--bg:#08090a;--surface:#0f1115;--surface-2:#15181e;--surface-3:#1c2028;
+--border:#232830;--border-strong:#2d3540;
+--ink:#e4e7eb;--muted:#8b95a5;--faint:#565d6b;
+--accent:#d97706;--accent-soft:rgba(217,119,6,.12);--accent-glow:rgba(217,119,6,.4);
+--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--cyan:#06b6d4;
+--font:-apple-system,"SF Pro Display","Segoe UI",sans-serif;
+--mono:"SF Mono","Fira Code","Cascadia Code",ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6;overflow:hidden;height:100vh}
+a{color:var(--accent);text-decoration:none}
+/* Layout */
+.app{display:grid;grid-template-rows:56px 1fr 120px;height:100vh}
+.header{display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--surface);z-index:10}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;white-space:nowrap}
+.logo svg{width:24px;height:24px;flex-shrink:0}
+.header-spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;color:var(--ink);background:var(--surface-2);border:1px solid var(--border-strong);cursor:pointer;transition:all .15s ease;font-family:var(--font)}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-accent:hover{background:#e8880a;color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.select{background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);border-radius:8px;padding:6px 10px;font-size:13px;font-family:var(--font);cursor:pointer}
+.select option{background:var(--surface)}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;border-radius:2px;background:var(--surface-3);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer}
+.main{display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.left-panel{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+.right-panel{display:flex;flex-direction:column;overflow-y:auto}
+/* Code editor */
+.editor-wrap{flex:1;display:flex;overflow:hidden;background:var(--surface)}
+.line-numbers{width:44px;background:var(--bg);border-right:1px solid var(--border);padding:8px 0;font-family:var(--mono);font-size:12px;color:var(--faint);text-align:right;user-select:none;overflow:hidden;flex-shrink:0}
+.line-numbers div{height:21px;padding-right:8px;line-height:21px;cursor:pointer}
+.line-numbers .bp{color:var(--red)}
+.line-numbers .bp::after{content:'●'}
+.code-input{flex:1;background:var(--surface);border:none;color:var(--ink);font-family:var(--mono);font-size:13px;line-height:21px;padding:8px 12px;resize:none;outline:none;tab-size:2;white-space:pre;overflow:auto}
+/* Right panel sections */
+.section{border-bottom:1px solid var(--border);padding:12px 16px}
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.section-title::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--accent)}
+/* Registers */
+.reg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.reg{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;text-align:center;font-family:var(--mono);transition:all .2s}
+.reg.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-glow);background:var(--accent-soft)}
+.reg-name{font-size:10px;color:var(--muted);font-weight:600}
+.reg-val{font-size:15px;font-weight:700;color:var(--ink);margin-top:2px}
+.special-regs{display:flex;gap:6px;margin-top:6px}
+.special-reg{flex:1;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;padding:6px;text-align:center;font-family:var(--mono)}
+.special-reg .reg-name{color:var(--accent)}
+.flags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.flag{padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:600;border:1px solid var(--border);background:var(--surface-2);color:var(--faint)}
+.flag.on{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+/* Memory */
+.mem-grid{display:grid;grid-template-columns:repeat(16,1fr);gap:1px;font-family:var(--mono);font-size:10px;max-height:140px;overflow-y:auto}
+.mem-cell{background:var(--surface-2);padding:3px 0;text-align:center;border-radius:2px;color:var(--muted);transition:all .15s}
+.mem-cell.pc{background:var(--accent);color:#000;font-weight:700}
+.mem-cell.active{background:var(--green);color:#000}
+.mem-cell.nonzero{color:var(--ink)}
+.mem-cell:hover{outline:1px solid var(--accent);cursor:pointer}
+/* Log */
+.log-area{flex:1;overflow-y:auto;background:var(--bg);padding:8px 16px;font-family:var(--mono);font-size:12px;line-height:1.6}
+.log-line{color:var(--muted);padding:1px 0}
+.log-line .pc{color:var(--accent);font-weight:700}
+.log-line .inst{color:var(--cyan)}
+.log-line .ok{color:var(--green)}
+.log-line .err{color:var(--red)}
+/* Console */
+.console{border-top:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column}
+.console-header{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.console-output{flex:1;overflow-y:auto;padding:6px 16px;font-family:var(--mono);font-size:12px;line-height:1.5;color:var(--ink)}
+.console-output .out{color:var(--green)}
+.console-output .err-out{color:var(--red)}
+@media(max-width:768px){
+.main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+.left-panel{border-right:none;border-bottom:1px solid var(--border)}
+.reg-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(prefers-reduced-motion:reduce){
+*{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<!-- Header -->
+<header class="header">
+<div class="logo">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h8" stroke-linecap="round"/></svg>
+TW Assembly
+</div>
+<select class="select" id="exampleSelect">
+<option value="">选择示例…</option>
+</select>
+<button class="btn" id="asmBtn">汇编</button>
+<button class="btn btn-accent" id="runBtn">运行</button>
+<button class="btn" id="stepBtn">单步</button>
+<button class="btn" id="resetBtn">重置</button>
+<div class="speed-wrap">
+<span>速度</span>
+<input type="range" id="speedSlider" min="1" max="10" value="5">
+<span id="speedLabel">5</span>
+</div>
+<div class="header-spacer"></div>
+<a class="btn" href="index.html">← TW Hub</a>
+</header>
+
+<!-- Main -->
+<div class="main">
+<div class="left-panel">
+<div class="editor-wrap">
+<div class="line-numbers" id="lineNumbers"></div>
+<textarea class="code-input" id="codeInput" spellcheck="false" placeholder="; 写你的汇编代码..."></textarea>
+</div>
+</div>
+<div class="right-panel">
+<!-- Registers -->
+<div class="section">
+<div class="section-title">寄存器 Registers</div>
+<div class="reg-grid" id="regGrid"></div>
+<div class="special-regs">
+<div class="special-reg"><div class="reg-name">PC</div><div class="reg-val" id="pcVal">0x00</div></div>
+<div class="special-reg"><div class="reg-name">IR</div><div class="reg-val" id="irVal">0x0000</div></div>
+</div>
+<div class="flags" id="flagsArea"></div>
+</div>
+<!-- Memory -->
+<div class="section">
+<div class="section-title">内存 Memory (256 bytes)</div>
+<div class="mem-grid" id="memGrid"></div>
+</div>
+<!-- Log -->
+<div class="section" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+<div class="section-title">执行日志</div>
+<div class="log-area" id="logArea"></div>
+</div>
+</div>
+</div>
+
+<!-- Console -->
+<div class="console">
+<div class="console-header">
+<span>控制台输出</span>
+<span id="statusLabel" style="color:var(--green)">就绪</span>
+</div>
+<div class="console-output" id="consoleOutput"></div>
+</div>
+</div>
+
+<script>
+'use strict';
+/* ===== CPU State ===== */
+var MEM_SIZE=256;
+var memory=new Uint8Array(MEM_SIZE);
+var regs=new Uint8Array(8); // R0-R7
+var pc=0, ir=0;
+var flags={Z:0,N:0,C:0,V:0};
+var halted=false, assembled=false, running=false;
+var breakpoints={};
+var outputBuf=[];
+var program=[]; // assembled instructions [{opcode,args,line}]
+var labels={}; // label -> address
+var stepTimer=null;
+
+/* ===== Opcodes ===== */
+var OP={
+MOV:0,ADD:1,SUB:2,MUL:3,DIV:4,
+AND:5,OR:6,XOR:7,NOT:8,SHL:9,SHR:10,
+LDR:11,STR:12,
+JMP:13,JEQ:14,JNE:15,JLT:16,JGT:17,
+CALL:18,RET:19,PUSH:20,POP:21,
+CMP:22,HLT:23,NOP:24,OUT:25
+};
+var OP_NAMES={};
+for(var k in OP){OP_NAMES[OP[k]]=k;}
+
+/* ===== Examples ===== */
+var EXAMPLES={
+"两数相加":'; 两数相加\n; 结果存入 R0\n\nMOV R0, #5\nMOV R1, #3\nADD R0, R0, R1\nOUT R0\nHLT',
+"1到N求和":'; 1 到 N 求和\n; N 存入 R0, 结果存入 R1\n\nMOV R0, #10\nMOV R1, #0      ; sum = 0\nMOV R2, #1      ; i = 1\nLOOP:\nCMP R2, R0\nJGT DONE\nADD R1, R1, R2\nADD R2, R2, #1\nJMP LOOP\nDONE:\nOUT R1\nHLT',
+"比较两数":'; 比较两数大小\n; R0=R1 输出0, R0>R1 输出1, R0<R1 输出2\n\nMOV R0, #7\nMOV R1, #5\nMOV R2, #0\nCMP R0, R1\nJEQ EQUAL\nJGT GREATER\nMOV R2, #2\nJMP PRINT\nEQUAL:\nMOV R2, #0\nJMP PRINT\nGREATER:\nMOV R2, #1\nPRINT:\nOUT R2\nHLT',
+"数组求和":'; 数组求和\n; 数组从地址 50 开始\n\nMOV R0, #50      ; 数组起始地址\nMOV R1, #5        ; 数组长度\nMOV R2, #0        ; sum\nMOV R3, #0        ; i\nLOOP:\nCMP R3, R1\nJEQ DONE\nLDR R4, [R0]\nADD R2, R2, R4\nADD R0, R0, #1\nADD R3, R3, #1\nJMP LOOP\nDONE:\nOUT R2\nHLT',
+"函数调用":'; 函数调用示例\n; CALL/RET 演示\n\nMOV R0, #6\nMOV R1, #4\nCALL ADD_FN\nOUT R2\nHLT\n\nADD_FN:\nADD R2, R0, R1\nRET',
+"冒泡排序":'; 冒泡排序\n; 数组在地址 60 开始, 长度 R0\n\nMOV R0, #5\nMOV R7, #60\nMOV R1, #0\nOUTER:\nMOV R2, #0\nINNER:\nMOV R3, R0\nSUB R3, R3, R1\nSUB R3, R3, #1\nCMP R2, R3\nJGE NEXT_OUTER\nMOV R4, R7\nADD R4, R4, R2\nLDR R5, [R4]\nADD R6, R4, #1\nLDR R3, [R6]\nCMP R5, R3\nJLE NEXT_INNER\nSTR R5, [R6]\nSTR R3, [R4]\nNEXT_INNER:\nADD R2, R2, #1\nJMP INNER\nNEXT_OUTER:\nADD R1, R1, #1\nCMP R1, R0\nJGE SORTED\nJMP OUTER\nSORTED:\nOUT R2\nHLT',
+"查找最大值":'; 查找数组最大值\n; 数组从地址 70 开始\n\nMOV R0, #70\nMOV R1, #5\nLDR R2, [R0]\nMOV R3, #1\nLOOP:\nCMP R3, R1\nJEQ DONE\nADD R0, R0, #1\nLDR R4, [R0]\nCMP R4, R2\nJLE SKIP\nMOV R2, R4\nSKIP:\nADD R3, R3, #1\nJMP LOOP\nDONE:\nOUT R2\nHLT',
+"斐波那契":'; 斐波那契数列\n; 输出前 N 个斐波那契数\n\nMOV R0, #8       ; N\nMOV R1, #0       ; a\nMOV R2, #1       ; b\nMOV R3, #0       ; i\nLOOP:\nCMP R3, R0\nJGE DONE\nOUT R1\nADD R4, R1, R2\nMOV R1, R2\nMOV R2, R4\nADD R3, R3, #1\nJMP LOOP\nDONE:\nHLT'
+};
+
+/* ===== Assembler ===== */
+function assemble(code){
+program=[];
+labels={};
+var lines=code.split('\n');
+// First pass: collect labels
+var addr=0;
+for(var i=0;i<lines.length;i++){
+var line=lines[i].replace(/;.*$/,'').trim();
+if(!line) continue;
+var labelMatch=line.match(/^(\w+):\s*(.*)$/);
+if(labelMatch){
+labels[labelMatch[1]]=addr;
+line=labelMatch[2].trim();
+if(!line) continue;
+}
+addr++;
+}
+// Second pass: parse instructions
+addr=0;
+for(i=0;i<lines.length;i++){
+var raw=lines[i];
+line=raw.replace(/;.*$/,'').trim();
+if(!line) continue;
+var lm=line.match(/^(\w+):\s*(.*)$/);
+if(lm){
+line=lm[2].trim();
+if(!line) continue;
+}
+// Parse instruction
+var parts=line.split(/[\s,]+/).filter(function(p){return p.length>0;});
+var opName=parts[0].toUpperCase();
+var opcode=OP[opName];
+if(opcode===undefined){
+return {error:'第'+(i+1)+'行: 未知指令 "'+parts[0]+'"'};
+}
+var args=[];
+for(var j=1;j<parts.length;j++){
+args.push(parts[j]);
+}
+program.push({opcode:opcode,args:args,line:i+1,label:lm?lm[1]:null,raw:raw});
+addr++;
+}
+return {ok:true};
+}
+
+function parseReg(s){
+if(!s) return -1;
+s=s.toUpperCase();
+if(s.length>=2 && s[0]==='R'){
+var n=parseInt(s.substring(1));
+if(n>=0&&n<8) return n;
+}
+return -1;
+}
+function parseImm(s){
+if(s===undefined||s===null) return NaN;
+s=s.trim();
+if(s.charAt(0)==='#') s=s.substring(1);
+if(s.charAt(0)==='0'&&s.length>2&&(s.charAt(1)==='x'||s.charAt(1)==='X')){
+return parseInt(s,16);
+}
+return parseInt(s,10);
+}
+function parseMemRef(s){
+// [R0] or [50]
+s=s.replace(/[\[\]]/g,'').trim();
+var r=parseReg(s);
+if(r>=0) return {type:'reg',val:r};
+return {type:'imm',val:parseImm(s)};
+}
+
+/* ===== Execution ===== */
+var stack=[];
+
+function execute(inst){
+var op=inst.opcode;
+var a=inst.args;
+var pcChanged=false;
+var out='';
+
+function getVal(arg){
+var r=parseReg(arg);
+if(r>=0) return regs[r];
+return parseImm(arg);
+}
+function setReg(r,val){
+regs[r]=val&0xFF;
+if(r===0) return; // R0 used for output sometimes
+}
+
+switch(op){
+case OP.MOV:
+{var rd=parseReg(a[0]); var v=getVal(a[1]); if(rd<0) return {error:'MOV: invalid reg '+a[0]}; regs[rd]=v&0xFF; out='MOV R'+rd+', '+v;}
+break;
+case OP.ADD:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=(v1+v2)&0xFF; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; flags.N=(r&0x80)?1:0; flags.C=((v1+v2)>0xFF)?1:0; out='R'+rd+' = '+v1+' + '+v2+' = '+r;}
+break;
+case OP.SUB:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=(v1-v2)&0xFF; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; flags.N=(r&0x80)?1:0; flags.C=(v1<v2)?1:0; out='R'+rd+' = '+v1+' - '+v2+' = '+r;}
+break;
+case OP.MUL:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=(v1*v2)&0xFF; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = '+v1+' * '+v2+' = '+r;}
+break;
+case OP.DIV:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); if(v2===0) return {error:'DIV by zero'}; var r=Math.floor(v1/v2)&0xFF; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = '+v1+' / '+v2+' = '+r;}
+break;
+case OP.AND:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=v1&v2; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = '+v1+' & '+v2+' = '+r;}
+break;
+case OP.OR:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=v1|v2; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = '+v1+' | '+v2+' = '+r;}
+break;
+case OP.XOR:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=v1^v2; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = '+v1+' ^ '+v2+' = '+r;}
+break;
+case OP.NOT:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var r=(~v1)&0xFF; if(rd>=0) regs[rd]=r; flags.Z=(r===0)?1:0; out='R'+rd+' = ~'+v1+' = '+r;}
+break;
+case OP.SHL:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=(v1<<v2)&0xFF; if(rd>=0) regs[rd]=r; out='R'+rd+' = '+v1+' << '+v2+' = '+r;}
+break;
+case OP.SHR:
+{var rd=parseReg(a[0]); var v1=getVal(a[1]); var v2=getVal(a[2]); var r=(v1>>>v2)&0xFF; if(rd>=0) regs[rd]=r; out='R'+rd+' = '+v1+' >> '+v2+' = '+r;}
+break;
+case OP.LDR:
+{var rd=parseReg(a[0]); var ref=parseMemRef(a[1]); var addr2; if(ref.type==='reg') addr2=regs[ref.val]; else addr2=ref.val; if(addr2<0||addr2>=MEM_SIZE) return {error:'LDR: address out of range '+addr2}; if(rd>=0) regs[rd]=memory[addr2]; out='R'+rd+' = MEM['+addr2+'] = '+memory[addr2];}
+break;
+case OP.STR:
+{var rs=parseReg(a[1]); var ref=parseMemRef(a[0]); var addr2; if(ref.type==='reg') addr2=regs[ref.val]; else addr2=ref.val; if(addr2<0||addr2>=MEM_SIZE) return {error:'STR: address out of range '+addr2}; memory[addr2]=regs[rs]; out='MEM['+addr2+'] = R'+rs+' = '+regs[rs];}
+break;
+case OP.JMP:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'JMP: unknown label '+a[0]}; target=n;} pc=target; pcChanged=true; out='JMP -> '+target;}
+break;
+case OP.JEQ:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'JEQ: unknown label '+a[0]}; target=n;} if(flags.Z){pc=target;pcChanged=true;out='JEQ -> '+target;} else out='JEQ skip (Z=0)';}
+break;
+case OP.JNE:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'JNE: unknown label '+a[0]}; target=n;} if(!flags.Z){pc=target;pcChanged=true;out='JNE -> '+target;} else out='JNE skip (Z=1)';}
+break;
+case OP.JLT:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'JLT: unknown label '+a[0]}; target=n;} if(flags.N){pc=target;pcChanged=true;out='JLT -> '+target;} else out='JLT skip (N=0)';}
+break;
+case OP.JGT:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'JGT: unknown label '+a[0]}; target=n;} if(!flags.Z&&!flags.N){pc=target;pcChanged=true;out='JGT -> '+target;} else out='JGT skip';}
+break;
+case OP.CALL:
+{var target=labels[a[0]]; if(target===undefined){var n=parseInt(a[0]); if(isNaN(n)) return {error:'CALL: unknown label '+a[0]}; target=n;} stack.push(pc+1); pc=target; pcChanged=true; out='CALL -> '+target;}
+break;
+case OP.RET:
+{if(stack.length===0) return {error:'RET: stack empty'}; pc=stack.pop(); pcChanged=true; out='RET -> '+pc;}
+break;
+case OP.PUSH:
+{var v=getVal(a[0]); stack.push(v); out='PUSH '+v;}
+break;
+case OP.POP:
+{if(stack.length===0) return {error:'POP: stack empty'}; var rd=parseReg(a[0]); var v2=stack.pop(); if(rd>=0) regs[rd]=v2; out='POP -> R'+rd+' = '+v2;}
+break;
+case OP.CMP:
+{var v1=getVal(a[0]); var v2=getVal(a[1]); var r=(v1-v2)&0xFF; flags.Z=(r===0)?1:0; flags.N=(r&0x80)?1:0; flags.C=(v1<v2)?1:0; out='CMP '+v1+', '+v2+' (Z='+flags.Z+' N='+flags.N+')';}
+break;
+case OP.OUT:
+{var v=getVal(a[0]); outputBuf.push(v); out='OUT: '+v;}
+break;
+case OP.HLT:
+{halted=true; out='HLT';}
+break;
+case OP.NOP:
+out='NOP';
+break;
+default:
+return {error:'Unknown opcode'};
+}
+if(!pcChanged) pc++;
+return {ok:true,out:out};
+}
+
+/* ===== UI Update ===== */
+function updateUI(activeReg){
+// Registers
+var regGrid=document.getElementById('regGrid');
+var html='';
+for(var i=0;i<8;i++){
+var cls=activeReg===i?'reg active':'reg';
+html+='<div class="'+cls+'"><div class="reg-name">R'+i+'</div><div class="reg-val">'+regs[i]+'</div></div>';
+}
+regGrid.innerHTML=html;
+// PC & IR
+document.getElementById('pcVal').textContent='0x'+pc.toString(16).toUpperCase().padStart(2,'0');
+document.getElementById('irVal').textContent='0x'+ir.toString(16).toUpperCase().padStart(4,'0');
+// Flags
+var flagsArea=document.getElementById('flagsArea');
+var fh='';
+['Z','N','C','V'].forEach(function(f){
+var on=flags[f]?' on':'';
+fh+='<span class="flag'+on+'">'+f+'</span>';
+});
+flagsArea.innerHTML=fh;
+// Memory
+var memGrid=document.getElementById('memGrid');
+var mh='';
+for(i=0;i<MEM_SIZE;i++){
+var cls='mem-cell';
+if(i===pc) cls+=' pc';
+if(memory[i]!==0) cls+=' nonzero';
+mh+='<div class="'+cls+'" title="'+i.toString(16)+'">'+memory[i].toString(16).toUpperCase().padStart(2,'0')+'</div>';
+}
+memGrid.innerHTML=mh;
+// Console
+var consoleOut=document.getElementById('consoleOutput');
+var ch='';
+outputBuf.forEach(function(v){
+ch+='<div class="out">> OUT: '+v+'</div>';
+});
+consoleOut.innerHTML=ch;
+consoleOut.scrollTop=consoleOut.scrollHeight;
+}
+
+function logLine(msg,cls){
+var logArea=document.getElementById('logArea');
+var div=document.createElement('div');
+div.className='log-line';
+if(cls) div.className+=' '+cls;
+div.innerHTML='<span class="pc">[0x'+pc.toString(16).toUpperCase().padStart(2,'0')+']</span> '+msg;
+logArea.appendChild(div);
+logArea.scrollTop=logArea.scrollHeight;
+}
+
+function updateLineNumbers(){
+var code=document.getElementById('codeInput').value;
+var lines=code.split('\n').length;
+var ln=document.getElementById('lineNumbers');
+var html='';
+for(var i=1;i<=lines;i++){
+var cls='';
+if(breakpoints[i]) cls='bp';
+html+='<div class="'+cls+'" data-line="'+i+'">'+(cls?'':i)+'</div>';
+}
+ln.innerHTML=html;
+// Sync scroll
+ln.scrollTop=document.getElementById('codeInput').scrollTop;
+}
+
+/* ===== Control ===== */
+function doAssemble(){
+var code=document.getElementById('codeInput').value;
+var result=assemble(code);
+if(result.error){
+logLine(result.error,'err');
+document.getElementById('statusLabel').textContent='汇编失败';
+document.getElementById('statusLabel').style.color='var(--red)';
+return false;
+}
+assembled=true;
+halted=false;
+pc=0;ir=0;
+regs.fill(0);
+memory.fill(0);
+flags={Z:0,N:0,C:0,V:0};
+stack=[];
+outputBuf=[];
+// Write program to memory (simplified: just mark addresses)
+for(var i=0;i<program.length;i++){
+memory[i]=1; // mark as code
+}
+logLine('汇编成功: '+program.length+' 条指令','ok');
+document.getElementById('statusLabel').textContent='就绪';
+document.getElementById('statusLabel').style.color='var(--green)';
+updateUI();
+return true;
+}
+
+function doStep(){
+if(!assembled){logLine('请先汇编','err');return;}
+if(halted){logLine('已停机','err');return;}
+if(pc<0||pc>=program.length){
+halted=true;
+logLine('PC 越界，停机','err');
+document.getElementById('statusLabel').textContent='停机';
+document.getElementById('statusLabel').style.color='var(--red)';
+return;
+}
+var inst=program[pc];
+ir=inst.opcode;
+var result=execute(inst);
+if(result.error){
+logLine(inst.raw+' -> '+result.error,'err');
+halted=true;
+document.getElementById('statusLabel').textContent='错误';
+document.getElementById('statusLabel').style.color='var(--red)';
+return;
+}
+if(result.out) logLine(OP_NAMES[inst.opcode]+' '+inst.args.join(', ')+' => '+result.out);
+if(breakpoints[pc+1]&&running){
+running=false;
+clearTimeout(stepTimer);
+logLine('断点命中','ok');
+document.getElementById('statusLabel').textContent='断点暂停';
+}
+updateUI(inst.opcode<=OP.SHR?parseReg(inst.args[0]):-1);
+}
+
+function doRun(){
+if(!assembled){logLine('请先汇编','err');return;}
+if(halted){logLine('已停机','err');return;}
+running=true;
+document.getElementById('statusLabel').textContent='运行中';
+document.getElementById('statusLabel').style.color='var(--accent)';
+var speed=parseInt(document.getElementById('speedSlider').value);
+var delay=600-speed*55;
+function loop(){
+if(!running||halted) return;
+doStep();
+if(halted){
+running=false;
+document.getElementById('statusLabel').textContent='完成';
+document.getElementById('statusLabel').style.color='var(--green)';
+return;
+}
+stepTimer=setTimeout(loop,delay);
+}
+loop();
+}
+
+function doReset(){
+running=false;
+clearTimeout(stepTimer);
+assembled=false;
+halted=false;
+pc=0;ir=0;
+regs.fill(0);
+memory.fill(0);
+flags={Z:0,N:0,C:0,V:0};
+stack=[];
+outputBuf=[];
+document.getElementById('logArea').innerHTML='';
+document.getElementById('statusLabel').textContent='就绪';
+document.getElementById('statusLabel').style.color='var(--green)';
+updateUI();
+}
+
+/* ===== Init ===== */
+function init(){
+// Populate examples
+var sel=document.getElementById('exampleSelect');
+for(var name in EXAMPLES){
+var opt=document.createElement('option');
+opt.value=name;
+opt.textContent=name;
+sel.appendChild(opt);
+}
+// Default code
+var defaultCode=EXAMPLES['两数相加'];
+document.getElementById('codeInput').value=defaultCode;
+// Load saved
+var saved=localStorage.getItem('tw-asm-code');
+if(saved) document.getElementById('codeInput').value=saved;
+var savedSpeed=localStorage.getItem('tw-asm-speed');
+if(savedSpeed){
+document.getElementById('speedSlider').value=savedSpeed;
+document.getElementById('speedLabel').textContent=savedSpeed;
+}
+updateLineNumbers();
+updateUI();
+// Events
+sel.addEventListener('change',function(){
+if(sel.value){
+document.getElementById('codeInput').value=EXAMPLES[sel.value];
+updateLineNumbers();
+}
+});
+document.getElementById('asmBtn').addEventListener('click',doAssemble);
+document.getElementById('runBtn').addEventListener('click',doRun);
+document.getElementById('stepBtn').addEventListener('click',function(){running=false;clearTimeout(stepTimer);doStep();});
+document.getElementById('resetBtn').addEventListener('click',doReset);
+document.getElementById('speedSlider').addEventListener('input',function(e){
+document.getElementById('speedLabel').textContent=e.target.value;
+localStorage.setItem('tw-asm-speed',e.target.value);
+});
+var codeInput=document.getElementById('codeInput');
+codeInput.addEventListener('input',function(){
+updateLineNumbers();
+localStorage.setItem('tw-asm-code',codeInput.value);
+});
+codeInput.addEventListener('scroll',function(){
+document.getElementById('lineNumbers').scrollTop=codeInput.scrollTop;
+});
+codeInput.addEventListener('keydown',function(e){
+if(e.key==='Tab'){
+e.preventDefault();
+var start=codeInput.selectionStart;
+codeInput.setRangeText('  ',start,codeInput.selectionStart,'end');
+}
+if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+e.preventDefault();
+if(doAssemble()) doRun();
+}
+});
+// Breakpoint toggle
+document.getElementById('lineNumbers').addEventListener('click',function(e){
+var target=e.target;
+if(target.dataset.line){
+var ln=parseInt(target.dataset.line);
+breakpoints[ln]=!breakpoints[ln];
+updateLineNumbers();
+}
+});
+}
+init();
+</script>
+</body>
+</html>

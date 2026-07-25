@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Network — 网络包旅程模拟器</title>
+<style>
+/* ===== Reset & Variables ===== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#08090a;--bg-1:#0d0e10;--bg-2:#131417;--bg-3:#1a1b1f;
+  --border:rgba(255,255,255,0.07);--border-2:rgba(255,255,255,0.12);
+  --text:#e4e4e7;--text-2:#a1a1aa;--text-3:#71717a;
+  --accent:#4f46e5;--accent-2:#6366f1;--accent-bg:rgba(79,70,229,0.12);
+  --green:#22c55e;--amber:#f59e0b;--red:#ef4444;--cyan:#06b6d4;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','Source Code Pro',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:13px;line-height:1.5;display:flex;flex-direction:column;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font-family:inherit}
+
+/* ===== Header ===== */
+.hdr{
+  height:56px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;gap:12px;padding:0 16px;background:var(--bg-1);
+  flex-shrink:0;
+}
+.logo{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.logo-mark{
+  width:28px;height:28px;border-radius:6px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+  font-weight:700;color:#fff;letter-spacing:-0.5px;
+}
+.logo-text{font-weight:600;font-size:14px}
+.logo-sub{font-size:11px;color:var(--text-3);border-left:1px solid var(--border-2);padding-left:10px;margin-left:2px}
+.hdr-input{flex:1;max-width:420px}
+.hdr-input input{
+  width:100%;height:34px;background:var(--bg-2);border:1px solid var(--border-2);
+  border-radius:6px;padding:0 12px;color:var(--text);font-size:13px;outline:none;
+  transition:border-color .15s;
+}
+.hdr-input input:focus{border-color:var(--accent)}
+.btn{
+  height:34px;padding:0 14px;border-radius:6px;font-size:12px;font-weight:500;
+  background:var(--bg-2);border:1px solid var(--border-2);color:var(--text);
+  transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.btn:hover{background:var(--bg-3);border-color:rgba(255,255,255,0.2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn-sm{height:30px;padding:0 10px;font-size:11px}
+.hdr-speed{display:flex;gap:0;border:1px solid var(--border-2);border-radius:6px;overflow:hidden}
+.speed-btn{
+  height:34px;padding:0 10px;font-size:11px;color:var(--text-2);
+  background:var(--bg-2);transition:all .15s;border-right:1px solid var(--border-2);
+}
+.speed-btn:last-child{border-right:none}
+.speed-btn.active{background:var(--accent-bg);color:var(--accent-2)}
+.speed-btn:hover:not(.active){background:var(--bg-3)}
+
+/* ===== Main Layout ===== */
+.main{flex:1;display:flex;overflow:hidden;min-height:0}
+
+/* ===== Stage Section ===== */
+.stage{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
+.stage-top{padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stage-title{font-size:15px;font-weight:600}
+.step-label{
+  font-size:12px;color:var(--text-2);font-family:var(--mono);
+  padding:4px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;
+  max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.stage-svg{
+  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:8px 16px;position:relative;
+  background:
+    linear-gradient(var(--bg) 0 0),
+    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,0.02) 39px,rgba(255,255,255,0.02) 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,0.02) 39px,rgba(255,255,255,0.02) 40px);
+}
+.stage-svg svg{max-width:100%;max-height:100%}
+.stage-controls{
+  padding:8px 16px 12px;display:flex;align-items:center;gap:8px;
+  border-top:1px solid var(--border);
+}
+.phase-progress{flex:1;height:4px;background:var(--bg-2);border-radius:2px;overflow:hidden;margin-left:8px}
+.phase-progress-bar{height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .05s linear}
+
+/* ===== Detail Section ===== */
+.detail{width:340px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.detail-section{display:flex;flex-direction:column;min-height:0;border-bottom:1px solid var(--border)}
+.detail-section:last-child{border-bottom:none}
+.detail-title{
+  padding:10px 16px;font-size:11px;font-weight:600;color:var(--text-3);
+  text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);
+  background:var(--bg-1);
+}
+.detail-content{flex:1;overflow-y:auto;padding:12px 16px}
+.detail-content::-webkit-scrollbar{width:6px}
+.detail-content::-webkit-scrollbar-track{background:transparent}
+.detail-content::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:3px}
+
+/* Protocol header SVG */
+.proto-svg{margin-bottom:12px}
+.proto-svg svg{width:100%;display:block}
+
+/* Protocol field table */
+.proto-table{width:100%;border-collapse:collapse;font-size:11px}
+.proto-table th{
+  text-align:left;padding:6px 8px;color:var(--text-3);font-weight:500;
+  border-bottom:1px solid var(--border-2);font-size:10px;text-transform:uppercase;letter-spacing:0.3px;
+}
+.proto-table td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.proto-table td:first-child{color:var(--text-2);font-family:var(--mono);white-space:nowrap}
+.proto-table td:nth-child(2){color:var(--accent-2);font-family:var(--mono);white-space:nowrap}
+.proto-table td:last-child{color:var(--text-3)}
+
+/* HTTP message display */
+.http-msg{
+  font-family:var(--mono);font-size:11px;line-height:1.7;
+  background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;white-space:pre-wrap;word-break:break-all;margin-bottom:12px;
+}
+.http-msg .m-method{color:var(--accent-2);font-weight:600}
+.http-msg .m-path{color:var(--cyan)}
+.http-msg .m-ver{color:var(--text-3)}
+.http-msg .m-status{color:var(--green);font-weight:600}
+.http-msg .m-hdr{color:var(--text-2)}
+.http-msg .m-val{color:var(--text)}
+.http-msg .m-body{color:var(--text-3)}
+.http-msg .m-blank{color:var(--text-3);font-style:italic}
+
+/* Knowledge card */
+.kn-card{}
+.kn-title{font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.kn-intro{font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.6}
+.kn-points{list-style:none;margin-bottom:12px}
+.kn-points li{
+  font-size:12px;color:var(--text-2);padding:4px 0 4px 16px;position:relative;line-height:1.5;
+}
+.kn-points li::before{
+  content:'';position:absolute;left:0;top:11px;width:5px;height:5px;
+  border-radius:50%;background:var(--accent);
+}
+.kn-fact{
+  font-size:11px;color:var(--text-3);padding:10px 12px;
+  background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
+  border-left:3px solid var(--accent);line-height:1.5;
+}
+.kn-fact-label{color:var(--accent-2);font-weight:600;margin-right:4px}
+
+/* ===== Footer / Timeline ===== */
+.footer{flex-shrink:0;border-top:1px solid var(--border);background:var(--bg-1);padding:10px 16px}
+.timeline{display:flex;align-items:center;gap:0;overflow-x:auto}
+.tl-node{
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 8px;
+  border-radius:4px;transition:all .15s;flex-shrink:0;min-width:64px;
+}
+.tl-dot{
+  width:10px;height:10px;border-radius:50%;background:var(--bg-3);
+  border:2px solid var(--border-2);transition:all .2s;
+}
+.tl-node.visited .tl-dot{background:var(--green);border-color:var(--green)}
+.tl-node.active .tl-dot{background:var(--accent);border-color:var(--accent-2);box-shadow:0 0 0 3px var(--accent-bg)}
+.tl-label{font-size:10px;color:var(--text-3);white-space:nowrap}
+.tl-node.active .tl-label{color:var(--accent-2);font-weight:600}
+.tl-node.visited .tl-label{color:var(--text-2)}
+.tl-node:hover .tl-dot{border-color:var(--accent-2)}
+.tl-line{height:2px;flex:1;min-width:12px;background:var(--border-2);transition:background .2s}
+.tl-line.done{background:var(--green)}
+
+/* ===== Responsive ===== */
+@media (max-width:960px){
+  .main{flex-direction:column}
+  .stage{border-right:none;border-bottom:1px solid var(--border);min-height:50%}
+  .detail{width:100%;flex-direction:row}
+  .detail-section{flex:1;border-bottom:none;border-right:1px solid var(--border)}
+  .detail-section:last-child{border-right:none}
+  .logo-sub{display:none}
+}
+@media (max-width:640px){
+  .hdr{flex-wrap:wrap;height:auto;padding:8px;gap:8px}
+  .hdr-input{order:3;flex:1 1 100%;max-width:none}
+  .detail{flex-direction:column}
+  .detail-section{border-right:none;border-bottom:1px solid var(--border)}
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">
+    <div class="logo-mark">TW</div>
+    <span class="logo-text">TW Network</span>
+    <span class="logo-sub">网络包旅程模拟器</span>
+  </div>
+  <div class="hdr-input">
+    <input type="text" id="url-input" placeholder="https://example.com" value="https://example.com" />
+  </div>
+  <button id="send-btn" class="btn btn-primary">发送</button>
+  <div class="hdr-speed">
+    <button class="speed-btn" data-speed="0">慢速</button>
+    <button class="speed-btn active" data-speed="1">正常</button>
+    <button class="speed-btn" data-speed="2">快速</button>
+  </div>
+</header>
+
+<main class="main">
+  <section class="stage">
+    <div class="stage-top">
+      <div class="stage-title" id="stage-title">DNS 解析</div>
+      <div class="step-label" id="step-label">点击"发送"开始模拟</div>
+    </div>
+    <div class="stage-svg" id="stage-container"></div>
+    <div class="stage-controls">
+      <button id="prev-btn" class="btn btn-sm">上一阶段</button>
+      <button id="play-btn" class="btn btn-sm">播放</button>
+      <button id="replay-btn" class="btn btn-sm">重播</button>
+      <button id="next-btn" class="btn btn-sm">下一阶段</button>
+      <div class="phase-progress"><div class="phase-progress-bar" id="phase-progress-bar"></div></div>
+    </div>
+  </section>
+  <aside class="detail">
+    <div class="detail-section" style="flex:1">
+      <div class="detail-title">协议报文格式</div>
+      <div class="detail-content" id="protocol-content"></div>
+    </div>
+    <div class="detail-section" style="flex:1">
+      <div class="detail-title">知识卡片</div>
+      <div class="detail-content" id="knowledge-content"></div>
+    </div>
+  </aside>
+</main>
+
+<footer class="footer">
+  <div class="timeline" id="timeline"></div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+/* ===== State ===== */
+var state={
+  phase:0,playing:false,speed:1,speedIdx:1,progress:0,
+  phaseStart:0,rafId:null,visited:new Set(),urlData:null,
+};
+var prefersReducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var SPEEDS=[{label:'慢速',value:0.5},{label:'正常',value:1},{label:'快速',value:2}];
+
+/* ===== Utils ===== */
+function $(id){return document.getElementById(id)}
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
+function easeIO(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+function easeOut(t){return 1-Math.pow(1-t,3)}
+
+function posOnPath(wps,p){
+  var n=wps.length;
+  if(n===0)return{x:0,y:0};
+  if(p<=wps[0].at)return{x:wps[0].x,y:wps[0].y};
+  if(p>=wps[n-1].at)return{x:wps[n-1].x,y:wps[n-1].y};
+  for(var i=0;i<n-1;i++){
+    if(p>=wps[i].at&&p<=wps[i+1].at){
+      var t=(p-wps[i].at)/(wps[i+1].at-wps[i].at);
+      var et=easeIO(t);
+      return{x:lerp(wps[i].x,wps[i+1].x,et),y:lerp(wps[i].y,wps[i+1].y,et)};
+    }
+  }
+  return{x:wps[n-1].x,y:wps[n-1].y};
+}
+
+function stepIdx(steps,p){
+  var idx=0;
+  for(var i=0;i<steps.length;i++){if(p>=steps[i].at)idx=i}
+  return idx;
+}
+
+function localT(steps,p){
+  var i=stepIdx(steps,p);
+  var cur=steps[i];var next=steps[i+1];
+  if(!next)return 1;
+  return clamp((p-cur.at)/(next.at-cur.at),0,1);
+}
+
+/* ===== SVG Helpers ===== */
+function E(id){return document.getElementById(id)}
+function actN(id){var e=E(id);if(e){e.setAttribute('fill','rgba(79,70,229,0.12)');e.setAttribute('stroke','#4f46e5');e.setAttribute('stroke-width','1.5')}}
+function deactN(id){var e=E(id);if(e){e.setAttribute('fill','#131417');e.setAttribute('stroke','rgba(255,255,255,0.1)');e.setAttribute('stroke-width','1')}}
+function actL(id){var e=E(id);if(e){e.setAttribute('stroke','#4f46e5');e.setAttribute('stroke-width','2')}}
+function deactL(id){var e=E(id);if(e){e.setAttribute('stroke','rgba(255,255,255,0.08)');e.setAttribute('stroke-width','1.5')}}
+function setOp(id,v){var e=E(id);if(e)e.setAttribute('opacity',String(v))}
+function setAttr(id,attr,v){var e=E(id);if(e)e.setAttribute(attr,String(v))}
+
+function node(rectId,x,y,w,h,title,sub){
+  return '<g>'+
+    '<rect id="'+rectId+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="8" fill="#131417" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>'+
+    '<text x="'+(x+w/2)+'" y="'+(y+h/2-3)+'" text-anchor="middle" fill="#e4e4e7" font-size="12" font-weight="600">'+title+'</text>'+
+    (sub?'<text x="'+(x+w/2)+'" y="'+(y+h/2+13)+'" text-anchor="middle" fill="#71717a" font-size="10" font-family="ui-monospace,monospace">'+sub+'</text>':'')+
+    '</g>';
+}
+
+function wrapSVG(inner){
+  return '<svg viewBox="0 0 820 440" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;">'+
+    '<defs>'+
+    '<marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/></marker>'+
+    '<marker id="arrG" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22c55e"/></marker>'+
+    '<marker id="arrD" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.15)"/></marker>'+
+    '</defs>'+inner+'</svg>';
+}
+
+/* ===== URL Parsing ===== */
+function parseURL(url){
+  var raw=(url||'').trim();
+  if(!raw)raw='https://example.com';
+  if(!/^https?:\/\//.test(raw))raw='https://'+raw;
+  try{
+    var u=new URL(raw);
+    var path=u.pathname+u.search;
+    if(!path||path==='/')path='/';
+    return{protocol:u.protocol,hostname:u.hostname,
+      port:u.port||(u.protocol==='https:'?'443':'80'),
+      path:path,full:u.href};
+  }catch(e){
+    return{protocol:'https:',hostname:'example.com',port:'443',path:'/',full:'https://example.com'};
+  }
+}
+
+/* ===== Protocol Header SVG Builder ===== */
+function buildHeaderSVG(rows){
+  var pxPerBit=9;var rowH=34;var gap=2;
+  var maxBits=0;
+  for(var i=0;i<rows.length;i++){
+    var t=0;for(var j=0;j<rows[i].length;j++)t+=rows[i][j].bits;
+    if(t>maxBits)maxBits=t;
+  }
+  var totalW=maxBits*pxPerBit;
+  var content='';
+  for(var ri=0;ri<rows.length;ri++){
+    var x=0;var y=ri*(rowH+gap);
+    var row=rows[ri];
+    for(var fi=0;fi<row.length;fi++){
+      var f=row[fi];
+      var w=f.bits*pxPerBit;
+      var color=f.color||'rgba(79,70,229,0.08)';
+      content+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+rowH+'" rx="3" fill="'+color+'" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>';
+      if(w>=28){
+        content+='<text x="'+(x+w/2)+'" y="'+(y+14)+'" text-anchor="middle" fill="#a1a1aa" font-size="9" font-family="ui-monospace,monospace">'+f.name+'</text>';
+        content+='<text x="'+(x+w/2)+'" y="'+(y+27)+'" text-anchor="middle" fill="#e4e4e7" font-size="9" font-family="ui-monospace,monospace">'+f.value+'</text>';
+      }else if(w>=14){
+        content+='<text x="'+(x+w/2)+'" y="'+(y+21)+'" text-anchor="middle" fill="#a1a1aa" font-size="8" font-family="ui-monospace,monospace">'+f.name+'</text>';
+      }
+      x+=w;
+    }
+  }
+  var totalH=rows.length*(rowH+gap);
+  return '<svg viewBox="0 0 '+totalW+' '+totalH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">'+content+'</svg>';
+}
+
+/* ===== Phases Data ===== */
+var PHASES=[
+/* ---- Phase 0: DNS ---- */
+{
+  id:'dns',name:'DNS 解析',short:'DNS',desc:'域名到 IP 地址的解析过程',duration:7000,
+  steps:[
+    {at:0.00,label:'浏览器检查本地 DNS 缓存'},
+    {at:0.14,label:'缓存未命中，查询递归解析器'},
+    {at:0.28,label:'解析器查询根 DNS 服务器 (.)'},
+    {at:0.40,label:'根 DNS 返回 .com TLD 服务器地址'},
+    {at:0.52,label:'解析器查询 .com TLD 服务器'},
+    {at:0.64,label:'TLD 返回 example.com 权威 DNS 地址'},
+    {at:0.76,label:'解析器查询权威 DNS 服务器'},
+    {at:0.88,label:'权威 DNS 返回 IP 地址，解析器缓存并返回'},
+  ],
+  svg:function(){
+    var h=state.urlData?state.urlData.hostname:'example.com';
+    var s='';
+    s+='<line id="dns-l1" x1="410" y1="72" x2="410" y2="92" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l2" x1="410" y1="134" x2="410" y2="158" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l3" x1="370" y1="186" x2="200" y2="262" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l4" x1="230" y1="283" x2="350" y2="283" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l5" x1="470" y1="283" x2="590" y2="283" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l6" x1="620" y1="262" x2="450" y2="186" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="dns-l7" x1="410" y1="158" x2="410" y2="72" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+=node('dns-browser',340,30,140,42,'浏览器',h);
+    s+=node('dns-cache',340,92,140,42,'本地缓存','miss');
+    s+=node('dns-resolver',330,158,160,42,'递归解析器','8.8.8.8');
+    s+=node('dns-root',105,262,125,42,'根 DNS','.');
+    s+=node('dns-tld',350,262,120,42,'TLD DNS','.com');
+    s+=node('dns-auth',590,262,125,42,'权威DNS',h.split('.').slice(-2).join('.'));
+    s+=node('dns-result',320,352,180,42,'解析结果','93.184.216.34');
+    s+='<circle id="dns-glow" cx="410" cy="51" r="12" fill="rgba(79,70,229,0.25)" opacity="0"/>';
+    s+='<circle id="dns-pkt" cx="410" cy="51" r="6" fill="#4f46e5" opacity="0"/>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var wps=[
+      {x:410,y:51,at:0.00},{x:410,y:113,at:0.14},{x:410,y:179,at:0.28},
+      {x:167,y:283,at:0.40},{x:410,y:283,at:0.52},{x:652,y:283,at:0.64},
+      {x:410,y:179,at:0.76},{x:410,y:51,at:0.88},{x:410,y:51,at:1.0}
+    ];
+    var pos=posOnPath(wps,p);
+    setAttr('dns-pkt','cx',pos.x);setAttr('dns-pkt','cy',pos.y);
+    setAttr('dns-glow','cx',pos.x);setAttr('dns-glow','cy',pos.y);
+    setOp('dns-pkt',1);setOp('dns-glow',1);
+    var si=stepIdx(this.steps,p);
+    var visited=['dns-browser','dns-cache','dns-resolver','dns-root','dns-tld','dns-auth','dns-resolver','dns-browser','dns-result'];
+    var nodes=['dns-browser','dns-cache','dns-resolver','dns-root','dns-tld','dns-auth','dns-result'];
+    for(var i=0;i<nodes.length;i++){deactN(nodes[i])}
+    for(var i=0;i<nodes.length;i++){
+      if(i<=si){actN(nodes[i])}else{deactN(nodes[i])}
+    }
+    if(p>=0.88){actN('dns-result')}else{deactN('dns-result')}
+  },
+  headerRows:[
+    [{name:'Transaction ID',bits:16,value:'0x4A6F'},{name:'Flags',bits:16,value:'0x0100'}],
+    [{name:'Questions',bits:16,value:'1'},{name:'Answer RRs',bits:16,value:'0→1'}],
+    [{name:'Authority',bits:16,value:'0'},{name:'Additional',bits:16,value:'0'}],
+  ],
+  protoFields:[
+    {f:'Transaction ID',v:'0x4A6F',d:'事务 ID，匹配请求和响应'},
+    {f:'Flags',v:'0x0100',d:'标准查询，递归请求'},
+    {f:'Questions',v:'1',d:'查询问题数'},
+    {f:'Answer RRs',v:'0 → 1',d:'回答资源记录数'},
+    {f:'Query Name',v:'example.com',d:'查询域名'},
+    {f:'Query Type',v:'A (1)',d:'查询 IPv4 地址记录'},
+    {f:'Answer',v:'93.184.216.34',d:'解析结果 IP 地址'},
+    {f:'TTL',v:'3600s',d:'缓存生存时间'},
+  ],
+  knowledge:{
+    title:'DNS 域名解析',
+    intro:'DNS 将人类可读的域名转换为机器可读的 IP 地址，是互联网的地址簿。',
+    points:[
+      '递归解析器（如 8.8.8.8）负责完成完整查询链路',
+      '多级缓存：浏览器 → 操作系统 → 解析器，减少查询延迟',
+      '根 DNS (.) → TLD (.com) → 权威 DNS 分层查询',
+      'DNS 使用 UDP 端口 53，响应快但不可靠',
+      'DNSSEC 提供域名解析的真实性验证',
+    ],
+    fact:'全球 13 组根 DNS 服务器（A-M）使用 anycast 分布在数百个节点上。',
+  }
+},
+/* ---- Phase 1: TCP ---- */
+{
+  id:'tcp',name:'TCP 三次握手',short:'TCP',desc:'建立可靠的传输连接',duration:6000,
+  steps:[
+    {at:0.00,label:'客户端发送 SYN，序列号 seq=x'},
+    {at:0.33,label:'服务器返回 SYN-ACK，seq=y, ack=x+1'},
+    {at:0.66,label:'客户端发送 ACK，seq=x+1, ack=y+1'},
+  ],
+  svg:function(){
+    var s='';
+    s+='<line x1="220" y1="60" x2="220" y2="400" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" stroke-dasharray="4,4"/>';
+    s+='<line x1="600" y1="60" x2="600" y2="400" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" stroke-dasharray="4,4"/>';
+    s+='<text x="220" y="42" text-anchor="middle" fill="#e4e4e7" font-size="13" font-weight="600">客户端</text>';
+    s+='<text x="220" y="56" text-anchor="middle" fill="#71717a" font-size="10" font-family="ui-monospace,monospace">:'+state.urlData.port+'</text>';
+    s+='<text x="600" y="42" text-anchor="middle" fill="#e4e4e7" font-size="13" font-weight="600">服务器</text>';
+    s+='<text x="600" y="56" text-anchor="middle" fill="#71717a" font-size="10" font-family="ui-monospace,monospace">:'+state.urlData.port+'</text>';
+    // SYN arrow
+    s+='<line id="tcp-a1" x1="220" y1="120" x2="220" y2="120" stroke="#4f46e5" stroke-width="2" marker-end="url(#arr)" opacity="0"/>';
+    s+='<text id="tcp-t1" x="410" y="110" text-anchor="middle" fill="#6366f1" font-size="11" font-family="ui-monospace,monospace" opacity="0">SYN  seq=x=0</text>';
+    // SYN-ACK arrow
+    s+='<line id="tcp-a2" x1="600" y1="210" x2="600" y2="210" stroke="#4f46e5" stroke-width="2" marker-end="url(#arr)" opacity="0"/>';
+    s+='<text id="tcp-t2" x="410" y="200" text-anchor="middle" fill="#6366f1" font-size="11" font-family="ui-monospace,monospace" opacity="0">SYN-ACK  seq=y=0  ack=x+1=1</text>';
+    // ACK arrow
+    s+='<line id="tcp-a3" x1="220" y1="300" x2="220" y2="300" stroke="#22c55e" stroke-width="2" marker-end="url(#arrG)" opacity="0"/>';
+    s+='<text id="tcp-t3" x="410" y="290" text-anchor="middle" fill="#22c55e" font-size="11" font-family="ui-monospace,monospace" opacity="0">ACK  seq=x+1=1  ack=y+1=1</text>';
+    // Connected
+    s+='<rect id="tcp-conn" x="300" y="360" width="220" height="36" rx="8" fill="rgba(34,197,94,0.1)" stroke="#22c55e" stroke-width="1.5" opacity="0"/>';
+    s+='<text id="tcp-conn-t" x="410" y="383" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="600" opacity="0">连接已建立 (ESTABLISHED)</text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var steps=[{at:0},{at:0.33},{at:0.66}];
+    // Step 1: SYN
+    if(p<0.33){
+      var t1=localT(steps,p);
+      setAttr('tcp-a1','x2',lerp(220,590,easeOut(t1)));
+      setOp('tcp-a1',1);setOp('tcp-t1',t1);
+    }else{setAttr('tcp-a1','x2',590);setOp('tcp-a1',1);setOp('tcp-t1',1)}
+    // Step 2: SYN-ACK
+    if(p>=0.33&&p<0.66){
+      var t2=localT(steps,p);
+      setAttr('tcp-a2','x1',lerp(600,230,easeOut(t2)));
+      setOp('tcp-a2',1);setOp('tcp-t2',t2);
+    }else if(p>=0.66){setAttr('tcp-a2','x1',230);setOp('tcp-a2',1);setOp('tcp-t2',1)}
+    else{setOp('tcp-a2',0);setOp('tcp-t2',0)}
+    // Step 3: ACK
+    if(p>=0.66){
+      var t3=localT(steps,p);
+      setAttr('tcp-a3','x2',lerp(220,590,easeOut(t3)));
+      setOp('tcp-a3',1);setOp('tcp-t3',t3);
+      if(t3>=0.95){setOp('tcp-conn',1);setOp('tcp-conn-t',1)}
+    }
+  },
+  headerRows:[
+    [{name:'Src Port',bits:16,value:'54321'},{name:'Dst Port',bits:16,value:'443'}],
+    [{name:'Sequence Number',bits:32,value:'0 (ISN)'}],
+    [{name:'Ack Number',bits:32,value:'0'}],
+    [{name:'DataOff',bits:4,value:'5'},{name:'Resv',bits:3,value:'0'},{name:'Flags',bits:9,value:'SYN'},{name:'Window',bits:16,value:'65535'}],
+    [{name:'Checksum',bits:16,value:'0x3A7B'},{name:'Urgent Ptr',bits:16,value:'0'}],
+  ],
+  protoFields:[
+    {f:'Source Port',v:'54321',d:'客户端临时端口号'},
+    {f:'Dest Port',v:'443',d:'HTTPS 目标端口'},
+    {f:'Sequence Num',v:'0 (ISN)',d:'初始序列号'},
+    {f:'Ack Number',v:'0',d:'确认号 (SYN 阶段为0)'},
+    {f:'Data Offset',v:'5 (20B)',d:'TCP 首部长度'},
+    {f:'Flags',v:'SYN',d:'同步标志位'},
+    {f:'Window',v:'65535',d:'接收窗口大小 (字节)'},
+    {f:'Checksum',v:'0x3A7B',d:'首部和数据的校验和'},
+  ],
+  knowledge:{
+    title:'TCP 三次握手',
+    intro:'TCP 通过三次握手建立可靠连接，确保双方都准备好通信。',
+    points:[
+      'SYN: 客户端发送同步序列号 x',
+      'SYN-ACK: 服务器确认并发送自己的序列号 y',
+      'ACK: 客户端确认服务器的序列号',
+      '序列号确保数据按序到达和去重',
+      'TCP 提供流量控制和拥塞控制',
+    ],
+    fact:'TCP 连接关闭需要四次挥手 (FIN → ACK → FIN → ACK)。',
+  }
+},
+/* ---- Phase 2: TLS ---- */
+{
+  id:'tls',name:'TLS 握手',short:'TLS',desc:'建立加密安全通道',duration:8000,
+  steps:[
+    {at:0.00,label:'ClientHello: 发送支持的加密套件和随机数'},
+    {at:0.17,label:'ServerHello: 服务器选择加密套件'},
+    {at:0.34,label:'服务器发送证书 (Certificate)'},
+    {at:0.50,label:'客户端验证证书合法性'},
+    {at:0.62,label:'密钥交换 (Key Exchange)'},
+    {at:0.78,label:'双方发送 Finished 消息'},
+    {at:0.90,label:'加密通道建立完成'},
+  ],
+  svg:function(){
+    var s='';
+    s+='<line x1="200" y1="60" x2="200" y2="420" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" stroke-dasharray="4,4"/>';
+    s+='<line x1="620" y1="60" x2="620" y2="420" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" stroke-dasharray="4,4"/>';
+    s+='<text x="200" y="42" text-anchor="middle" fill="#e4e4e7" font-size="13" font-weight="600">客户端</text>';
+    s+='<text x="620" y="42" text-anchor="middle" fill="#e4e4e7" font-size="13" font-weight="600">服务器</text>';
+    var labels=[
+      {y:90,dir:'r',txt:'ClientHello',sub:'cipher suites + random'},
+      {y:145,dir:'l',txt:'ServerHello',sub:'selected cipher + random'},
+      {y:200,dir:'l',txt:'Certificate',sub:'X.509 证书链'},
+      {y:255,dir:'r',txt:'Key Exchange',sub:'pre-master secret'},
+      {y:310,dir:'r',txt:'Finished',sub:'encrypted verify'},
+      {y:365,dir:'l',txt:'Finished',sub:'encrypted verify'},
+    ];
+    for(var i=0;i<labels.length;i++){
+      var lb=labels[i];
+      var x1=lb.dir==='r'?200:620;
+      var x2=lb.dir==='r'?620:200;
+      var col=lb.txt==='Finished'?'#22c55e':'#4f46e5';
+      var mk=lb.txt==='Finished'?'url(#arrG)':'url(#arr)';
+      s+='<line id="tls-a'+i+'" x1="'+x1+'" y2="'+lb.y+'" x2="'+x1+'" y2="'+lb.y+'" stroke="'+col+'" stroke-width="2" marker-end="'+mk+'" opacity="0"/>';
+      s+='<text id="tls-t'+i+'" x="410" y="'+(lb.y-8)+'" text-anchor="middle" fill="'+(lb.txt==='Finished'?'#22c55e':'#6366f1')+'" font-size="11" font-family="ui-monospace,monospace" opacity="0">'+lb.txt+'</text>';
+      s+='<text id="tls-s'+i+'" x="410" y="'+(lb.y+6)+'" text-anchor="middle" fill="#71717a" font-size="9" font-family="ui-monospace,monospace" opacity="0">'+lb.sub+'</text>';
+    }
+    s+='<rect id="tls-enc" x="280" y="400" width="260" height="32" rx="8" fill="rgba(34,197,94,0.1)" stroke="#22c55e" stroke-width="1.5" opacity="0"/>';
+    s+='<text id="tls-enc-t" x="410" y="421" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="600" opacity="0">加密通道已建立</text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var bounds=[0,0.17,0.34,0.50,0.62,0.78,0.90];
+    for(var i=0;i<6;i++){
+      var start=bounds[i];var end=bounds[i+1];
+      if(p>=start){
+        var t=clamp((p-start)/(end-start),0,1);
+        var x1=(i%2===0)?200:620;
+        var x2=(i%2===0)?lerp(200,615,easeOut(t)):lerp(620,205,easeOut(t));
+        setAttr('tls-a'+i,'x2',x2);
+        setOp('tls-a'+i,1);setOp('tls-t'+i,t);setOp('tls-s'+i,t);
+      }
+    }
+    if(p>=0.90){setOp('tls-enc',1);setOp('tls-enc-t',1)}
+  },
+  headerRows:[
+    [{name:'Type',bits:8,value:'22'},{name:'Version',bits:16,value:'0x0303'},{name:'Length',bits:16,value:'512'}],
+  ],
+  protoFields:[
+    {f:'Content Type',v:'22',d:'Handshake 握手类型'},
+    {f:'Version',v:'TLS 1.2',d:'协议版本 (0x0303)'},
+    {f:'Length',v:'512',d:'记录长度 (字节)'},
+    {f:'Handshake Type',v:'ClientHello',d:'握手消息类型 (1)'},
+    {f:'Client Random',v:'0x9F2C...',d:'客户端随机数 (32字节)'},
+    {f:'Cipher Suites',v:'AES_256_GCM',d:'加密套件列表'},
+    {f:'SNI',v:state.urlData.hostname,d:'服务器名称指示'},
+    {f:'Server Cert',v:'RSA 2048-bit',d:'服务器证书公钥'},
+  ],
+  knowledge:{
+    title:'TLS 加密握手',
+    intro:'TLS 握手建立加密通道，确保通信的机密性、完整性和身份认证。',
+    points:[
+      'ClientHello: 客户端发送支持的加密套件和随机数',
+      'ServerHello: 服务器选择加密套件并返回证书',
+      '证书验证: 客户端验证服务器证书的合法性',
+      '密钥交换: 双方协商出对称会话密钥',
+      'Finished: 双方验证握手过程的完整性',
+    ],
+    fact:'TLS 1.3 将握手减少到 1-RTT，并支持 0-RTT 恢复。',
+  }
+},
+/* ---- Phase 3: HTTP Request ---- */
+{
+  id:'http-req',name:'HTTP 请求',short:'HTTP',desc:'构建 HTTP 请求报文',duration:5500,
+  steps:[
+    {at:0.00,label:'构建请求行: GET / HTTP/1.1'},
+    {at:0.25,label:'添加请求头部 (Headers)'},
+    {at:0.55,label:'空行分隔头部和主体'},
+    {at:0.70,label:'添加请求主体 (Body)'},
+    {at:0.85,label:'请求报文构建完成，发送至服务器'},
+  ],
+  svg:function(){
+    var u=state.urlData;
+    var s='';
+    var blocks=[
+      {id:'hr-b1',y:50,h:44,title:'请求行',sub:'GET '+u.path+' HTTP/1.1',color:'rgba(79,70,229,0.12)'},
+      {id:'hr-b2',y:104,h:120,title:'请求头部',sub:'Host: '+u.hostname+'\nUser-Agent: Mozilla/5.0\nAccept: text/html\nConnection: keep-alive',color:'rgba(99,102,241,0.08)'},
+      {id:'hr-b3',y:232,h:16,title:'',sub:'',color:'rgba(255,255,255,0.05)'},
+      {id:'hr-b4',y:256,h:60,title:'请求主体',sub:'(GET 请求通常无主体)',color:'rgba(6,182,212,0.08)'},
+    ];
+    for(var i=0;i<blocks.length;i++){
+      var b=blocks[i];
+      s+='<rect id="'+b.id+'" x="200" y="'+b.y+'" width="420" height="'+b.h+'" rx="6" fill="'+b.color+'" stroke="rgba(255,255,255,0.1)" stroke-width="1" opacity="0"/>';
+      if(b.title){
+        s+='<text id="'+b.id+'-t1" x="220" y="'+(b.y+18)+'" fill="#71717a" font-size="10" font-family="ui-monospace,monospace" opacity="0">'+b.title+'</text>';
+      }
+      if(b.sub){
+        var lines=b.sub.split('\n');
+        for(var li=0;li<lines.length;li++){
+          s+='<text id="'+b.id+'-t'+(li+2)+'" x="220" y="'+(b.y+38+li*16)+'" fill="#e4e4e7" font-size="11" font-family="ui-monospace,monospace" opacity="0">'+lines[li]+'</text>';
+        }
+      }
+    }
+    s+='<rect id="hr-sent" x="280" y="350" width="260" height="36" rx="8" fill="rgba(34,197,94,0.1)" stroke="#22c55e" stroke-width="1.5" opacity="0"/>';
+    s+='<text id="hr-sent-t" x="410" y="373" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="600" opacity="0">请求已发送 →</text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var ids=['hr-b1','hr-b2','hr-b3','hr-b4'];
+    var starts=[0,0.25,0.55,0.70];
+    for(var i=0;i<ids.length;i++){
+      if(p>=starts[i]){
+        var t=clamp((p-starts[i])/0.15,0,1);
+        setOp(ids[i],t);
+        var te=E(ids[i]+'-t1');if(te)setOp(ids[i]+'-t1',t);
+        for(var j=2;j<8;j++){var te2=E(ids[i]+'-t'+j);if(te2)setOp(ids[i]+'-t'+j,t)}
+      }
+    }
+    if(p>=0.85){setOp('hr-sent',1);setOp('hr-sent-t',1)}
+  },
+  httpMsg:function(){
+    var u=state.urlData;
+    return '<div class="http-msg">'+
+      '<span class="m-method">GET</span> <span class="m-path">'+u.path+'</span> <span class="m-ver">HTTP/1.1</span>\n'+
+      '<span class="m-hdr">Host:</span> <span class="m-val">'+u.hostname+'</span>\n'+
+      '<span class="m-hdr">User-Agent:</span> <span class="m-val">Mozilla/5.0</span>\n'+
+      '<span class="m-hdr">Accept:</span> <span class="m-val">text/html</span>\n'+
+      '<span class="m-hdr">Connection:</span> <span class="m-val">keep-alive</span>\n'+
+      '<span class="m-blank">(空行 CRLF)</span>\n'+
+      '<span class="m-body">(无请求主体)</span></div>';
+  },
+  protoFields:[
+    {f:'Method',v:'GET',d:'HTTP 请求方法'},
+    {f:'Path',v:state.urlData.path,d:'请求路径'},
+    {f:'Version',v:'HTTP/1.1',d:'协议版本'},
+    {f:'Host',v:state.urlData.hostname,d:'目标主机 (必需)'},
+    {f:'User-Agent',v:'Mozilla/5.0',d:'客户端标识'},
+    {f:'Accept',v:'text/html',d:'接受的内容类型'},
+    {f:'Connection',v:'keep-alive',d:'TCP 连接复用'},
+  ],
+  knowledge:{
+    title:'HTTP 请求报文',
+    intro:'HTTP 请求由请求行、头部、空行和可选的主体组成。',
+    points:[
+      '请求行: 方法 + 路径 + 版本 (GET / HTTP/1.1)',
+      '头部是 Key: Value 键值对，以 CRLF 分隔',
+      '空行 (CRLF) 分隔头部和主体',
+      '常见方法: GET/POST/PUT/DELETE/PATCH',
+      'Keep-Alive 头允许 TCP 连接复用',
+    ],
+    fact:'HTTP/2 使用二进制分帧，HTTP/3 基于 QUIC (UDP) 协议。',
+  }
+},
+/* ---- Phase 4: Routing ---- */
+{
+  id:'routing',name:'路由转发',short:'路由',desc:'IP 数据包经过路由器跳转',duration:6500,
+  steps:[
+    {at:0.00,label:'源主机发出 IP 数据包 (TTL=64)'},
+    {at:0.20,label:'路由器 R1: 查路由表，TTL=63，转发'},
+    {at:0.40,label:'路由器 R2: 查路由表，TTL=62，转发'},
+    {at:0.60,label:'路由器 R3: 查路由表，TTL=61，转发'},
+    {at:0.80,label:'数据包到达目标服务器'},
+  ],
+  svg:function(){
+    var s='';
+    var nodes=[
+      {x:60,y:160,id:'rt-src',t:'源主机',sub:'192.168.1.100'},
+      {x:220,y:160,id:'rt-r1',t:'路由器 R1',sub:'TTL 64→63'},
+      {x:400,y:160,id:'rt-r2',t:'路由器 R2',sub:'TTL 63→62'},
+      {x:580,y:160,id:'rt-r3',t:'路由器 R3',sub:'TTL 62→61'},
+      {x:740,y:160,id:'rt-dst',t:'目标服务器',sub:'93.184.216.34'},
+    ];
+    // Lines between nodes
+    for(var i=0;i<nodes.length-1;i++){
+      s+='<line id="rt-l'+i+'" x1="'+(nodes[i].x+60)+'" y1="'+nodes[i].y+'" x2="'+(nodes[i+1].x-55)+'" y2="'+nodes[i+1].y+'" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    }
+    for(var i=0;i<nodes.length;i++){
+      var n=nodes[i];
+      s+=node(n.id,n.x-55,n.y-22,110,44,n.t,n.sub);
+    }
+    // Routing table
+    s+='<rect x="60" y="250" width="700" height="130" rx="8" fill="#0d0e10" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>';
+    s+='<text x="80" y="272" fill="#71717a" font-size="10" font-family="ui-monospace,monospace">路由表 (R1)</text>';
+    s+='<line x1="60" y1="280" x2="760" y2="280" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>';
+    var rtRows=[
+      ['0.0.0.0/0','10.0.0.1','eth0','默认路由'],
+      ['93.184.0.0/16','10.0.0.2','eth1',' longest prefix match'],
+      ['192.168.1.0/24','0.0.0.0','eth0','直连网络'],
+    ];
+    for(var i=0;i<rtRows.length;i++){
+      var ry=298+i*22;
+      s+='<text x="80" y="'+ry+'" fill="#a1a1aa" font-size="10" font-family="ui-monospace,monospace">'+rtRows[i][0]+'</text>';
+      s+='<text x="280" y="'+ry+'" fill="#a1a1aa" font-size="10" font-family="ui-monospace,monospace">'+rtRows[i][1]+'</text>';
+      s+='<text x="440" y="'+ry+'" fill="#a1a1aa" font-size="10" font-family="ui-monospace,monospace">'+rtRows[i][2]+'</text>';
+      s+='<text x="560" y="'+ry+'" fill="#71717a" font-size="10" font-family="ui-monospace,monospace">'+rtRows[i][3]+'</text>';
+    }
+    s+='<text x="80" y="240" fill="#4f46e5" font-size="11" font-family="ui-monospace,monospace" id="rt-ttl-label">TTL: 64</text>';
+    // Packet
+    s+='<circle id="rt-glow" cx="115" cy="160" r="12" fill="rgba(79,70,229,0.25)" opacity="0"/>';
+    s+='<circle id="rt-pkt" cx="115" cy="160" r="6" fill="#4f46e5" opacity="0"/>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var wps=[
+      {x:115,y:160,at:0.00},{x:275,y:160,at:0.20},
+      {x:455,y:160,at:0.40},{x:635,y:160,at:0.60},
+      {x:795,y:160,at:0.80},{x:795,y:160,at:1.0}
+    ];
+    var pos=posOnPath(wps,p);
+    setAttr('rt-pkt','cx',pos.x);setAttr('rt-pkt','cy',pos.y);
+    setAttr('rt-glow','cx',pos.x);setAttr('rt-glow','cy',pos.y);
+    setOp('rt-pkt',1);setOp('rt-glow',1);
+    // TTL display
+    var ttls=[64,63,62,61,60];
+    var si=stepIdx(this.steps,p);
+    var ttlEl=E('rt-ttl-label');
+    if(ttlEl){ttlEl.textContent='TTL: '+ttls[Math.min(si,4)]}
+    // Node highlighting
+    var nodeIds=['rt-src','rt-r1','rt-r2','rt-r3','rt-dst'];
+    for(var i=0;i<nodeIds.length;i++){
+      if(i<=si){actN(nodeIds[i])}else{deactN(nodeIds[i])}
+    }
+    // Line highlighting
+    for(var i=0;i<4;i++){
+      if(i<si){actL('rt-l'+i)}else{deactL('rt-l'+i)}
+    }
+  },
+  headerRows:[
+    [{name:'Ver',bits:4,value:'4'},{name:'IHL',bits:4,value:'5'},{name:'DSCP',bits:6,value:'0'},{name:'ECN',bits:2,value:'0'},{name:'Total Len',bits:16,value:'1500'}],
+    [{name:'Identification',bits:16,value:'0x1234'},{name:'Flags',bits:3,value:'DF'},{name:'Frag Off',bits:13,value:'0'}],
+    [{name:'TTL',bits:8,value:'64→61'},{name:'Protocol',bits:8,value:'6'},{name:'Checksum',bits:16,value:'0x...'}],
+    [{name:'Source IP',bits:32,value:'192.168.1.100'}],
+    [{name:'Dest IP',bits:32,value:'93.184.216.34'}],
+  ],
+  protoFields:[
+    {f:'Version',v:'4',d:'IPv4 协议'},
+    {f:'IHL',v:'5 (20B)',d:'IP 首部长度'},
+    {f:'TTL',v:'64 → 61',d:'生存时间，每跳减1'},
+    {f:'Protocol',v:'6 (TCP)',d:'上层协议号'},
+    {f:'Source IP',v:'192.168.1.100',d:'源 IP 地址'},
+    {f:'Dest IP',v:'93.184.216.34',d:'目标 IP 地址'},
+    {f:'Total Length',v:'1500',d:'数据报总长度 (字节)'},
+  ],
+  knowledge:{
+    title:'IP 路由转发',
+    intro:'IP 协议负责将数据包从源地址路由到目的地址。',
+    points:[
+      'TTL (Time To Live) 每经过一个路由器减 1',
+      'TTL 为 0 时丢弃数据包并返回 ICMP 错误',
+      '路由器根据路由表选择下一跳',
+      '最长前缀匹配原则选择最佳路由',
+      'MTU 限制数据包大小，超大会分片',
+    ],
+    fact:'traceroute 命令利用 TTL 递增来发现网络路径。',
+  }
+},
+/* ---- Phase 5: Server Processing ---- */
+{
+  id:'server',name:'服务器处理',short:'服务器',desc:'服务器内部处理请求',duration:7000,
+  steps:[
+    {at:0.00,label:'请求到达负载均衡器 (LB)'},
+    {at:0.15,label:'负载均衡器分发到反向代理'},
+    {at:0.30,label:'反向代理转发到应用服务器'},
+    {at:0.45,label:'应用服务器执行业务逻辑'},
+    {at:0.55,label:'查询数据库获取数据'},
+    {at:0.70,label:'数据库返回查询结果'},
+    {at:0.80,label:'应用服务器构建响应'},
+    {at:0.90,label:'响应沿原路返回客户端'},
+  ],
+  svg:function(){
+    var s='';
+    var comps=[
+      {x:60,y:140,id:'sv-lb',t:'负载均衡',sub:'Nginx LB'},
+      {x:220,y:140,id:'sv-rp',t:'反向代理',sub:'SSL 终止'},
+      {x:380,y:140,id:'sv-app',t:'应用服务器',sub:'Node.js'},
+      {x:540,y:140,id:'sv-db',t:'数据库',sub:'PostgreSQL'},
+      {x:700,y:140,id:'sv-cache',t:'缓存',sub:'Redis'},
+    ];
+    // Forward arrows
+    for(var i=0;i<4;i++){
+      s+='<line id="sv-f'+i+'" x1="'+(comps[i].x+58)+'" y1="140" x2="'+(comps[i].x+58)+'" y2="140" stroke="#4f46e5" stroke-width="2" marker-end="url(#arr)" opacity="0"/>';
+    }
+    // Backward arrows
+    for(var i=0;i<3;i++){
+      s+='<line id="sv-b'+i+'" x1="'+(comps[i+1].x-58)+'" y1="180" x2="'+(comps[i+1].x-58)+'" y2="180" stroke="#22c55e" stroke-width="2" marker-end="url(#arrG)" opacity="0"/>';
+    }
+    for(var i=0;i<comps.length;i++){
+      s+=node(comps[i].id,comps[i].x-58,comps[i].y-24,116,48,comps[i].t,comps[i].sub);
+    }
+    // Labels
+    s+='<text x="410" y="110" text-anchor="middle" fill="#4f46e5" font-size="11" font-family="ui-monospace,monospace" id="sv-fwd-label">→ 请求转发</text>';
+    s+='<text x="410" y="210" text-anchor="middle" fill="#22c55e" font-size="11" font-family="ui-monospace,monospace" id="sv-bwd-label" opacity="0">← 响应返回</text>';
+    // Forward packet
+    s+='<circle id="sv-pkt" cx="118" cy="140" r="6" fill="#4f46e5" opacity="0"/>';
+    s+='<circle id="sv-pkt2" cx="438" cy="180" r="6" fill="#22c55e" opacity="0"/>';
+    s+='<text x="410" y="250" text-anchor="middle" fill="#71717a" font-size="10" font-family="ui-monospace,monospace" id="sv-latency">处理延迟: ~15ms</text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var fwdWps=[
+      {x:118,y:140,at:0.00},{x:278,y:140,at:0.15},
+      {x:438,y:140,at:0.30},{x:598,y:140,at:0.45},
+      {x:598,y:140,at:0.55}
+    ];
+    var bwdWps=[
+      {x:482,y:180,at:0.70},{x:322,y:180,at:0.80},
+      {x:162,y:180,at:0.90},{x:162,y:180,at:1.0}
+    ];
+    // Forward
+    if(p<0.70){
+      var fpos=posOnPath(fwdWps,Math.min(p,0.55));
+      setAttr('sv-pkt','cx',fpos.x);setAttr('sv-pkt','cy',fpos.y);
+      setOp('sv-pkt',1);
+    }else{setOp('sv-pkt',0)}
+    // DB query pause
+    if(p>=0.45&&p<0.55){setOp('sv-pkt',0.5)}
+    // Backward
+    if(p>=0.70){
+      var bpos=posOnPath(bwdWps,p);
+      setAttr('sv-pkt2','cx',bpos.x);setAttr('sv-pkt2','cy',bpos.y);
+      setOp('sv-pkt2',1);
+      setOp('sv-bwd-label',1);
+    }
+    // Node highlighting
+    var nodeIds=['sv-lb','sv-rp','sv-app','sv-db','sv-cache'];
+    var si=stepIdx(this.steps,p);
+    for(var i=0;i<nodeIds.length;i++){
+      if(i<=si){actN(nodeIds[i])}else{deactN(nodeIds[i])}
+    }
+    // Forward arrows
+    for(var i=0;i<4;i++){
+      if(p>=fwdWps[i].at&&p<fwdWps[i+1].at){
+        var t=clamp((p-fwdWps[i].at)/(fwdWps[i+1].at-fwdWps[i].at),0,1);
+        setAttr('sv-f'+i,'x2',lerp(fwdWps[i].x,fwdWps[i+1].x-5,easeOut(t)));
+        setOp('sv-f'+i,1);
+      }else if(p>=fwdWps[i+1].at){
+        setAttr('sv-f'+i,'x2',fwdWps[i+1].x-5);setOp('sv-f'+i,1);
+      }else{setOp('sv-f'+i,0)}
+    }
+    // Backward arrows
+    for(var i=0;i<3;i++){
+      var bs=[0.70,0.80,0.90];
+      var be=[0.80,0.90,1.0];
+      if(p>=bs[i]&&p<be[i]){
+        var t2=clamp((p-bs[i])/(be[i]-bs[i]),0,1);
+        setAttr('sv-b'+i,'x2',lerp(bwdWps[i].x,bwdWps[i+1].x+5,easeOut(t2)));
+        setOp('sv-b'+i,1);
+      }else if(p>=be[i]){
+        setAttr('sv-b'+i,'x2',bwdWps[i+1].x+5);setOp('sv-b'+i,1);
+      }else{setOp('sv-b'+i,0)}
+    }
+  },
+  protoFields:[
+    {f:'Load Balancer',v:'Nginx',d:'负载均衡，分发请求到多台后端'},
+    {f:'Reverse Proxy',v:'Nginx',d:'反向代理，SSL 终止和缓存'},
+    {f:'App Server',v:'Node.js',d:'应用服务器，执行业务逻辑'},
+    {f:'Database',v:'PostgreSQL',d:'数据库查询，持久化存储'},
+    {f:'Cache',v:'Redis',d:'缓存层，加速热数据访问'},
+    {f:'Latency',v:'~15ms',d:'服务器端处理总延迟'},
+  ],
+  knowledge:{
+    title:'服务器处理链路',
+    intro:'请求到达服务器后，经过多层架构组件处理并返回响应。',
+    points:[
+      '负载均衡器分发流量到多台后端服务器',
+      '反向代理处理 SSL 终止、缓存和路由',
+      '应用服务器执行业务逻辑',
+      '数据库执行查询并返回数据',
+      '缓存层 (Redis) 加速热数据访问',
+    ],
+    fact:'CDN 在全球边缘节点缓存内容，减少回源延迟。',
+  }
+},
+/* ---- Phase 6: HTTP Response ---- */
+{
+  id:'http-res',name:'HTTP 响应',short:'响应',desc:'服务器返回 HTTP 响应报文',duration:5500,
+  steps:[
+    {at:0.00,label:'构建状态行: HTTP/1.1 200 OK'},
+    {at:0.25,label:'添加响应头部 (Headers)'},
+    {at:0.55,label:'空行分隔头部和响应体'},
+    {at:0.70,label:'添加响应主体 (HTML)'},
+    {at:0.85,label:'响应报文发送至客户端'},
+  ],
+  svg:function(){
+    var s='';
+    var blocks=[
+      {id:'hp-b1',y:50,h:44,title:'状态行',sub:'HTTP/1.1 200 OK',color:'rgba(34,197,94,0.12)'},
+      {id:'hp-b2',y:104,h:120,title:'响应头部',sub:'Content-Type: text/html\nContent-Length: 1234\nCache-Control: max-age=3600\nServer: nginx/1.21',color:'rgba(99,102,241,0.08)'},
+      {id:'hp-b3',y:232,h:16,title:'',sub:'',color:'rgba(255,255,255,0.05)'},
+      {id:'hp-b4',y:256,h:60,title:'响应主体',sub:'<html><body>...</body></html>',color:'rgba(6,182,212,0.08)'},
+    ];
+    for(var i=0;i<blocks.length;i++){
+      var b=blocks[i];
+      s+='<rect id="'+b.id+'" x="200" y="'+b.y+'" width="420" height="'+b.h+'" rx="6" fill="'+b.color+'" stroke="rgba(255,255,255,0.1)" stroke-width="1" opacity="0"/>';
+      if(b.title){
+        s+='<text id="'+b.id+'-t1" x="220" y="'+(b.y+18)+'" fill="#71717a" font-size="10" font-family="ui-monospace,monospace" opacity="0">'+b.title+'</text>';
+      }
+      if(b.sub){
+        var lines=b.sub.split('\n');
+        for(var li=0;li<lines.length;li++){
+          s+='<text id="'+b.id+'-t'+(li+2)+'" x="220" y="'+(b.y+38+li*16)+'" fill="#e4e4e7" font-size="11" font-family="ui-monospace,monospace" opacity="0">'+lines[li]+'</text>';
+        }
+      }
+    }
+    s+='<rect id="hp-recv" x="280" y="350" width="260" height="36" rx="8" fill="rgba(34,197,94,0.1)" stroke="#22c55e" stroke-width="1.5" opacity="0"/>';
+    s+='<text id="hp-recv-t" x="410" y="373" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="600" opacity="0">← 响应已接收</text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var ids=['hp-b1','hp-b2','hp-b3','hp-b4'];
+    var starts=[0,0.25,0.55,0.70];
+    for(var i=0;i<ids.length;i++){
+      if(p>=starts[i]){
+        var t=clamp((p-starts[i])/0.15,0,1);
+        setOp(ids[i],t);
+        var te=E(ids[i]+'-t1');if(te)setOp(ids[i]+'-t1',t);
+        for(var j=2;j<8;j++){var te2=E(ids[i]+'-t'+j);if(te2)setOp(ids[i]+'-t'+j,t)}
+      }
+    }
+    if(p>=0.85){setOp('hp-recv',1);setOp('hp-recv-t',1)}
+  },
+  httpMsg:function(){
+    return '<div class="http-msg">'+
+      '<span class="m-ver">HTTP/1.1</span> <span class="m-status">200 OK</span>\n'+
+      '<span class="m-hdr">Content-Type:</span> <span class="m-val">text/html; charset=UTF-8</span>\n'+
+      '<span class="m-hdr">Content-Length:</span> <span class="m-val">1234</span>\n'+
+      '<span class="m-hdr">Cache-Control:</span> <span class="m-val">max-age=3600</span>\n'+
+      '<span class="m-hdr">Server:</span> <span class="m-val">nginx/1.21</span>\n'+
+      '<span class="m-blank">(空行 CRLF)</span>\n'+
+      '<span class="m-body">&lt;html&gt;&lt;body&gt;...&lt;/body&gt;&lt;/html&gt;</span></div>';
+  },
+  protoFields:[
+    {f:'Status Code',v:'200',d:'OK - 请求成功'},
+    {f:'Status Text',v:'OK',d:'状态码文本描述'},
+    {f:'Content-Type',v:'text/html',d:'响应体 MIME 类型'},
+    {f:'Content-Length',v:'1234',d:'响应体字节长度'},
+    {f:'Cache-Control',v:'max-age=3600',d:'缓存策略 (秒)'},
+    {f:'Server',v:'nginx/1.21',d:'服务器软件标识'},
+    {f:'Set-Cookie',v:'session=...',d:'设置客户端 Cookie'},
+  ],
+  knowledge:{
+    title:'HTTP 响应报文',
+    intro:'HTTP 响应由状态行、头部、空行和响应体组成。',
+    points:[
+      '状态行: 版本 + 状态码 + 状态文本',
+      '1xx 信息, 2xx 成功, 3xx 重定向, 4xx 客户端错误, 5xx 服务器错误',
+      'Content-Type 指定响应体的 MIME 类型',
+      'Cache-Control 控制缓存策略',
+      'Set-Cookie 设置客户端 Cookie',
+    ],
+    fact:'301 永久重定向会被浏览器缓存，302 临时重定向不会。',
+  }
+},
+/* ---- Phase 7: Browser Rendering ---- */
+{
+  id:'render',name:'浏览器渲染',short:'渲染',desc:'浏览器渲染页面',duration:7000,
+  steps:[
+    {at:0.00,label:'HTML 解析: 构建 DOM 树'},
+    {at:0.18,label:'CSS 解析: 构建 CSSOM 树'},
+    {at:0.36,label:'合并 DOM + CSSOM → 渲染树'},
+    {at:0.52,label:'布局 (Layout): 计算元素位置和大小'},
+    {at:0.68,label:'绘制 (Paint): 填充像素到图层'},
+    {at:0.84,label:'合成 (Composite): 合并图层输出到屏幕'},
+  ],
+  svg:function(){
+    var s='';
+    // HTML branch
+    s+=node('br-html',40,50,100,40,'HTML','源码');
+    s+=node('br-dom',170,50,100,40,'DOM','文档树');
+    s+='<line id="br-l1" x1="140" y1="70" x2="170" y2="70" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    // CSS branch
+    s+=node('br-css',40,130,100,40,'CSS','样式表');
+    s+=node('br-cssom',170,130,100,40,'CSSOM','样式树');
+    s+='<line id="br-l2" x1="140" y1="150" x2="170" y2="150" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    // Merge
+    s+='<line id="br-l3" x1="270" y1="70" x2="330" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+='<line id="br-l4" x1="270" y1="150" x2="330" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+=node('br-render',330,90,110,40,'渲染树','Render Tree');
+    // Pipeline
+    s+='<line id="br-l5" x1="440" y1="110" x2="480" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+=node('br-layout',480,90,100,40,'布局','Layout');
+    s+='<line id="br-l6" x1="580" y1="110" x2="620" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    s+=node('br-paint',620,90,100,40,'绘制','Paint');
+    s+='<line id="br-l7" x1="720" y1="110" x2="760" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    // Result
+    s+=node('br-display',40,280,740,40,'屏幕输出','最终合成画面');
+    s+='<line id="br-l8" x1="670" y1="130" x2="410" y2="280" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>';
+    // Packet on pipeline
+    s+='<circle id="br-pkt" cx="90" cy="70" r="6" fill="#4f46e5" opacity="0"/>';
+    s+='<circle id="br-glow" cx="90" cy="70" r="12" fill="rgba(79,70,229,0.25)" opacity="0"/>';
+    // Status
+    s+='<text x="410" y="220" text-anchor="middle" fill="#71717a" font-size="11" font-family="ui-monospace,monospace" id="br-status">等待渲染...</text>';
+    s+='<text x="410" y="245" text-anchor="middle" fill="#4f46e5" font-size="10" font-family="ui-monospace,monospace" id="br-fps"></text>';
+    return wrapSVG(s);
+  },
+  tick:function(p){
+    var wps=[
+      {x:90,y:70,at:0.00},{x:220,y:70,at:0.18},
+      {x:90,y:150,at:0.22},{x:220,y:150,at:0.36},
+      {x:385,y:110,at:0.48},{x:530,y:110,at:0.60},
+      {x:670,y:110,at:0.76},{x:410,y:300,at:0.90},{x:410,y:300,at:1.0}
+    ];
+    var pos=posOnPath(wps,p);
+    setAttr('br-pkt','cx',pos.x);setAttr('br-pkt','cy',pos.y);
+    setAttr('br-glow','cx',pos.x);setAttr('br-glow','cy',pos.y);
+    setOp('br-pkt',1);setOp('br-glow',1);
+    // Node highlighting
+    var nodeIds=['br-html','br-dom','br-css','br-cssom','br-render','br-layout','br-paint','br-display'];
+    var lineIds=['br-l1','br-l2','br-l3','br-l4','br-l5','br-l6','br-l7','br-l8'];
+    var si=stepIdx(this.steps,p);
+    var nodeSteps=[0,0,1,1,2,3,4,5];
+    for(var i=0;i<nodeIds.length;i++){
+      if(nodeSteps[i]<=si){actN(nodeIds[i])}else{deactN(nodeIds[i])}
+    }
+    for(var i=0;i<lineIds.length;i++){
+      if(i<si*1.2){actL(lineIds[i])}else{deactL(lineIds[i])}
+    }
+    // Status text
+    var stEl=E('br-status');
+    var fpsEl=E('br-fps');
+    if(stEl&&si<this.steps.length){
+      stEl.textContent='▶ '+this.steps[si].label;
+    }
+    if(fpsEl){
+      if(p>=0.84){fpsEl.textContent='合成完成 - 60 FPS'}
+      else if(p>=0.52){fpsEl.textContent='绘制中...'}
+      else{fpsEl.textContent=''}
+    }
+  },
+  protoFields:[
+    {f:'HTML Parse',v:'→ DOM',d:'构建文档对象模型树'},
+    {f:'CSS Parse',v:'→ CSSOM',d:'构建 CSS 对象模型树'},
+    {f:'Render Tree',v:'DOM+CSSOM',d:'合并为渲染树'},
+    {f:'Layout',v:'Reflow',d:'计算元素几何信息'},
+    {f:'Paint',v:'Repaint',d:'绘制像素到图层'},
+    {f:'Composite',v:'GPU',d:'合成图层输出到屏幕'},
+  ],
+  knowledge:{
+    title:'浏览器渲染流水线',
+    intro:'浏览器将 HTML/CSS/JS 转换为用户可见的像素画面。',
+    points:[
+      'HTML 解析构建 DOM 树',
+      'CSS 解析构建 CSSOM 树',
+      'DOM + CSSOM 合并为渲染树',
+      '布局 (Layout/Reflow) 计算元素位置和大小',
+      '绘制 (Paint/Repaint) 填充像素到图层',
+    ],
+    fact:'GPU 合成层可独立于主线程渲染，用 transform/opacity 做动画更高效。',
+  }
+}
+]; /* end PHASES */
+
+/* ===== Rendering Functions ===== */
+function buildStage(idx){
+  var ph=PHASES[idx];
+  $('stage-container').innerHTML=ph.svg();
+  $('stage-title').textContent=(idx+1)+'. '+ph.name;
+  state.progress=0;
+  state.phaseStart=0;
+  $('phase-progress-bar').style.width='0%';
+  if(prefersReducedMotion){
+    ph.tick(1);
+    $('phase-progress-bar').style.width='100%';
+    state.visited.add(idx);
+  }
+}
+
+function renderProtocol(idx){
+  var ph=PHASES[idx];
+  var html='';
+  // Header layout SVG or HTTP message
+  if(ph.headerRows){
+    html+='<div class="proto-svg">'+buildHeaderSVG(ph.headerRows)+'</div>';
+  }
+  if(ph.httpMsg){
+    html+=ph.httpMsg();
+  }
+  // Field table
+  html+='<table class="proto-table"><thead><tr><th>字段</th><th>值</th><th>说明</th></tr></thead><tbody>';
+  for(var i=0;i<ph.protoFields.length;i++){
+    var pf=ph.protoFields[i];
+    html+='<tr><td>'+pf.f+'</td><td>'+pf.v+'</td><td>'+pf.d+'</td></tr>';
+  }
+  html+='</tbody></table>';
+  $('protocol-content').innerHTML=html;
+}
+
+function renderKnowledge(idx){
+  var kn=PHASES[idx].knowledge;
+  var html='<div class="kn-card">';
+  html+='<div class="kn-title">'+kn.title+'</div>';
+  html+='<div class="kn-intro">'+kn.intro+'</div>';
+  html+='<ul class="kn-points">';
+  for(var i=0;i<kn.points.length;i++){
+    html+='<li>'+kn.points[i]+'</li>';
+  }
+  html+='</ul>';
+  html+='<div class="kn-fact"><span class="kn-fact-label">DID YOU KNOW</span>'+kn.fact+'</div>';
+  html+='</div>';
+  $('knowledge-content').innerHTML=html;
+}
+
+function renderTimeline(){
+  var html='';
+  for(var i=0;i<PHASES.length;i++){
+    var cls='tl-node';
+    if(i===state.phase)cls+=' active';
+    if(state.visited.has(i))cls+=' visited';
+    html+='<button class="'+cls+'" data-idx="'+i+'">';
+    html+='<span class="tl-dot"></span>';
+    html+='<span class="tl-label">'+PHASES[i].short+'</span>';
+    html+='</button>';
+    if(i<PHASES.length-1){
+      html+='<span class="tl-line'+(state.visited.has(i)?' done':'')+'"></span>';
+    }
+  }
+  $('timeline').innerHTML=html;
+  var nodes=document.querySelectorAll('.tl-node');
+  for(var i=0;i<nodes.length;i++){
+    nodes[i].addEventListener('click',function(){
+      goToPhase(parseInt(this.getAttribute('data-idx')));
+    });
+  }
+}
+
+function updateStepLabel(p){
+  var ph=PHASES[state.phase];
+  var si=stepIdx(ph.steps,p);
+  $('step-label').textContent=ph.steps[si].label;
+}
+
+function updatePhaseProgress(p){
+  $('phase-progress-bar').style.width=Math.round(p*100)+'%';
+}
+
+function updatePlayButton(){
+  $('play-btn').textContent=state.playing?'暂停':'播放';
+}
+
+/* ===== Animation Loop ===== */
+function tick(ts){
+  if(!state.playing)return;
+  if(!state.phaseStart)state.phaseStart=ts;
+  var elapsed=ts-state.phaseStart;
+  var duration=PHASES[state.phase].duration/state.speed;
+  state.progress=Math.min(elapsed/duration,1);
+  PHASES[state.phase].tick(state.progress);
+  updateStepLabel(state.progress);
+  updatePhaseProgress(state.progress);
+  if(state.progress>=1){
+    state.visited.add(state.phase);
+    renderTimeline();
+    if(state.phase<PHASES.length-1){
+      state.phase++;
+      state.phaseStart=0;
+      state.progress=0;
+      buildStage(state.phase);
+      renderProtocol(state.phase);
+      renderKnowledge(state.phase);
+      renderTimeline();
+      state.rafId=requestAnimationFrame(tick);
+    }else{
+      state.playing=false;
+      updatePlayButton();
+    }
+  }else{
+    state.rafId=requestAnimationFrame(tick);
+  }
+}
+
+function play(){
+  if(prefersReducedMotion){
+    for(var i=state.phase;i<PHASES.length;i++){
+      state.visited.add(i);
+    }
+    state.phase=PHASES.length-1;
+    buildStage(state.phase);
+    renderProtocol(state.phase);
+    renderKnowledge(state.phase);
+    renderTimeline();
+    return;
+  }
+  if(state.phase>=PHASES.length-1&&state.progress>=1){
+    state.phase=0;state.progress=0;state.visited.clear();
+    state.visited.add(0);
+    buildStage(0);
+    renderProtocol(0);
+    renderKnowledge(0);
+  }
+  state.playing=true;
+  state.phaseStart=0;
+  updatePlayButton();
+  state.rafId=requestAnimationFrame(tick);
+}
+
+function pause(){
+  state.playing=false;
+  if(state.rafId)cancelAnimationFrame(state.rafId);
+  state.rafId=null;
+  updatePlayButton();
+}
+
+function togglePlay(){
+  if(state.playing){pause()}else{play()}
+}
+
+function goToPhase(idx){
+  if(idx<0||idx>=PHASES.length)return;
+  pause();
+  state.phase=idx;
+  state.progress=0;
+  state.phaseStart=0;
+  buildStage(idx);
+  renderProtocol(idx);
+  renderKnowledge(idx);
+  renderTimeline();
+}
+
+function nextPhase(){
+  goToPhase(Math.min(state.phase+1,PHASES.length-1));
+}
+
+function prevPhase(){
+  goToPhase(Math.max(state.phase-1,0));
+}
+
+function replayPhase(){
+  pause();
+  state.progress=0;
+  state.phaseStart=0;
+  buildStage(state.phase);
+  play();
+}
+
+/* ===== Event Handlers ===== */
+function handleSend(){
+  var url=$('url-input').value;
+  state.urlData=parseURL(url);
+  try{localStorage.setItem('tw-net-url',url)}catch(e){}
+  state.phase=0;
+  state.progress=0;
+  state.visited.clear();
+  state.visited.add(0);
+  buildStage(0);
+  renderProtocol(0);
+  renderKnowledge(0);
+  renderTimeline();
+  play();
+}
+
+function handleSpeed(idx){
+  state.speedIdx=idx;
+  state.speed=SPEEDS[idx].value;
+  try{localStorage.setItem('tw-net-speed',String(idx))}catch(e){}
+  var btns=document.querySelectorAll('.speed-btn');
+  for(var i=0;i<btns.length;i++){
+    btns[i].classList.toggle('active',i===idx);
+  }
+}
+
+function init(){
+  // Load saved state
+  try{
+    var savedUrl=localStorage.getItem('tw-net-url');
+    if(savedUrl)$('url-input').value=savedUrl;
+    var savedSpeed=localStorage.getItem('tw-net-speed');
+    if(savedSpeed!==null){handleSpeed(parseInt(savedSpeed))}
+  }catch(e){}
+  state.urlData=parseURL($('url-input').value);
+  // Bind events
+  $('send-btn').addEventListener('click',handleSend);
+  $('play-btn').addEventListener('click',togglePlay);
+  $('prev-btn').addEventListener('click',prevPhase);
+  $('next-btn').addEventListener('click',nextPhase);
+  $('replay-btn').addEventListener('click',replayPhase);
+  $('url-input').addEventListener('keydown',function(e){
+    if(e.key==='Enter')handleSend();
+  });
+  var spBtns=document.querySelectorAll('.speed-btn');
+  for(var i=0;i<spBtns.length;i++){
+    spBtns[i].addEventListener('click',function(){
+      handleSpeed(parseInt(this.getAttribute('data-speed')));
+    });
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.target.tagName==='INPUT')return;
+    if(e.key===' '){e.preventDefault();togglePlay()}
+    else if(e.key==='ArrowLeft'){prevPhase()}
+    else if(e.key==='ArrowRight'){nextPhase()}
+    else if(e.key==='r'||e.key==='R'){replayPhase()}
+  });
+  // Initial render
+  buildStage(0);
+  renderProtocol(0);
+  renderKnowledge(0);
+  renderTimeline();
+}
+
+init();
+})();
+</script>
+</body>
+</html>

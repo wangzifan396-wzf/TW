@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 170 个零依赖交互式可视化项目 + 22 个配套工具，1360+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 170 个零依赖交互式可视化项目 + 30 个配套工具，1360+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
 [![Projects](https://img.shields.io/badge/projects-170-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Modules](https://img.shields.io/badge/modules-1360+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -35,7 +35,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 配套工具
 
-除了 170 个可视化实验室，TW 生态还包含二十二个独立的大型交互工具：
+除了 170 个可视化实验室，TW 生态还包含三十个独立的大型交互工具：
 
 | 工具 | 描述 | 链接 |
 |------|------|------|
@@ -61,6 +61,14 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | TW Story | 交互式 CS 叙事史，1936-2026 共 40 个故事节点，6 章节 SVG 插图与分支探索 | [打开](https://wangzifan396-wzf.github.io/TW/tw-story.html) |
 | TW Trends | 技术采用趋势追踪，12 组对比 × 12 年数据，折线/面积/柱状/雷达四视图 | [打开](https://wangzifan396-wzf.github.io/TW/tw-trends.html) |
 | TW Benchmark | 浏览器内基准测试套件，8 模块 × 15 场景，Big-O 拟合曲线与性能评分 | [打开](https://wangzifan396-wzf.github.io/TW/tw-benchmark.html) |
+| TW Sandbox | 交互式代码沙盒，12 个 CS 算法模板，编辑代码实时 SVG 可视化 | [打开](https://wangzifan396-wzf.github.io/TW/tw-sandbox.html) |
+| TW Detective | Bug 侦探游戏，27 题 × 3 难度，限时找修 bug，侦探等级与排行榜 | [打开](https://wangzifan396-wzf.github.io/TW/tw-detective.html) |
+| TW Regex | 正则表达式可视化，NFA/DFA 状态图 + AST 分解树 + 24 速查 + 16 练习 | [打开](https://wangzifan396-wzf.github.io/TW/tw-regex.html) |
+| TW Visualizer | 数据结构可视化器，BST/堆/图/哈希表/跳表/Trie/红黑树/B+树 8 模块 | [打开](https://wangzifan396-wzf.github.io/TW/tw-visualizer.html) |
+| TW Assembly | 可视化汇编学习器，模拟 8 位 CPU，26 条指令 + 8 个示例程序 | [打开](https://wangzifan396-wzf.github.io/TW/tw-assembly.html) |
+| TW Git | Git 可视化学习器，模拟 commit/branch/merge/rebase，10 课交互式教程 | [打开](https://wangzifan396-wzf.github.io/TW/tw-git.html) |
+| TW Analyzer | 代码复杂度分析器，圈复杂度/认知复杂度/异味检测/健康度评分 | [打开](https://wangzifan396-wzf.github.io/TW/tw-analyzer.html) |
+| TW Network | 网络包旅程模拟器，DNS→TCP→TLS→HTTP→路由→渲染 8 阶段全链路动画 | [打开](https://wangzifan396-wzf.github.io/TW/tw-network.html) |
 
 ## 快速统计
 
@@ -69,7 +77,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 项目总数 | 170 |
 | 可视化模块 | 1360+ |
 | 外部依赖 | 0 |
-| 代码总大小 | ~12.2 MB |
+| 代码总大小 | ~13.5 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
 
 ## 分类导航

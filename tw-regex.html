@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Regex — 正则表达式可视化</title>
+<style>
+  :root{
+    --bg:#08090a;
+    --bg-1:#0d0f12;
+    --bg-2:#121519;
+    --bg-3:#171b21;
+    --line:#1f242c;
+    --line-2:#2a313b;
+    --txt:#e6e8ec;
+    --txt-2:#9aa3af;
+    --txt-3:#626b76;
+    --accent:#7c3aed;
+    --accent-2:#a78bfa;
+    --accent-dim:rgba(124,58,237,.16);
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --err:#f87171;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    --r:8px;
+    --r-sm:5px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--txt);
+    font-family:var(--sans);font-size:13px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  ::selection{background:var(--accent-dim)}
+  button{font-family:inherit;cursor:pointer;color:var(--txt)}
+  input,textarea{font-family:inherit;color:var(--txt)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#222831;border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:#2d343f}
+
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100vh;min-height:0}
+
+  /* ===== Header ===== */
+  header{
+    display:flex;align-items:center;gap:14px;
+    padding:11px 16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--bg-1),var(--bg));
+    flex-wrap:wrap;
+  }
+  .logo{display:flex;align-items:center;gap:9px;flex-shrink:0}
+  .logo-mark{
+    width:26px;height:26px;border-radius:7px;
+    background:linear-gradient(135deg,var(--accent),#5b21b6);
+    display:grid;place-items:center;font-family:var(--mono);
+    font-weight:700;font-size:13px;color:#fff;
+    box-shadow:0 0 0 1px rgba(124,58,237,.4),0 4px 14px rgba(124,58,237,.28);
+  }
+  .logo-name{font-weight:600;letter-spacing:.3px;font-size:14px}
+  .logo-name b{color:var(--accent-2)}
+  .logo-sub{color:var(--txt-3);font-size:11px;margin-left:2px}
+
+  .regex-bar{display:flex;align-items:center;gap:8px;flex:1;min-width:320px}
+  .regex-slash{color:var(--accent-2);font-family:var(--mono);font-weight:600;font-size:15px}
+  .regex-input{
+    flex:1;background:var(--bg-2);border:1px solid var(--line-2);
+    border-radius:var(--r-sm);padding:8px 11px;
+    font-family:var(--mono);font-size:13.5px;color:var(--txt);
+    outline:none;transition:border-color .15s,box-shadow .15s;min-width:120px;
+  }
+  .regex-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .regex-input.err{border-color:var(--err);box-shadow:0 0 0 3px rgba(248,113,113,.14)}
+
+  .flags{display:flex;gap:4px;flex-shrink:0}
+  .flag{
+    width:28px;height:28px;border:1px solid var(--line-2);border-radius:var(--r-sm);
+    background:var(--bg-2);font-family:var(--mono);font-size:12px;color:var(--txt-2);
+    display:grid;place-items:center;transition:all .12s;user-select:none;
+  }
+  .flag:hover{border-color:var(--accent-2);color:var(--txt)}
+  .flag.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .flag[disabled]{opacity:.35;cursor:not-allowed}
+
+  .seg{display:flex;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-sm);overflow:hidden;flex-shrink:0}
+  .seg button{
+    background:transparent;border:none;padding:6px 11px;font-size:12px;color:var(--txt-2);
+    transition:all .12s;
+  }
+  .seg button:hover{color:var(--txt)}
+  .seg button.on{background:var(--accent-dim);color:var(--accent-2)}
+
+  .err-badge{
+    font-family:var(--mono);font-size:11px;color:var(--err);
+    background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);
+    padding:3px 8px;border-radius:var(--r-sm);max-width:340px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;
+  }
+  .ok-badge{font-size:11px;color:var(--ok);font-family:var(--mono)}
+
+  /* ===== Main ===== */
+  main{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);
+    grid-template-rows:1fr 1fr;
+    gap:1px;background:var(--line);min-height:0;
+  }
+  .panel{background:var(--bg);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 14px;border-bottom:1px solid var(--line);background:var(--bg-1);
+    flex-shrink:0;
+  }
+  .panel-title{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--txt-3)}
+  .panel-title .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:7px;vertical-align:1px}
+  .panel-tools{display:flex;gap:6px;align-items:center}
+  .tool-btn{
+    background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-sm);
+    padding:3px 9px;font-size:11px;color:var(--txt-2);transition:all .12s;
+  }
+  .tool-btn:hover{color:var(--txt);border-color:var(--accent-2)}
+  .tool-btn.on{color:var(--accent-2);border-color:var(--accent)}
+  .panel-body{flex:1;min-height:0;overflow:auto;position:relative}
+
+  .panel.left{grid-row:1 / 3}
+
+  /* test text */
+  .test-wrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+  .test-textarea{
+    position:absolute;inset:0;width:100%;height:100%;
+    background:transparent;border:none;resize:none;outline:none;
+    padding:14px 16px;font-family:var(--mono);font-size:13px;line-height:1.7;
+    color:transparent;caret-color:var(--accent-2);z-index:1;white-space:pre-wrap;word-break:break-word;
+  }
+  .test-textarea::placeholder{color:var(--txt-3)}
+  .test-backdrop{
+    position:absolute;inset:0;padding:14px 16px;font-family:var(--mono);font-size:13px;
+    line-height:1.7;white-space:pre-wrap;word-break:break-word;pointer-events:none;z-index:0;
+    color:var(--txt-2);overflow:hidden;
+  }
+  .test-backdrop .m{
+    background:rgba(124,58,237,.28);border-radius:3px;
+    box-shadow:0 0 0 1px rgba(124,58,237,.45);color:var(--txt);
+  }
+  .test-backdrop .m:nth-child(2n){background:rgba(167,139,250,.22);box-shadow:0 0 0 1px rgba(167,139,250,.4)}
+  .test-stats{font-family:var(--mono);font-size:11px;color:var(--txt-3)}
+
+  /* svg */
+  .svg-scroll{width:100%;height:100%;overflow:auto}
+  .svg-scroll svg{display:block}
+  .empty-hint{
+    position:absolute;inset:0;display:grid;place-items:center;
+    color:var(--txt-3);font-size:12px;text-align:center;padding:24px;pointer-events:none;
+  }
+  .empty-hint code{font-family:var(--mono);color:var(--txt-2);background:var(--bg-2);padding:1px 5px;border-radius:3px}
+
+  /* node styles in svg */
+  .n-state{fill:var(--bg-2);stroke:var(--line-2);stroke-width:1.4;transition:stroke .15s,fill .15s}
+  .n-state.accept{stroke:var(--ok)}
+  .n-state.start{stroke:var(--accent-2)}
+  .n-state.active{fill:var(--accent);stroke:var(--accent-2);stroke-width:2}
+  .n-state.accept.active{fill:var(--ok);stroke:var(--ok)}
+  .n-label{fill:var(--txt);font-family:var(--mono);font-size:11px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+  .n-edge{fill:none;stroke:var(--line-2);stroke-width:1.3;transition:stroke .15s}
+  .n-edge.eps{stroke-dasharray:4 3;stroke:#3a4150}
+  .n-edge.active{stroke:var(--accent-2);stroke-width:2}
+  .n-elabel{fill:var(--txt-2);font-family:var(--mono);font-size:10px;text-anchor:middle;dominant-baseline:central}
+  .n-elabel.eps{fill:var(--txt-3);font-style:italic}
+
+  .ast-node rect{fill:var(--bg-2);stroke:var(--line-2);stroke-width:1.3;rx:5;transition:stroke .15s,fill .15s}
+  .ast-node.type-concat rect{stroke:#475569}
+  .ast-node.type-alternation rect{stroke:var(--warn);fill:rgba(251,191,36,.06)}
+  .ast-node.type-quantifier rect{stroke:var(--accent-2);fill:var(--accent-dim)}
+  .ast-node.type-char rect{stroke:#3a4150}
+  .ast-node.type-charclass rect{stroke:var(--ok);fill:rgba(52,211,153,.07)}
+  .ast-node.type-group rect{stroke:#60a5fa;fill:rgba(96,165,250,.07)}
+  .ast-node.type-anchor rect{stroke:#f472b6;fill:rgba(244,114,182,.07)}
+  .ast-node.type-escape rect{stroke:#fbbf24;fill:rgba(251,191,36,.07)}
+  .ast-node.type-any rect{stroke:#94a3b8}
+  .ast-node:hover rect{stroke:var(--accent-2);stroke-width:2}
+  .ast-edge{fill:none;stroke:var(--line-2);stroke-width:1.2}
+  .ast-text{fill:var(--txt);font-family:var(--mono);font-size:11px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+  .ast-type{fill:var(--txt-3);font-family:var(--sans);font-size:9px;text-anchor:middle;dominant-baseline:central;pointer-events:none;text-transform:uppercase;letter-spacing:.5px}
+
+  /* ===== Bottom tabs ===== */
+  footer{background:var(--bg-1);border-top:1px solid var(--line);display:flex;flex-direction:column;max-height:38vh;min-height:0}
+  .tabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);flex-shrink:0;overflow-x:auto}
+  .tab{
+    background:transparent;border:none;border-bottom:2px solid transparent;
+    padding:9px 13px;font-size:12px;color:var(--txt-3);white-space:nowrap;transition:all .12s;
+  }
+  .tab:hover{color:var(--txt-2)}
+  .tab.on{color:var(--txt);border-bottom-color:var(--accent)}
+  .tab .count{color:var(--txt-3);font-size:10px;margin-left:5px;font-family:var(--mono)}
+  .tab-body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+
+  /* match details */
+  .match-list{display:flex;flex-direction:column;gap:6px}
+  .match-row{
+    display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;
+    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 11px;
+    transition:border-color .12s;
+  }
+  .match-row:hover{border-color:var(--accent)}
+  .match-idx{font-family:var(--mono);font-size:11px;color:var(--accent-2);font-weight:600}
+  .match-val{font-family:var(--mono);font-size:12px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .match-pos{font-family:var(--mono);font-size:10px;color:var(--txt-3)}
+  .match-groups{grid-column:2 / 4;font-family:var(--mono);font-size:10.5px;color:var(--txt-2);margin-top:3px}
+  .match-groups span{color:var(--accent-2)}
+  .no-match{color:var(--txt-3);font-size:12px;padding:18px;text-align:center}
+
+  /* cheat sheet */
+  .cheat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+  .cheat-card{
+    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);
+    padding:11px 13px;transition:border-color .12s,transform .12s;cursor:pointer;
+  }
+  .cheat-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .cheat-card h4{margin:0 0 5px;font-size:12.5px;color:var(--txt);display:flex;align-items:center;gap:6px}
+  .cheat-card h4 .tag{font-size:9px;color:var(--txt-3);background:var(--bg-3);padding:1px 6px;border-radius:9px;font-weight:400}
+  .cheat-card code{display:block;font-family:var(--mono);font-size:11px;color:var(--accent-2);background:var(--bg);padding:7px 9px;border-radius:var(--r-sm);margin-top:6px;overflow-x:auto;white-space:nowrap}
+  .cheat-card p{margin:6px 0 0;font-size:11px;color:var(--txt-3);line-height:1.5}
+
+  /* exercises */
+  .ex-list{display:flex;flex-direction:column;gap:10px}
+  .ex-card{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px}
+  .ex-card.solved{border-color:rgba(52,211,153,.4)}
+  .ex-head{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .ex-num{font-family:var(--mono);font-size:11px;color:var(--accent-2);background:var(--accent-dim);padding:2px 7px;border-radius:9px;font-weight:600}
+  .ex-title{font-weight:600;font-size:13px;color:var(--txt)}
+  .ex-diff{font-size:10px;padding:1px 7px;border-radius:9px;margin-left:auto;font-weight:500}
+  .ex-diff.d1{color:#86efac;background:rgba(52,211,153,.1)}
+  .ex-diff.d2{color:#fcd34d;background:rgba(251,191,36,.1)}
+  .ex-diff.d3{color:#fca5a5;background:rgba(248,113,113,.1)}
+  .ex-desc{font-size:12px;color:var(--txt-2);margin:0 0 8px;line-height:1.55}
+  .ex-cases{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+  .ex-case{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:var(--r-sm);border:1px solid var(--line)}
+  .ex-case.pass{color:var(--ok);border-color:rgba(52,211,153,.3)}
+  .ex-case.fail{color:var(--err);border-color:rgba(248,113,113,.3);text-decoration:line-through}
+  .ex-case.expect-yes{background:rgba(52,211,153,.06)}
+  .ex-case.expect-no{background:rgba(248,113,113,.06)}
+  .ex-input{display:flex;gap:7px;align-items:center}
+  .ex-input .regex-slash{font-size:13px}
+  .ex-input input{
+    flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r-sm);
+    padding:7px 10px;font-family:var(--mono);font-size:12px;outline:none;min-width:80px;
+  }
+  .ex-input input:focus{border-color:var(--accent)}
+  .ex-input input.solved{border-color:rgba(52,211,153,.5);color:var(--ok)}
+  .ex-input input.err{border-color:var(--err)}
+  .ex-check-btn{background:var(--accent);border:none;color:#fff;border-radius:var(--r-sm);padding:7px 14px;font-size:12px;font-weight:600;transition:filter .12s}
+  .ex-check-btn:hover{filter:brightness(1.12)}
+  .ex-answer{margin-top:9px;font-size:11.5px;color:var(--txt-2);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;display:none;line-height:1.6}
+  .ex-answer.show{display:block}
+  .ex-answer b{color:var(--accent-2);font-family:var(--mono)}
+  .ex-answer .ans-pattern{display:block;color:var(--ok);font-family:var(--mono);margin-top:4px}
+
+  .sim-bar{display:flex;align-items:center;gap:8px}
+  .sim-pos{font-family:var(--mono);font-size:11px;color:var(--txt-2);min-width:64px}
+
+  @media (max-width:900px){
+    body{overflow:auto}
+    .app{height:auto;min-height:100vh}
+    main{grid-template-columns:1fr;grid-template-rows:auto auto auto auto}
+    .panel.left{grid-row:auto;min-height:280px}
+    .panel{min-height:300px}
+    footer{max-height:none}
+    .regex-bar{order:3;width:100%}
+    .flags{order:4}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Header ===== -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">.*</div>
+      <div>
+        <div class="logo-name">TW <b>Regex</b></div>
+        <div class="logo-sub">正则可视化 · NFA/AST</div>
+      </div>
+    </div>
+    <div class="regex-bar">
+      <span class="regex-slash">/</span>
+      <input id="regexInput" class="regex-input" spellcheck="false" autocomplete="off"
+             placeholder="输入正则表达式，如 \d+ 或 /pattern/gi" />
+      <span class="regex-slash">/</span>
+      <div class="flags" id="flags">
+        <button class="flag" data-f="g" title="global 全局匹配">g</button>
+        <button class="flag" data-f="i" title="ignoreCase 忽略大小写">i</button>
+        <button class="flag" data-f="m" title="multiline 多行">m</button>
+        <button class="flag" data-f="s" title="dotAll . 匹配换行">s</button>
+        <button class="flag" data-f="u" title="unicode">u</button>
+        <button class="flag" data-f="y" title="sticky 粘性">y</button>
+      </div>
+      <div class="seg" id="graphSeg">
+        <button class="on" data-g="nfa">NFA</button>
+        <button data-g="dfa">DFA</button>
+      </div>
+      <span id="statusBadge" class="ok-badge"></span>
+    </div>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main>
+    <section class="panel left">
+      <div class="panel-head">
+        <div class="panel-title"><span class="dot"></span>测试文本</div>
+        <div class="panel-tools">
+          <span class="test-stats" id="testStats">0 字符</span>
+          <button class="tool-btn" id="clearText">清空</button>
+        </div>
+      </div>
+      <div class="panel-body test-wrap">
+        <div class="test-backdrop" id="testBackdrop"></div>
+        <textarea id="testText" class="test-textarea" spellcheck="false"
+                  placeholder="在此输入测试文本，匹配项将实时高亮…&#10;Try: The date is 2026-07-26 and phone 138-0011-2233"></textarea>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="dot"></span>状态自动机 <span id="graphLabel" style="color:var(--accent-2);font-family:var(--mono);margin-left:6px">NFA</span></div>
+        <div class="panel-tools sim-bar">
+          <span class="sim-pos" id="simPos">就绪</span>
+          <button class="tool-btn" id="simPlay">▶ 模拟</button>
+          <button class="tool-btn" id="simStep">步进</button>
+          <button class="tool-btn" id="simReset">重置</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="svg-scroll" id="graphScroll">
+          <div class="empty-hint">输入正则后将生成 Thompson NFA 状态图</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="dot"></span>正则分解树 (AST)</div>
+        <div class="panel-tools">
+          <span class="test-stats" id="astInfo"></span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="svg-scroll" id="astScroll">
+          <div class="empty-hint">输入正则后将解析为抽象语法树</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Footer tabs ===== -->
+  <footer>
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-tab="cheat">速查表 <span class="count" id="cheatCount"></span></button>
+      <button class="tab" data-tab="exercise">练习题 <span class="count" id="exCount"></span></button>
+      <button class="tab" data-tab="match">匹配详情 <span class="count" id="matchCount">0</span></button>
+    </div>
+    <div class="tab-body" id="tabBody"></div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   TW Regex — 单文件正则可视化
+   ===================================================================== */
+const LS = {
+  pattern: "tw-regex-pattern",
+  flags: "tw-regex-flags",
+  text: "tw-regex-text",
+  solved: "tw-regex-solved"
+};
+
+/* ---------- utils ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const escHtml = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/* =====================================================================
+   1. 正则解析器 -> AST (递归下降)
+   ===================================================================== */
+const NODE = {
+  CONCAT:"concat", ALT:"alternation", QUANT:"quantifier",
+  GROUP:"group", CHARCLASS:"charclass", CHAR:"char", ANY:"any",
+  ANCHOR:"anchor", ESCAPE:"escape", EMPTY:"empty"
+};
+
+function parseRegex(pattern){
+  let p = 0;
+  const n = pattern.length;
+  const peek = () => pattern[p];
+  const next = () => pattern[p++];
+  const eof = () => p >= n;
+
+  function parseAlt(){
+    let left = parseConcat();
+    while(!eof() && peek()==="|"){
+      next();
+      const right = parseConcat();
+      left = {type:NODE.ALT, left, right};
+    }
+    return left;
+  }
+  function parseConcat(){
+    const nodes = [];
+    while(!eof() && peek()!=="|" && peek()!==")"){
+      const q = parseQuantified();
+      if(q) nodes.push(q);
+    }
+    if(nodes.length===0) return {type:NODE.EMPTY};
+    if(nodes.length===1) return nodes[0];
+    return {type:NODE.CONCAT, nodes};
+  }
+  function parseQuantified(){
+    let atom = parseAtom();
+    if(!atom) return null;
+    while(!eof()){
+      const c = peek();
+      if(c==="*"||c==="+"||c==="?"){
+        next();
+        let greedy = true;
+        if(!eof() && peek()==="?"){ next(); greedy=false; }
+        atom = {type:NODE.QUANT, min:c==="*"?0:c==="+"?1:0,
+                max:c==="*"||c==="+"?Infinity:1, greedy, symbol:c, child:atom};
+      } else if(c==="{"){
+        const r = parseRepeat();
+        if(r){
+          let greedy=true;
+          if(!eof() && peek()==="?"){ next(); greedy=false; }
+          atom = {type:NODE.QUANT, min:r.min, max:r.max, greedy, symbol:"{"+r.min+","+(r.max===Infinity?"":r.max)+"}", child:atom};
+        } else break;
+      } else break;
+    }
+    return atom;
+  }
+  function parseRepeat(){
+    const start = p;
+    if(next()!=="{") { p=start; return null; }
+    let minStr="";
+    while(!eof() && /[0-9]/.test(peek())) minStr+=next();
+    let maxStr="";
+    let hasComma = false;
+    if(!eof() && peek()===","){ next(); hasComma=true; while(!eof() && /[0-9]/.test(peek())) maxStr+=next(); }
+    if(eof() || peek()!=="}"){ p=start; return null; }
+    next();
+    if(minStr==="" && maxStr==="" && !hasComma){ p=start; return null; } // {} 非法
+    const min = minStr===""?0:parseInt(minStr,10);
+    if(hasComma){
+      if(maxStr==="") return {min, max:Infinity};        // {n,} 或 {,m}
+      return {min, max:parseInt(maxStr,10)};              // {n,m}
+    }
+    return {min, max:min};                                 // {n}
+  }
+  function parseAtom(){
+    if(eof()) return null;
+    const c = peek();
+    if(c==="("){
+      next();
+      let capturing = true, name = null;
+      if(!eof() && peek()==="?"){
+        next();
+        if(peek()===":"){ next(); capturing=false; }
+        else if(peek()==="<"){
+          next();
+          name="";
+          while(!eof() && peek()!==">") name+=next();
+          if(peek()===">") next();
+        } else {
+          // lookahead/lookbehind -> 简化处理为非捕获
+          capturing=false;
+          while(!eof() && peek()!==")") next();
+        }
+      }
+      const inner = parseAlt();
+      if(eof() || peek()!==")") throw new Error("缺少右括号 ')'");
+      next();
+      return {type:NODE.GROUP, capturing, name, child:inner};
+    }
+    if(c==="["){ return parseCharClass(); }
+    if(c==="."){ next(); return {type:NODE.ANY}; }
+    if(c==="^"||c==="$"){ next(); return {type:NODE.ANCHOR, value:c}; }
+    if(c==="\\"){ return parseEscape(); }
+    // ) 与 | 由上层循环拦截，不会进入此处。
+    // 其余字符 (含前置的 * + ? { } 等) 一律视为字面字符，避免死循环。
+    next();
+    return {type:NODE.CHAR, value:c};
+  }
+  function parseCharClass(){
+    next(); // [
+    let neg = false;
+    if(!eof() && peek()==="^"){ next(); neg=true; }
+    let body = "";
+    while(!eof() && peek()!=="]"){
+      const ch = peek();
+      if(ch==="\\"){
+        body += next();
+        if(!eof()) body += next();
+      } else {
+        body += next();
+      }
+    }
+    if(eof()) throw new Error("字符类缺少 ']'");
+    next(); // ]
+    return {type:NODE.CHARCLASS, neg, body, raw:"["+(neg?"^":"")+body+"]"};
+  }
+  function parseEscape(){
+    next(); // backslash
+    if(eof()) throw new Error("反斜杠后无字符");
+    const c = next();
+    const meta = {d:"\\d",D:"\\D",w:"\\w",W:"\\W",s:"\\s",S:"\\S",b:"\\b",B:"\\B",n:"\\n",r:"\\r",t:"\\t",v:"\\v",f:"\\f",0:"\\0"};
+    if(meta[c]) return {type:NODE.ESCAPE, value:meta[c], kind:c};
+    return {type:NODE.CHAR, value:c, escaped:true};
+  }
+
+  const ast = parseAlt();
+  if(!eof()) throw new Error("未消费字符: '"+pattern[p]+"'");
+  return ast;
+}
+
+/* =====================================================================
+   2. Thompson NFA 构造
+   ===================================================================== */
+let _sid = 0;
+function newState(){ return {id:_sid++, out:[]}; }
+function addEdge(from, to, symbol, opts){
+  opts = opts||{};
+  from.out.push({to, symbol, eps:opts.eps||false, anchor:opts.anchor||null});
+}
+
+function buildNFA(ast){
+  _sid = 0;
+  const frag = thompson(ast);
+  frag.accept.accept = true;
+  const states = [];
+  (function collect(s, seen){
+    if(!s || seen.has(s.id)) return;
+    seen.set(s.id, s); states.push(s);
+    for(const e of s.out) collect(e.to, seen);
+  })(frag.start, new Map());
+  return {start:frag.start, accept:frag.accept, states};
+}
+
+function thompson(ast){
+  switch(ast.type){
+    case NODE.CHAR: {
+      const s = newState(), a = newState();
+      addEdge(s, a, ast.value);
+      return {start:s, accept:a};
+    }
+    case NODE.ANY: {
+      const s = newState(), a = newState();
+      addEdge(s, a, ".");
+      return {start:s, accept:a};
+    }
+    case NODE.CHARCLASS: {
+      const s = newState(), a = newState();
+      addEdge(s, a, ast.raw);
+      return {start:s, accept:a};
+    }
+    case NODE.ESCAPE: {
+      const s = newState(), a = newState();
+      addEdge(s, a, ast.value);
+      return {start:s, accept:a};
+    }
+    case NODE.ANCHOR: {
+      const s = newState(), a = newState();
+      addEdge(s, a, null, {eps:true, anchor:ast.value});
+      return {start:s, accept:a};
+    }
+    case NODE.EMPTY: {
+      const s = newState(), a = newState();
+      addEdge(s, a, null, {eps:true});
+      return {start:s, accept:a};
+    }
+    case NODE.CONCAT: {
+      let frag = thompson(ast.nodes[0]);
+      const start = frag.start;
+      let prev = frag.accept;
+      for(let i=1;i<ast.nodes.length;i++){
+        const f = thompson(ast.nodes[i]);
+        addEdge(prev, f.start, null, {eps:true});
+        prev = f.accept;
+      }
+      return {start, accept:prev};
+    }
+    case NODE.ALT: {
+      const s = newState(), a = newState();
+      const l = thompson(ast.left), r = thompson(ast.right);
+      addEdge(s, l.start, null, {eps:true});
+      addEdge(s, r.start, null, {eps:true});
+      addEdge(l.accept, a, null, {eps:true});
+      addEdge(r.accept, a, null, {eps:true});
+      return {start:s, accept:a};
+    }
+    case NODE.GROUP: {
+      const inner = thompson(ast.child);
+      return {start:inner.start, accept:inner.accept, group:ast.capturing?ast:null};
+    }
+    case NODE.QUANT: {
+      const {min,max,greedy,child} = ast;
+      return buildQuant(child, min, max, greedy);
+    }
+  }
+  throw new Error("未知节点: "+ast.type);
+}
+
+function buildQuant(child, min, max, greedy){
+  // 复制子片段需要重新构造 thompson(child 的副本)。简化：通过函数重建。
+  const mk = () => thompson(cloneAST(child));
+  let start, accept;
+  // 必备 min 份
+  if(min===0){
+    start = newState(); accept = start;
+  } else {
+    let first = mk();
+    start = first.start; let prev = first.accept;
+    for(let i=1;i<min;i++){ const f=mk(); addEdge(prev,f.start,null,{eps:true}); prev=f.accept; }
+    accept = prev;
+  }
+  // 可选部分
+  if(max===Infinity){
+    // 星号循环：accept --eps--> newStar.start, newStar.accept --eps--> newStar.start
+    const loop = mk();
+    const entry = newState();
+    addEdge(accept, entry, null, {eps:true});
+    addEdge(entry, loop.start, null, {eps:true});
+    addEdge(loop.accept, entry, null, {eps:true});
+    accept = entry;
+  } else {
+    const optional = max - min;
+    for(let i=0;i<optional;i++){
+      const f = mk();
+      const j = newState();
+      addEdge(accept, j, null, {eps:true});      // skip
+      addEdge(accept, f.start, null, {eps:true});
+      addEdge(f.accept, j, null, {eps:true});
+      accept = j;
+    }
+  }
+  // greedy: 已按"先匹配再skip"顺序构建，近似 greedy
+  return {start, accept};
+}
+
+function cloneAST(ast){
+  return JSON.parse(JSON.stringify(ast, (k,v)=> k==="child"||k==="left"||k==="right"||k==="nodes"?v:v));
+}
+
+/* =====================================================================
+   3. NFA 布局 (分层) + SVG 渲染
+   ===================================================================== */
+function layoutAutomaton(auto, isDFA){
+  const states = auto.states;
+  const start = auto.start;
+  const layer = new Map();
+  const order = [];
+  const seen = new Set();
+  (function dfs(s, depth){
+    if(!s || seen.has(s.id)) return;
+    seen.add(s.id);
+    if(!layer.has(s.id) || layer.get(s.id) < depth) layer.set(s.id, depth);
+    order.push(s);
+    const outs = s.out || s.trans || [];
+    for(const e of outs){
+      dfs(e.to, depth+1);
+    }
+  })(start, 0);
+  // 任何未访问状态放最后
+  for(const s of states){ if(!layer.has(s.id)) layer.set(s.id, 0); }
+
+  const byLayer = new Map();
+  for(const s of states){
+    const l = layer.get(s.id);
+    if(!byLayer.has(l)) byLayer.set(l, []);
+    byLayer.get(l).push(s);
+  }
+  const layers = Array.from(byLayer.keys()).sort((a,b)=>a-b);
+  const maxL = layers[layers.length-1]||0;
+  const X = 120, Y = 78, padX = 50, padY = 40;
+  const pos = new Map();
+  for(const l of layers){
+    const arr = byLayer.get(l);
+    const totalH = (arr.length-1)*Y;
+    arr.forEach((s,i)=>{
+      pos.set(s.id, {x: padX + l*X, y: padY + totalH/2 + i*Y});
+    });
+  }
+  const width = padX + maxL*X + 60;
+  const maxRows = Math.max(...layers.map(l=>byLayer.get(l).length));
+  const height = padY*2 + Math.max(maxRows-1,0)*Y;
+  return {pos, width:Math.max(width,260), height:Math.max(height,160), byLayer, layers};
+}
+
+function renderGraph(auto, isDFA, activeIds){
+  if(!auto || !auto.states.length){
+    $("#graphScroll").innerHTML = '<div class="empty-hint">输入正则后将生成 '+(isDFA?"DFA":"Thompson NFA")+' 状态图</div>';
+    return;
+  }
+  const {pos, width, height} = layoutAutomaton(auto, isDFA);
+  const acceptSet = new Set();
+  for(const s of auto.states) if(s.accept) acceptSet.add(s.id);
+  const active = activeIds ? new Set(activeIds) : null;
+
+  const parts = [];
+  parts.push(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">`);
+  parts.push(`<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3a4150"/>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+    </marker>
+  </defs>`);
+
+  // 起始入口箭头
+  const sp = pos.get(auto.start.id);
+  if(sp){
+    parts.push(`<line x1="${sp.x-40}" y1="${sp.y}" x2="${sp.x-22}" y2="${sp.y}" class="n-edge" marker-end="url(#arr)"/>`);
+    parts.push(`<text x="${sp.x-44}" y="${sp.y-6}" class="n-elabel">start</text>`);
+  }
+
+  // 边
+  const edgeKey = (a,b,sym)=> a+"->"+b+"|"+(sym||"ε");
+  const drawn = new Set();
+  for(const s of auto.states){
+    const from = pos.get(s.id);
+    const outs = s.out || s.trans || [];
+    outs.forEach((e, i)=>{
+      const to = pos.get(e.to.id);
+      if(!from||!to) return;
+      const sym = e.eps ? null : e.symbol;
+      const k = edgeKey(s.id, e.to.id, sym);
+      let off = 0;
+      // 同层/反向边用弧
+      const dx = to.x-from.x, dy = to.y-from.y;
+      let path, mx, my;
+      const r = 16;
+      if(s.id===e.to.id){
+        // 自环
+        path = `M ${from.x-6} ${from.y-r} C ${from.x-40} ${from.y-r-26}, ${from.x+40} ${from.y-r-26}, ${from.x+6} ${from.y-r}`;
+        mx = from.x; my = from.y-r-30;
+      } else if(to.x <= from.x){
+        off = 26;
+        const cx = (from.x+to.x)/2, cy = (from.y+to.y)/2 - off;
+        path = `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`;
+        mx = cx; my = cy;
+      } else {
+        off = (Math.abs(dy)>2)? 0 : 0;
+        path = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+        mx = (from.x+to.x)/2; my = (from.y+to.y)/2 - 8;
+      }
+      const cls = (e.eps?"n-edge eps":"n-edge") + (active&&active.has(s.id)&&active.has(e.to.id)?" active":"");
+      const marker = (active&&active.has(s.id)&&active.has(e.to.id))?"url(#arrA)":"url(#arr)";
+      parts.push(`<path d="${path}" class="${cls}" marker-end="${marker}"/>`);
+      // 边标签
+      let label = e.eps ? "ε" : e.symbol;
+      if(e.anchor) label = e.anchor;
+      if(label && label.length>10) label = label.slice(0,9)+"…";
+      parts.push(`<text x="${mx}" y="${my}" class="n-elabel ${e.eps?'eps':''}">${escHtml(label)}</text>`);
+    });
+  }
+
+  // 节点
+  for(const s of auto.states){
+    const p = pos.get(s.id);
+    if(!p) continue;
+    const isAccept = !!s.accept;
+    const isStart = s.id===auto.start.id;
+    const act = active && active.has(s.id);
+    const cls = "n-state" + (isAccept?" accept":"") + (isStart?" start":"") + (act?" active":"");
+    parts.push(`<circle cx="${p.x}" cy="${p.y}" r="16" class="${cls}"/>`);
+    if(isAccept) parts.push(`<circle cx="${p.x}" cy="${p.y}" r="11" fill="none" class="${cls}" style="stroke-width:1"/>`);
+    parts.push(`<text x="${p.x}" y="${p.y}" class="n-label">${isDFA?(s.id):("q"+s.id)}</text>`);
+  }
+
+  parts.push(`</svg>`);
+  $("#graphScroll").innerHTML = parts.join("");
+}
+
+/* =====================================================================
+   4. 子集构造法 NFA -> DFA
+   ===================================================================== */
+function epsilonClosure(stateArr){
+  const set = new Set();
+  const stack = [...stateArr];
+  const res = [];
+  for(const s of stack){ set.add(s.id); res.push(s); }
+  while(stack.length){
+    const s = stack.pop();
+    const outs = s.out || s.trans || [];
+    for(const e of outs){
+      if(e.eps && !set.has(e.to.id)){
+        set.add(e.to.id); res.push(e.to); stack.push(e.to);
+      }
+    }
+  }
+  return res;
+}
+
+function symbolMatches(symbol, ch){
+  if(symbol===".") return ch !== "\n";
+  if(symbol.length===1) return symbol===ch;
+  try { return new RegExp(symbol).test(ch); } catch(e){ return false; }
+}
+
+function buildDFA(nfa){
+  const startSet = epsilonClosure([nfa.start]);
+  const keyOf = arr => arr.map(s=>s.id).sort((a,b)=>a-b).join(",");
+  const startKey = keyOf(startSet);
+  const dfaStates = [];
+  const map = new Map();
+  const make = (arr)=>{
+    const k = keyOf(arr);
+    if(map.has(k)) return map.get(k);
+    const st = {id: dfaStates.length, set:arr, setKey:k, trans:[], accept:arr.some(s=>s.accept)};
+    dfaStates.push(st); map.set(k, st);
+    return st;
+  };
+  const start = make(startSet);
+  const queue = [start];
+  const seen = new Set([startKey]);
+  let guard = 0;
+  while(queue.length && guard++ < 4000){
+    const cur = queue.shift();
+    // 收集符号
+    const symMap = new Map();
+    for(const s of cur.set){
+      const outs = s.out || s.trans || [];
+      for(const e of outs){
+        if(e.eps) continue;
+        if(!symMap.has(e.symbol)) symMap.set(e.symbol, []);
+        symMap.get(e.symbol).push(e.to);
+      }
+    }
+    for(const [sym, targets] of symMap){
+      const cl = epsilonClosure(targets);
+      const tgt = make(cl);
+      cur.trans.push({symbol:sym, to:tgt});
+      if(!seen.has(tgt.setKey)){
+        seen.add(tgt.setKey); queue.push(tgt);
+      }
+    }
+  }
+  return {start, states:dfaStates};
+}
+
+// 适配渲染：把 DFA 转成 {start, states} 其中 state.out = trans
+function dfaToAuto(dfa){
+  const states = dfa.states.map(st=>{
+    return {id:st.id, accept:st.accept, out: st.trans.map(t=>({to: t.to.id /* will fix */, symbol:t.symbol, eps:false, anchor:null}))};
+  });
+  const byId = new Map(states.map(s=>[s.id,s]));
+  for(const s of states){
+    for(const e of s.out){ e.to = byId.get(e.to); }
+  }
+  return {start: byId.get(dfa.start.id), states};
+}
+
+/* =====================================================================
+   5. AST 树布局 + SVG 渲染
+   ===================================================================== */
+const NODE_DESC = {
+  concat:"连接：按顺序匹配所有子表达式",
+  alternation:"选择 |：匹配左右任意一侧",
+  quantifier:"量词：控制重复次数",
+  group:"分组 ()：捕获或非捕获子表达式",
+  charclass:"字符类 []：匹配方括号内任一字符",
+  char:"普通字符：精确匹配该字符",
+  any:"通配符 .：匹配除换行外任意字符",
+  anchor:"锚点 ^/$：匹配位置而非字符",
+  escape:"反斜杠序列：预定义字符集",
+  empty:"空：匹配空串"
+};
+
+function astChildren(node){
+  switch(node.type){
+    case NODE.CONCAT: return node.nodes;
+    case NODE.ALT: return [node.left, node.right];
+    case NODE.QUANT: return [node.child];
+    case NODE.GROUP: return [node.child];
+    default: return [];
+  }
+}
+function astLabel(node){
+  switch(node.type){
+    case NODE.CHAR: return node.value===" "? "␠" : node.value;
+    case NODE.ANY: return ".";
+    case NODE.CHARCLASS: return node.raw;
+    case NODE.ESCAPE: return node.value;
+    case NODE.ANCHOR: return node.value;
+    case NODE.QUANT: return node.symbol;
+    case NODE.GROUP: return node.capturing? "()" : "(?:)";
+    case NODE.ALT: return "|";
+    case NODE.CONCAT: return "concat";
+    case NODE.EMPTY: return "ε";
+  }
+  return "?";
+}
+
+function layoutAST(root){
+  const xUnit = 26, yGap = 70, padX = 30, padY = 26;
+  let xCursor = 0;
+  const nodes = [];
+  function walk(node, depth, parent){
+    const kids = astChildren(node);
+    if(kids.length===0){
+      const x = padX + xCursor*xUnit;
+      xCursor += 2.2;
+      const id = nodes.length;
+      nodes.push({id, node, x, y: padY+depth*yGap, parent, width:2.2});
+      return id;
+    }
+    const childIds = kids.map(k=>walk(k, depth+1, null));
+    const first = nodes[childIds[0]], last = nodes[childIds[childIds.length-1]];
+    const x = (first.x+last.x)/2;
+    const id = nodes.length;
+    const nd = {id, node, x, y: padY+depth*yGap, parent, childIds};
+    nodes.push(nd);
+    for(const cid of childIds) nodes[cid].parent = id;
+    return id;
+  }
+  walk(root, 0, null);
+  const maxX = Math.max(...nodes.map(n=>n.x)) + 40;
+  const maxY = Math.max(...nodes.map(n=>n.y)) + 40;
+  return {nodes, width:Math.max(maxX,240), height:Math.max(maxY,120)};
+}
+
+function renderAST(root){
+  if(!root){ $("#astScroll").innerHTML='<div class="empty-hint">输入正则后将解析为抽象语法树</div>'; return; }
+  const {nodes, width, height} = layoutAST(root);
+  const parts = [];
+  parts.push(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">`);
+  // edges
+  for(const nd of nodes){
+    if(nd.childIds){
+      for(const cid of nd.childIds){
+        const c = nodes[cid];
+        parts.push(`<path d="M ${nd.x} ${nd.y+15} C ${nd.x} ${(nd.y+c.y)/2}, ${c.x} ${(nd.y+c.y)/2}, ${c.x} ${c.y-15}" class="ast-edge"/>`);
+      }
+    }
+  }
+  // nodes
+  const W = 54, H = 30;
+  for(const nd of nodes){
+    const t = nd.node.type;
+    const label = escHtml(astLabel(nd.node));
+    const desc = escHtml(NODE_DESC[t]||t);
+    parts.push(`<g class="ast-node type-${t}">`);
+    parts.push(`<rect x="${nd.x-W/2}" y="${nd.y-H/2}" width="${W}" height="${H}"/>`);
+    parts.push(`<title>${t} — ${desc}\n值: ${label}</title>`);
+    parts.push(`<text x="${nd.x}" y="${nd.y+2}" class="ast-text">${label}</text>`);
+    parts.push(`<text x="${nd.x}" y="${nd.y-H/2-6}" class="ast-type">${t}</text>`);
+    parts.push(`</g>`);
+  }
+  parts.push(`</svg>`);
+  $("#astScroll").innerHTML = parts.join("");
+  // count
+  let count=0; (function c(n){ count++; astChildren(n).forEach(c); })(root);
+  $("#astInfo").textContent = count+" 节点";
+}
+
+/* =====================================================================
+   6. 匹配 + 高亮
+   ===================================================================== */
+function resolveRegex(){
+  const raw = $("#regexInput").value;
+  let pattern = raw, flags = currentFlags();
+  const m = raw.match(/^\/(.+)\/([gimsuy]*)$/);
+  if(m){ pattern = m[1]; flags = m[2] || currentFlags(); }
+  return {pattern, flags, raw};
+}
+
+function buildRegExp(){
+  const {pattern, flags} = resolveRegex();
+  if(pattern.trim()==="") return null;
+  try { return new RegExp(pattern, flags); }
+  catch(e){ return {error:e.message}; }
+}
+
+function highlightMatches(){
+  const text = $("#testText").value;
+  const backdrop = $("#testBackdrop");
+  $("#testStats").textContent = text.length + " 字符";
+  const re = buildRegExp();
+  const input = $("#regexInput");
+  const badge = $("#statusBadge");
+  input.classList.remove("err");
+  badge.className="ok-badge"; badge.textContent="";
+
+  // 始终基于当前 pattern 重建 NFA/DFA 与 AST
+  rebuildGraphs(re);
+
+  if(text===""){ backdrop.innerHTML=""; renderMatchList([]); $("#matchCount").textContent="0"; return; }
+  if(!re){ backdrop.innerHTML = escHtml(text); renderMatchList([]); $("#matchCount").textContent="0"; return; }
+  if(re.error){
+    input.classList.add("err");
+    badge.className="err-badge"; badge.textContent=re.error;
+    backdrop.innerHTML = escHtml(text); renderMatchList([]); $("#matchCount").textContent="0"; return;
+  }
+
+  let matches = [];
+  if(re.flags.includes("g") || re.flags.includes("y")){
+    re.lastIndex = 0;
+    let m;
+    let safety = 0;
+    while((m = re.exec(text)) !== null){
+      matches.push({text:m[0], index:m.index, end:m.index+m[0].length, groups:m.slice(1)});
+      if(m[0].length===0){ re.lastIndex++; }
+      if(++safety > 50000) break;
+    }
+  } else {
+    const m = re.exec(text);
+    if(m) matches.push({text:m[0], index:m.index, end:m.index+m[0].length, groups:m.slice(1)});
+  }
+
+  // 高亮
+  let html = "", last = 0;
+  matches.forEach((mm,i)=>{
+    html += escHtml(text.slice(last, mm.index));
+    html += `<span class="m">${escHtml(mm.text)}</span>`;
+    last = mm.end;
+  });
+  html += escHtml(text.slice(last));
+  backdrop.innerHTML = html;
+
+  renderMatchList(matches);
+  $("#matchCount").textContent = matches.length;
+}
+
+function renderMatchList(matches){
+  if(!matches.length){
+    $("#tabBody").innerHTML = '<div class="no-match">无匹配项。调整正则或测试文本。</div>';
+    return;
+  }
+  const rows = matches.map((m,i)=>{
+    let g = "";
+    if(m.groups && m.groups.length){
+      g = '<div class="match-groups">'+m.groups.map((gg,gi)=>`<span>$${gi+1}</span> = ${escHtml(gg===undefined?"":gg)}`).join("  ·  ")+'</div>';
+    }
+    const vis = m.text.length>60? m.text.slice(0,57)+"…" : m.text;
+    return `<div class="match-row">
+      <span class="match-idx">#${i+1}</span>
+      <span class="match-val">${escHtml(vis)}</span>
+      <span class="match-pos">${m.index}..${m.end}</span>
+      ${g}
+    </div>`;
+  }).join("");
+  if(currentTab==="match"){
+    $("#tabBody").innerHTML = '<div class="match-list">'+rows+'</div>';
+  }
+  // store for tab switch
+  state.lastMatchHTML = '<div class="match-list">'+rows+'</div>';
+}
+
+/* =====================================================================
+   7. 图重建 (NFA/DFA + AST)
+   ===================================================================== */
+function rebuildGraphs(re){
+  let ast = null, nfa = null, dfa = null;
+  try {
+    const {pattern} = resolveRegex();
+    if(pattern.trim()){
+      ast = parseRegex(pattern);
+      nfa = buildNFA(ast);
+      dfa = buildDFA(nfa);
+    }
+  } catch(e){
+    ast = null; nfa = null; dfa = null;
+  }
+  state.ast = ast; state.nfa = nfa; state.dfa = dfa;
+  renderAST(ast);
+  drawCurrentGraph();
+}
+
+function drawCurrentGraph(activeIds){
+  const isDFA = state.graphMode==="dfa";
+  $("#graphLabel").textContent = isDFA?"DFA":"NFA";
+  if(isDFA && state.dfa){
+    const auto = dfaToAuto(state.dfa);
+    renderGraph(auto, true, activeIds);
+  } else if(state.nfa){
+    renderGraph(state.nfa, false, activeIds);
+  } else {
+    $("#graphScroll").innerHTML = '<div class="empty-hint">输入正则后将生成 '+(isDFA?"DFA":"Thompson NFA")+' 状态图</div>';
+  }
+}
+
+/* =====================================================================
+   8. NFA 模拟动画
+   ===================================================================== */
+const sim = {timer:null, pos:0, active:new Set(), running:false};
+
+function nfaClosureForPos(states){
+  // epsilon closure (anchor treated as always traversable for visualization)
+  const set = new Set();
+  const res = [];
+  const stack = [...states];
+  for(const s of stack){ set.add(s.id); res.push(s); }
+  while(stack.length){
+    const s = stack.pop();
+    const outs = s.out || s.trans || [];
+    for(const e of outs){
+      if(e.eps && !set.has(e.to.id)){
+        set.add(e.to.id); res.push(e.to); stack.push(e.to);
+      }
+    }
+  }
+  return res;
+}
+
+function nfaStep(text){
+  if(!state.nfa) return new Set();
+  let active = nfaClosureForPos([state.nfa.start]);
+  const steps = Math.min(sim.pos, text.length);
+  for(let i=0;i<steps;i++){
+    const ch = text[i];
+    const next = [];
+    const set = new Set();
+    for(const s of active){
+      const outs = s.out || s.trans || [];
+      for(const e of outs){
+        if(e.eps) continue;
+        if(symbolMatches(e.symbol, ch)){
+          if(!set.has(e.to.id)){ set.add(e.to.id); next.push(e.to); }
+        }
+      }
+    }
+    active = nfaClosureForPos(next);
+    if(active.length===0) break;
+  }
+  return new Set(active.map(s=>s.id));
+}
+
+function simUpdate(){
+  const text = $("#testText").value;
+  const ids = nfaStep(text);
+  sim.active = ids;
+  drawCurrentGraph(Array.from(ids));
+  $("#simPos").textContent = "pos "+sim.pos+" / "+text.length;
+  let acceptNow = false;
+  if(state.nfa && ids.has(state.nfa.accept.id)) acceptNow = true;
+  if(acceptNow) $("#simPos").textContent += " ✓";
+}
+
+function simPlay(){
+  if(!state.nfa){ return; }
+  if(sim.running){ simStop(); return; }
+  const text = $("#testText").value;
+  if(sim.pos >= text.length) sim.pos = 0;   // 已到末尾则从头播放
+  sim.running = true;
+  $("#simPlay").textContent = "⏸ 暂停";
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){ sim.pos = text.length; simUpdate(); simStop(); return; }
+  simUpdate();   // 先展示初始状态
+  sim.timer = setInterval(()=>{
+    if(sim.pos >= text.length){ simStop(); return; }
+    sim.pos++;
+    simUpdate();
+  }, 480);
+}
+function simStop(){
+  sim.running = false;
+  if(sim.timer){ clearInterval(sim.timer); sim.timer=null; }
+  $("#simPlay").textContent = "▶ 模拟";
+}
+function simStepFn(){
+  simStop();
+  const text = $("#testText").value;
+  sim.pos = Math.min(sim.pos+1, text.length);
+  simUpdate();
+}
+function simResetFn(){
+  simStop();
+  sim.pos = 0;
+  sim.active = new Set();
+  $("#simPos").textContent = "就绪";
+  drawCurrentGraph();
+}
+
+/* =====================================================================
+   9. 速查表数据
+   ===================================================================== */
+const CHEAT = [
+  {name:"邮箱 Email", tag:"网络", pattern:"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", flags:"i", desc:"简易邮箱格式校验"},
+  {name:"URL 网址", tag:"网络", pattern:"^https?://[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$", flags:"i", desc:"http/https 链接"},
+  {name:"IPv4 地址", tag:"网络", pattern:"^(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)$", flags:"", desc:"0.0.0.0 ~ 255.255.255.255"},
+  {name:"手机号 (中国)", tag:"国内", pattern:"^1[3-9]\\d{9}$", flags:"", desc:"11 位中国大陆手机号"},
+  {name:"身份证号", tag:"国内", pattern:"^[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]$", flags:"", desc:"18 位身份证"},
+  {name:"日期 YYYY-MM-DD", tag:"时间", pattern:"^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$", flags:"", desc:"年-月-日"},
+  {name:"时间 HH:mm:ss", tag:"时间", pattern:"^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$", flags:"", desc:"24 小时制时间"},
+  {name:"邮政编码", tag:"国内", pattern:"^[1-9]\\d{5}$", flags:"", desc:"中国 6 位邮编"},
+  {name:"十六进制颜色", tag:"前端", pattern:"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", flags:"", desc:"#fff 或 #a1b2c4"},
+  {name:"MAC 地址", tag:"网络", pattern:"^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$", flags:"", desc:"网络硬件地址"},
+  {name:"UUID", tag:"通用", pattern:"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", flags:"", desc:"标准 UUID v4"},
+  {name:"弱密码检测", tag:"安全", pattern:"^(\\d{6,}|[a-z]{6,}|[A-Z]{6,}|(.)\\1{5,})$", flags:"", desc:"纯数字/纯字母/重复字符"},
+  {name:"强密码要求", tag:"安全", pattern:"^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*]).{8,}$", flags:"", desc:"大小写+数字+符号 ≥8 位"},
+  {name:"HTML 标签", tag:"前端", pattern:"<([a-zA-Z][\\w-]*)\\b[^>]*>(.*?)</\\1>", flags:"g", desc:"配对标签及内容"},
+  {name:"CSS 选择器", tag:"前端", pattern:"^[.#]?[a-zA-Z][\\w-]*(,[.#]?[a-zA-Z][\\w-]*)*$", flags:"", desc:"简单 class/id 选择器"},
+  {name:"浮点数", tag:"数字", pattern:"^-?\\d+\\.\\d+$", flags:"", desc:"带小数点的数"},
+  {name:"整数", tag:"数字", pattern:"^-?\\d+$", flags:"", desc:"正负整数"},
+  {name:"用户名", tag:"通用", pattern:"^[a-zA-Z][a-zA-Z0-9_]{3,15}$", flags:"", desc:"字母开头 4-16 位"},
+  {name:"QQ 号", tag:"国内", pattern:"^[1-9]\\d{4,10}$", flags:"", desc:"5-11 位 QQ 号"},
+  {name:"车牌号", tag:"国内", pattern:"^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,5}[A-HJ-NP-Z0-9挂学警港澳]$", flags:"", desc:"中国车牌"},
+  {name:"中文字符", tag:"通用", pattern:"[\\u4e00-\\u9fa5]+", flags:"g", desc:"匹配中文汉字"},
+  {name:"数字范围 1-100", tag:"数字", pattern:"^([1-9]\\d?|100)$", flags:"", desc:"1 到 100 闭区间"},
+  {name:"重复单词", tag:"技巧", pattern:"\\b(\\w+)\\s+\\1\\b", flags:"gi", desc:"相邻重复词，如 the the"},
+  {name:"RGB 颜色", tag:"前端", pattern:"rgb\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*\\)", flags:"i", desc:"rgb(r,g,b) 函数"}
+];
+
+/* =====================================================================
+   10. 练习题数据
+   ===================================================================== */
+const EXERCISES = [
+  {title:"字面匹配 hello", diff:1, desc:"匹配单词 hello", tests:[{text:"hello world",y:1},{text:"say hello!",y:1},{text:"hallo",y:0}], answer:"hello", explain:"直接匹配字面字符串 hello。"},
+  {title:"匹配所有数字", diff:1, desc:"匹配文本中所有连续数字", tests:[{text:"abc123",y:1},{text:"no digits",y:0},{text:"7",y:1}], answer:"\\d+", explain:"\\d 匹配数字，+ 表示一个或多个。"},
+  {title:"3 到 5 个字母", diff:1, desc:"匹配恰好 3 到 5 个连续字母", tests:[{text:"abc",y:1},{text:"abcdef",y:0},{text:"xy",y:0}], answer:"^[a-zA-Z]{3,5}$", explain:"{3,5} 限定长度区间，^ $ 锚定整串。"},
+  {title:"以 cat 开头", diff:1, desc:"字符串以 cat 开头", tests:[{text:"cat in the hat",y:1},{text:"the cat",y:0},{text:"category",y:1}], answer:"^cat", explain:"^ 锚定行首。"},
+  {title:"以 dog 结尾", diff:1, desc:"字符串以 dog 结尾", tests:[{text:"hot dog",y:1},{text:"doggy",y:0},{text:"a dog",y:1}], answer:"dog$", explain:"$ 锚定行尾。"},
+  {title:"cat 或 dog", diff:2, desc:"匹配 cat 或 dog", tests:[{text:"I have a cat",y:1},{text:"I have a dog",y:1},{text:"I have a bird",y:0}], answer:"cat|dog", explain:"| 表示选择，匹配左右任一。"},
+  {title:"手机号校验", diff:2, desc:"匹配中国 11 位手机号 (1 开头)", tests:[{text:"13800138000",y:1},{text:"123456",y:0},{text:"19912345678",y:1}], answer:"^1[3-9]\\d{9}$", explain:"第二位 3-9，共 11 位数字。"},
+  {title:"简单邮箱", diff:2, desc:"匹配 name@host.com 形式邮箱", tests:[{text:"a@b.com",y:1},{text:"a@b",y:0},{text:"a.b@c.co",y:1}], answer:"^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", explain:"本地名 @ 域名 . 顶级域，不含空格和 @。"},
+  {title:"IPv4 地址", diff:3, desc:"匹配合法 IPv4 (0-255)", tests:[{text:"192.168.1.1",y:1},{text:"256.0.0.1",y:0},{text:"10.0.0.255",y:1}], answer:"^(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)$", explain:"每段 0-255，用四段并以点分隔。"},
+  {title:"匹配重复单词", diff:3, desc:"匹配相邻重复的单词 (如 the the)", tests:[{text:"the the cat",y:1},{text:"the cat",y:0},{text:"go go now",y:1}], answer:"\\b(\\w+)\\s+\\1\\b", explain:"\\1 反向引用第一个捕获组，匹配相同单词。"},
+  {title:"配对 HTML 标签", diff:3, desc:"匹配配对的 HTML 标签及内容", tests:[{text:"<b>hi</b>",y:1},{text:"<i>ok</i>",y:1},{text:"<b>hi</i>",y:0}], answer:"<([a-zA-Z][\\w-]*)\\b[^>]*>(.*?)</\\1>", explain:"用捕获组记录标签名，\\1 反向引用保证配对。"},
+  {title:"日期格式", diff:2, desc:"匹配 YYYY-MM-DD", tests:[{text:"2026-07-26",y:1},{text:"26-07-2026",y:0},{text:"2026-13-01",y:0}], answer:"^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$", explain:"月份 01-12，日期 01-31。"},
+  {title:"十六进制颜色", diff:2, desc:"匹配 #fff 或 #a1b2c4", tests:[{text:"#fff",y:1},{text:"#A1B2C4",y:1},{text:"#1234",y:0}], answer:"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", flags:"i", explain:"3 位或 6 位十六进制。"},
+  {title:"强密码", diff:3, desc:"至少 8 位含大小写、数字、符号", tests:[{text:"Abc1234!",y:1},{text:"password",y:0},{text:"ABC123!!",y:0}], answer:"^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*]).{8,}$", explain:"先行断言分别检查四类字符，最后 .{8,} 保证长度。"},
+  {title:"URL 提取", diff:3, desc:"匹配 http/https 链接", tests:[{text:"https://a.com",y:1},{text:"ftp://a.com",y:0},{text:"http://x.y/z?q=1",y:1}], answer:"^https?://[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$", flags:"i", explain:"s? 表示 http 或 https，后跟域名及路径。"},
+  {title:"驼峰命名转下划线定位", diff:2, desc:"匹配驼峰标识符 (如 myVarName)", tests:[{text:"myVarName",y:1},{text:"MyClass",y:1},{text:"snake_case",y:0}], answer:"^[a-z]+(?:[A-Z][a-z]*)+$", explain:"小写开头，后跟若干 大写+小写 组合。"}
+];
+
+/* =====================================================================
+   11. UI 渲染: 速查表 / 练习题 / 匹配详情
+   ===================================================================== */
+function renderCheat(){
+  const html = '<div class="cheat-grid">' + CHEAT.map((c,i)=>`
+    <div class="cheat-card" data-i="${i}">
+      <h4>${escHtml(c.name)} <span class="tag">${c.tag}</span></h4>
+      <code>${escHtml(c.pattern)}</code>
+      <p>${escHtml(c.desc)}${c.flags? ' · flags: '+c.flags : ''}</p>
+    </div>`).join("") + '</div>';
+  if(currentTab==="cheat") $("#tabBody").innerHTML = html;
+  state.cheatHTML = html;
+  $("#cheatCount").textContent = CHEAT.length;
+}
+
+function renderExercises(){
+  const solved = loadSolved();
+  const html = '<div class="ex-list">' + EXERCISES.map((ex,i)=>{
+    const isSolved = solved[i];
+    return `<div class="ex-card ${isSolved?'solved':''}" data-i="${i}">
+      <div class="ex-head">
+        <span class="ex-num">#${i+1}</span>
+        <span class="ex-title">${escHtml(ex.title)}</span>
+        <span class="ex-diff d${ex.diff}">${"★".repeat(ex.diff)}${["","简单","中等","困难"][ex.diff]}</span>
+      </div>
+      <p class="ex-desc">${escHtml(ex.desc)}</p>
+      <div class="ex-cases">${ex.tests.map(t=>`<span class="ex-case expect-${t.y?'yes':'no'}">${t.y?'应匹配':'应不匹配'}: ${escHtml(t.text)}</span>`).join("")}</div>
+      <div class="ex-input">
+        <span class="regex-slash">/</span>
+        <input type="text" placeholder="你的正则" data-ex="${i}" value="${isSolved?escHtml(ex.answer):''}" class="${isSolved?'solved':''}" spellcheck="false" />
+        <span class="regex-slash">/${ex.flags||''}</span>
+        <button class="ex-check-btn" data-ex="${i}">${isSolved?'已通过':'验证'}</button>
+      </div>
+      <div class="ex-answer ${isSolved?'show':''}">
+        <b>参考答案</b><span class="ans-pattern">${escHtml(ex.answer)}</span>${escHtml(ex.explain)}
+      </div>
+    </div>`;
+  }).join("") + '</div>';
+  if(currentTab==="exercise") $("#tabBody").innerHTML = html;
+  state.exHTML = html;
+  $("#exCount").textContent = EXERCISES.length;
+}
+
+function loadSolved(){
+  try { return JSON.parse(localStorage.getItem(LS.solved)||"{}"); } catch(e){ return {}; }
+}
+function saveSolved(o){ localStorage.setItem(LS.solved, JSON.stringify(o)); }
+
+function checkExercise(idx, userPattern){
+  const ex = EXERCISES[idx];
+  let re;
+  try { re = new RegExp(userPattern, ex.flags||""); }
+  catch(e){ return {ok:false, err:e.message}; }
+  const failed = [];
+  for(const t of ex.tests){
+    // fresh regex each test to avoid lastIndex state
+    let r;
+    try { r = new RegExp(userPattern, (ex.flags||"").replace(/g/g,"")); } catch(e){ r = re; }
+    const m = r.test(t.text);
+    if(m !== !!t.y) failed.push(t);
+  }
+  return {ok: failed.length===0, failed};
+}
+
+/* =====================================================================
+   12. 状态 & 事件绑定
+   ===================================================================== */
+const state = {graphMode:"nfa", ast:null, nfa:null, dfa:null, lastMatchHTML:"", cheatHTML:"", exHTML:""};
+let currentTab = "cheat";
+function currentFlags(){
+  return $$("#flags .flag.on").map(b=>b.dataset.f).join("");
+}
+function setFlags(f){
+  $$("#flags .flag").forEach(b=> b.classList.toggle("on", f.includes(b.dataset.f)));
+}
+
+function switchTab(tab){
+  currentTab = tab;
+  $$("#tabs .tab").forEach(t=> t.classList.toggle("on", t.dataset.tab===tab));
+  if(tab==="cheat") $("#tabBody").innerHTML = state.cheatHTML || "";
+  else if(tab==="exercise") $("#tabBody").innerHTML = state.exHTML || "";
+  else if(tab==="match") $("#tabBody").innerHTML = state.lastMatchHTML || '<div class="no-match">无匹配项。</div>';
+}
+
+function applyCheat(i){
+  const c = CHEAT[i];
+  // 如果当前 input 是 /.../ 形式或纯 pattern，统一设为纯 pattern 并设 flags
+  $("#regexInput").value = c.pattern;
+  setFlags(c.flags||"");
+  localStorage.setItem(LS.pattern, c.pattern);
+  localStorage.setItem(LS.flags, c.flags||"");
+  highlightMatches();
+  switchTab("match");
+}
+
+function debounce(fn, ms){
+  let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); };
+}
+const debouncedHL = debounce(highlightMatches, 120);
+
+function bindEvents(){
+  $("#regexInput").addEventListener("input", ()=>{
+    const raw = $("#regexInput").value;
+    const m = raw.match(/^\/(.+)\/([gimsuy]*)$/);
+    if(m) setFlags(m[2]);
+    localStorage.setItem(LS.pattern, raw);
+    debouncedHL();
+    simResetFn();
+  });
+
+  $$("#flags .flag").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      b.classList.toggle("on");
+      const f = currentFlags();
+      localStorage.setItem(LS.flags, f);
+      // 若 input 为 /.../ 形式则同步 flags
+      const raw = $("#regexInput").value;
+      const m = raw.match(/^\/(.+)\/([gimsuy]*)$/);
+      if(m){ $("#regexInput").value = "/"+m[1]+"/"+f; localStorage.setItem(LS.pattern, $("#regexInput").value); }
+      highlightMatches();
+    });
+  });
+
+  $$("#graphSeg button").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      $$("#graphSeg button").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      state.graphMode = b.dataset.g;
+      drawCurrentGraph(sim.active.size?Array.from(sim.active):null);
+    });
+  });
+
+  $("#testText").addEventListener("input", ()=>{
+    localStorage.setItem(LS.text, $("#testText").value);
+    debouncedHL();
+    simResetFn();
+  });
+  // 同步高亮层与文本框的滚动
+  $("#testText").addEventListener("scroll", ()=>{
+    const bd = $("#testBackdrop");
+    bd.scrollTop = $("#testText").scrollTop;
+    bd.scrollLeft = $("#testText").scrollLeft;
+  });
+  $("#clearText").addEventListener("click", ()=>{
+    $("#testText").value="";
+    localStorage.setItem(LS.text,"");
+    highlightMatches();
+    simResetFn();
+  });
+
+  $("#simPlay").addEventListener("click", simPlay);
+  $("#simStep").addEventListener("click", simStepFn);
+  $("#simReset").addEventListener("click", simResetFn);
+
+  $$("#tabs .tab").forEach(t=> t.addEventListener("click", ()=>switchTab(t.dataset.tab)));
+
+  // 速查表 / 练习题 事件委托
+  $("#tabBody").addEventListener("click", (e)=>{
+    const card = e.target.closest(".cheat-card");
+    if(card){ applyCheat(parseInt(card.dataset.i,10)); return; }
+    const btn = e.target.closest(".ex-check-btn");
+    if(btn){
+      const idx = parseInt(btn.dataset.ex,10);
+      const input = $(`.ex-input input[data-ex="${idx}"]`);
+      const userPattern = input.value;
+      const res = checkExercise(idx, userPattern);
+      const cardEl = btn.closest(".ex-card");
+      const ans = cardEl.querySelector(".ex-answer");
+      const cases = cardEl.querySelectorAll(".ex-case");
+      input.classList.remove("err","solved");
+      if(res.err){
+        input.classList.add("err");
+        ans.classList.remove("show");
+        ans.innerHTML = `<b>语法错误</b><span class="ans-pattern" style="color:var(--err)">${escHtml(res.err)}</span>`;
+        ans.classList.add("show");
+        return;
+      }
+      // 标记用例通过情况
+      cases.forEach(c=> c.classList.remove("pass","fail"));
+      if(res.ok){
+        input.classList.add("solved");
+        btn.textContent = "已通过";
+        cardEl.classList.add("solved");
+        ans.classList.add("show");
+        const ex = EXERCISES[idx];
+        ans.innerHTML = `<b>通过！参考答案</b><span class="ans-pattern">${escHtml(ex.answer)}</span>${escHtml(ex.explain)}`;
+        const s = loadSolved(); s[idx]=true; saveSolved(s);
+        // 同步刷新练习题列表缓存
+        renderExercises();
+      } else {
+        // 标记失败用例
+        const ex = EXERCISES[idx];
+        let re;
+        try { re = new RegExp(userPattern, (ex.flags||"").replace(/g/g,"")); } catch(err){ re=null; }
+        ex.tests.forEach((t,i)=>{
+          let pass = false;
+          if(re){ pass = re.test(t.text) === !!t.y; }
+          cases[i].classList.add(pass?"pass":"fail");
+        });
+        ans.classList.add("show");
+        ans.innerHTML = `<b>未通过 ${res.failed.length} 个用例</b><span class="ans-pattern">提示: ${escHtml(ex.explain)}</span>参考: <span class="ans-pattern">${escHtml(ex.answer)}</span>`;
+      }
+    }
+  });
+}
+
+/* =====================================================================
+   13. 初始化
+   ===================================================================== */
+function init(){
+  bindEvents();
+  const savedPattern = localStorage.getItem(LS.pattern) || "\\d{3}-\\d{4}-\\d{4}";
+  const savedFlags = localStorage.getItem(LS.flags) || "g";
+  const savedText = localStorage.getItem(LS.text) || "联系电话 138-0011-2233，备选 159-8888-7777。\nThe date 2026-07-26.";
+  $("#regexInput").value = savedPattern;
+  $("#testText").value = savedText;
+  setFlags(savedFlags);
+  renderCheat();
+  renderExercises();
+  switchTab("cheat");
+  highlightMatches();
+}
+init();
+</script>
+</body>
+</html>

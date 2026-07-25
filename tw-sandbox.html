@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TW Sandbox — 交互式算法可视化沙盒</title>
+<style>
+  :root{
+    --bg:#08090a; --bg2:#0c0d0f; --bg3:#0a0b0d; --panel:#0e0f12; --panel2:#101116;
+    --border:#191a1d; --border2:#232428; --grid:#151618;
+    --text:#e6e7ea; --muted:#8a8b8e; --dim:#5a5b5e; --faint:#3a3b3e;
+    --accent:#ec4899; --accent2:#f472b6; --accent-d:#3b1a2a; --accent-l:#f9a8d4;
+    --ok:#10b981; --ok-l:#34d399; --warn:#f59e0b; --err:#ef4444;
+    --mono:ui-monospace,"SFMono-Regular","SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    --r:8px; --header-h:52px; --console-h:188px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    font-size:13px; line-height:1.5; overflow:hidden;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  button,input,select,textarea{font:inherit; color:inherit}
+  button{cursor:pointer; background:none; border:none}
+  ::selection{background:rgba(236,72,153,.30)}
+
+  .app{display:flex; flex-direction:column; height:100vh; min-height:0}
+
+  /* ---------- Header ---------- */
+  header{
+    height:var(--header-h); flex:0 0 auto;
+    display:flex; align-items:center; gap:14px;
+    padding:0 16px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,var(--bg2),var(--bg));
+    position:relative; z-index:5;
+  }
+  header::after{content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(236,72,153,.5),transparent)}
+  .brand{display:flex; align-items:center; gap:10px; padding-right:14px; border-right:1px solid var(--border); height:30px}
+  .brand .mark{width:24px; height:24px; flex:0 0 auto}
+  .brand .name{font-weight:700; letter-spacing:-.02em; font-size:14px}
+  .brand .name b{color:var(--accent)}
+  .brand .tag{font-family:var(--mono); font-size:10px; color:var(--dim); letter-spacing:.08em; text-transform:uppercase; margin-top:-2px}
+
+  .grp{display:flex; align-items:center; gap:6px}
+  .grp.lbl{font-family:var(--mono); font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; padding-right:4px}
+  select.tmpl{
+    appearance:none; -webkit-appearance:none;
+    background:var(--panel); border:1px solid var(--border2); color:var(--text);
+    padding:7px 30px 7px 11px; border-radius:6px; font-size:12.5px; min-width:188px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%238a8b8e' stroke-width='1.4' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 11px center;
+  }
+  select.tmpl:hover{border-color:var(--faint)}
+  select.tmpl:focus{outline:none; border-color:var(--accent)}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    height:30px; padding:0 12px; border-radius:6px; font-size:12.5px; font-weight:500;
+    border:1px solid var(--border2); background:var(--panel); color:var(--text);
+    transition:background .12s, border-color .12s, color .12s, opacity .12s;
+  }
+  .btn:hover{background:var(--panel2); border-color:var(--faint)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#0a0b0d; font-weight:600}
+  .btn.primary:hover{background:var(--accent2); border-color:var(--accent2)}
+  .btn.ghost-step{border-color:var(--accent-d); color:var(--accent2)}
+  .btn.ghost-step:hover{background:var(--accent-d)}
+  .btn .k{font-family:var(--mono); font-size:10px; color:var(--dim); border:1px solid var(--border2); padding:0 4px; border-radius:3px; margin-left:4px}
+  .btn.primary .k{color:rgba(10,11,13,.55); border-color:rgba(10,11,13,.2)}
+  .btn svg{width:13px; height:13px}
+
+  .spacer{flex:1 1 auto}
+  .speed-wrap{display:flex; align-items:center; gap:8px}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:110px; height:4px;
+    background:var(--border2); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--bg); cursor:pointer; box-shadow:0 0 0 1px var(--accent)}
+  input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:50%; background:var(--accent); border:2px solid var(--bg); cursor:pointer}
+  .speed-val{font-family:var(--mono); font-size:11px; color:var(--muted); width:30px; text-align:right}
+
+  /* ---------- Main split ---------- */
+  main{flex:1 1 auto; display:flex; min-height:0; min-width:0}
+  .pane{display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg)}
+  .editor-pane{flex:0 0 46%; border-right:1px solid var(--border)}
+  .viz-pane{flex:1 1 auto; min-width:0}
+  .pane-head{
+    height:34px; flex:0 0 auto; display:flex; align-items:center; gap:10px;
+    padding:0 12px; border-bottom:1px solid var(--border); background:var(--bg2);
+    font-family:var(--mono); font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.1em;
+  }
+  .pane-head .dot{width:7px; height:7px; border-radius:50%; background:var(--faint)}
+  .pane-head .dot.live{background:var(--accent); box-shadow:0 0 8px rgba(236,72,153,.7)}
+  .pane-head .dot.ok{background:var(--ok)}
+  .pane-head .right{margin-left:auto; display:flex; gap:14px; align-items:center}
+  .pane-head .stat{display:flex; gap:6px; align-items:center}
+  .pane-head .stat b{color:var(--text); font-family:var(--mono); font-weight:500; letter-spacing:0; text-transform:none}
+  .pane-head .badge{padding:1px 7px; border:1px solid var(--border2); border-radius:10px; color:var(--muted); text-transform:none; letter-spacing:0; font-size:10px}
+
+  /* ---------- Editor ---------- */
+  .editor{flex:1 1 auto; display:flex; min-height:0; position:relative; background:var(--bg3); font-family:var(--mono)}
+  .gutter{
+    flex:0 0 auto; width:48px; padding:14px 8px 14px 0; text-align:right;
+    color:var(--dim); font-size:12.5px; line-height:1.62; user-select:none;
+    background:var(--bg3); border-right:1px solid var(--border); overflow:hidden; white-space:pre;
+    will-change:transform;
+  }
+  .gutter .cur{color:var(--accent)}
+  textarea.code{
+    flex:1 1 auto; min-width:0; border:0; outline:none; resize:none;
+    background:transparent; color:#d7d8db; padding:14px 14px 60px 12px;
+    font-family:var(--mono); font-size:12.5px; line-height:1.62; tab-size:2;
+    white-space:pre; overflow:auto; caret-color:var(--accent);
+  }
+  textarea.code::placeholder{color:var(--dim)}
+
+  /* ---------- Viz ---------- */
+  .viz-body{flex:1 1 auto; min-height:0; position:relative; overflow:hidden; background:
+    radial-gradient(circle at 50% 0%, rgba(236,72,153,.05), transparent 55%), var(--bg);}
+  .viz-body::before{content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:32px 32px; opacity:.35; mask-image:radial-gradient(circle at 50% 45%,#000 35%,transparent 80%)}
+  #viz{position:absolute; inset:0; width:100%; height:100%}
+  .viz-empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--dim); pointer-events:none}
+  .viz-empty .big{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase}
+  .viz-empty .sub{font-size:12px; color:var(--faint)}
+
+  /* ---------- Console ---------- */
+  .console-wrap{flex:0 0 var(--console-h); display:flex; flex-direction:column; border-top:1px solid var(--border); background:var(--bg2); min-height:0}
+  .console-head{
+    height:32px; flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:0 14px;
+    border-bottom:1px solid var(--border); background:var(--bg2);
+    font-family:var(--mono); font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.1em;
+  }
+  .console-head .clear{margin-left:auto; color:var(--muted); font-size:11px; text-transform:none; letter-spacing:0; padding:3px 8px; border-radius:5px}
+  .console-head .clear:hover{background:var(--panel); color:var(--text)}
+  .console{
+    flex:1 1 auto; overflow:auto; padding:8px 14px 12px; font-family:var(--mono); font-size:12px; line-height:1.6;
+  }
+  .logline{white-space:pre-wrap; word-break:break-word; padding:1px 0}
+  .logline.log{color:#c8c9cc}
+  .logline.step{color:var(--accent2)}
+  .logline.info{color:#7dd3fc}
+  .logline.ok{color:var(--ok-l)}
+  .logline.warn{color:var(--warn)}
+  .logline.err{color:#fca5a5}
+  .logline .t{color:var(--dim); margin-right:8px}
+
+  /* scrollbar */
+  ::-webkit-scrollbar{width:10px; height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border2); border-radius:5px; border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--faint)}
+  textarea.code::-webkit-scrollbar-thumb{background:#26272a}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:920px){
+    :root{--console-h:150px}
+    main{flex-direction:column}
+    .editor-pane{flex:0 0 45%; border-right:0; border-bottom:1px solid var(--border)}
+    .viz-pane{flex:1 1 auto}
+    header{flex-wrap:wrap; height:auto; padding:8px 12px; gap:8px}
+    .brand{border-right:0; padding-right:0}
+    .spacer{display:none}
+    select.tmpl{flex:1; min-width:140px}
+    input[type=range]{width:80px}
+  }
+
+  /* ---------- Reduced motion ---------- */
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important; animation:none !important}
+    .pane-head .dot.live{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== Header ===== -->
+  <header>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#0e0f12" stroke="#232428"/>
+        <path d="M6 16V8l4 5 4-5v8" stroke="#ec4899" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18" cy="8" r="2" fill="#ec4899"/>
+      </svg>
+      <div>
+        <div class="name">TW <b>Sandbox</b></div>
+        <div class="tag">algorithm playground</div>
+      </div>
+    </div>
+
+    <span class="grp lbl">模板</span>
+    <select class="tmpl" id="tmpl" title="选择模板"></select>
+
+    <div class="grp">
+      <button class="btn primary" id="btnRun" title="运行 (Ctrl+Enter)">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>运行<span class="k">⌘↵</span>
+      </button>
+      <button class="btn ghost-step" id="btnStep" title="单步执行 / 进入手动模式">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4v16M13 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>单步
+      </button>
+      <button class="btn" id="btnReset" title="重置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>重置
+      </button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="speed-wrap">
+      <span class="grp lbl">速度</span>
+      <input type="range" id="speed" min="1" max="100" value="42" />
+      <span class="speed-val" id="speedVal">42</span>
+    </div>
+  </header>
+
+  <!-- ===== Main split ===== -->
+  <main>
+    <!-- editor -->
+    <section class="pane editor-pane">
+      <div class="pane-head">
+        <span class="dot" id="edDot"></span>
+        <span>code.js</span>
+        <span class="badge" id="tplName">—</span>
+        <div class="right">
+          <span class="stat">行 <b id="lineCount">0</b></span>
+          <span class="stat">步 <b id="stepCount">0</b></span>
+        </div>
+      </div>
+      <div class="editor">
+        <div class="gutter" id="gutter">1</div>
+        <textarea class="code" id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="// 在这里编写或编辑代码…"></textarea>
+      </div>
+    </section>
+
+    <!-- visualization -->
+    <section class="pane viz-pane">
+      <div class="pane-head">
+        <span class="dot" id="vizDot"></span>
+        <span>visualization</span>
+        <div class="right">
+          <span class="stat" id="modeStat">就绪</span>
+        </div>
+      </div>
+      <div class="viz-body">
+        <svg id="viz" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#ec4899"/>
+            </marker>
+          </defs>
+        </svg>
+        <div class="viz-empty" id="vizEmpty">
+          <div class="big">READY</div>
+          <div class="sub">选择模板并点击「运行」开始可视化</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Console ===== -->
+  <div class="console-wrap">
+    <div class="console-head">
+      <span class="dot" style="width:7px;height:7px;border-radius:50%;background:#7dd3fc"></span>
+      <span>console</span>
+      <button class="clear" id="clearConsole">清空</button>
+    </div>
+    <div class="console" id="console"></div>
+  </div>
+</div>
+
+<!-- ===== Template source blocks (raw text, no parsing) ===== -->
+<script type="text/plain" id="tpl-bubble">
+// ─ 冒泡排序 ─────────────────────────────
+// 相邻元素两两比较，较大者后移
+// 可改 arr 数据，或调整内层循环逻辑
+const arr = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+print('初始数组:', arr.join(' '));
+
+for (let i = 0; i < arr.length - 1; i++) {
+  for (let j = 0; j < arr.length - 1 - i; j++) {
+    drawBars(arr, { compare: [j, j + 1], done: range(arr.length - i, arr.length) });
+    await step(`比较 [${j}]=${arr[j]} 与 [${j + 1}]=${arr[j + 1]}`);
+    if (arr[j] > arr[j + 1]) {
+      [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+      drawBars(arr, { compare: [j, j + 1], done: range(arr.length - i, arr.length) });
+      await step('交换');
+    }
+  }
+}
+drawBars(arr, { done: range(0, arr.length) });
+print('排序完成:', arr.join(' '));
+</script>
+
+<script type="text/plain" id="tpl-list">
+// ─ 链表操作 ─────────────────────────────
+// 单链表：insert 尾插 / find 顺序查找
+class LNode { constructor(v) { this.val = v; this.next = null; } }
+
+let head = null;
+
+async function insert(v) {
+  const n = new LNode(v);
+  if (!head) head = n;
+  else {
+    let cur = head;
+    while (cur.next) cur = cur.next;
+    cur.next = n;
+  }
+  drawList(head, { highlight: v, note: `插入 ${v}` });
+  await step();
+}
+
+async function find(v) {
+  let cur = head, i = 0;
+  while (cur) {
+    drawList(head, { highlight: cur.val, note: `查找 ${v} @${i}` });
+    if (cur.val === v) { print(`命中：${v} 在位置 ${i}`); return; }
+    await step();
+    cur = cur.next; i++;
+  }
+  drawList(head, { note: `${v} 不存在` });
+  print(`未命中：${v}`);
+}
+
+for (const v of [3, 1, 4, 1, 5, 9, 2, 6]) await insert(v);
+await step('插入完成');
+await find(5);
+</script>
+
+<script type="text/plain" id="tpl-tree">
+// ─ 二叉树遍历 ─────────────────────────────
+// 前序 / 中序 / 后序 —— 只需移动「访问」那两行的位置
+class TNode { constructor(v) { this.val = v; this.left = null; this.right = null; } }
+function build(arr, i = 0) {
+  if (i >= arr.length || arr[i] == null) return null;
+  const n = new TNode(arr[i]);
+  n.left = build(arr, 2 * i + 1);
+  n.right = build(arr, 2 * i + 2);
+  return n;
+}
+const root = build([1, 2, 3, 4, 5, 6, 7]);
+const order = [];
+
+async function pre(n) {
+  if (!n) return;
+  order.push(n.val);                       // ← 访问节点（前序）
+  drawTree(root, { active: n.val, path: [...order] });
+  await step(`前序访问 ${n.val}`);
+  await pre(n.left);
+  await pre(n.right);
+}
+await pre(root);
+drawTree(root, { done: order });
+print('前序:', order.join(' → '));
+</script>
+
+<script type="text/plain" id="tpl-hash">
+// ─ 哈希表（链地址法）─────────────────────
+const SIZE = 7;
+const table = Array.from({ length: SIZE }, () => []);
+function hash(key) { return key % SIZE; }
+
+async function insert(key) {
+  const h = hash(key);
+  table[h].push(key);
+  drawTable(table, { row: h, note: `hash(${key}) = ${h} → 挂入桶` });
+  await step();
+}
+async function find(key) {
+  const h = hash(key);
+  for (let i = 0; i < table[h].length; i++) {
+    drawTable(table, { row: h, col: i, note: `桶 ${h} 中查找 ${key}` });
+    if (table[h][i] === key) { print(`命中：${key}`); return; }
+    await step();
+  }
+  drawTable(table, { row: h, note: `${key} 不存在` });
+  print(`未命中：${key}`);
+}
+
+for (const v of [10, 22, 31, 4, 15, 28, 17, 88, 59]) await insert(v);
+await step('插入完成');
+await find(28);
+</script>
+
+<script type="text/plain" id="tpl-graph">
+// ─ 图的 BFS / DFS ────────────────────────────
+// 改 q.shift() → q.pop() 即变 DFS
+const nodes = ['A', 'B', 'C', 'D', 'E', 'F'];
+const adj = { A: ['B', 'C'], B: ['A', 'D', 'E'], C: ['A', 'F'], D: ['B'], E: ['B', 'F'], F: ['C', 'E'] };
+const pos  = { A: [1, 1], B: [2, 0], C: [2, 2], D: [3, 0], E: [3, 2], F: [4, 1] };
+const visited = new Set();
+
+async function bfs(start) {
+  const q = [start];
+  visited.add(start);
+  while (q.length) {
+    const u = q.shift();
+    drawGraph(nodes, adj, pos, { active: u, visited: [...visited], note: `访问 ${u}` });
+    await step();
+    for (const v of adj[u]) if (!visited.has(v)) { visited.add(v); q.push(v); }
+  }
+  drawGraph(nodes, adj, pos, { visited: [...visited], done: true });
+  print('遍历顺序:', [...visited].join(' → '));
+}
+await bfs('A');
+</script>
+
+<script type="text/plain" id="tpl-stack">
+// ─ 栈与队列 ─────────────────────────────
+// push/pop 为栈；改用 unshift/shift 则成队列
+const stack = [];
+async function push(v) {
+  stack.push(v);
+  drawBars(stack, { note: `push ${v}` });
+  await step();
+}
+async function pop() {
+  const v = stack.pop();
+  drawBars(stack, { note: `pop ${v}` });
+  await step();
+  return v;
+}
+
+for (const v of [3, 1, 4, 1, 5, 9, 2, 6]) await push(v);
+await step('栈满');
+print('栈顶元素:', await pop());
+print('栈顶元素:', await pop());
+print('栈剩余:', stack.join(', '));
+</script>
+
+<script type="text/plain" id="tpl-knapsack">
+// ─ 0-1 背包（动态规划）──────────────────────
+const W = 7;
+const items = [{ w: 1, v: 1 }, { w: 3, v: 4 }, { w: 4, v: 5 }, { w: 5, v: 7 }];
+const n = items.length;
+const dp = Array.from({ length: n + 1 }, () => new Array(W + 1).fill(0));
+
+for (let i = 1; i <= n; i++) {
+  for (let w = 0; w <= W; w++) {
+    const no = dp[i - 1][w];
+    const take = w >= items[i - 1].w ? dp[i - 1][w - items[i - 1].w] + items[i - 1].v : 0;
+    dp[i][w] = Math.max(no, take);
+    drawTable(dp, { cell: [i, w], note: `dp[${i}][${w}] = max(${no}, ${take}) = ${dp[i][w]}` });
+    await step();
+  }
+}
+drawTable(dp, { done: true });
+print(`最大价值: ${dp[n][W]}（容量 ${W}）`);
+</script>
+
+<script type="text/plain" id="tpl-quick">
+// ─ 快速排序（分治）──────────────────────
+const arr = [6, 3, 8, 1, 9, 2, 7, 4, 5];
+
+async function qs(lo, hi) {
+  if (lo >= hi) return;
+  const pivot = arr[hi];
+  let i = lo;
+  for (let j = lo; j < hi; j++) {
+    drawBars(arr, { compare: [j, hi], range: [lo, hi + 1], note: `pivot=${pivot} 比较 arr[${j}]` });
+    await step();
+    if (arr[j] < pivot) { [arr[i], arr[j]] = [arr[j], arr[i]]; i++; }
+  }
+  [arr[i], arr[hi]] = [arr[hi], arr[i]];
+  drawBars(arr, { range: [lo, hi + 1], note: `分区完成 pivot 定位 ${i}` });
+  await step();
+  await qs(lo, i - 1);
+  await qs(i + 1, hi);
+}
+await qs(0, arr.length - 1);
+drawBars(arr, { done: range(0, arr.length) });
+print('完成:', arr.join(' '));
+</script>
+
+<script type="text/plain" id="tpl-rb">
+// ─ 红黑树插入（旋转 + 变色）──────────────────
+const RED = 1, BLACK = 0;
+class RBNode {
+  constructor(v) { this.val = v; this.color = RED; this.left = this.right = this.parent = null; }
+}
+let root = null;
+const grand = n => n.parent && n.parent.parent;
+const uncle = n => { const g = grand(n); if (!g) return null; return n.parent === g.left ? g.right : g.left; };
+function rotL(n) {
+  const r = n.right; n.right = r.left; if (r.left) r.left.parent = n;
+  r.parent = n.parent; if (!n.parent) root = r; else if (n === n.parent.left) n.parent.left = r; else n.parent.right = r;
+  r.left = n; n.parent = r;
+}
+function rotR(n) {
+  const l = n.left; n.left = l.right; if (l.right) l.right.parent = n;
+  l.parent = n.parent; if (!n.parent) root = l; else if (n === n.parent.right) n.parent.right = l; else n.parent.left = l;
+  l.right = n; n.parent = l;
+}
+async function fix(n) {
+  while (n.parent && n.parent.color === RED) {
+    const g = grand(n), u = uncle(n);
+    drawTree(root, { active: n.val, note: '修复中' }); await step();
+    if (u && u.color === RED) { n.parent.color = BLACK; u.color = BLACK; g.color = RED; n = g; }
+    else {
+      if (n.parent === g.left) {
+        if (n === n.parent.right) { n = n.parent; rotL(n); }
+        n.parent.color = BLACK; grand(n).color = RED; rotR(grand(n));
+      } else {
+        if (n === n.parent.left) { n = n.parent; rotR(n); }
+        n.parent.color = BLACK; grand(n).color = RED; rotL(grand(n));
+      }
+    }
+  }
+  root.color = BLACK;
+}
+async function insert(v) {
+  let n = root, p = null;
+  while (n) { p = n; n = v < n.val ? n.left : n.right; }
+  const node = new RBNode(v); node.parent = p;
+  if (!p) root = node; else if (v < p.val) p.left = node; else p.right = node;
+  drawTree(root, { active: v, note: `插入 ${v} (红)` }); await step();
+  await fix(node);
+  drawTree(root, { done: true, note: '平衡' });
+}
+for (const v of [10, 20, 30, 15, 25, 5, 1]) await insert(v);
+print('红黑树构建完成');
+</script>
+
+<script type="text/plain" id="tpl-topo">
+// ─ 拓扑排序（Kahn 算法）──────────────────────
+const nodes = ['A', 'B', 'C', 'D', 'E'];
+const edges = [['A', 'B'], ['A', 'C'], ['B', 'D'], ['C', 'D'], ['D', 'E']];
+const pos = { A: [0, 1], B: [1, 0], C: [1, 2], D: [2, 1], E: [3, 1] };
+const indeg = {}; nodes.forEach(n => indeg[n] = 0);
+const adj = {}; nodes.forEach(n => adj[n] = []);
+edges.forEach(([a, b]) => { adj[a].push(b); indeg[b]++; });
+
+const order = [];
+async function topo() {
+  const q = nodes.filter(n => indeg[n] === 0);
+  while (q.length) {
+    const u = q.shift();
+    order.push(u);
+    drawGraph(nodes, edges, pos, { active: u, visited: order, note: `移除入度=0 的 ${u}` });
+    await step();
+    for (const v of adj[u]) if (--indeg[v] === 0) q.push(v);
+  }
+  drawGraph(nodes, edges, pos, { visited: order, done: true });
+  print('拓扑序:', order.join(' → '));
+}
+await topo();
+</script>
+
+<script type="text/plain" id="tpl-uf">
+// ─ 并查集（union-find + 路径压缩 + 按秩合并）──
+const n = 8;
+const parent = rangeArr(n).map(i => i);
+const rank = new Array(n).fill(0);
+
+function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+function union(a, b) {
+  let ra = find(a), rb = find(b);
+  if (ra === rb) return false;
+  if (rank[ra] < rank[rb]) [ra, rb] = [rb, ra];
+  parent[rb] = ra;
+  if (rank[ra] === rank[rb]) rank[ra]++;
+  return true;
+}
+async function show(note) { drawForest(parent, { note }); await step(); }
+
+await show('初始：每个元素自成一集合');
+for (const [a, b] of [[0, 1], [2, 3], [4, 5], [6, 7], [1, 3], [5, 7], [3, 7]]) {
+  union(a, b);
+  await show(`union(${a},${b})  →  find(${a})=${find(a)}, find(${b})=${find(b)}`);
+}
+print('最终：find(0) =', find(0), ' find(7) =', find(7));
+</script>
+
+<script type="text/plain" id="tpl-dijkstra">
+// ─ Dijkstra 最短路径（逐步松弛）──────────────
+const nodes = ['S', 'A', 'B', 'C', 'D', 'T'];
+const pos = { S: [0, 1], A: [1, 0], B: [1, 2], C: [2, 0], D: [2, 2], T: [3, 1] };
+const adj = { S: [['A', 7], ['B', 2]], A: [['C', 3]], B: [['A', 3], ['D', 5]], C: [['D', 1], ['T', 2]], D: [['T', 2]], T: [] };
+const dist = {}; nodes.forEach(n => dist[n] = Infinity);
+dist['S'] = 0;
+const visited = new Set();
+
+while (visited.size < nodes.length) {
+  let u = null, best = Infinity;
+  for (const n of nodes) if (!visited.has(n) && dist[n] < best) { best = dist[n]; u = n; }
+  if (!u) break;
+  visited.add(u);
+  drawGraph(nodes, adj, pos, { active: u, visited: [...visited], dist, note: `确定 ${u}  dist=${dist[u]}` });
+  await step();
+  for (const [v, w] of adj[u]) {
+    if (dist[u] + w < dist[v]) {
+      dist[v] = dist[u] + w;
+      drawGraph(nodes, adj, pos, { active: u, visited: [...visited], dist, note: `松弛 ${u}→${v} = ${dist[v]}` });
+      await step();
+    }
+  }
+}
+drawGraph(nodes, adj, pos, { visited: [...visited], dist, done: true });
+print('最短距离:', JSON.stringify(dist));
+</script>
+
+<!-- ===== Application logic ===== -->
+<script>
+(function(){
+  "use strict";
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const tmplSel = $('tmpl'), btnRun = $('btnRun'), btnStep = $('btnStep'), btnReset = $('btnReset');
+  const speed = $('speed'), speedVal = $('speedVal');
+  const codeEl = $('code'), gutter = $('gutter'), consoleEl = $('console');
+  const svg = $('viz'), vizEmpty = $('vizEmpty');
+  const edDot = $('edDot'), vizDot = $('vizDot');
+  const tplNameEl = $('tplName'), lineCountEl = $('lineCount'), stepCountEl = $('stepCount'), modeStat = $('modeStat');
+  const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  const NS = 'http://www.w3.org/2000/svg';
+  const LS_PFX = 'tw-sandbox-';
+
+  // ---------- Templates registry ----------
+  const TEMPLATES = [
+    { id:'bubble',    name:'冒泡排序可视化',     src:'tpl-bubble' },
+    { id:'list',      name:'链表操作',           src:'tpl-list' },
+    { id:'tree',      name:'二叉树遍历',         src:'tpl-tree' },
+    { id:'hash',      name:'哈希表（链地址法）', src:'tpl-hash' },
+    { id:'graph',     name:'图的 BFS / DFS',     src:'tpl-graph' },
+    { id:'stack',     name:'栈与队列',           src:'tpl-stack' },
+    { id:'knapsack',  name:'动态规划·背包',      src:'tpl-knapsack' },
+    { id:'quick',     name:'快速排序',           src:'tpl-quick' },
+    { id:'rb',        name:'红黑树插入',         src:'tpl-rb' },
+    { id:'topo',      name:'拓扑排序（Kahn）',   src:'tpl-topo' },
+    { id:'uf',        name:'并查集',             src:'tpl-uf' },
+    { id:'dijkstra',  name:'Dijkstra 最短路径',   src:'tpl-dijkstra' },
+  ];
+  TEMPLATES.forEach(t => { t.code = document.getElementById(t.src).textContent.replace(/^\n/, '').replace(/\s+$/,''); });
+
+  // populate select
+  TEMPLATES.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name;
+    tmplSel.appendChild(o);
+  });
+
+  // ---------- State ----------
+  const state = {
+    running:false, cancelled:false, manualMode:false,
+    stepResolve:null, stepReject:null, stepTimer:null,
+    stepCount:0, delay:700, startWithAdvance:false, suppressStopLog:false,
+    currentTpl:null,
+  };
+  const cancelErr = { _cancel:true, message:'cancelled' };
+
+  // ---------- SVG helpers ----------
+  function el(tag, attrs, text){
+    const e = document.createElementNS(NS, tag);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function clearSVG(){ while (svg.firstChild) svg.removeChild(svg.firstChild);
+    // keep marker defs
+    const d = el('defs');
+    const m = el('marker',{id:'arrow',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'7',markerHeight:'7',orient:'auto-start-reverse'});
+    m.appendChild(el('path',{d:'M0 0 L10 5 L0 10 z',fill:'#ec4899'}));
+    d.appendChild(m); svg.appendChild(d);
+    vizEmpty.style.display = 'none';
+  }
+  function noteText(txt){
+    if (!txt) return;
+    svg.appendChild(el('text',{x:450,y:30,'text-anchor':'middle',fill:'#ec4899','font-size':15,'font-family':FONT,'font-weight':600}, txt));
+  }
+
+  // ---------- Visualization API ----------
+  function drawBars(values, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520,pad=46,base=H-52;
+    const max = Math.max.apply(null, values.concat([1]));
+    const n = values.length;
+    const bw = (W - pad*2) / n;
+    const unit = (base - pad) / max;
+    values.forEach(function(v,i){
+      const x = pad + i*bw, h = Math.max(2, v*unit), y = base - h;
+      let fill = '#1a1b1d', stroke = '#2f3034';
+      if (opts.range && (i < opts.range[0] || i >= opts.range[1])) { fill='#101116'; stroke='#1c1d20'; }
+      if (opts.compare && (i === opts.compare[0] || i === opts.compare[1])) { fill='#ec4899'; stroke='#f9a8d4'; }
+      if (opts.done && i >= opts.done[0] && i < opts.done[1]) { fill='#10b981'; stroke='#34d399'; }
+      svg.appendChild(el('rect',{x:x+2, y:y, width:Math.max(2,bw-6), height:h, rx:3, fill:fill, stroke:stroke, 'stroke-width':1}));
+      svg.appendChild(el('text',{x:x+bw/2, y:base+18, 'text-anchor':'middle', fill:'#8a8b8e', 'font-size':12, 'font-family':FONT}, v));
+      if (h > 26) svg.appendChild(el('text',{x:x+bw/2, y:y-6, 'text-anchor':'middle', fill:'#c9cace', 'font-size':12, 'font-family':FONT}, v));
+    });
+    noteText(opts.note);
+  }
+
+  function drawGraph(nodes, edgesOrAdj, pos, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520;
+    let edges = [];
+    if (Array.isArray(edgesOrAdj)) {
+      edges = edgesOrAdj.map(function(e){ return Array.isArray(e) ? {a:e[0],b:e[1],w:null} : {a:e.a,b:e.b,w:e.w==null?null:e.w}; });
+    } else {
+      for (const u in edgesOrAdj) for (const nb of edgesOrAdj[u]) edges.push({a:u, b:Array.isArray(nb)?nb[0]:nb, w:Array.isArray(nb)?nb[1]:null});
+    }
+    const xs=[], ys=[];
+    for (const k in pos) { xs.push(pos[k][0]); ys.push(pos[k][1]); }
+    const minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs), minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
+    const sx = maxX-minX||1, sy = maxY-minY||1;
+    function mapP(p){ return [ (p[0]-minX)/sx*(W-180)+90, (p[1]-minY)/sy*(H-150)+70 ]; }
+    const P={}; nodes.forEach(function(id){ P[id]=mapP(pos[id]); });
+    const visited = new Set(opts.visited || []);
+    const active = opts.active != null ? [].concat(opts.active) : [];
+    const activeSet = new Set(active);
+
+    edges.forEach(function(e){
+      const a=P[e.a], b=P[e.b]; if(!a||!b) return;
+      const onPath = visited.has(e.a) && visited.has(e.b);
+      svg.appendChild(el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:onPath?'#ec4899':'#2c2d31','stroke-width':onPath?2.5:1.5,opacity:onPath?0.95:0.7}));
+      if (e.w != null){
+        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        svg.appendChild(el('rect',{x:mx-10,y:my-9,width:20,height:16,rx:3,fill:'#0e0f12',stroke:'#2c2d31'}));
+        svg.appendChild(el('text',{x:mx,y:my+3,'text-anchor':'middle',fill:'#9aa0a6','font-size':10,'font-family':FONT},e.w));
+      }
+    });
+    nodes.forEach(function(id){
+      const p=P[id], x=p[0], y=p[1];
+      const isActive=activeSet.has(id), isVis=visited.has(id);
+      let fill='#15161a', stroke='#34353a', txt='#d7d8db';
+      if (isVis){ fill='#3b1a2a'; stroke='#ec4899'; }
+      if (isActive){ fill='#ec4899'; stroke='#f9a8d4'; txt='#0a0b0d'; }
+      svg.appendChild(el('circle',{cx:x,cy:y,r:23,fill:fill,stroke:stroke,'stroke-width':isActive?3:2}));
+      svg.appendChild(el('text',{x:x,y:y+5,'text-anchor':'middle',fill:txt,'font-size':14,'font-weight':600,'font-family':FONT},id));
+      if (opts.dist && opts.dist[id]!=null && opts.dist[id]!==Infinity){
+        svg.appendChild(el('text',{x:x,y:y-32,'text-anchor':'middle',fill:'#9aa0a6','font-size':11,'font-family':FONT},opts.dist[id]));
+      }
+    });
+    noteText(opts.note);
+  }
+
+  function drawTree(root, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520;
+    if (!root){ noteText('(空树)'); return; }
+    const list=[]; let i=0, maxD=0;
+    (function inorder(n,d){
+      if(!n) return;
+      inorder(n.left,d+1);
+      n._i=i++; n._d=d; if(d>maxD)maxD=d; list.push(n);
+      inorder(n.right,d+1);
+    })(root,0);
+    const cnt=list.length;
+    const xMap=function(idx){ return 80 + idx*(W-160)/Math.max(1,cnt-1); };
+    const yMap=function(d){ return 80 + d*(H-150)/Math.max(1,maxD); };
+    list.forEach(function(n){
+      if(n.left) svg.appendChild(el('line',{x1:xMap(n._i),y1:yMap(n._d),x2:xMap(n.left._i),y2:yMap(n.left._d),stroke:'#2c2d31','stroke-width':1.5}));
+      if(n.right) svg.appendChild(el('line',{x1:xMap(n._i),y1:yMap(n._d),x2:xMap(n.right._i),y2:yMap(n.right._d),stroke:'#2c2d31','stroke-width':1.5}));
+    });
+    const active = opts.active != null ? new Set([].concat(opts.active)) : new Set();
+    const path = opts.path ? new Set(opts.path) : null;
+    const done = opts.done === true
+      ? new Set(list.map(function(n){ return n.val; }))
+      : (opts.done ? new Set([].concat(opts.done)) : new Set());
+    list.forEach(function(n){
+      const x=xMap(n._i), y=yMap(n._d);
+      let fill='#15161a', stroke='#34353a', txt='#d7d8db';
+      if (n.color===1){ fill='#3b1a2a'; stroke='#ec4899'; }
+      else if (n.color===0){ fill='#15161a'; stroke='#4a4b50'; }
+      if (path && path.has(n.val)){ fill='#2a1620'; stroke='#7a3a5a'; }
+      if (done.has(n.val)){ fill='#10b981'; stroke='#34d399'; txt='#0a0b0d'; }
+      if (active.has(n.val)){ fill='#ec4899'; stroke='#f9a8d4'; txt='#0a0b0d'; }
+      svg.appendChild(el('circle',{cx:x,cy:y,r:19,fill:fill,stroke:stroke,'stroke-width':active.has(n.val)?3:2}));
+      svg.appendChild(el('text',{x:x,y:y+5,'text-anchor':'middle',fill:txt,'font-size':13,'font-weight':600,'font-family':FONT},n.val));
+    });
+    noteText(opts.note);
+  }
+
+  function drawList(head, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520;
+    const arr=[]; let cur=head;
+    while(cur){ arr.push(cur); cur=cur.next; }
+    if(!arr.length){ noteText('(空链表)'); return; }
+    const n=arr.length, bw=110, gap=34;
+    const total=n*bw+(n-1)*gap, startX=(W-total)/2, y=H/2-30;
+    arr.forEach(function(node,i){
+      const x=startX+i*(bw+gap);
+      const hi = opts.highlight===node.val;
+      let fill='#15161a', stroke='#34353a', txt='#d7d8db';
+      if(hi){ fill='#ec4899'; stroke='#f9a8d4'; txt='#0a0b0d'; }
+      svg.appendChild(el('rect',{x:x,y:y,width:bw,height:60,rx:7,fill:fill,stroke:stroke,'stroke-width':hi?3:2}));
+      svg.appendChild(el('text',{x:x+bw/2,y:y+37,'text-anchor':'middle',fill:txt,'font-size':18,'font-weight':600,'font-family':FONT},node.val));
+      if(i<n-1){
+        svg.appendChild(el('line',{x1:x+bw+4,y1:y+30,x2:x+bw+gap-4,y2:y+30,stroke:'#ec4899','stroke-width':1.5,'marker-end':'url(#arrow)'}));
+      } else {
+        svg.appendChild(el('text',{x:x+bw+8,y:y+36,fill:'#6b6c70','font-size':12,'font-family':FONT},'∅'));
+      }
+    });
+    noteText(opts.note);
+  }
+
+  function drawTable(grid, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520;
+    const rows=grid.length;
+    let cols=0; for(let r=0;r<rows;r++) if(grid[r].length>cols) cols=grid[r].length;
+    const cw=Math.min(74,(W-90)/cols), ch=42;
+    const totalW=cols*cw, totalH=rows*ch;
+    const ox=(W-totalW)/2, oy=(H-totalH)/2+10;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const x=ox+c*cw, y=oy+r*ch, v=grid[r][c];
+        let fill='#101116', stroke='#232428', txt='#7a7b7e';
+        if(opts.row===r && opts.col==null){ fill='#2a1620'; stroke='#7a3a5a'; txt='#d7d8db'; }
+        if(opts.cell && opts.cell[0]===r && opts.cell[1]===c){ fill='#ec4899'; stroke='#f9a8d4'; txt='#0a0b0d'; }
+        else if(opts.row===r && opts.col===c){ fill='#ec4899'; stroke='#f9a8d4'; txt='#0a0b0d'; }
+        if(opts.done){ txt='#c9cace'; }
+        svg.appendChild(el('rect',{x:x,y:y,width:cw,height:ch,fill:fill,stroke:stroke,'stroke-width':1}));
+        if(v!=null) svg.appendChild(el('text',{x:x+cw/2,y:y+ch/2+5,'text-anchor':'middle',fill:txt,'font-size':13,'font-family':FONT},v));
+      }
+    }
+    noteText(opts.note);
+  }
+
+  function drawForest(parent, opts){
+    opts = opts || {};
+    clearSVG();
+    const W=900,H=520;
+    const n=parent.length;
+    const kids={}; for(let i=0;i<n;i++) kids[i]=[];
+    const roots=[];
+    for(let i=0;i<n;i++){ if(parent[i]===i) roots.push(i); else kids[parent[i]].push(i); }
+    const tcount=roots.length||1;
+    roots.forEach(function(r,ti){
+      const segW=(W-80)/tcount;
+      const cx=40+ti*segW+segW/2;
+      const list=[]; (function bfs(start){ const q=[start]; while(q.length){ const u=q.shift(); list.push(u); q.push.apply(q,kids[u]); } })(r);
+      const idx={}, depth={}; let order=0, maxd=0;
+      (function dfs(u,d){ idx[u]=order++; depth[u]=d; if(d>maxd)maxd=d; kids[u].forEach(function(c){ dfs(c,d+1); }); })(r,0);
+      const cnt=list.length;
+      list.forEach(function(u){
+        const x = cx-90 + idx[u]*(180/Math.max(1,cnt-1));
+        const y = 90 + depth[u]*78;
+        const p=parent[u];
+        if(p!==u){
+          const px = cx-90 + idx[p]*(180/Math.max(1,cnt-1));
+          const py = 90 + depth[p]*78;
+          svg.appendChild(el('line',{x1:px,y1:py,x2:x,y2:y,stroke:'#2c2d31','stroke-width':1.5}));
+        }
+        const isRoot = parent[u]===u;
+        svg.appendChild(el('circle',{cx:x,cy:y,r:20,fill:isRoot?'#3b1a2a':'#15161a',stroke:isRoot?'#ec4899':'#34353a','stroke-width':2}));
+        svg.appendChild(el('text',{x:x,y:y+5,'text-anchor':'middle',fill:'#d7d8db','font-size':14,'font-weight':600,'font-family':FONT},u));
+      });
+    });
+    noteText(opts.note);
+  }
+
+  // ---------- Helpers exposed to user code ----------
+  function range(a,b){ return Array.from({length:b-a},function(_,k){return a+k;}); }
+  function rangeArr(n){ return range(0,n); }
+  function edgesFrom(adj){
+    const e=[]; for(const u in adj) for(const nb of adj[u]) e.push({a:u,b:Array.isArray(nb)?nb[0]:nb,w:Array.isArray(nb)?nb[1]:null});
+    return e;
+  }
+  function clearViz(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const d=el('defs'); const m=el('marker',{id:'arrow',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'7',markerHeight:'7',orient:'auto-start-reverse'});
+    m.appendChild(el('path',{d:'M0 0 L10 5 L0 10 z',fill:'#ec4899'})); d.appendChild(m); svg.appendChild(d);
+    vizEmpty.style.display='';
+  }
+
+  // ---------- Console ----------
+  function fmt(a){
+    if (a === null) return 'null';
+    if (a === undefined) return 'undefined';
+    if (typeof a === 'string') return a;
+    if (typeof a === 'number' || typeof a === 'boolean') return String(a);
+    try { return JSON.stringify(a); } catch(e){ return String(a); }
+  }
+  function log(msg, cls){
+    cls = cls || 'log';
+    const d=document.createElement('div'); d.className='logline '+cls;
+    const t=document.createElement('span'); t.className='t'; t.textContent='›';
+    d.appendChild(t); d.appendChild(document.createTextNode(msg));
+    consoleEl.appendChild(d);
+    while(consoleEl.childNodes.length > 800) consoleEl.removeChild(consoleEl.firstChild);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+  function print(){
+    const args = Array.prototype.slice.call(arguments);
+    log(args.map(fmt).join(' '), 'log');
+  }
+  function clearConsole(){ consoleEl.innerHTML=''; }
+  $('clearConsole').addEventListener('click', function(){ clearConsole(); });
+
+  // ---------- Step / execution engine ----------
+  function speedToDelay(v){ return Math.max(15, Math.round(1100*(100-v)/99)+15); }
+  function setSpeed(v){
+    state.delay = speedToDelay(v);
+    speedVal.textContent = v;
+    try{ localStorage.setItem(LS_PFX+'speed', String(v)); }catch(e){}
+  }
+
+  function waitStep(){
+    return new Promise(function(resolve,reject){
+      state.stepResolve = resolve;
+      state.stepReject = reject;
+      if (state.startWithAdvance){
+        state.startWithAdvance = false;
+        queueMicrotask(doAdvance);
+        return;
+      }
+      if (!state.manualMode){
+        state.stepTimer = setTimeout(doAdvance, state.delay);
+      }
+    });
+  }
+  function doAdvance(){
+    if (state.stepTimer){ clearTimeout(state.stepTimer); state.stepTimer=null; }
+    const r = state.stepResolve;
+    state.stepResolve = null; state.stepReject = null;
+    if (r) r();
+  }
+  function doCancel(){
+    if (state.stepTimer){ clearTimeout(state.stepTimer); state.stepTimer=null; }
+    const rj = state.stepReject;
+    state.stepResolve = null; state.stepReject = null;
+    if (rj) rj(cancelErr);
+  }
+
+  async function step(note){
+    state.stepCount++;
+    stepCountEl.textContent = state.stepCount;
+    if (note) log(note, 'step');
+    if (state.cancelled) throw cancelErr;
+    await waitStep();
+    if (state.cancelled) throw cancelErr;
+  }
+  function sleep(ms){
+    return new Promise(function(resolve,reject){
+      const entry = { t:null, reject:reject };
+      entry.t = setTimeout(function(){
+        const arr = state._sleepTimers;
+        if (arr){ const i = arr.indexOf(entry); if (i>=0) arr.splice(i,1); }
+        resolve();
+      }, ms);
+      state._sleepTimers = state._sleepTimers || [];
+      state._sleepTimers.push(entry);
+    });
+  }
+
+  function updateButtons(){
+    const r = state.running;
+    btnRun.disabled = false;
+    btnRun.classList.toggle('primary', !r);
+    btnStep.disabled = false;
+    edDot.classList.toggle('live', r);
+    vizDot.classList.toggle('live', r);
+    if (r){
+      modeStat.textContent = state.manualMode ? '手动 · 等待单步' : '运行中';
+    } else {
+      modeStat.textContent = '就绪';
+    }
+  }
+
+  function resetRun(){
+    state.stepCount = 0;
+    state.manualMode = false;
+    state.suppressStopLog = false;
+    if (state.stepTimer){ clearTimeout(state.stepTimer); state.stepTimer=null; }
+    if (state._sleepTimers){ state._sleepTimers.forEach(function(x){ clearTimeout(x.t); }); state._sleepTimers=[]; }
+    state.stepResolve = null; state.stepReject = null;
+    stepCountEl.textContent = '0';
+  }
+
+  async function runCode(){
+    const code = codeEl.value;
+    state.running = true; state.cancelled = false; state.suppressStopLog = false;
+    updateButtons();
+    try {
+      const fn = new Function(
+        'print','step','sleep','clear','range','rangeArr','edgesFrom',
+        'drawBars','drawGraph','drawTree','drawList','drawTable','drawForest',
+        'Math','JSON','console',
+        'return (async function(){\n'+code+'\n}).call(this)'
+      );
+      await fn(print, step, sleep, clearViz, range, rangeArr, edgesFrom,
+               drawBars, drawGraph, drawTree, drawList, drawTable, drawForest,
+               Math, JSON, { log: print, error: print, warn: print });
+      if (!state.suppressStopLog) log('✓ 运行完成 ('+state.stepCount+' 步)', 'ok');
+    } catch(e){
+      if (e && e._cancel){
+        if (!state.suppressStopLog) log('■ 已停止', 'warn');
+      } else {
+        log('✗ ' + (e && e.stack ? e.message : (e && e.message || String(e))), 'err');
+        if (e && e.stack) console.error(e);
+      }
+    } finally {
+      state.running = false;
+      if (state.stepTimer){ clearTimeout(state.stepTimer); state.stepTimer=null; }
+      state.stepResolve = null; state.stepReject = null;
+      updateButtons();
+    }
+  }
+
+  // ---------- Controls ----------
+  function onRun(){
+    if (state.running){
+      // resume into auto mode if paused manually
+      if (state.manualMode && state.stepResolve){
+        state.manualMode = false;
+        doAdvance();
+      }
+      return;
+    }
+    clearConsole();
+    clearViz();
+    resetRun();
+    state.manualMode = false;
+    state.startWithAdvance = false;
+    runCode();
+  }
+  function onStep(){
+    if (state.running && state.stepResolve){
+      state.manualMode = true;
+      doAdvance();
+      updateButtons();
+      return;
+    }
+    if (!state.running){
+      clearViz();
+      resetRun();
+      state.manualMode = true;
+      state.startWithAdvance = true;
+      runCode();
+    }
+  }
+  function onReset(){
+    state.cancelled = true;
+    state.suppressStopLog = true;
+    doCancel();
+    if (state._sleepTimers){ state._sleepTimers.forEach(function(x){ clearTimeout(x.t); x.reject(cancelErr); }); state._sleepTimers=[]; }
+    state.running = false;
+    resetRun();
+    clearViz();
+    updateButtons();
+  }
+  btnRun.addEventListener('click', onRun);
+  btnStep.addEventListener('click', onStep);
+  btnReset.addEventListener('click', onReset);
+  speed.addEventListener('input', function(){ setSpeed(parseInt(speed.value,10)); });
+
+  // ---------- Editor with line numbers ----------
+  function updateGutter(){
+    const lines = codeEl.value.split('\n').length;
+    let html = '';
+    for (let i=1;i<=lines;i++) html += '<div>'+i+'</div>';
+    gutter.innerHTML = html;
+    lineCountEl.textContent = lines;
+  }
+  function syncScroll(){ gutter.style.transform = 'translateY(' + (-codeEl.scrollTop) + 'px)'; }
+  codeEl.addEventListener('input', function(){
+    updateGutter(); syncScroll(); saveCurrent();
+  });
+  codeEl.addEventListener('scroll', syncScroll);
+  codeEl.addEventListener('keydown', function(e){
+    if (e.key === 'Tab'){
+      e.preventDefault();
+      const s = codeEl.selectionStart, en = codeEl.selectionEnd;
+      codeEl.value = codeEl.value.slice(0,s) + '  ' + codeEl.value.slice(en);
+      codeEl.selectionStart = codeEl.selectionEnd = s + 2;
+      updateGutter(); saveCurrent();
+    } else if ((e.ctrlKey||e.metaKey) && e.key === 'Enter'){
+      e.preventDefault(); onRun();
+    }
+  });
+
+  // ---------- Templates / localStorage ----------
+  let saveTimer = null;
+  function saveCurrent(){
+    if (!state.currentTpl) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      try{ localStorage.setItem(LS_PFX+'code-'+state.currentTpl, codeEl.value); }catch(e){}
+    }, 400);
+  }
+  function loadTemplate(id){
+    onReset();
+    clearConsole();
+    state.currentTpl = id;
+    const t = TEMPLATES.filter(function(x){return x.id===id;})[0];
+    tplNameEl.textContent = t.name;
+    let code;
+    try{ code = localStorage.getItem(LS_PFX+'code-'+id); }catch(e){ code = null; }
+    if (!code) code = t.code;
+    codeEl.value = code;
+    updateGutter(); syncScroll();
+    try{ localStorage.setItem(LS_PFX+'active', id); }catch(e){}
+    log('已加载模板：' + t.name, 'info');
+  }
+  tmplSel.addEventListener('change', function(){ loadTemplate(tmplSel.value); });
+
+  // ---------- Init ----------
+  function init(){
+    setSpeed(parseInt(speed.value,10));
+    let active = null;
+    try{ active = localStorage.getItem(LS_PFX+'active'); }catch(e){}
+    if (!active || !TEMPLATES.some(function(t){return t.id===active;})) active = 'bubble';
+    tmplSel.value = active;
+    loadTemplate(active);
+    updateButtons();
+    log('TW Sandbox 已就绪 · 12 个模板', 'info');
+    log('提示：Ctrl+Enter 运行 · Tab 缩进 · 速度滑块控制自动步进，点「单步」进入手动模式', 'info');
+  }
+  init();
+})();
+</script>
+</body>
+</html>
