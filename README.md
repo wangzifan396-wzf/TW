@@ -1,9 +1,9 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 130 个零依赖交互式可视化项目，1040+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 140 个零依赖交互式可视化项目，1040+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-130-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1040+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-140-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1120+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -53,8 +53,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 130 |
-| 可视化模块 | 1040+ |
+| 项目总数 | 140 |
+| 可视化模块 | 1120+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~9.1 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -63,10 +63,10 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 52 | #01–#52 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
-| CS 系统 | 30 | #36–#48, #74–#90 | 分布式、数据库、编译器、操作系统、网络、区块链... |
-| CS 理论 | 15 | #53–#57, #72–#73, #85–#96 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
-| 交叉学科 | 30 | #51–#52, #58–#71, #91–#97 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
+| AI / 机器学习 | 56 | #01–#52 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
+| CS 系统 | 32 | #36–#48, #74–#90 | 分布式、数据库、编译器、操作系统、网络、区块链... |
+| CS 理论 | 16 | #53–#57, #72–#73, #85–#96 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
+| 交叉学科 | 33 | #51–#52, #58–#71, #91–#97 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
 
 ## 项目列表
 
