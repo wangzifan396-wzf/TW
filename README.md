@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 71 个零依赖交互式可视化项目，568+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 100 个零依赖交互式可视化项目，800+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -83,6 +83,35 @@
 | 69 | 函数式编程可视化实验室 | 高阶函数、柯里化、不可变数据、惰性求值、函子单子、模式匹配、尾递归、纯函数等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/fp-viz-lab/) |
 | 70 | 机器学习数学可视化实验室 | 线性变换、概率分布、梯度雅可比、特征分解、信息论度量、凸优化、贝叶斯推断、矩阵分解等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ml-math-viz-lab/) |
 | 71 | 编程范式可视化实验室 | 面向对象、命令式vs声明式、响应式、事件驱动、管道组合、元编程、面向切面、状态管理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/paradigm-viz-lab/) |
+| 72 | 计算复杂度可视化实验室 | P/NP 问题、NP-完全归约、时间复杂度层级、空间复杂度、交互式证明、近似算法、PCP 定理、电路复杂度等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/complexity-viz-lab/) |
+| 73 | 程序分析可视化实验室 | 数据流分析、控制流图、指针分析、抽象解释、符号执行、污点分析、过程间分析、SSA 构建等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/program-analysis-viz-lab/) |
+| 74 | 分布式算法可视化实验室 | 选举算法、Paxos 共识、Viewstamped、两阶段提交、快照算法、故障检测器、拜占庭协议、Gossip 传播等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/distributed-algo-viz-lab/) |
+| 75 | 高级密码学可视化实验室 | 同态加密、零知识证明、安全多方计算、承诺方案、不经意传输、秘密共享、VRF、后量子密码等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/crypto-advanced-viz-lab/) |
+| 76 | 自然语言处理可视化实验室 | 分词与子词、词向量、依存句法、序列标注、注意力对齐、预训练微调、文本生成、跨语言对齐等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/nlp-viz-lab/) |
+| 77 | 优化理论可视化实验室 | 梯度下降变体、牛顿/拟牛顿法、约束优化 KKT、对偶理论、凸优化投影、随机优化、亚梯度、坐标下降等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/optimization-viz-lab/) |
+| 78 | 统计学可视化实验室 | 假设检验、置信区间、贝叶斯推断、回归分析、方差分析、蒙特卡洛、自助法、非参数检验等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/statistics-viz-lab/) |
+| 79 | 高级网络可视化实验室 | BGP 路由策略、SDN 控制平面、QUIC 协议、CDN 调度、BBR 拥塞控制、NAT 穿透、TLS 握手、网络遥测等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/networking-advanced-viz-lab/) |
+| 80 | 存储系统可视化实验室 | LSM-Tree 合并、B-Tree 页分裂、WAL 日志、Copy-on-Write 快照、RAID 校验、压缩编码、热冷分层、MVCC 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/storage-viz-lab/) |
+| 81 | 高级数据库可视化实验室 | 查询优化器、连接算法、向量化执行、列式存储、物化视图、并发控制 2PL、分布式事务、CDC 增量同步等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/db-advanced-viz-lab/) |
+| 82 | 机器学习系统可视化实验室 | GPU 内存层次、流水线并行、张量并行、ZeRO 优化、混合精度、梯度检查点、显存优化、推理批处理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ml-systems-viz-lab/) |
+| 83 | 高级计算机视觉可视化实验室 | 特征匹配 SIFT、相机标定、立体视觉、光流估计、场景理解、全景拼接、3D 重建、动作识别等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/vision-advanced-viz-lab/) |
+| 84 | 高性能计算可视化实验室 | MPI 集合通信、OpenMP 并行、SIMD 向量化、Cache 优化、GPU 编程模型、Roofline 模型、分布式训练、性能分析等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hpc-viz-lab/) |
+| 85 | 类型论可视化实验室 | 简单类型 λ、依赖类型、System F、Curry-Howard 对应、和积类型、归纳类型、类型推断、线性类型等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/type-theory-viz-lab/) |
+| 86 | 范畴论可视化实验室 | 对象与态射、函子自然变换、极限与余极限、伴随函子、幺半范畴、笛卡尔闭范畴、Kan 扩张、Yoneda 引理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/category-theory-viz-lab/) |
+| 87 | Lambda 演算可视化实验室 | α/β/η 归约、Church 编码、不动点组合子 Y、类型化 λ、求值策略、正则序 vs 应用序、组合子逻辑 SKI、类型安全等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/lambda-calc-viz-lab/) |
+| 88 | 形式语义可视化实验室 | 操作语义、指称语义、公理语义 Hoare、最弱前置条件、环境与状态、续延语义、SECD 抽象机器、语义等价等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/semantics-viz-lab/) |
+| 89 | 可计算性可视化实验室 | 图灵机模拟、递归可枚举、停机问题、Rice 定理、归约证明、递归函数、λ 可定义性、计算层次等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/computability-viz-lab/) |
+| 90 | 信息检索可视化实验室 | 倒排索引、TF-IDF 排序、BM25、向量空间模型、概率检索、学习排序、查询扩展、评估指标等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/info-retrieval-viz-lab/) |
+| 91 | 物联网可视化实验室 | MQTT 发布订阅、CoAP 协议、边缘计算、设备孪生、OTA 升级、时序数据、协议适配、安全认证等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/iot-viz-lab/) |
+| 92 | 高级区块链可视化实验室 | 共识算法对比、零知识 Rollup、状态通道、跨链桥、MEV 分析、智能合约安全、分片扩容、门限签名等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/blockchain-advanced-viz-lab/) |
+| 93 | 高级机器人可视化实验室 | 运动学正逆解、雅可比矩阵、动力学拉格朗日、轨迹规划、SLAM 因子图、视觉伺服、阻抗控制、强化学习控制等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/robotics-advanced-viz-lab/) |
+| 94 | 偏微分方程可视化实验室 | 有限差分、有限元、迎风格式、稳定性 CFL、多重网格、边界条件、非线性守恒律、谱方法等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/pde-viz-lab/) |
+| 95 | 形式化方法可视化实验室 | 模型检测 CTL/LTL、NuSMV 建模、SPIN 验证、定理证明、CEGAR 精化、不变式推导、契约设计、运行时验证等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/formal-methods-viz-lab/) |
+| 96 | 量子计算进阶可视化实验室 | 量子纠错、Shor/Grover算法、量子隐形传态、QKD、变分算法、量子噪声、线路优化、量子优势验证等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/quantum-advanced-viz-lab/) |
+| 97 | 高级数据结构可视化实验室 | B+树、红黑树、跳表、区间树、Van Emde Boas、斐波那契堆、后缀树/数组、并查集进阶等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/data-structures-advanced-viz-lab/) |
+| 98 | 缓存体系结构可视化实验室 | CPU缓存层次、替换策略、缓存一致性、虚拟内存、写策略、分组策略、缓存行预取、多级缓存一致性等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/cache-arch-viz-lab/) |
+| 99 | 编译器进阶可视化实验室 | 中间表示、寄存器分配、指令调度、循环优化、全局优化、内联与特化、别名分析、代码生成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/compiler-advanced-viz-lab/) |
+| 100 | AI 对齐可视化实验室 | 奖励学习、Constitutional AI、价值对齐、可扩展监督、可解释性、红队测试、机制可解释、对齐评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-alignment-viz-lab/) |
 
 ## 技术栈
 
