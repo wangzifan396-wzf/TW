@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Universe · 知识星图 · 130 Projects Constellation</title>
+<meta name="description" content="130 个可视化项目的交互式知识星图 — 力导向星座图，探索概念之间的关联">
+<style>
+:root{
+  --bg:#060708;--surface:#0e1014;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.06);--border-strong:rgba(255,255,255,.12);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--violet:#a78bfa;--rose:#fb7185;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:3px}
+
+/* Star background */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.4),transparent),
+    radial-gradient(1px 1px at 60% 70%,rgba(255,255,255,.3),transparent),
+    radial-gradient(1px 1px at 80% 10%,rgba(255,255,255,.25),transparent),
+    radial-gradient(1px 1px at 10% 80%,rgba(255,255,255,.2),transparent),
+    radial-gradient(1px 1px at 90% 50%,rgba(255,255,255,.3),transparent),
+    radial-gradient(2px 2px at 45% 45%,rgba(167,139,250,.15),transparent),
+    radial-gradient(1px 1px at 35% 65%,rgba(45,212,255,.2),transparent),
+    radial-gradient(1px 1px at 75% 25%,rgba(52,211,153,.15),transparent);
+  background-size:200px 200px,250px 250px,300px 300px,180px 180px,220px 220px,400px 400px,350px 350px,280px 280px;
+}
+
+/* Nav */
+.nav{position:fixed;top:0;left:0;right:0;height:52px;z-index:900;background:rgba(6,7,8,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px}
+.nav .logo{font-weight:700;font-size:14px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.nav .logo .dot{width:7px;height:7px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet)}
+.nav .subtitle{font-size:11px;color:var(--faint);font-family:var(--font-mono)}
+.nav .links{margin-left:auto;display:flex;gap:20px;font-size:12px;color:var(--muted)}
+.nav .links a{transition:color .2s}
+.nav .links a:hover{color:var(--ink)}
+.nav .btn-back{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid var(--border-strong);font-size:12px;color:var(--muted);transition:all .2s;text-decoration:none}
+.nav .btn-back:hover{color:var(--ink);border-color:var(--violet);background:rgba(167,139,250,.08)}
+
+/* SVG canvas */
+#graph{position:fixed;top:52px;left:0;right:0;bottom:0;z-index:1;cursor:grab}
+#graph.dragging{cursor:grabbing}
+#graph svg{width:100%;height:100%;display:block}
+
+/* Edge styles */
+.edge{stroke:rgba(255,255,255,.06);stroke-width:1;transition:stroke .2s,stroke-width .2s}
+.edge.highlighted{stroke:rgba(167,139,250,.4);stroke-width:1.5}
+.edge.dimmed{stroke:rgba(255,255,255,.02)}
+
+/* Node styles */
+.node{cursor:pointer;transition:opacity .2s}
+.node circle{transition:r .2s,opacity .2s}
+.node:hover circle{filter:brightness(1.3)}
+.node.selected circle{stroke:var(--ink);stroke-width:2}
+.node.dimmed{opacity:.15}
+.node.matched circle{animation:nodePulse 1s ease-in-out infinite}
+@keyframes nodePulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.5)}}
+.node-label{fill:var(--muted);font-size:10px;font-family:var(--font-sans);pointer-events:none;text-anchor:middle;transition:opacity .2s;font-weight:500}
+.node-label.visible{opacity:1}
+.node-label.hidden{opacity:0}
+.node.dimmed .node-label{opacity:0}
+
+/* Control panel */
+.controls{position:fixed;top:68px;right:16px;z-index:800;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;width:260px;max-height:calc(100vh - 100px);overflow-y:auto}
+.ctrl-group{margin-bottom:16px}
+.ctrl-group:last-child{margin-bottom:0}
+.ctrl-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-family:var(--font-mono)}
+.ctrl-row{display:flex;gap:6px;flex-wrap:wrap}
+.cat-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:500;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);transition:all .15s;cursor:pointer;white-space:nowrap}
+.cat-btn:hover{color:var(--ink);border-color:var(--border-strong)}
+.cat-btn.active{color:var(--ink);border-color:var(--border-strong)}
+.cat-btn .dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.search-input{width:100%;padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--font-sans);background:var(--surface-2);border:1px solid var(--border);color:var(--ink);outline:none;transition:border-color .15s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--faint)}
+.stat-row{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);font-family:var(--font-mono);padding:3px 0}
+.stat-row b{color:var(--ink);font-weight:600}
+.btn-zoom{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .15s;font-size:14px}
+.btn-zoom:hover{color:var(--ink);border-color:var(--border-strong)}
+
+/* Info panel */
+.info-panel{position:fixed;bottom:16px;left:16px;z-index:800;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;width:300px;max-width:calc(100vw - 32px);transform:translateY(120%);transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.info-panel.visible{transform:translateY(0)}
+.info-panel .ip-cat{font-size:10px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.info-panel .ip-title{font-size:16px;font-weight:700;margin-bottom:8px;letter-spacing:-.01em}
+.info-panel .ip-en{font-size:11px;color:var(--faint);font-family:var(--font-mono);margin-bottom:10px}
+.info-panel .ip-desc{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.info-panel .ip-stats{display:flex;gap:16px;font-size:11px;color:var(--faint);font-family:var(--font-mono);margin-bottom:14px}
+.info-panel .ip-links{display:flex;gap:8px}
+.info-panel .ip-btn{flex:1;text-align:center;padding:8px 12px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;transition:all .2s;border:1px solid}
+.info-panel .ip-btn-demo{background:var(--violet);border-color:var(--violet);color:#fff}
+.info-panel .ip-btn-demo:hover{background:var(--accent);box-shadow:0 0 20px rgba(167,139,250,.3)}
+.info-panel .ip-btn-src{background:var(--surface-2);border-color:var(--border-strong);color:var(--muted)}
+.info-panel .ip-btn-src:hover{color:var(--ink)}
+.info-panel .ip-close{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:6px;border:none;background:var(--surface-3);color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s}
+.info-panel .ip-close:hover{color:var(--ink)}
+.info-panel .ip-connected{font-size:11px;color:var(--faint);margin-bottom:8px;font-family:var(--font-mono)}
+.info-panel .ip-connected-list{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+.info-panel .ip-chip{font-size:10px;padding:3px 7px;border-radius:4px;background:var(--surface-3);color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .15s}
+.info-panel .ip-chip:hover{color:var(--ink);border-color:var(--border-strong)}
+
+/* Loading */
+.loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:var(--bg);transition:opacity .5s}
+.loading.hidden{opacity:0;pointer-events:none}
+.loading .text{font-size:14px;color:var(--muted);font-family:var(--font-mono)}
+.loading .spinner{width:40px;height:40px;border:2px solid var(--surface-3);border-top-color:var(--violet);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Tooltip */
+.tooltip{position:fixed;z-index:950;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--ink);pointer-events:none;opacity:0;transition:opacity .15s;max-width:220px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.tooltip.visible{opacity:1}
+.tooltip .tt-cat{font-size:10px;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:2px}
+
+/* Mobile */
+@media(max-width:768px){
+  .controls{width:calc(100vw - 32px);right:16px;left:16px;max-height:40vh;top:60px}
+  .info-panel{width:calc(100vw - 32px)}
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div style="text-align:center">
+    <div class="spinner"></div>
+    <div class="text">Constructing Universe...</div>
+  </div>
+</div>
+
+<nav class="nav">
+  <div class="logo"><span class="dot"></span> TW Universe</div>
+  <div class="subtitle">130 Projects · Knowledge Constellation</div>
+  <div class="links">
+    <a href="https://wangzifan396-wzf.github.io/TW/">TW Hub</a>
+    <a href="https://github.com/wangzifan396-wzf">GitHub</a>
+  </div>
+  <a class="btn-back" href="https://wangzifan396-wzf.github.io/TW/">← Back to Hub</a>
+</nav>
+
+<div id="graph">
+  <svg id="svg"></svg>
+</div>
+
+<div class="controls" id="controls">
+  <div class="ctrl-group">
+    <div class="ctrl-label">Search</div>
+    <input type="text" class="search-input" id="search" placeholder="搜索项目..." autocomplete="off">
+  </div>
+  <div class="ctrl-group">
+    <div class="ctrl-label">Categories</div>
+    <div class="ctrl-row" id="catBtns">
+      <button class="cat-btn active" data-cat="all"><span class="dot" style="background:var(--ink)"></span>All</button>
+      <button class="cat-btn" data-cat="ai"><span class="dot" style="background:var(--cyan)"></span>AI/ML</button>
+      <button class="cat-btn" data-cat="systems"><span class="dot" style="background:var(--emerald)"></span>Systems</button>
+      <button class="cat-btn" data-cat="theory"><span class="dot" style="background:var(--amber)"></span>Theory</button>
+      <button class="cat-btn" data-cat="cross"><span class="dot" style="background:var(--violet)"></span>Cross</button>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <div class="ctrl-label">View</div>
+    <div class="ctrl-row">
+      <button class="btn-zoom" id="zoomIn" title="放大">+</button>
+      <button class="btn-zoom" id="zoomOut" title="缩小">−</button>
+      <button class="btn-zoom" id="zoomReset" title="重置" style="width:auto;padding:0 12px;font-size:11px">Reset</button>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <div class="ctrl-label">Stats</div>
+    <div class="stat-row"><span>Nodes</span><b id="statNodes">130</b></div>
+    <div class="stat-row"><span>Edges</span><b id="statEdges">0</b></div>
+    <div class="stat-row"><span>Avg connections</span><b id="statAvg">0</b></div>
+  </div>
+</div>
+
+<div class="info-panel" id="infoPanel">
+  <button class="ip-close" id="ipClose">✕</button>
+  <div class="ip-cat" id="ipCat"></div>
+  <div class="ip-title" id="ipTitle"></div>
+  <div class="ip-en" id="ipEn"></div>
+  <div class="ip-desc" id="ipDesc"></div>
+  <div class="ip-stats" id="ipStats"></div>
+  <div class="ip-connected" id="ipConnectedLabel"></div>
+  <div class="ip-connected-list" id="ipConnectedList"></div>
+  <div class="ip-links">
+    <a class="ip-btn ip-btn-demo" id="ipDemo" target="_blank">Open Demo</a>
+    <a class="ip-btn ip-btn-src" id="ipSrc" target="_blank">Source</a>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ====================================================================
+// NODE DATA - 130 projects
+// ====================================================================
+var CAT_COLORS = {ai:'#2dd4ff', systems:'#34d399', theory:'#fbbf24', cross:'#a78bfa'};
+var CAT_NAMES = {ai:'AI / 机器学习', systems:'CS 系统', theory:'CS 理论', cross:'交叉学科'};
+
+var NODES = [
+// AI/ML (52)
+{id:1,slug:'ai-trends-2026',cat:'ai',name:'AI 发展趋势 2026',en:'AI Trends 2026',desc:'聚合 Stanford HAI、McKinsey、Gartner 等权威数据源的 AI 产业全景报告',modules:6},
+{id:2,slug:'system-design-viz',cat:'ai',name:'System Design 可视化',en:'System Design',desc:'负载均衡、CAP 定理、一致性哈希等系统设计核心概念',modules:8},
+{id:3,slug:'llm-viz-lab',cat:'ai',name:'LLM 可视化实验室',en:'LLM Lab',desc:'Tokenizer、Attention、KV-Cache 等 LLM 核心概念',modules:8},
+{id:4,slug:'moe-viz-lab',cat:'ai',name:'MoE 可视化实验室',en:'MoE Lab',desc:'专家路由、Top-K 选择、稀疏激活等 MoE 架构',modules:8},
+{id:5,slug:'agent-viz-lab',cat:'ai',name:'Agent 可视化实验室',en:'Agent Lab',desc:'ReAct、工具调用、多智能体协作等 Agent 架构',modules:8},
+{id:6,slug:'rag-viz-lab',cat:'ai',name:'RAG 可视化实验室',en:'RAG Lab',desc:'文档分块、向量检索、重排序等 RAG 全流程',modules:8},
+{id:7,slug:'transformer-viz-lab',cat:'ai',name:'Transformer 可视化',en:'Transformer Lab',desc:'位置编码、Self-Attention、FFN 等 Transformer 架构',modules:8},
+{id:8,slug:'diffusion-viz-lab',cat:'ai',name:'Diffusion 可视化',en:'Diffusion Lab',desc:'前向加噪、反向去噪、U-Net 等扩散模型',modules:8},
+{id:9,slug:'rlhf-viz-lab',cat:'ai',name:'RLHF 可视化实验室',en:'RLHF Lab',desc:'PPO、DPO、奖励模型、安全对齐',modules:8},
+{id:10,slug:'inference-viz-lab',cat:'ai',name:'推理优化可视化',en:'Inference Lab',desc:'KV-Cache、PagedAttention、量化等推理优化',modules:8},
+{id:11,slug:'finetune-viz-lab',cat:'ai',name:'微调技术可视化',en:'Fine-tune Lab',desc:'LoRA、QLoRA、Adapter、Prefix Tuning',modules:8},
+{id:12,slug:'vector-db-viz-lab',cat:'ai',name:'向量数据库可视化',en:'Vector DB Lab',desc:'HNSW、IVF、PQ、混合检索',modules:8},
+{id:13,slug:'training-sys-viz-lab',cat:'ai',name:'AI 训练系统可视化',en:'Training Sys Lab',desc:'数据并行、张量并行、ZeRO',modules:8},
+{id:14,slug:'prompt-viz-lab',cat:'ai',name:'提示工程可视化',en:'Prompt Lab',desc:'CoT、ReAct、ToT、注入防御',modules:8},
+{id:15,slug:'multimodal-viz-lab',cat:'ai',name:'多模态融合可视化',en:'Multimodal Lab',desc:'CLIP、ViT、VQA、音频融合',modules:8},
+{id:16,slug:'eval-viz-lab',cat:'ai',name:'AI 评估可视化',en:'Eval Lab',desc:'MMLU、HumanEval、Arena Elo',modules:8},
+{id:17,slug:'kg-viz-lab',cat:'ai',name:'知识图谱可视化',en:'KG Lab',desc:'实体抽取、GraphRAG、GNN',modules:8},
+{id:18,slug:'interpretability-viz-lab',cat:'ai',name:'可解释性可视化',en:'Interpretability Lab',desc:'SHAP、注意力解释、TCAV、反事实',modules:8},
+{id:19,slug:'rl-viz-lab',cat:'ai',name:'强化学习可视化',en:'RL Lab',desc:'Q-Learning、DQN、PPO、MCTS',modules:8},
+{id:20,slug:'ai-safety-viz-lab',cat:'ai',name:'AI 安全可视化',en:'AI Safety Lab',desc:'对抗样本、红队、越狱、水印',modules:8},
+{id:21,slug:'speech-viz-lab',cat:'ai',name:'语音处理可视化',en:'Speech Lab',desc:'ASR、TTS、VAD、声码器、Whisper',modules:8},
+{id:22,slug:'sequence-viz-lab',cat:'ai',name:'序列模型可视化',en:'Sequence Lab',desc:'RNN/LSTM、Mamba、RWKV、线性注意力',modules:8},
+{id:23,slug:'automl-viz-lab',cat:'ai',name:'AutoML 可视化',en:'AutoML Lab',desc:'NAS、剪枝、蒸馏、量化、集成',modules:8},
+{id:24,slug:'cv-viz-lab',cat:'ai',name:'计算机视觉可视化',en:'CV Lab',desc:'CNN、ResNet、YOLO、U-Net、ViT、NMS',modules:8},
+{id:25,slug:'generative-viz-lab',cat:'ai',name:'生成模型可视化',en:'Generative Lab',desc:'GAN、VAE、归一化流、自回归',modules:8},
+{id:26,slug:'optimizer-viz-lab',cat:'ai',name:'优化算法可视化',en:'Optimizer Lab',desc:'SGD、Adam、Lion、学习率调度',modules:8},
+{id:27,slug:'mlops-viz-lab',cat:'ai',name:'MLOps 可视化',en:'MLOps Lab',desc:'模型服务、Canary、漂移检测、A/B',modules:8},
+{id:28,slug:'gnn-viz-lab',cat:'ai',name:'图神经网络可视化',en:'GNN Lab',desc:'消息传递、GCN、GAT、GraphSAGE',modules:8},
+{id:29,slug:'federated-viz-lab',cat:'ai',name:'联邦学习可视化',en:'Federated Lab',desc:'FedAvg、差分隐私、同态加密、SMPC',modules:8},
+{id:30,slug:'hardware-viz-lab',cat:'ai',name:'AI 芯片可视化',en:'Hardware Lab',desc:'GPU/TPU、Tensor Core、显存、NVLink',modules:8},
+{id:31,slug:'recsys-viz-lab',cat:'ai',name:'推荐系统可视化',en:'RecSys Lab',desc:'协同过滤、双塔、DIN、多目标排序',modules:8},
+{id:32,slug:'timeseries-viz-lab',cat:'ai',name:'时间序列可视化',en:'Time Series Lab',desc:'ARIMA、Prophet、DeepAR、PatchTST',modules:8},
+{id:33,slug:'causal-viz-lab',cat:'ai',name:'因果推断可视化',en:'Causal Lab',desc:'DAG、do-算子、反事实、倾向匹配',modules:8},
+{id:34,slug:'nerf-3dviz-lab',cat:'ai',name:'3D 视觉可视化',en:'NeRF/3D Lab',desc:'NeRF、Gaussian Splatting、点云、3D 重建',modules:8},
+{id:35,slug:'codegen-viz-lab',cat:'ai',name:'代码生成可视化',en:'CodeGen Lab',desc:'AST、Copilot 补全、Code LLM、RAG',modules:8},
+{id:36,slug:'nlp-viz-lab',cat:'ai',name:'NLP 可视化',en:'NLP Lab',desc:'分词、词向量、依存句法、序列标注',modules:8},
+{id:37,slug:'optimization-viz-lab',cat:'ai',name:'优化理论可视化',en:'Optimization Lab',desc:'梯度下降、牛顿法、KKT、对偶理论',modules:8},
+{id:38,slug:'statistics-viz-lab',cat:'ai',name:'统计学可视化',en:'Statistics Lab',desc:'假设检验、贝叶斯推断、回归、方差分析',modules:8},
+{id:39,slug:'ml-systems-viz-lab',cat:'ai',name:'ML 系统可视化',en:'ML Systems Lab',desc:'GPU 内存、流水线并行、ZeRO、混合精度',modules:8},
+{id:40,slug:'vision-advanced-viz-lab',cat:'ai',name:'高级 CV 可视化',en:'Advanced CV Lab',desc:'SIFT、相机标定、立体视觉、光流',modules:8},
+{id:41,slug:'ai-alignment-viz-lab',cat:'ai',name:'AI 对齐可视化',en:'AI Alignment Lab',desc:'奖励学习、Constitutional AI、价值对齐',modules:8},
+{id:42,slug:'self-supervised-viz-lab',cat:'ai',name:'自监督学习可视化',en:'Self-Supervised Lab',desc:'对比学习、掩码建模、预训练',modules:8},
+{id:43,slug:'gaussian-splatting-viz-lab',cat:'ai',name:'Gaussian Splatting 可视化',en:'GS Lab',desc:'3DGS、辐射场、新视角合成',modules:8},
+{id:44,slug:'quantization-viz-lab',cat:'ai',name:'量化可视化',en:'Quantization Lab',desc:'INT8、GGUF、模型压缩、Edge AI',modules:8},
+{id:45,slug:'diffusion-advanced-viz-lab',cat:'ai',name:'高级 Diffusion 可视化',en:'Advanced Diffusion Lab',desc:'DDIM、分类器引导、Latent Diffusion',modules:8},
+{id:46,slug:'video-viz-lab',cat:'ai',name:'视频生成可视化',en:'Video Lab',desc:'视频生成、时序建模、视频编辑',modules:8},
+{id:47,slug:'ai-compiler-viz-lab',cat:'ai',name:'AI 编译器可视化',en:'AI Compiler Lab',desc:'TVM、MLIR、XLA、图优化',modules:8},
+{id:48,slug:'transformer-evolution-viz-lab',cat:'ai',name:'Transformer 演化可视化',en:'Transformer Evolution Lab',desc:'高效注意力、Flash Attention、线性注意力',modules:8},
+{id:49,slug:'rag-advanced-viz-lab',cat:'ai',name:'高级 RAG 可视化',en:'Advanced RAG Lab',desc:'GraphRAG、混合搜索、重排序',modules:8},
+{id:50,slug:'meta-learning-viz-lab',cat:'ai',name:'元学习可视化',en:'Meta-Learning Lab',desc:'少样本学习、MAML、任务泛化',modules:8},
+{id:51,slug:'continual-learning-viz-lab',cat:'ai',name:'持续学习可视化',en:'Continual Learning Lab',desc:'灾难性遗忘、EWC、弹性权重',modules:8},
+{id:52,slug:'adversarial-ml-viz-lab',cat:'ai',name:'对抗 ML 可视化',en:'Adversarial ML Lab',desc:'对抗攻击、鲁棒性、规避',modules:8},
+
+// CS Systems (30)
+{id:53,slug:'distributed-viz-lab',cat:'systems',name:'分布式系统可视化',en:'Distributed Systems Lab',desc:'Raft 共识、Paxos、CRDT、领导者选举',modules:8},
+{id:54,slug:'database-viz-lab',cat:'systems',name:'数据库内核可视化',en:'Database Lab',desc:'B+Tree、LSM-Tree、MVCC、WAL',modules:8},
+{id:55,slug:'search-viz-lab',cat:'systems',name:'搜索引擎可视化',en:'Search Engine Lab',desc:'倒排索引、TF-IDF、BM25、PageRank',modules:8},
+{id:56,slug:'crypto-viz-lab',cat:'systems',name:'密码学可视化',en:'Cryptography Lab',desc:'AES、RSA、SHA-256、数字签名、TLS',modules:8},
+{id:57,slug:'compiler-viz-lab',cat:'systems',name:'编译原理可视化',en:'Compiler Lab',desc:'词法分析、语法分析、IR、代码优化',modules:8},
+{id:58,slug:'streaming-viz-lab',cat:'systems',name:'流处理可视化',en:'Streaming Lab',desc:'事件时间、窗口、Watermark、Kafka',modules:8},
+{id:59,slug:'os-viz-lab',cat:'systems',name:'操作系统可视化',en:'OS Lab',desc:'进程调度、虚拟内存、文件系统、中断',modules:8},
+{id:60,slug:'network-viz-lab',cat:'systems',name:'计算机网络可视化',en:'Network Lab',desc:'TCP、HTTP、DNS、路由、CDN、TLS',modules:8},
+{id:61,slug:'algorithm-viz-lab',cat:'systems',name:'数据结构与算法可视化',en:'Algorithm Lab',desc:'排序、BFS/DFS、DP、贪心、回溯',modules:8},
+{id:62,slug:'frontend-viz-lab',cat:'systems',name:'前端工程可视化',en:'Frontend Lab',desc:'浏览器渲染、Event Loop、V8 JIT、虚拟DOM',modules:8},
+{id:63,slug:'blockchain-viz-lab',cat:'systems',name:'区块链可视化',en:'Blockchain Lab',desc:'PoW/PoS、默克尔树、EVM、闪电网络',modules:8},
+{id:64,slug:'security-viz-lab',cat:'systems',name:'网络安全可视化',en:'Security Lab',desc:'DDoS、SQL注入、XSS/CSRF、WAF、IDS',modules:8},
+{id:65,slug:'quantum-viz-lab',cat:'systems',name:'量子计算可视化',en:'Quantum Computing Lab',desc:'Bloch球、量子门、叠加、纠缠、Grover',modules:8},
+{id:66,slug:'data-eng-viz-lab',cat:'systems',name:'数据工程可视化',en:'Data Eng Lab',desc:'ETL、数据湖、数据仓库、CDC',modules:8},
+{id:67,slug:'cloud-viz-lab',cat:'systems',name:'云原生可视化',en:'Cloud Lab',desc:'K8s、服务网格、容器化、弹性伸缩',modules:8},
+{id:68,slug:'distributed-algo-viz-lab',cat:'systems',name:'分布式算法可视化',en:'Distributed Algo Lab',desc:'选举、Paxos、拜占庭、Gossip',modules:8},
+{id:69,slug:'storage-viz-lab',cat:'systems',name:'存储系统可视化',en:'Storage Lab',desc:'LSM合并、B-Tree分裂、WAL、RAID',modules:8},
+{id:70,slug:'db-advanced-viz-lab',cat:'systems',name:'高级数据库可视化',en:'Advanced DB Lab',desc:'查询优化器、连接算法、列式存储',modules:8},
+{id:71,slug:'networking-advanced-viz-lab',cat:'systems',name:'高级网络可视化',en:'Advanced Network Lab',desc:'BGP、SDN、QUIC、BBR、NAT',modules:8},
+{id:72,slug:'cache-arch-viz-lab',cat:'systems',name:'缓存体系可视化',en:'Cache Arch Lab',desc:'CPU缓存、替换策略、缓存一致性',modules:8},
+{id:73,slug:'compiler-advanced-viz-lab',cat:'systems',name:'编译器进阶可视化',en:'Advanced Compiler Lab',desc:'寄存器分配、指令调度、循环优化',modules:8},
+{id:74,slug:'observability-viz-lab',cat:'systems',name:'可观测性可视化',en:'Observability Lab',desc:'监控、追踪、日志、OpenTelemetry',modules:8},
+{id:75,slug:'message-queue-viz-lab',cat:'systems',name:'消息队列可视化',en:'Message Queue Lab',desc:'Kafka、RabbitMQ、发布订阅',modules:8},
+{id:76,slug:'virtualization-viz-lab',cat:'systems',name:'虚拟化可视化',en:'Virtualization Lab',desc:'Hypervisor、容器、VM、Docker',modules:8},
+{id:77,slug:'wasm-viz-lab',cat:'systems',name:'WebAssembly 可视化',en:'WASM Lab',desc:'字节码、沙箱、浏览器 WASM',modules:8},
+{id:78,slug:'cicd-viz-lab',cat:'systems',name:'CI/CD 可视化',en:'CI/CD Lab',desc:'GitHub Actions、GitOps、部署',modules:8},
+{id:79,slug:'lakehouse-viz-lab',cat:'systems',name:'湖仓一体可视化',en:'Lakehouse Lab',desc:'Delta Lake、Iceberg、大数据',modules:8},
+{id:80,slug:'differential-privacy-viz-lab',cat:'systems',name:'差分隐私可视化',en:'DP Lab',desc:'隐私、噪声、数据匿名化',modules:8},
+{id:81,slug:'zero-trust-viz-lab',cat:'systems',name:'零信任可视化',en:'Zero Trust Lab',desc:'身份、微分段、网络安全',modules:8},
+{id:82,slug:'supply-chain-viz-lab',cat:'systems',name:'供应链安全可视化',en:'Supply Chain Lab',desc:'SBOM、依赖管理、漏洞',modules:8},
+
+// CS Theory (18)
+{id:83,slug:'complexity-viz-lab',cat:'theory',name:'计算复杂度可视化',en:'Complexity Lab',desc:'P/NP、NP-完全归约、PCP 定理',modules:8},
+{id:84,slug:'program-analysis-viz-lab',cat:'theory',name:'程序分析可视化',en:'Program Analysis Lab',desc:'数据流、控制流、指针分析、SSA',modules:8},
+{id:85,slug:'crypto-advanced-viz-lab',cat:'theory',name:'高级密码学可视化',en:'Advanced Crypto Lab',desc:'同态加密、零知识证明、后量子密码',modules:8},
+{id:86,slug:'type-theory-viz-lab',cat:'theory',name:'类型论可视化',en:'Type Theory Lab',desc:'依赖类型、System F、Curry-Howard',modules:8},
+{id:87,slug:'category-theory-viz-lab',cat:'theory',name:'范畴论可视化',en:'Category Theory Lab',desc:'函子、自然变换、伴随、Yoneda',modules:8},
+{id:88,slug:'lambda-calc-viz-lab',cat:'theory',name:'Lambda 演算可视化',en:'Lambda Calc Lab',desc:'α/β/η归约、Church编码、Y组合子',modules:8},
+{id:89,slug:'semantics-viz-lab',cat:'theory',name:'形式语义可视化',en:'Semantics Lab',desc:'操作语义、指称语义、Hoare逻辑',modules:8},
+{id:90,slug:'computability-viz-lab',cat:'theory',name:'可计算性可视化',en:'Computability Lab',desc:'图灵机、停机问题、Rice定理',modules:8},
+{id:91,slug:'formal-methods-viz-lab',cat:'theory',name:'形式化方法可视化',en:'Formal Methods Lab',desc:'模型检测、CTL/LTL、CEGAR',modules:8},
+{id:92,slug:'formal-viz-lab',cat:'theory',name:'形式化验证可视化',en:'Formal Verification Lab',desc:'模型检测、定理证明、SAT/SMT',modules:8},
+{id:93,slug:'logic-viz-lab',cat:'theory',name:'逻辑学可视化',en:'Logic Lab',desc:'命题逻辑、一阶逻辑、模态逻辑',modules:8},
+{id:94,slug:'automata-viz-lab',cat:'theory',name:'自动机可视化',en:'Automata Lab',desc:'DFA、NFA、正则表达式、图灵机',modules:8},
+{id:95,slug:'pl-viz-lab',cat:'theory',name:'编程语言理论可视化',en:'PL Theory Lab',desc:'Lambda演算、类型系统、GC、闭包',modules:8},
+{id:96,slug:'se-viz-lab',cat:'theory',name:'软件工程可视化',en:'SE Lab',desc:'设计模式、SOLID、测试、CI/CD',modules:8},
+{id:97,slug:'arch-viz-lab',cat:'theory',name:'计算机体系结构可视化',en:'Architecture Lab',desc:'CPU流水线、Cache、分支预测、乱序',modules:8},
+{id:98,slug:'coding-theory-viz-lab',cat:'theory',name:'编码理论可视化',en:'Coding Theory Lab',desc:'纠错码、Hamming、Reed-Solomon',modules:8},
+{id:99,slug:'stochastic-process-viz-lab',cat:'theory',name:'随机过程可视化',en:'Stochastic Process Lab',desc:'Markov链、Poisson、Brown运动',modules:8},
+{id:100,slug:'game-theory-advanced-viz-lab',cat:'theory',name:'高级博弈论可视化',en:'Advanced Game Theory Lab',desc:'纳什均衡、机制设计、拍卖、Shapley',modules:8},
+
+// Cross-disciplinary (30)
+{id:101,slug:'graphics-viz-lab',cat:'cross',name:'计算机图形学可视化',en:'Graphics Lab',desc:'光栅化、光线追踪、着色、纹理映射',modules:8},
+{id:102,slug:'info-theory-viz-lab',cat:'cross',name:'信息论可视化',en:'Info Theory Lab',desc:'香农熵、霍夫曼编码、信道容量',modules:8},
+{id:103,slug:'game-viz-lab',cat:'cross',name:'博弈论可视化',en:'Game Theory Lab',desc:'纳什均衡、囚徒困境、拍卖',modules:8},
+{id:104,slug:'geometry-viz-lab',cat:'cross',name:'计算几何可视化',en:'Geometry Lab',desc:'凸包、Delaunay、Voronoi、碰撞检测',modules:8},
+{id:105,slug:'robotics-viz-lab',cat:'cross',name:'机器人学可视化',en:'Robotics Lab',desc:'运动学、SLAM、运动规划、PID',modules:8},
+{id:106,slug:'signal-viz-lab',cat:'cross',name:'信号处理可视化',en:'Signal Lab',desc:'FFT、FIR/IIR滤波器、采样定理',modules:8},
+{id:107,slug:'numerical-viz-lab',cat:'cross',name:'数值计算可视化',en:'Numerical Lab',desc:'矩阵分解、数值积分、ODE求解',modules:8},
+{id:108,slug:'pgm-viz-lab',cat:'cross',name:'概率图模型可视化',en:'PGM Lab',desc:'贝叶斯网络、MRF、HMM、变分推断',modules:8},
+{id:109,slug:'bioinfo-viz-lab',cat:'cross',name:'生物信息学可视化',en:'Bioinformatics Lab',desc:'序列比对、系统发生树、蛋白质折叠',modules:8},
+{id:110,slug:'scivis-viz-lab',cat:'cross',name:'科学可视化可视化',en:'SciVis Lab',desc:'Marching Cubes、体积渲染、流场',modules:8},
+{id:111,slug:'graph-viz-lab',cat:'cross',name:'图论算法可视化',en:'Graph Theory Lab',desc:'最短路径、MST、网络流、着色',modules:8},
+{id:112,slug:'concurrency-viz-lab',cat:'cross',name:'并发理论可视化',en:'Concurrency Lab',desc:'互斥锁、死锁、信号量、CAS',modules:8},
+{id:113,slug:'fp-viz-lab',cat:'cross',name:'函数式编程可视化',en:'FP Lab',desc:'高阶函数、柯里化、Monad、模式匹配',modules:8},
+{id:114,slug:'ml-math-viz-lab',cat:'cross',name:'ML 数学可视化',en:'ML Math Lab',desc:'线性变换、概率分布、梯度、特征分解',modules:8},
+{id:115,slug:'paradigm-viz-lab',cat:'cross',name:'编程范式可视化',en:'Paradigm Lab',desc:'OOP、函数式、响应式、元编程',modules:8},
+{id:116,slug:'hpc-viz-lab',cat:'cross',name:'高性能计算可视化',en:'HPC Lab',desc:'MPI、OpenMP、SIMD、GPU编程',modules:8},
+{id:117,slug:'info-retrieval-viz-lab',cat:'cross',name:'信息检索可视化',en:'IR Lab',desc:'倒排索引、BM25、学习排序',modules:8},
+{id:118,slug:'iot-viz-lab',cat:'cross',name:'物联网可视化',en:'IoT Lab',desc:'MQTT、CoAP、边缘计算、设备孪生',modules:8},
+{id:119,slug:'blockchain-advanced-viz-lab',cat:'cross',name:'高级区块链可视化',en:'Advanced Blockchain Lab',desc:'Rollup、状态通道、跨链、MEV',modules:8},
+{id:120,slug:'robotics-advanced-viz-lab',cat:'cross',name:'高级机器人可视化',en:'Advanced Robotics Lab',desc:'雅可比、动力学、SLAM因子图',modules:8},
+{id:121,slug:'pde-viz-lab',cat:'cross',name:'偏微分方程可视化',en:'PDE Lab',desc:'有限差分、有限元、多重网格',modules:8},
+{id:122,slug:'quantum-advanced-viz-lab',cat:'cross',name:'量子计算进阶可视化',en:'Advanced Quantum Lab',desc:'纠错、Shor/Grover、QKD、VQE',modules:8},
+{id:123,slug:'data-structures-advanced-viz-lab',cat:'cross',name:'高级数据结构可视化',en:'Advanced DS Lab',desc:'B+树、红黑树、跳表、后缀树',modules:8},
+{id:124,slug:'comp-neuro-viz-lab',cat:'cross',name:'计算神经科学可视化',en:'Comp Neuro Lab',desc:'神经元模型、SNN、脑模拟',modules:8},
+{id:125,slug:'geospatial-viz-lab',cat:'cross',name:'地理空间可视化',en:'Geospatial Lab',desc:'GIS、投影、空间索引、GeoJSON',modules:8},
+{id:126,slug:'creative-coding-viz-lab',cat:'cross',name:'创意编程可视化',en:'Creative Coding Lab',desc:'L-System、分形、Perlin噪声',modules:8},
+{id:127,slug:'quantum-ml-viz-lab',cat:'cross',name:'量子 ML 可视化',en:'Quantum ML Lab',desc:'VQC、QAOA、量子电路',modules:8},
+{id:128,slug:'computational-finance-viz-lab',cat:'cross',name:'计算金融可视化',en:'Comp Finance Lab',desc:'Black-Scholes、组合优化、风险模型',modules:8},
+{id:129,slug:'hci-viz-lab',cat:'cross',name:'人机交互可视化',en:'HCI Lab',desc:'Fitts定律、Hick定律、可用性',modules:8},
+{id:130,slug:'graphdb-viz-lab',cat:'cross',name:'图数据库可视化',en:'Graph DB Lab',desc:'Neo4j、Cypher、属性图',modules:8}
+];
+
+// ====================================================================
+// EDGE DATA - conceptual relationships
+// ====================================================================
+var EDGES = [
+// AI core
+[1,2],[2,61],[2,53],
+// Math foundations
+[114,38],[114,107],[114,37],[114,26],[38,108],[37,26],[38,33],[107,106],
+// Transformer family
+[7,3],[7,48],[7,22],[7,15],[3,48],[3,10],[3,11],[3,14],[3,16],[3,35],[3,36],
+[48,39],[48,47],[22,7],
+// LLM ecosystem
+[3,4],[3,6],[3,5],[3,9],[4,10],[4,3],[5,6],[5,14],[5,17],[6,12],[6,49],[6,17],[6,35],
+[14,5],[14,16],[16,41],[16,18],[9,41],[9,19],[41,20],[41,42],[9,19],
+// Diffusion family
+[8,45],[8,25],[8,46],[45,43],[25,8],[46,15],[43,34],
+// RAG ecosystem
+[6,12],[12,6],[49,6],[49,17],[17,28],[17,49],
+// Training/Inference
+[13,39],[13,30],[39,30],[39,47],[10,44],[10,13],[44,23],[23,24],[23,25],
+[11,3],[11,42],[11,50],[50,51],[51,42],[42,24],[42,15],
+// Multimodal/CV
+[15,24],[15,21],[15,46],[24,40],[24,34],[24,15],[40,34],[34,43],[34,110],
+// RL/Alignment
+[19,9],[19,41],[19,100],[19,108],[20,52],[20,41],[52,20],[52,24],
+// Eval/Safety
+[16,1],[18,7],[18,3],[20,56],
+// Speech/Sequence
+[21,36],[21,22],[22,3],[22,48],
+// Generative
+[25,8],[25,43],[25,46],[25,126],
+// Recommender/TimeSeries/Causal
+[31,114],[31,33],[32,38],[32,114],[33,38],[33,108],
+// Federated/Privacy
+[29,80],[29,85],[80,29],[80,56],
+// Hardware/Systems AI
+[30,39],[30,116],[30,97],[47,57],[47,73],[47,97],
+// CodeGen/NLP
+[35,3],[35,36],[35,57],[36,7],[36,3],
+// Optimization/Stats
+[37,26],[37,114],[38,108],[38,33],[26,37],[26,8],[26,19],
+// MLOps
+[27,16],[27,74],[27,78],[27,64],
+// GNN/KG
+[28,17],[28,130],[28,111],[17,28],[17,6],
+// Systems core
+[59,97],[59,72],[97,72],[97,59],[72,97],
+[54,70],[54,69],[54,55],[70,54],[70,79],[69,54],[69,72],
+[53,68],[53,75],[53,67],[68,53],[68,75],[75,58],[75,67],
+[57,73],[57,47],[73,57],[73,47],[57,95],
+[60,71],[60,64],[60,81],[71,60],[64,81],[64,56],[81,64],[64,82],[82,64],
+[58,75],[58,66],[66,79],[66,54],[79,66],[79,69],
+[76,59],[76,67],[77,62],[77,76],[78,67],[78,74],[78,96],
+[65,122],[65,127],[122,65],[122,127],[127,65],[127,122],
+// Theory core
+[88,86],[88,95],[86,95],[86,87],[95,88],[95,89],[89,88],[89,92],[92,91],[91,92],
+[94,90],[90,83],[90,94],[94,88],[83,84],[84,90],[83,90],
+[93,92],[93,88],[93,94],[96,62],[96,78],[96,57],
+[97,72],[97,59],[97,30],
+[98,102],[102,98],[99,108],[99,33],[100,103],[103,100],[100,33],
+// Cross-disciplinary
+[101,110],[101,126],[101,104],[110,101],[110,125],[126,101],[126,104],
+[102,114],[102,56],[102,98],[103,100],[103,33],
+[104,111],[104,125],[105,120],[120,105],[120,116],
+[106,107],[106,21],[106,102],[107,114],[107,38],[107,106],
+[108,38],[108,33],[108,99],[108,19],[108,114],
+[109,108],[109,36],[109,21],
+[111,61],[111,28],[111,130],[111,104],
+[112,59],[112,53],[112,67],[112,61],
+[113,95],[113,87],[113,88],[113,115],[115,96],[115,113],[115,62],
+[116,30],[116,39],[116,116],
+[117,55],[117,6],[117,12],[117,49],
+[118,60],[118,67],[118,76],
+[119,63],[119,56],[63,119],[63,85],[85,56],[85,63],[85,29],
+[121,107],[121,106],[121,104],
+[123,61],[123,54],[123,69],
+[124,19],[124,42],[124,108],[124,21],
+[125,110],[125,104],[125,111],
+[127,65],[127,122],[127,114],
+[128,38],[128,107],[128,114],[128,33],
+[129,62],[129,101],[129,113],
+[130,28],[130,17],[130,111],[130,54]
+];
+
+// ====================================================================
+// INIT: Build node map, initialize positions
+// ====================================================================
+var nodeMap = {};
+NODES.forEach(function(n,i){
+  nodeMap[n.id] = n;
+  // Initialize in a circle
+  var angle = (i / NODES.length) * Math.PI * 2;
+  var r = 400 + Math.random() * 200;
+  n.x = Math.cos(angle) * r + (Math.random()-0.5) * 100;
+  n.y = Math.sin(angle) * r + (Math.random()-0.5) * 100;
+  n.vx = 0;
+  n.vy = 0;
+  n.degree = 0;
+});
+
+// Deduplicate edges
+var edgeSet = {};
+var cleanEdges = [];
+EDGES.forEach(function(e){
+  var key = e[0] < e[1] ? e[0]+'-'+e[1] : e[1]+'-'+e[0];
+  if(!edgeSet[key] && nodeMap[e[0]] && nodeMap[e[1]]){
+    edgeSet[key] = true;
+    cleanEdges.push({source:e[0], target:e[1]});
+    nodeMap[e[0]].degree++;
+    nodeMap[e[1]].degree++;
+  }
+});
+EDGES = cleanEdges;
+
+// Stats
+document.getElementById('statEdges').textContent = EDGES.length;
+var avgDeg = (EDGES.length * 2 / NODES.length).toFixed(1);
+document.getElementById('statAvg').textContent = avgDeg;
+
+// ====================================================================
+// FORCE-DIRECTED LAYOUT SIMULATION
+// ====================================================================
+var W = window.innerWidth;
+var H = window.innerHeight - 52;
+var centerX = W / 2;
+var centerY = H / 2;
+
+function simulate(iterations){
+  var repulsion = 8000;
+  var attraction = 0.02;
+  var damping = 0.85;
+  var centerForce = 0.003;
+
+  for(var iter = 0; iter < iterations; iter++){
+    // Repulsion (all pairs)
+    for(var i = 0; i < NODES.length; i++){
+      var a = NODES[i];
+      for(var j = i+1; j < NODES.length; j++){
+        var b = NODES[j];
+        var dx = a.x - b.x;
+        var dy = a.y - b.y;
+        var dist2 = dx*dx + dy*dy + 0.01;
+        var force = repulsion / dist2;
+        var dist = Math.sqrt(dist2);
+        var fx = (dx/dist) * force;
+        var fy = (dy/dist) * force;
+        a.vx += fx; a.vy += fy;
+        b.vx -= fx; b.vy -= fy;
+      }
+    }
+
+    // Attraction (connected)
+    for(var k = 0; k < EDGES.length; k++){
+      var s = nodeMap[EDGES[k].source];
+      var t = nodeMap[EDGES[k].target];
+      var dx = t.x - s.x;
+      var dy = t.y - s.y;
+      var dist = Math.sqrt(dx*dx + dy*dy + 0.01);
+      var force = attraction * dist;
+      var fx = (dx/dist) * force;
+      var fy = (dy/dist) * force;
+      s.vx += fx; s.vy += fy;
+      t.vx -= fx; t.vy -= fy;
+    }
+
+    // Center force + damping + update
+    for(var m = 0; m < NODES.length; m++){
+      var n = NODES[m];
+      n.vx += (centerX - n.x) * centerForce;
+      n.vy += (centerY - n.y) * centerForce;
+      n.vx *= damping;
+      n.vy *= damping;
+      n.x += n.vx;
+      n.y += n.vy;
+    }
+  }
+}
+
+// Run simulation
+simulate(300);
+
+// ====================================================================
+// SVG RENDERING
+// ====================================================================
+var svg = document.getElementById('svg');
+svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+var defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+// Glow filter
+defs.innerHTML = '<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+svg.appendChild(defs);
+
+var edgeGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+edgeGroup.setAttribute('id','edgeGroup');
+svg.appendChild(edgeGroup);
+
+var nodeGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+nodeGroup.setAttribute('id','nodeGroup');
+svg.appendChild(nodeGroup);
+
+var labelGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+labelGroup.setAttribute('id','labelGroup');
+svg.appendChild(labelGroup);
+
+// Render edges
+EDGES.forEach(function(e){
+  var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('class','edge');
+  line.setAttribute('data-source', e.source);
+  line.setAttribute('data-target', e.target);
+  edgeGroup.appendChild(line);
+});
+
+// Render nodes + labels
+NODES.forEach(function(n){
+  var color = CAT_COLORS[n.cat] || '#888';
+  var radius = 4 + Math.min(n.degree * 0.8, 8);
+
+  var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','node');
+  g.setAttribute('data-id', n.id);
+  g.setAttribute('data-cat', n.cat);
+  g.setAttribute('data-slug', n.slug);
+  g.setAttribute('transform', 'translate('+n.x+','+n.y+')');
+
+  var circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('r', radius);
+  circle.setAttribute('fill', color);
+  circle.setAttribute('opacity', 0.8);
+  circle.setAttribute('filter', 'url(#glow)');
+  g.appendChild(circle);
+
+  var label = document.createElementNS('http://www.w3.org/2000/svg','text');
+  label.setAttribute('class','node-label');
+  label.textContent = n.name;
+  label.setAttribute('y', radius + 12);
+  g.appendChild(label);
+
+  nodeGroup.appendChild(g);
+});
+
+// Update edge positions
+function updateEdges(){
+  var lines = edgeGroup.querySelectorAll('line');
+  for(var i = 0; i < lines.length; i++){
+    var s = nodeMap[lines[i].getAttribute('data-source')];
+    var t = nodeMap[lines[i].getAttribute('data-target')];
+    if(s && t){
+      lines[i].setAttribute('x1', s.x);
+      lines[i].setAttribute('y1', s.y);
+      lines[i].setAttribute('x2', t.x);
+      lines[i].setAttribute('y2', t.y);
+    }
+  }
+}
+
+// Update node positions
+function updateNodes(){
+  for(var i = 0; i < NODES.length; i++){
+    var n = NODES[i];
+    var g = nodeGroup.querySelector('[data-id="'+n.id+'"]');
+    if(g) g.setAttribute('transform', 'translate('+n.x+','+n.y+')');
+  }
+}
+
+updateEdges();
+updateNodes();
+
+// Hide loading
+setTimeout(function(){
+  document.getElementById('loading').classList.add('hidden');
+}, 500);
+
+// ====================================================================
+// INTERACTION: Zoom & Pan
+// ====================================================================
+var zoom = 1;
+var panX = 0;
+var panY = 0;
+var isDragging = false;
+var dragStart = {x:0, y:0};
+var graphEl = document.getElementById('graph');
+
+function applyTransform(){
+  var tx = panX + ' ' + panY + ' ' + zoom;
+  edgeGroup.setAttribute('transform', 'translate('+panX+','+panY+') scale('+zoom+')');
+  nodeGroup.setAttribute('transform', 'translate('+panX+','+panY+') scale('+zoom+')');
+  labelGroup.setAttribute('transform', 'translate('+panX+','+panY+') scale('+zoom+')');
+  // Show labels when zoomed in
+  var labels = labelGroup.querySelectorAll('.node-label');
+  if(!labels.length){
+    labels = nodeGroup.querySelectorAll('.node-label');
+  }
+  var opacity = zoom > 1.5 ? 1 : (zoom > 0.8 ? 0.6 : 0);
+  // Labels are in nodeGroup, handle via CSS
+}
+
+graphEl.addEventListener('mousedown', function(e){
+  if(e.target.closest('.node')) return;
+  isDragging = true;
+  graphEl.classList.add('dragging');
+  dragStart.x = e.clientX - panX;
+  dragStart.y = e.clientY - panY;
+});
+
+window.addEventListener('mousemove', function(e){
+  if(!isDragging) return;
+  panX = e.clientX - dragStart.x;
+  panY = e.clientY - dragStart.y;
+  applyTransform();
+});
+
+window.addEventListener('mouseup', function(){
+  isDragging = false;
+  graphEl.classList.remove('dragging');
+});
+
+graphEl.addEventListener('wheel', function(e){
+  e.preventDefault();
+  var delta = e.deltaY > 0 ? 0.9 : 1.1;
+  var newZoom = Math.max(0.2, Math.min(5, zoom * delta));
+  // Zoom towards mouse position
+  var rect = graphEl.getBoundingClientRect();
+  var mx = e.clientX - rect.left;
+  var my = e.clientY - rect.top;
+  panX = mx - (mx - panX) * (newZoom / zoom);
+  panY = my - (my - panY) * (newZoom / zoom);
+  zoom = newZoom;
+  applyTransform();
+},{passive:false});
+
+// Touch support
+var touchDist = 0;
+graphEl.addEventListener('touchstart', function(e){
+  if(e.touches.length === 1){
+    isDragging = true;
+    dragStart.x = e.touches[0].clientX - panX;
+    dragStart.y = e.touches[0].clientY - panY;
+  } else if(e.touches.length === 2){
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchDist = Math.sqrt(dx*dx + dy*dy);
+  }
+},{passive:false});
+
+graphEl.addEventListener('touchmove', function(e){
+  e.preventDefault();
+  if(e.touches.length === 1 && isDragging){
+    panX = e.touches[0].clientX - dragStart.x;
+    panY = e.touches[0].clientY - dragStart.y;
+    applyTransform();
+  } else if(e.touches.length === 2){
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    var newDist = Math.sqrt(dx*dx + dy*dy);
+    if(touchDist > 0){
+      var delta = newDist / touchDist;
+      zoom = Math.max(0.2, Math.min(5, zoom * delta));
+      applyTransform();
+    }
+    touchDist = newDist;
+  }
+},{passive:false});
+
+graphEl.addEventListener('touchend', function(){
+  isDragging = false;
+  touchDist = 0;
+});
+
+// Zoom buttons
+document.getElementById('zoomIn').addEventListener('click', function(){
+  zoom = Math.min(5, zoom * 1.3);
+  applyTransform();
+});
+document.getElementById('zoomOut').addEventListener('click', function(){
+  zoom = Math.max(0.2, zoom / 1.3);
+  applyTransform();
+});
+document.getElementById('zoomReset').addEventListener('click', function(){
+  zoom = 1; panX = 0; panY = 0;
+  applyTransform();
+});
+
+// ====================================================================
+// NODE INTERACTION
+// ====================================================================
+var selectedNode = null;
+var infoPanel = document.getElementById('infoPanel');
+var tooltip = document.getElementById('tooltip');
+
+// Get connected node IDs
+function getConnected(nodeId){
+  var connected = [];
+  EDGES.forEach(function(e){
+    if(e.source === nodeId) connected.push(e.target);
+    else if(e.target === nodeId) connected.push(e.source);
+  });
+  return connected;
+}
+
+// Node click
+nodeGroup.addEventListener('click', function(e){
+  var nodeEl = e.target.closest('.node');
+  if(!nodeEl) return;
+  var id = parseInt(nodeEl.getAttribute('data-id'));
+  var node = nodeMap[id];
+  if(!node) return;
+
+  selectedNode = node;
+  // Clear previous selection
+  nodeGroup.querySelectorAll('.node').forEach(function(n){n.classList.remove('selected')});
+  nodeEl.classList.add('selected');
+
+  // Highlight connected edges
+  var connected = getConnected(id);
+  var connectedSet = {};
+  connected.forEach(function(cid){connectedSet[cid] = true});
+
+  edgeGroup.querySelectorAll('.edge').forEach(function(line){
+    var s = parseInt(line.getAttribute('data-source'));
+    var t = parseInt(line.getAttribute('data-target'));
+    if(s === id || t === id){
+      line.classList.add('highlighted');
+      line.classList.remove('dimmed');
+    } else {
+      line.classList.add('dimmed');
+      line.classList.remove('highlighted');
+    }
+  });
+
+  nodeGroup.querySelectorAll('.node').forEach(function(n){
+    var nid = parseInt(n.getAttribute('data-id'));
+    if(nid === id || connectedSet[nid]){
+      n.classList.remove('dimmed');
+    } else {
+      n.classList.add('dimmed');
+    }
+  });
+
+  // Show info panel
+  showInfoPanel(node, connected);
+});
+
+function showInfoPanel(node, connected){
+  document.getElementById('ipCat').textContent = CAT_NAMES[node.cat] || node.cat;
+  document.getElementById('ipCat').style.color = CAT_COLORS[node.cat];
+  document.getElementById('ipTitle').textContent = node.name;
+  document.getElementById('ipEn').textContent = node.en;
+  document.getElementById('ipDesc').textContent = node.desc;
+  document.getElementById('ipStats').innerHTML = '<span>'+node.modules+' modules</span><span>'+node.degree+' connections</span>';
+
+  var demoUrl = node.slug === 'ai-trends-2026'
+    ? 'https://wangzifan396-wzf.github.io/TW/ai-trends-2026.html'
+    : 'https://wangzifan396-wzf.github.io/TW/'+node.slug+'/';
+  document.getElementById('ipDemo').href = demoUrl;
+  document.getElementById('ipSrc').href = 'https://github.com/wangzifan396-wzf/'+node.slug;
+
+  // Connected list
+  var listEl = document.getElementById('ipConnectedList');
+  var labelEl = document.getElementById('ipConnectedLabel');
+  if(connected.length > 0){
+    labelEl.textContent = 'Connected to (' + connected.length + '):';
+    listEl.innerHTML = '';
+    connected.slice(0, 12).forEach(function(cid){
+      var cn = nodeMap[cid];
+      if(cn){
+        var chip = document.createElement('span');
+        chip.className = 'ip-chip';
+        chip.textContent = cn.name;
+        chip.addEventListener('click', function(){
+          // Click connected node
+          var el = nodeGroup.querySelector('[data-id="'+cid+'"]');
+          if(el) el.click();
+        });
+        listEl.appendChild(chip);
+      }
+    });
+  } else {
+    labelEl.textContent = '';
+    listEl.innerHTML = '';
+  }
+
+  infoPanel.classList.add('visible');
+}
+
+// Close info panel
+document.getElementById('ipClose').addEventListener('click', function(){
+  infoPanel.classList.remove('visible');
+  selectedNode = null;
+  nodeGroup.querySelectorAll('.node').forEach(function(n){n.classList.remove('selected')});
+  edgeGroup.querySelectorAll('.edge').forEach(function(l){
+    l.classList.remove('highlighted');
+    l.classList.remove('dimmed');
+  });
+  nodeGroup.querySelectorAll('.node').forEach(function(n){
+    n.classList.remove('dimmed');
+  });
+});
+
+// Double-click to open
+nodeGroup.addEventListener('dblclick', function(e){
+  var nodeEl = e.target.closest('.node');
+  if(!nodeEl) return;
+  var slug = nodeEl.getAttribute('data-slug');
+  var url = slug === 'ai-trends-2026'
+    ? 'https://wangzifan396-wzf.github.io/TW/ai-trends-2026.html'
+    : 'https://wangzifan396-wzf.github.io/TW/'+slug+'/';
+  window.open(url, '_blank');
+});
+
+// Hover tooltip
+var hoverTimeout;
+nodeGroup.addEventListener('mouseover', function(e){
+  var nodeEl = e.target.closest('.node');
+  if(!nodeEl) return;
+  var id = parseInt(nodeEl.getAttribute('data-id'));
+  var node = nodeMap[id];
+  if(!node) return;
+
+  hoverTimeout = setTimeout(function(){
+    tooltip.innerHTML = '<div class="tt-cat" style="color:'+CAT_COLORS[node.cat]+'">'+CAT_NAMES[node.cat]+'</div>'+node.name;
+    tooltip.classList.add('visible');
+  }, 200);
+});
+
+nodeGroup.addEventListener('mousemove', function(e){
+  if(!tooltip.classList.contains('visible')) return;
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top = (e.clientY + 14) + 'px';
+});
+
+nodeGroup.addEventListener('mouseout', function(e){
+  var nodeEl = e.target.closest('.node');
+  if(!nodeEl) return;
+  clearTimeout(hoverTimeout);
+  tooltip.classList.remove('visible');
+});
+
+// ====================================================================
+// SEARCH
+// ====================================================================
+var searchInput = document.getElementById('search');
+searchInput.addEventListener('input', function(){
+  var term = searchInput.value.trim().toLowerCase();
+  if(term === ''){
+    nodeGroup.querySelectorAll('.node').forEach(function(n){
+      n.classList.remove('matched');
+      n.classList.remove('dimmed');
+    });
+    return;
+  }
+  var matched = [];
+  NODES.forEach(function(n){
+    var text = (n.name + ' ' + n.en + ' ' + n.desc + ' ' + n.slug).toLowerCase();
+    if(text.indexOf(term) >= 0){
+      matched.push(n.id);
+    }
+  });
+  nodeGroup.querySelectorAll('.node').forEach(function(el){
+    var id = parseInt(el.getAttribute('data-id'));
+    if(matched.indexOf(id) >= 0){
+      el.classList.add('matched');
+      el.classList.remove('dimmed');
+    } else {
+      el.classList.remove('matched');
+      el.classList.add('dimmed');
+    }
+  });
+});
+
+// ====================================================================
+// CATEGORY FILTER
+// ====================================================================
+var activeCat = 'all';
+document.getElementById('catBtns').addEventListener('click', function(e){
+  var btn = e.target.closest('.cat-btn');
+  if(!btn) return;
+  document.querySelectorAll('.cat-btn').forEach(function(b){b.classList.remove('active')});
+  btn.classList.add('active');
+  activeCat = btn.getAttribute('data-cat');
+
+  if(activeCat === 'all'){
+    nodeGroup.querySelectorAll('.node').forEach(function(n){n.classList.remove('dimmed')});
+    edgeGroup.querySelectorAll('.edge').forEach(function(l){l.classList.remove('dimmed')});
+  } else {
+    nodeGroup.querySelectorAll('.node').forEach(function(n){
+      if(n.getAttribute('data-cat') === activeCat){
+        n.classList.remove('dimmed');
+      } else {
+        n.classList.add('dimmed');
+      }
+    });
+    edgeGroup.querySelectorAll('.edge').forEach(function(l){
+      var s = nodeMap[parseInt(l.getAttribute('data-source'))];
+      var t = nodeMap[parseInt(l.getAttribute('data-target'))];
+      if(s && t && (s.cat === activeCat || t.cat === activeCat)){
+        l.classList.remove('dimmed');
+      } else {
+        l.classList.add('dimmed');
+      }
+    });
+  }
+});
+
+// ====================================================================
+// CONTINUOUS PHYSICS (light, for organic feel)
+// ====================================================================
+var animId = null;
+var isRunning = true;
+
+function tick(){
+  if(!isRunning){return;}
+  // Light simulation
+  var repulsion = 3000;
+  var attraction = 0.015;
+  var damping = 0.92;
+  var centerForce = 0.002;
+
+  for(var i = 0; i < NODES.length; i++){
+    var a = NODES[i];
+    for(var j = i+1; j < NODES.length; j++){
+      var b = NODES[j];
+      var dx = a.x - b.x;
+      var dy = a.y - b.y;
+      var dist2 = dx*dx + dy*dy + 0.01;
+      if(dist2 < 10000){ // Only nearby nodes
+        var force = repulsion / dist2;
+        var dist = Math.sqrt(dist2);
+        var fx = (dx/dist) * force;
+        var fy = (dy/dist) * force;
+        a.vx += fx; a.vy += fy;
+        b.vx -= fx; b.vy -= fy;
+      }
+    }
+  }
+
+  for(var k = 0; k < EDGES.length; k++){
+    var s = nodeMap[EDGES[k].source];
+    var t = nodeMap[EDGES[k].target];
+    var dx = t.x - s.x;
+    var dy = t.y - s.y;
+    var dist = Math.sqrt(dx*dx + dy*dy + 0.01);
+    if(dist > 200){
+      var force = attraction * dist;
+      var fx = (dx/dist) * force;
+      var fy = (dy/dist) * force;
+      s.vx += fx; s.vy += fy;
+      t.vx -= fx; t.vy -= fy;
+    }
+  }
+
+  for(var m = 0; m < NODES.length; m++){
+    var n = NODES[m];
+    n.vx += (centerX - n.x) * centerForce;
+    n.vy += (centerY - n.y) * centerForce;
+    n.vx *= damping;
+    n.vy *= damping;
+    n.x += n.vx;
+    n.y += n.vy;
+  }
+
+  updateEdges();
+  updateNodes();
+  animId = requestAnimationFrame(tick);
+}
+
+// Start light animation, but slow down after 5 seconds
+tick();
+setTimeout(function(){
+  isRunning = false;
+  if(animId) cancelAnimationFrame(animId);
+}, 8000);
+
+// Pause when dragging
+graphEl.addEventListener('mousedown', function(){
+  isRunning = false;
+  if(animId) cancelAnimationFrame(animId);
+});
+
+// ====================================================================
+// WINDOW RESIZE
+// ====================================================================
+window.addEventListener('resize', function(){
+  W = window.innerWidth;
+  H = window.innerHeight - 52;
+  centerX = W / 2;
+  centerY = H / 2;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+});
+
+console.log('TW Universe loaded: ' + NODES.length + ' nodes, ' + EDGES.length + ' edges');
+</script>
+
+</body>
+</html>
