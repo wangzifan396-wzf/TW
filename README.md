@@ -33,6 +33,18 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 快捷键帮助 | 弹出所有快捷键说明 | 按 `?` 键 |
 | 数据仪表盘 | SVG 环形图 + 动画柱状图展示分类分布 | 滚动到仪表盘区域 |
 
+## 配套工具
+
+除了 130 个可视化实验室，TW 生态还包含三个独立的大型交互工具：
+
+| 工具 | 描述 | 链接 |
+|------|------|------|
+| TW Universe | 交互式知识星图，130 个节点 + 429 条边的力导向网络图 | [打开](https://wangzifan396-wzf.github.io/TW/tw-universe.html) |
+| TW Timeline | 技术演进时间线，从 1936 年图灵机到 2026 年 AI 时代的 56 个关键里程碑 | [打开](https://wangzifan396-wzf.github.io/TW/tw-timeline.html) |
+| TW Roadmap | 交互式学习路线图，5 层 27 节点 39 条依赖边，4 条精选学习路径，支持进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-roadmap.html) |
+| TW Compare | 多维概念对比工具，15 组技术对比 × 7 维度评分，雷达图可视化差异 | [打开](https://wangzifan396-wzf.github.io/TW/tw-compare.html) |
+| TW Quiz | 知识挑战问答系统，65 道题 × 4 分类 × 3 难度，即时解析与历史记录 | [打开](https://wangzifan396-wzf.github.io/TW/tw-quiz.html) |
+
 ## 快速统计
 
 | 维度 | 数量 |
