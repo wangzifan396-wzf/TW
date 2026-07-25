@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分布式数据库可视化实验室 · Distributed DB Viz Lab</title>
+<meta name="description" content="8 个交互式模块拆解分布式数据库内核：2PC/3PC、Spanner TrueTime、CockroachDB、Calvin 序列化、Clock-SI、分片副本、查询路由与一致性对比。纯 HTML/CSS/JS + SVG，零依赖。">
+<style>
+:root{
+  --bg:#08090a;--bg2:#0f1115;--bg3:#16181d;--border:#1e2026;--border2:#2a2d35;
+  --text:#e4e4e7;--text2:#a1a1aa;--text3:#71717a;--accent:#f97316;--accent2:#ea580c;
+  --green:#34d399;--red:#f87171;--amber:#fbbf24;--cyan:#22d3ee;--violet:#a855f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  line-height:1.6;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 80% 0%,rgba(249,115,22,0.06),transparent 50%);
+}
+code,.mono{font-family:'SF Mono',Monaco,Consolas,monospace}
+.header{position:sticky;top:0;z-index:100;background:rgba(8,9,10,0.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.header-inner{max-width:1280px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-0.01em}
+.logo-mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#08090a;font-weight:700;font-size:13px}
+.back-link{font-size:12.5px;color:var(--text2);border:1px solid var(--border2);border-radius:7px;padding:6px 11px;transition:all .18s ease;font-family:'SF Mono',Monaco,Consolas,monospace}
+.back-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-pills{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.nav-pill{font-size:12px;padding:6px 11px;border-radius:7px;color:var(--text2);background:transparent;border:1px solid transparent;cursor:pointer;transition:all .18s ease;white-space:nowrap;font-family:'SF Mono',Monaco,Consolas,monospace}
+.nav-pill:hover{color:var(--text);background:var(--bg2);border-color:var(--border)}
+.nav-pill.active{color:var(--accent);background:rgba(249,115,22,0.1);border-color:rgba(249,115,22,0.3)}
+.container{max-width:1280px;margin:0 auto;padding:32px 28px 120px}
+.hero{padding:24px 0 40px;border-bottom:1px solid var(--border);margin-bottom:48px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--border2);border-radius:999px;font-size:12px;color:var(--accent);font-family:'SF Mono',Monaco,Consolas,monospace;margin-bottom:18px}
+.hero-badge .d{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.hero h1{font-size:38px;letter-spacing:-0.02em;font-weight:700;margin-bottom:12px;line-height:1.1}
+.hero h1 .glow{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--text2);font-size:15.5px;max-width:720px}
+.hero .meta{display:flex;gap:18px;margin-top:20px;font-size:12px;color:var(--text3);flex-wrap:wrap}
+.hero .meta span{display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.module{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px 30px;margin-bottom:28px;scroll-margin-top:80px;transition:border-color .2s ease}
+.module:hover{border-color:var(--border2)}
+.module-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.module-num{flex-shrink:0;width:34px;height:34px;border-radius:9px;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px;color:var(--accent);font-weight:600}
+.module-title{flex:1;min-width:200px}
+.module-title h2{font-size:20px;font-weight:600;letter-spacing:-0.01em;margin-bottom:5px}
+.module-title p{color:var(--text2);font-size:13.5px}
+.badge{font-size:11px;padding:3px 9px;border-radius:5px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);font-family:'SF Mono',Monaco,Consolas,monospace}
+.badge.accent{color:var(--accent);border-color:rgba(249,115,22,0.3);background:rgba(249,115,22,0.08)}
+.module-body{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.panel{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:18px}
+.panel-title{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;font-weight:600}
+.desc{color:var(--text2);font-size:13.5px;margin-bottom:16px;line-height:1.7}
+.desc strong{color:var(--text)}
+.desc .acc{color:var(--accent)}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.btn{font-family:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);cursor:pointer;transition:all .15s ease;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:#08090a;border-color:var(--accent);font-weight:600}
+.btn.primary:hover{background:var(--accent2);color:#08090a}
+.btn.active{border-color:var(--accent);color:var(--accent);background:rgba(249,115,22,0.1)}
+.slider-row{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text2)}
+.slider-row input[type=range]{-webkit-appearance:none;height:4px;background:var(--bg3);border-radius:2px;outline:none;width:120px}
+.slider-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+.slider-row .val{color:var(--accent);font-family:'SF Mono',Monaco,Consolas,monospace;min-width:46px}
+svg{display:block;width:100%;height:auto}
+.svg-wrap{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:hidden}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-top:12px}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 11px}
+.stat .k{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
+.stat .v{font-size:16px;color:var(--text);font-family:'SF Mono',Monaco,Consolas,monospace;margin-top:2px}
+.stat .v.acc{color:var(--accent)}
+.stat .v.bad{color:var(--red)}
+.stat .v.warn{color:var(--amber)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text2);margin-top:10px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+table.cmp{width:100%;border-collapse:collapse;font-size:12.5px}
+table.cmp th,table.cmp td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--border)}
+table.cmp th{color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.06em}
+table.cmp td{color:var(--text2)}
+table.cmp tr:hover td{color:var(--text)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:all .3s ease;pointer-events:none;z-index:200}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.bottom-nav{display:flex;justify-content:space-between;gap:12px;margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+.bn-btn{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;cursor:pointer;transition:all .18s ease}
+.bn-btn:hover{border-color:var(--accent)}
+.bn-btn .lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em}
+.bn-btn .name{font-size:14px;color:var(--text);margin-top:3px}
+.bn-btn.next{text-align:right}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+.flow-line{stroke-dasharray:5 5;animation:flow 1.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@media(max-width:820px){.module-body{grid-template-columns:1fr}.hero h1{font-size:28px}.container{padding:24px 16px 100px}.header-inner{padding:12px 16px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <a class="logo" href="index.html"><div class="logo-mark">D</div><span>Distributed DB · 分布式数据库</span></a>
+    <a class="back-link" href="index.html">← 实验室集</a>
+    <div class="nav-pills" id="navPills"></div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-badge"><span class="d"></span> CS Systems · 可视化实验室 #146</div>
+    <h1>分布式数据库 <span class="glow">可视化实验室</span></h1>
+    <p>8 个交互式模块深入分布式数据库内核：2PC/3PC 原子提交、Spanner TrueTime 与外部一致性、CockroachDB Range/Raft、Calvin 确定性序列化、Clock-SI 快照隔离、分片与副本、查询路由与一致性谱系。所有可视化均由 SVG 实时绘制。</p>
+    <div class="meta">
+      <span><i class="dot"></i>8 Modules</span>
+      <span><i class="dot"></i>Pure SVG</span>
+      <span><i class="dot"></i>Zero Dependencies</span>
+      <span><i class="dot"></i>Linear Dark Aesthetic</span>
+    </div>
+  </div>
+
+  <div id="modules"></div>
+
+  <div class="bottom-nav">
+    <div class="bn-btn prev" id="bnPrev"><div class="lbl">← Previous</div><div class="name" id="bnPrevName">—</div></div>
+    <div class="bn-btn next" id="bnNext"><div class="lbl">Next →</div><div class="name" id="bnNextName">—</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $=(s,p=document)=>p.querySelector(s);
+const $$=(s,p=document)=>[...p.querySelectorAll(s)];
+const toast=(msg)=>{const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const MODULES=[
+  {id:'2pc',num:'01',name:'分布式事务 2PC/3PC',en:'Two/Three-Phase Commit'},
+  {id:'truetime',num:'02',name:'Spanner TrueTime',en:'TrueTime & External Consistency'},
+  {id:'cockroach',num:'03',name:'CockroachDB 架构',en:'CockroachDB Range & Raft'},
+  {id:'calvin',num:'04',name:'Calvin 序列化',en:'Calvin Deterministic Ordering'},
+  {id:'clocksi',num:'05',name:'Clock-SI 隔离',en:'Clock-SI Snapshot Isolation'},
+  {id:'shard',num:'06',name:'分片与副本',en:'Sharding & Replication'},
+  {id:'route',num:'07',name:'分布式查询路由',en:'Distributed Query Routing'},
+  {id:'consistency',num:'08',name:'一致性保证对比',en:'Consistency Spectrum'},
+];
+
+const navPills=$('#navPills');
+MODULES.forEach((m,i)=>{const b=document.createElement('div');b.className='nav-pill';b.textContent=m.num;b.title=m.name;b.onclick=()=>document.getElementById(m.id).scrollIntoView({behavior:'smooth',block:'start'});navPills.appendChild(b);});
+
+const modulesEl=$('#modules');
+MODULES.forEach(m=>{const sec=document.createElement('section');sec.className='module';sec.id=m.id;sec.innerHTML='<div class="module-head"><div class="module-num">'+m.num+'</div><div class="module-title"><h2>'+m.name+'</h2><p>'+m.en+'</p></div><span class="badge accent">Module '+m.num+'</span></div><div class="module-body" id="body-'+m.id+'"></div>';modulesEl.appendChild(sec);});
+
+const navPillEls=$$('.nav-pill');
+const sectionEls=MODULES.map(m=>document.getElementById(m.id));
+window.addEventListener('scroll',()=>{
+  let cur=0;sectionEls.forEach((s,i)=>{if(s.getBoundingClientRect().top<140)cur=i;});
+  navPillEls.forEach((l,i)=>l.classList.toggle('active',i===cur));
+  const prevI=(cur-1+MODULES.length)%MODULES.length,nextI=(cur+1)%MODULES.length;
+  $('#bnPrevName').textContent=MODULES[prevI].name;
+  $('#bnNextName').textContent=MODULES[nextI].name;
+  $('#bnPrev').onclick=()=>sectionEls[prevI].scrollIntoView({behavior:'smooth'});
+  $('#bnNext').onclick=()=>sectionEls[nextI].scrollIntoView({behavior:'smooth'});
+});
+navPillEls[0].classList.add('active');
+$('#bnPrevName').textContent=MODULES[MODULES.length-1].name;
+$('#bnNextName').textContent=MODULES[1].name;
+$('#bnPrev').onclick=()=>sectionEls[MODULES.length-1].scrollIntoView({behavior:'smooth'});
+$('#bnNext').onclick=()=>sectionEls[1].scrollIntoView({behavior:'smooth'});
+
+/* ============================ 模块1: 2PC/3PC ============================ */
+(()=>{
+  const body=$('#body-2pc');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">原子提交协议</div>
+      <div class="desc">协调者(Coordinator)收集所有参与者(Participant)的投票：任一 NO 即全局 ABORT。2PC 在协调者崩溃时会阻塞；3PC 增加 PreCommit 阶段降低阻塞。点击"下一步"逐步推进，可勾选参与者故障。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 260" id="pcSvg"></svg></div>
+      <div class="controls">
+        <button class="btn primary" id="pcStep">下一步 ▶</button>
+        <button class="btn" id="pcReset">↺ 重置</button>
+        <button class="btn active" data-prot="2pc">2PC</button>
+        <button class="btn" data-prot="3pc">3PC</button>
+        <label class="slider-row"><input type="checkbox" id="pcFail"> P2 崩溃</label>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">协议阶段</div>
+      <div id="pcPhases" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="desc" style="margin-top:14px" id="pcNote"></div>
+      <div class="stat-grid" id="pcStats"></div>
+    </div>`;
+  const svg=$('#pcSvg');
+  let prot='2pc',fail=false,phase=0;
+  // phases: 0 init,1 prepare,2 vote,3 (3pc: precommit),4 commit/abort,5 done
+  const phaseNames2=['初始','Prepare 准备','投票收集','Commit/Abort','完成'];
+  const phaseNames3=['初始','Prepare 准备','投票收集','PreCommit 预提交','Commit/Abort','完成'];
+  function draw(){
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">'+(prot==='2pc'?'两阶段提交':'三阶段提交')+'（红框=崩溃参与者）</text>';
+    // coordinator
+    h+='<rect x="230" y="40" width="100" height="44" rx="9" fill="rgba(249,115,22,0.12)" stroke="#f97316" stroke-width="1.5"/><text x="280" y="58" text-anchor="middle" fill="#f97316" font-size="11" font-weight="600">Coordinator</text><text x="280" y="74" text-anchor="middle" fill="#71717a" font-size="9">协调者</text>';
+    // participants
+    const ps=[{x:90},{x:280},{x:470}];
+    ps.forEach((p,i)=>{
+      const crashed=fail&&i===1;
+      const c=crashed?'#f87171':'#34d399';
+      h+='<rect x="'+(p.x-45)+'" y="170" width="90" height="50" rx="9" fill="'+(crashed?'rgba(248,113,113,0.1)':'rgba(52,211,153,0.1)')+'" stroke="'+c+'" stroke-width="'+(crashed?2:1)+'"/>';
+      h+='<text x="'+p.x+'" y="192" text-anchor="middle" fill="'+c+'" font-size="11" font-weight="600">P'+(i+1)+'</text>';
+      h+='<text x="'+p.x+'" y="208" text-anchor="middle" fill="#71717a" font-size="8">'+(crashed?'已崩溃':'参与者')+'</text>';
+      h+='<path d="M280 84 L'+p.x+' 170" stroke="#2a2d35" stroke-width="1"/>';
+    });
+    // messages based on phase
+    const arr=(x1,y1,x2,y2,c)=>'<path d="M'+x1+' '+y1+' L'+x2+' '+y2+'" stroke="'+c+'" stroke-width="2" class="flow-line"/>';
+    const names=prot==='2pc'?phaseNames2:phaseNames3;
+    let color='#f97316',willAbort=false;
+    // determine abort: if P2 crashed (votes NO / no response)
+    if(fail)willAbort=true;
+    if(phase>=1){ps.forEach(p=>{h+=arr(280,84,p.x,170,'#f97316');});}
+    if(phase>=2){
+      ps.forEach((p,i)=>{
+        const crashed=fail&&i===1;
+        const vc=crashed?'#f87171':(willAbort?'#f87171':'#34d399');
+        h+=arr(p.x,170,280,84,vc);
+        h+='<text x="'+((280+p.x)/2)+'" y="135" text-anchor="middle" fill="'+vc+'" font-size="9">'+(crashed?'超时':(willAbort?'NO':'YES'))+'</text>';
+      });
+    }
+    if(prot==='3pc'&&phase>=3){
+      const act=willAbort?'ABORT':'PreCommit';
+      const ac=willAbort?'#f87171':'#fbbf24';
+      ps.forEach(p=>{h+=arr(280,84,p.x,170,ac);});
+      h+='<text x="380" y="135" fill="'+ac+'" font-size="9">'+act+'</text>';
+    }
+    if(phase>=((prot==='2pc')?3:4)){
+      const act=willAbort?'ABORT':'COMMIT';
+      const ac=willAbort?'#f87171':'#34d399';
+      ps.forEach(p=>{h+=arr(280,84,p.x,170,ac);});
+      h+='<text x="380" y="135" fill="'+ac+'" font-size="10" font-weight="600">'+act+'</text>';
+    }
+    h+='<text x="280" y="246" text-anchor="middle" fill="#71717a" font-size="10">阶段 '+(phase>=names.length-1?names.length-1:phase)+' / '+(names.length-1)+' · '+(names[Math.min(phase,names.length-1)])+'</text>';
+    svg.innerHTML=h;
+    // phases panel
+    let ph='';
+    names.forEach((n,i)=>{
+      const done=i<=phase;
+      ph+='<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:'+(done?'rgba(249,115,22,0.06)':'transparent')+'"><div style="width:22px;height:22px;border-radius:6px;background:'+(done?'var(--accent)':'var(--bg3)')+';color:'+(done?'#08090a':'var(--text3)')+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;font-family:SF Mono,monospace">'+(done?'✓':i)+'</div><span style="font-size:13px;color:'+(done?'var(--text)':'var(--text3)')+'">'+n+'</span></div>';
+    });
+    $('#pcPhases').innerHTML=ph;
+    const last=phase>=(names.length-1);
+    const notes2=['协调者发起事务，准备询问各参与者是否可提交。','协调者向所有参与者发送 Prepare，等待投票。','参与者锁定资源并回复 YES/NO；若有 NO 或超时则将 ABORT。','协调者根据投票决定 Commit 或 Abort 并通知所有参与者。','事务结束，资源释放。'];
+    const notes3=['协调者发起事务。','Prepare 询问阶段。','收集投票；任一 NO 即决定 ABORT。','PreCommit：仅当全部 YES 才发送预提交，让参与者进入"可提交"状态，避免协调者崩溃后阻塞。','正式 Commit 通知。','事务完成。3PC 通过 PreCommit 保证崩溃后仍有确定结论。'];
+    const notes=prot==='2pc'?notes2:notes3;
+    $('#pcNote').innerHTML='<strong>'+(names[Math.min(phase,names.length-1)])+'：</strong>'+notes[Math.min(phase,notes.length-1)];
+    $('#pcStats').innerHTML=
+      '<div class="stat"><div class="k">协议</div><div class="v acc" style="font-size:13px">'+prot.toUpperCase()+'</div></div>'+
+      '<div class="stat"><div class="k">阶段数</div><div class="v">'+(names.length-1)+'</div></div>'+
+      '<div class="stat"><div class="k">结果</div><div class="v '+(last?(fail?'bad':'acc'):'')+'" style="font-size:13px">'+(last?(fail?'ABORT':'COMMIT'):'进行中')+'</div></div>'+
+      '<div class="stat"><div class="k">崩溃阻塞</div><div class="v '+(prot==='2pc'?'bad':'acc')+'" style="font-size:13px">'+(prot==='2pc'?'会阻塞':'降低')+'</div></div>';
+  }
+  body.querySelectorAll('[data-prot]').forEach(b=>b.addEventListener('click',()=>{
+    body.querySelectorAll('[data-prot]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    prot=b.dataset.prot;phase=0;draw();
+  }));
+  $('#pcFail').addEventListener('change',e=>{fail=e.target.checked;phase=0;draw();});
+  $('#pcStep').addEventListener('click',()=>{
+    const max=prot==='2pc'?4:5;
+    if(phase<max){phase++;draw();}else{toast('协议已执行完成');}
+  });
+  $('#pcReset').addEventListener('click',()=>{phase=0;draw();});
+  draw();
+})();
+
+/* ============================ 模块2: Spanner TrueTime ============================ */
+(()=>{
+  const body=$('#body-truetime');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">TrueTime 与 Commit Wait</div>
+      <div class="desc">TrueTime API 返回 <code>TT.now()=[earliest, latest]</code>，误差 ε 来自 GPS/原子钟混合。事务选 <strong>s=latest</strong> 作时间戳，并<strong>等待 2ε</strong>(commit wait)后才提交可见，确保所有副本的物理时间已超过 s → 外部一致性(线性化)。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 280" id="ttSvg"></svg></div>
+      <div class="controls">
+        <div class="slider-row"><span>时钟误差 ε</span><input type="range" id="ttEps" min="1" max="14" value="7"><span class="val" id="ttEpsV">7ms</span></div>
+        <button class="btn primary" id="ttRun">▶ 提交事务</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">为什么 Commit Wait = 2ε</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 220" id="ttWhy"></svg></div>
+      <div class="desc" style="margin-top:12px">选 s=latest 时，真实时间可能在 [s-ε, s+ε]。等待 2ε 后，最慢副本的真实时间也 ≥ s，于是后开始的事务的快照时间戳必 > s，保证<strong>先提交先可见</strong>。</div>
+      <div class="stat-grid" id="ttStats"></div>
+    </div>`;
+  const svg=$('#ttSvg'),why=$('#ttWhy');
+  const eps=$('#ttEps'),epsV=$('#ttEpsV');
+  let runT=0,raf=null;
+  function draw(){
+    runT+=0.02;
+    const e=+eps.value;epsV.textContent=e+'ms';
+    let h='';
+    const x0=60,W=440;
+    // timeline
+    h+='<line x1="'+x0+'" y1="60" x2="'+(x0+W)+'" y2="60" stroke="#2a2d35"/>';
+    // uncertainty band at "now"
+    const now=x0+W*0.45;
+    h+='<rect x="'+(now-e*6)+'" y="44" width="'+(e*12)+'" height="32" rx="4" fill="rgba(249,115,22,0.15)" stroke="#f97316"/>';
+    h+='<text x="'+now+'" y="38" text-anchor="middle" fill="#f97316" font-size="10">TT.now() ε='+e+'ms</text>';
+    h+='<text x="'+(now-e*6)+'" y="92" text-anchor="middle" fill="#71717a" font-size="9">earliest</text>';
+    h+='<text x="'+(now+e*6)+'" y="92" text-anchor="middle" fill="#71717a" font-size="9">latest</text>';
+    // s = latest
+    h+='<line x1="'+(now+e*6)+'" y1="50" x2="'+(now+e*6)+'" y2="150" stroke="#34d399" stroke-width="1.5" stroke-dasharray="3 3"/>';
+    h+='<text x="'+(now+e*6)+'" y="120" text-anchor="middle" fill="#34d399" font-size="10">s=latest</text>';
+    // commit wait 2ε
+    const cw=e*12;
+    const visX=now+e*6+cw;
+    const prog=clamp(runT,0,1);
+    h+='<rect x="'+(now+e*6)+'" y="130" width="'+(cw*prog)+'" height="20" rx="4" fill="#fbbf24" opacity="0.7"/>';
+    h+='<text x="'+(now+e*6+cw/2)+'" y="144" text-anchor="middle" fill="#08090a" font-size="9" font-weight="600">commit wait 2ε</text>';
+    // visible marker
+    if(prog>=1){
+      h+='<circle cx="'+visX+'" cy="140" r="7" fill="#34d399"><animate attributeName="r" values="7;10;7" dur="1s" repeatCount="indefinite"/></circle>';
+      h+='<text x="'+visX+'" y="166" text-anchor="middle" fill="#34d399" font-size="10">✓ 提交可见</text>';
+    }else{
+      h+='<circle cx="'+visX+'" cy="140" r="6" fill="#71717a" opacity="0.4"/>';
+      h+='<text x="'+visX+'" y="166" text-anchor="middle" fill="#71717a" font-size="9">等待中…</text>';
+    }
+    // external reader
+    h+='<rect x="'+(x0+W*0.78)+'" y="200" width="90" height="40" rx="8" fill="rgba(168,85,247,0.08)" stroke="#a855f7"/>';
+    h+='<text x="'+(x0+W*0.78+45)+'" y="224" text-anchor="middle" fill="#a855f7" font-size="10">外部读请求</text>';
+    h+='<text x="280" y="266" text-anchor="middle" fill="#71717a" font-size="10">commit wait 后，任何后到事务的 ts 必 > s → 不会读到旧版本</text>';
+    svg.innerHTML=h;
+    if(prog<1)raf=requestAnimationFrame(draw);
+  }
+  function drawWhy(){
+    const e=+eps.value;
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">两副本真实时钟可能有 ε 偏差</text>';
+    // replica A clock
+    h+='<text x="40" y="56" fill="#34d399" font-size="10">副本A</text>';
+    h+='<line x1="100" y1="52" x2="520" y2="52" stroke="#2a2d35"/>';
+    h+='<circle cx="200" cy="52" r="5" fill="#34d399"/><text x="200" y="42" text-anchor="middle" fill="#34d399" font-size="9">提交 s</text>';
+    // replica B clock (shifted by ε)
+    h+='<text x="40" y="106" fill="#22d3ee" font-size="10">副本B</text>';
+    h+='<line x1="100" y1="102" x2="520" y2="102" stroke="#2a2d35"/>';
+    const bShift=e*8;
+    h+='<circle cx="'+(200+bShift)+'" cy="102" r="5" fill="#22d3ee"/><text x="'+(200+bShift)+'" y="124" text-anchor="middle" fill="#22d3ee" font-size="9">B 的 s 落后 ε</text>';
+    // after commit wait 2ε
+    const after=200+bShift+e*16;
+    h+='<line x1="'+after+'" y1="40" x2="'+after+'" y2="120" stroke="#fbbf24" stroke-dasharray="3 3"/>';
+    h+='<text x="'+after+'" y="150" text-anchor="middle" fill="#fbbf24" font-size="10">等 2ε 后</text>';
+    h+='<text x="280" y="180" text-anchor="middle" fill="#71717a" font-size="10">B 的真实时间已超过 s → s 对应写入在所有副本都已生效</text>';
+    h+='<text x="280" y="200" text-anchor="middle" fill="#34d399" font-size="10">ε='+e+'ms · commit wait='+(2*e)+'ms</text>';
+    why.innerHTML=h;
+  }
+  function updateStats(){
+    const e=+eps.value;
+    $('#ttStats').innerHTML=
+      '<div class="stat"><div class="k">误差 ε</div><div class="v acc">'+e+'ms</div></div>'+
+      '<div class="stat"><div class="k">Commit Wait</div><div class="v warn">'+(2*e)+'ms</div></div>'+
+      '<div class="stat"><div class="k">时间戳</div><div class="v acc" style="font-size:13px">s=latest</div></div>'+
+      '<div class="stat"><div class="k">一致性</div><div class="v acc" style="font-size:12px">外部一致</div></div>';
+  }
+  $('#ttRun').addEventListener('click',()=>{runT=0;if(raf)cancelAnimationFrame(raf);draw();});
+  eps.addEventListener('input',()=>{drawWhy();updateStats();if(raf)cancelAnimationFrame(raf);runT=1;draw();});
+  drawWhy();updateStats();draw();
+})();
+
+/* ============================ 模块3: CockroachDB 架构 ============================ */
+(()=>{
+  const body=$('#body-cockroach');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">Range · Raft · Leaseholder</div>
+      <div class="desc">CockroachDB 把数据切成 64MB 的 <strong>Range</strong>，每个 Range 由 3 副本组成一个 Raft 组。<strong>Leaseholder</strong>(租约持有者)服务该 Range 的读写，写通过 Raft 多数派复制。点击"写入"观察提案在 Raft 组中复制。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 280" id="crSvg"></svg></div>
+      <div class="controls">
+        <button class="btn primary" id="crWrite">✎ 写入 key=v</button>
+        <button class="btn" id="crFail">✗ 击穿副本2</button>
+        <button class="btn" id="crReset">↺ 重置</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">读写路径</div>
+      <div class="svg-wrap" style="padding:10px"><svg viewBox="0 0 560 220" id="crPath"></svg></div>
+      <div class="desc" style="margin-top:12px" id="crNote">Leaseholder 处理读(本地读，无需 Raft)；写需经 Raft 多数派(2/3)确认才提交，副本2故障仍可用。</div>
+      <div class="stat-grid" id="crStats"></div>
+    </div>`;
+  const svg=$('#crSvg'),path=$('#crPath');
+  const replicas=[{x:120,y:90,lh:true},{x:280,y:90,lh:false},{x:440,y:90,lh:false}];
+  let failed=-1,log=[];
+  function draw(){
+    let h='';
+    h+='<text x="280" y="22" text-anchor="middle" fill="#a1a1aa" font-size="11">Range R1 的 Raft 组（3 副本，L=Leaseholder）</text>';
+    // raft ring links
+    h+='<path d="M170 90 L230 90" stroke="#2a2d35"/><path d="M330 90 L390 90" stroke="#2a2d35"/><path d="M120 130 Q280 220 440 130" stroke="#2a2d35" fill="none"/>';
+    replicas.forEach((r,i)=>{
+      const dead=failed===i;
+      const c=dead?'#f87171':(r.lh?'#f97316':'#34d399');
+      h+='<rect x="'+(r.x-50)+'" y="'+(r.y-40)+'" width="100" height="80" rx="10" fill="'+(dead?'rgba(248,113,113,0.08)':'rgba('+hexFill(c)+',0.1)')+'" stroke="'+c+'" stroke-width="'+(r.lh?2:1)+'"/>';
+      h+='<text x="'+r.x+'" y="'+(r.y-18)+'" text-anchor="middle" fill="'+c+'" font-size="11" font-weight="600">副本 '+(i+1)+'</text>';
+      h+='<text x="'+r.x+'" y="'+(r.y-2)+'" text-anchor="middle" fill="#71717a" font-size="9">'+(dead?'已失联':(r.lh?'Leaseholder':'Follower'))+'</text>';
+      h+='<text x="'+r.x+'" y="'+(r.y+16)+'" text-anchor="middle" fill="#71717a" font-size="8">'+(i===0?'Leader':'Follower')+'</text>';
+      if(r.lh){h+='<rect x="'+(r.x-18)+'" y="'+(r.y+22)+'" width="36" height="14" rx="4" fill="#f97316"/><text x="'+r.x+'" y="'+(r.y+32)+'" text-anchor="middle" fill="#08090a" font-size="8" font-weight="600">L</text>';}
+    });
+    // log entries
+    log.forEach((e,i)=>{
+      const x=120+i*16;
+      h+='<rect x="'+x+'" y="200" width="12" height="14" rx="2" fill="'+(e==='c'?'#34d399':'#fbbf24')+'"/>';
+    });
+    h+='<text x="280" y="244" text-anchor="middle" fill="#71717a" font-size="9">Raft 日志条目（黄=提案中 绿=已提交）</text>';
+    svg.innerHTML=h;
+  }
+  function hexFill(c){const m={'#f97316':'249,115,22','#34d399':'52,211,153'};return m[c]||'52,211,153';}
+  function drawPath(){
+    let h='';
+    // read path
+    h+='<text x="40" y="30" fill="#34d399" font-size="11">读路径</text>';
+    h+='<rect x="40" y="46" width="80" height="34" rx="7" fill="rgba(52,211,153,0.08)" stroke="#34d399"/><text x="80" y="67" text-anchor="middle" fill="#34d399" font-size="10">Client</text>';
+    h+='<rect x="200" y="46" width="120" height="34" rx="7" fill="rgba(249,115,22,0.1)" stroke="#f97316"/><text x="260" y="67" text-anchor="middle" fill="#f97316" font-size="10">Leaseholder</text>';
+    h+='<path d="M120 63 L200 63" stroke="#34d399" stroke-width="1.5" class="flow-line"/>';
+    h+='<text x="360" y="67" fill="#34d399" font-size="10">本地读，无需 Raft</text>';
+    // write path
+    h+='<text x="40" y="120" fill="#fbbf24" font-size="11">写路径</text>';
+    h+='<rect x="40" y="136" width="80" height="34" rx="7" fill="rgba(52,211,153,0.08)" stroke="#34d399"/><text x="80" y="157" text-anchor="middle" fill="#34d399" font-size="10">Client</text>';
+    h+='<rect x="170" y="136" width="100" height="34" rx="7" fill="rgba(249,115,22,0.1)" stroke="#f97316"/><text x="220" y="157" text-anchor="middle" fill="#f97316" font-size="10">Leaseholder</text>';
+    h+='<rect x="320" y="120" width="70" height="30" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34d399"/><text x="355" y="139" text-anchor="middle" fill="#34d399" font-size="9">副本2</text>';
+    h+='<rect x="320" y="156" width="70" height="30" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34d399"/><text x="355" y="175" text-anchor="middle" fill="#34d399" font-size="9">副本3</text>';
+    h+='<path d="M120 153 L170 153" stroke="#fbbf24" stroke-width="1.5" class="flow-line"/>';
+    h+='<path d="M270 145 L320 135" stroke="#fbbf24" stroke-width="1.5" class="flow-line"/>';
+    h+='<path d="M270 161 L320 171" stroke="#fbbf24" stroke-width="1.5" class="flow-line"/>';
+    h+='<text x="420" y="150" fill="#fbbf24" font-size="9">多数派(2/3)确认</text>';
+    h+='<text x="420" y="166" fill="#fbbf24" font-size="9">→ 提交</text>';
+    path.innerHTML=h;
+  }
+  function write(){
+    log.push('p');
+    draw();
+    setTimeout(()=>{
+      const ok=failed===-1||failed===2?true:true; // majority of 3 with 1 fail = 2 alive
+      // if failed is 0 or 1, still 2 alive -> majority ok; if failed 2, 2 alive -> ok
+      log[log.length-1]='c';
+      draw();
+      const alive=failed===-1?3:2;
+      $('#crNote').innerHTML='写入经 Leaseholder 提案，<span class="acc">'+alive+'/3 副本确认</span>(达多数派)→ 提交。'+(failed!==-1?'副本'+(failed+1)+'故障不影响可用性，因多数派仍可达。':'');
+      toast('写入已通过 Raft 多数派复制');
+    },700);
+  }
+  $('#crWrite').addEventListener('click',write);
+  $('#crFail').addEventListener('click',()=>{failed=failed===-1?1:-1;draw();$('#crNote').innerHTML=failed!==-1?'已击穿副本'+(failed+1)+'，剩余 2 副本仍构成多数派，读写正常(降级)。':'已恢复全部副本。';});
+  $('#crReset').addEventListener('click',()=>{failed=-1;log=[];draw();});
+  drawPath();draw();
+})();
+
+/* ============================ 模块4: Calvin 序列化 ============================ */
+(()=>{
+  const body=$('#body-calvin');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">确定性序列化</div>
+      <div class="desc">Calvin 先由<strong>sequencer</strong>对所有事务确定一个全局顺序，再由各副本按相同顺序<strong>无锁</strong>执行，天然可串行化，避免分布式锁与死锁。点击"提交事务"观察其进入序列并按序执行。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 280" id="cvSvg"></svg></div>
+      <div class="controls">
+        <button class="btn primary" id="cvAdd">＋ 新事务</button>
+        <button class="btn" id="cvTick">▶ 推进执行</button>
+        <button class="btn" id="cvReset">↺ 重置</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Calvin vs 传统锁</div>
+      <table class="cmp"><tr><th>维度</th><th>Calvin</th><th>2PL 加锁</th></tr><tr><td>排序</td><td>提交前确定</td><td>执行时竞争</td></tr><tr><td>死锁</td><td>不可能</td><td>可能</td></tr><tr><td>并发</td><td>无锁执行</td><td>锁等待</td></tr><tr><td>适合</td><td>多写冲突</td><td>读多写少</td></tr></table>
+      <div class="desc" style="margin-top:14px" id="cvNote">事务在 sequencer 排定顺序后，所有副本以相同顺序应用 → 等价于某个串行执行，无需运行时加锁。</div>
+      <div class="stat-grid" id="cvStats"></div>
+    </div>`;
+  const svg=$('#cvSvg');
+  let txns=[],execIdx=0,nextId=1;
+  const colors=['#f97316','#34d399','#22d3ee','#a855f7','#fbbf24','#f87171'];
+  function draw(){
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">Sequencer 定序 → 副本按序无锁执行</text>';
+    // sequencer
+    h+='<rect x="220" y="40" width="120" height="44" rx="9" fill="rgba(249,115,22,0.12)" stroke="#f97316" stroke-width="1.5"/><text x="280" y="60" text-anchor="middle" fill="#f97316" font-size="11" font-weight="600">Sequencer</text><text x="280" y="76" text-anchor="middle" fill="#71717a" font-size="9">全局定序</text>';
+    // ordered queue
+    h+='<text x="60" y="120" fill="#a1a1aa" font-size="10">定序队列 →</text>';
+    txns.forEach((t,i)=>{
+      const x=60+i*52;
+      const exec=i<execIdx;
+      h+='<rect x="'+x+'" y="130" width="44" height="40" rx="6" fill="'+(exec?'rgba(52,211,153,0.12)':'rgba(249,115,22,0.08)')+'" stroke="'+(exec?'#34d399':t.c)+'" stroke-width="1.5"/>';
+      h+='<text x="'+(x+22)+'" y="148" text-anchor="middle" fill="'+(exec?'#34d399':t.c)+'" font-size="11" font-weight="600">T'+t.id+'</text>';
+      h+='<text x="'+(x+22)+'" y="162" text-anchor="middle" fill="#71717a" font-size="8">'+(exec?'已执行':'#'+(i+1))+'</text>';
+    });
+    // replicas apply in order
+    h+='<text x="60" y="206" fill="#a1a1aa" font-size="10">副本A · 副本B · 副本C 同序应用</text>';
+    h+='<rect x="80" y="218" width="80" height="30" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34d399"/><text x="120" y="237" text-anchor="middle" fill="#34d399" font-size="10">副本A</text>';
+    h+='<rect x="240" y="218" width="80" height="30" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee"/><text x="280" y="237" text-anchor="middle" fill="#22d3ee" font-size="10">副本B</text>';
+    h+='<rect x="400" y="218" width="80" height="30" rx="6" fill="rgba(168,85,247,0.08)" stroke="#a855f7"/><text x="440" y="237" text-anchor="middle" fill="#a855f7" font-size="10">副本C</text>';
+    // progress indicator
+    if(execIdx>0){
+      h+='<text x="280" y="270" text-anchor="middle" fill="#34d399" font-size="10">已执行 '+execIdx+' / '+txns.length+' · 各副本状态完全一致</text>';
+    }
+    svg.innerHTML=h;
+    $('#cvStats').innerHTML=
+      '<div class="stat"><div class="k">事务数</div><div class="v">'+txns.length+'</div></div>'+
+      '<div class="stat"><div class="k">已执行</div><div class="v acc">'+execIdx+'</div></div>'+
+      '<div class="stat"><div class="k">加锁</div><div class="v acc" style="font-size:12px">无</div></div>'+
+      '<div class="stat"><div class="k">可串行</div><div class="v acc" style="font-size:12px">保证</div></div>';
+  }
+  $('#cvAdd').addEventListener('click',()=>{
+    if(txns.length>=8){toast('队列已满');return;}
+    txns.push({id:nextId++,c:colors[(txns.length)%colors.length]});draw();
+  });
+  $('#cvTick').addEventListener('click',()=>{
+    if(execIdx<txns.length){execIdx++;draw();}else{toast('全部已按序执行');}
+  });
+  $('#cvReset').addEventListener('click',()=>{txns=[];execIdx=0;nextId=1;draw();});
+  // seed
+  txns.push({id:nextId++,c:colors[0]});txns.push({id:nextId++,c:colors[1]});txns.push({id:nextId++,c:colors[2]});
+  draw();
+})();
+
+/* ============================ 模块5: Clock-SI ============================ */
+(()=>{
+  const body=$('#body-clocksi');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">物理时钟快照隔离</div>
+      <div class="desc">Clock-SI 用<strong>本地物理时钟</strong>作快照时间戳：读请求带 ts，副本返回 ts 之前已提交的版本。依赖 NTP 同步；<strong>时钟偏移</strong>会导致 stale read。调节偏移观察读到的版本变化。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 280" id="csSvg"></svg></div>
+      <div class="controls">
+        <div class="slider-row"><span>时钟偏移</span><input type="range" id="csSkew" min="0" max="40" value="10"><span class="val" id="csSkewV">10ms</span></div>
+        <button class="btn" id="csRead">▶ 发起快照读</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">读写时间线</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 220" id="csTl"></svg></div>
+      <div class="desc" style="margin-top:12px" id="csNote">读请求到达副本时以本地时钟取 ts；若副本时钟落后，会把"将来"的提交排除，读到旧版本。</div>
+      <div class="stat-grid" id="csStats"></div>
+    </div>`;
+  const svg=$('#csSvg'),tl=$('#csTl');
+  const skew=$('#csSkew'),skewV=$('#csSkewV');
+  // writes: w1 at t=100 (v1), w2 at t=120 (v2)
+  let readTs=null;
+  function draw(){
+    const sk=+skew.value;skewV.textContent=sk+'ms';
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">两副本物理时钟存在偏移 · 读以副本本地时钟取 ts</text>';
+    // client
+    h+='<rect x="20" y="90" width="70" height="40" rx="8" fill="rgba(249,115,22,0.08)" stroke="#f97316"/><text x="55" y="114" text-anchor="middle" fill="#f97316" font-size="10">Client</text>';
+    // replica A (clock ahead)
+    h+='<rect x="200" y="50" width="120" height="50" rx="9" fill="rgba(52,211,153,0.1)" stroke="#34d399"/><text x="260" y="72" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600">副本A</text><text x="260" y="88" text-anchor="middle" fill="#71717a" font-size="9">时钟 t</text>';
+    // replica B (clock behind by skew)
+    h+='<rect x="380" y="50" width="120" height="50" rx="9" fill="rgba(34,211,238,0.1)" stroke="#22d3ee"/><text x="440" y="72" text-anchor="middle" fill="#22d3ee" font-size="11" font-weight="600">副本B</text><text x="440" y="88" text-anchor="middle" fill="#71717a" font-size="9">时钟 t−'+sk+'</text>';
+    // writes
+    h+='<rect x="220" y="120" width="80" height="34" rx="6" fill="rgba(251,191,36,0.1)" stroke="#fbbf24"/><text x="260" y="141" text-anchor="middle" fill="#fbbf24" font-size="9">w2 commit @120</text>';
+    h+='<rect x="400" y="120" width="80" height="34" rx="6" fill="rgba(251,191,36,0.1)" stroke="#fbbf24"/><text x="440" y="141" text-anchor="middle" fill="#fbbf24" font-size="9">w1 commit @100</text>';
+    // read arrow
+    if(readTs!==null){
+      const target=readTs.target;
+      const tx=target==='A'?260:440,ty=100;
+      h+='<path d="M90 110 L'+(tx-60)+' '+ty+'" stroke="#f97316" stroke-width="2" class="flow-line"/>';
+      h+='<text x="280" y="190" text-anchor="middle" fill="#f97316" font-size="11">读 → '+target+' · ts='+readTs.ts+' → 返回 v'+readTs.ver+'</text>';
+      h+='<text x="280" y="210" text-anchor="middle" fill="'+(readTs.stale?'#f87171':'#34d399')+'" font-size="10">'+(readTs.stale?'✗ Stale Read 读到旧版本':'✓ 读到最新版本')+'</text>';
+    }
+    svg.innerHTML=h;
+  }
+  function drawTl(){
+    const sk=+skew.value;
+    let h='';
+    h+='<line x1="40" y1="60" x2="520" y2="60" stroke="#2a2d35"/>';
+    h+='<text x="20" y="64" fill="#71717a" font-size="9">t</text>';
+    // w1 @100, w2 @120
+    const x=t=>40+(t-80)/60*440;
+    h+='<circle cx="'+x(100)+'" cy="60" r="5" fill="#fbbf24"/><text x="'+x(100)+'" y="44" text-anchor="middle" fill="#fbbf24" font-size="9">w1 v1@100</text>';
+    h+='<circle cx="'+x(120)+'" cy="60" r="5" fill="#fbbf24"/><text x="'+x(120)+'" y="44" text-anchor="middle" fill="#fbbf24" font-size="9">w2 v2@120</text>';
+    // read at client clock = 125; replica B sees 125-sk
+    const clientTs=125;
+    h+='<line x1="'+x(clientTs)+'" y1="30" x2="'+x(clientTs)+'" y2="120" stroke="#f97316" stroke-dasharray="3 3"/>';
+    h+='<text x="'+x(clientTs)+'" y="24" text-anchor="middle" fill="#f97316" font-size="9">读 ts=125(A)</text>';
+    const bTs=clientTs-sk;
+    h+='<line x1="'+x(bTs)+'" y1="100" x2="'+x(bTs)+'" y2="140" stroke="#22d3ee" stroke-dasharray="3 3"/>';
+    h+='<text x="'+x(bTs)+'" y="156" text-anchor="middle" fill="#22d3ee" font-size="9">B 视角 ts='+(125-sk)+'</text>';
+    // stale if bTs < 120
+    const stale=bTs<120;
+    h+='<text x="280" y="190" text-anchor="middle" fill="'+(stale?'#f87171':'#34d399')+'" font-size="11">偏移 '+sk+'ms · '+ (stale?'B 把 ts 视为 '+(125-sk)+' < w2@120 → 读到 v1(stale)':'B 视角 ts≥120 → 读到 v2(最新)') +'</text>';
+    tl.innerHTML=h;
+    return stale;
+  }
+  function update(stale){
+    $('#csStats').innerHTML=
+      '<div class="stat"><div class="k">时钟偏移</div><div class="v '+(stale?'bad':'acc')+'">'+(+skew.value)+'ms</div></div>'+
+      '<div class="stat"><div class="k">读A ts</div><div class="v acc">125</div></div>'+
+      '<div class="stat"><div class="k">读B ts</div><div class="v '+(stale?'bad':'acc')+'">'+(125-(+skew.value))+'</div></div>'+
+      '<div class="stat"><div class="k">Stale Read</div><div class="v '+(stale?'bad':'acc')+'" style="font-size:13px">'+(stale?'是':'否')+'</div></div>';
+    $('#csNote').innerHTML=stale?'<span style="color:var(--red)">偏移过大时，副本B的本地时钟落后，读请求的 ts 落在 w2 提交之前，读到旧版本 v1。</span>':'偏移较小，读请求 ts ≥ w2 提交时间，读到最新版本 v2。';
+  }
+  $('#csRead').addEventListener('click',()=>{
+    const sk=+skew.value;
+    const bTs=125-sk;
+    const stale=bTs<120;
+    readTs={target:'B',ts:bTs,ver:stale?1:2,stale};
+    draw();
+  });
+  skew.addEventListener('input',()=>{readTs=null;const s=drawTl();draw();update(s);});
+  const s0=drawTl();draw();update(s0);
+})();
+
+/* ============================ 模块6: 分片与副本 ============================ */
+(()=>{
+  const body=$('#body-shard');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">一致性哈希环</div>
+      <div class="desc">数据按 key 哈希到环上，由顺时针遇到的节点负责；每个节点再向后复制 N−1 份作副本。增删节点只迁移相邻区间。点击增/删节点观察区间与副本重分布。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 320" id="shSvg"></svg></div>
+      <div class="controls">
+        <button class="btn primary" id="shAdd">＋ 增加节点</button>
+        <button class="btn" id="shRemove">－ 移除节点</button>
+        <div class="slider-row"><span>副本因子 RF</span><input type="range" id="shRf" min="1" max="4" value="3"><span class="val" id="shRfV">3</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">数据分布</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 200" id="shBar"></svg></div>
+      <div class="stat-grid" id="shStats"></div>
+      <div class="desc" style="margin-top:12px" id="shNote">RF=3 时每份数据有 3 副本分布在不同节点，单节点故障不丢数据。</div>
+    </div>`;
+  const svg=$('#shSvg'),bar=$('#shBar');
+  const rf=$('#shRf'),rfV=$('#shRfV');
+  let nodes=[{id:'N1',a:30},{id:'N2',a:120},{id:'N3',a:210},{id:'N4',a:300}];
+  const keys=[];
+  for(let i=0;i<24;i++)keys.push({a:Math.random()*360,k:'k'+i});
+  function draw(){
+    const r=110,cx=200,cy=150;
+    let h='';
+    h+='<text x="200" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">一致性哈希环（节点=大点，key=小点）</text>';
+    h+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#2a2d35"/>';
+    // sort nodes by angle
+    const sn=[...nodes].sort((a,b)=>a.a-b.a);
+    const colors=['#f97316','#34d399','#22d3ee','#a855f7','#fbbf24','#f87171','#60a5fa','#fb923c'];
+    sn.forEach((n,i)=>{
+      const rad=(n.a-90)*Math.PI/180;
+      const x=cx+r*Math.cos(rad),y=cy+r*Math.sin(rad);
+      n._x=x;n._y=y;n._ci=i;
+      h+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="10" fill="'+colors[i%colors.length]+'"/><text x="'+x.toFixed(1)+'" y="'+(y+22).toFixed(1)+'" text-anchor="middle" fill="'+colors[i%colors.length]+'" font-size="10" font-weight="600">'+n.id+'</text>';
+    });
+    const R=+rf.value;rfV.textContent=R;
+    // place keys, assign owner + replicas
+    keys.forEach(k=>{
+      const rad=(k.a-90)*Math.PI/180;
+      const x=cx+r*Math.cos(rad),y=cy+r*Math.sin(rad);
+      // owner = first node clockwise
+      let owner=null;
+      for(let i=0;i<sn.length;i++){if(sn[i].a>=k.a){owner=sn[i];break;}}
+      if(!owner)owner=sn[0];
+      const ci=owner._ci;
+      const isReplica=false;
+      // color key by owner
+      h+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3.5" fill="'+colors[ci%colors.length]+'" opacity="0.8"/>';
+    });
+    // legend ring of replicas: draw arcs from owner to next R-1 nodes
+    h+='<text x="380" y="60" fill="#a1a1aa" font-size="10">副本分布（RF='+R+'）</text>';
+    sn.forEach((n,i)=>{
+      const y=80+i*22;
+      let rep='';for(let j=0;j<R;j++){rep+=sn[(i+j)%sn.length].id+' ';}
+      h+='<text x="380" y="'+y+'" fill="'+colors[i%colors.length]+'" font-size="11">'+n.id+' → 副本: '+rep+'</text>';
+    });
+    svg.innerHTML=h;
+    // bar: keys per node (as primary)
+    const counts={};sn.forEach(n=>counts[n.id]=0);
+    keys.forEach(k=>{
+      let owner=null;for(let i=0;i<sn.length;i++){if(sn[i].a>=k.a){owner=sn[i];break;}}if(!owner)owner=sn[0];
+      counts[owner.id]++;
+    });
+    let bh='';
+    const maxC=Math.max(...Object.values(counts),1);
+    sn.forEach((n,i)=>{
+      const x=40,y=30+i*28,w=counts[n.id]/maxC*300;
+      bh+='<text x="20" y="'+(y+14)+'" fill="'+colors[i%colors.length]+'" font-size="10">'+n.id+'</text>';
+      bh+='<rect x="60" y="'+y+'" width="'+w+'" height="18" rx="4" fill="'+colors[i%colors.length]+'" opacity="0.7"/>';
+      bh+='<text x="'+(66+w)+'" y="'+(y+14)+'" fill="#a1a1aa" font-size="10">'+counts[n.id]+' keys</text>';
+    });
+    bh+='<text x="40" y="'+(30+sn.length*28+10)+'" fill="#71717a" font-size="10">主副本数 · 总 key='+keys.length+' · 节点='+sn.length+' · RF='+R+'</text>';
+    bar.innerHTML=bh;
+    const totalRepl=keys.length*R;
+    $('#shStats').innerHTML=
+      '<div class="stat"><div class="k">节点数</div><div class="v acc">'+sn.length+'</div></div>'+
+      '<div class="stat"><div class="k">副本因子</div><div class="v acc">'+R+'</div></div>'+
+      '<div class="stat"><div class="k">总副本数</div><div class="v">'+totalRepl+'</div></div>'+
+      '<div class="stat"><div class="k">容错</div><div class="v acc" style="font-size:12px">'+(R-1)+' 节点</div></div>';
+  }
+  $('#shAdd').addEventListener('click',()=>{
+    if(nodes.length>=8){toast('已达最大节点数');return;}
+    nodes.push({id:'N'+(nodes.length+1),a:Math.random()*360});draw();
+  });
+  $('#shRemove').addEventListener('click',()=>{
+    if(nodes.length<=2){toast('至少保留 2 节点');return;}
+    nodes.pop();draw();
+  });
+  rf.addEventListener('input',draw);
+  draw();
+})();
+
+/* ============================ 模块7: 分布式查询路由 ============================ */
+(()=>{
+  const body=$('#body-route');
+  body.innerHTML=`
+    <div class="panel">
+      <div class="panel-title">路由：定向 vs Scatter-Gather</div>
+      <div class="desc">若 WHERE 命中<strong>分片键</strong>，路由器只把查询发到对应分片(定向)；否则需向所有分片广播再聚合(Scatter-Gather)。切换查询类型观察路由与扫描分片数。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 260" id="rtSvg"></svg></div>
+      <div class="controls">
+        <button class="btn active" data-q="point">点查(命中分片键)</button>
+        <button class="btn" data-q="range">范围(命中分片键)</button>
+        <button class="btn" data-q="scan">全表扫描(非分片键)</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">扫描代价</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 180" id="rtBar"></svg></div>
+      <div class="stat-grid" id="rtStats"></div>
+      <div class="desc" style="margin-top:12px" id="rtNote"></div>
+    </div>`;
+  const svg=$('#rtSvg'),bar=$('#rtBar');
+  const shards=[{id:'S1',range:'0-999'},{id:'S2',range:'1k-2k'},{id:'S3',range:'2k-3k'},{id:'S4',range:'3k-4k'}];
+  let q='point';
+  function draw(){
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">查询路由器 → 命中分片(橙) / 广播(灰)</text>';
+    // router
+    h+='<rect x="230" y="40" width="100" height="40" rx="9" fill="rgba(249,115,22,0.12)" stroke="#f97316"/><text x="280" y="64" text-anchor="middle" fill="#f97316" font-size="11" font-weight="600">Router</text>';
+    // shards
+    let target=[];
+    if(q==='point')target=[1];
+    else if(q==='range')target=[1,2];
+    else target=[0,1,2,3];
+    shards.forEach((s,i)=>{
+      const hit=target.includes(i);
+      const x=60+i*120;
+      h+='<rect x="'+x+'" y="150" width="100" height="50" rx="9" fill="'+(hit?'rgba(249,115,22,0.14)':'#0f1115')+'" stroke="'+(hit?'#f97316':'#2a2d35')+'" stroke-width="'+(hit?2:1)+'"/>';
+      h+='<text x="'+(x+50)+'" y="172" text-anchor="middle" fill="'+(hit?'#f97316':'#71717a')+'" font-size="11" font-weight="600">'+s.id+'</text>';
+      h+='<text x="'+(x+50)+'" y="188" text-anchor="middle" fill="#71717a" font-size="9">'+s.range+'</text>';
+      h+='<path d="M280 80 L'+(x+50)+' 150" stroke="'+(hit?'#f97316':'#2a2d35')+'" stroke-width="'+(hit?2:1)+'" '+(hit?'class="flow-line"':'')+'/>';
+    });
+    const qtxt={point:'SELECT ... WHERE id=1500',range:'SELECT ... WHERE id BETWEEN 1200 AND 2200',scan:'SELECT ... WHERE status="A"'}[q];
+    h+='<text x="280" y="232" text-anchor="middle" fill="#a1a1aa" font-size="11" font-family="SF Mono,monospace">'+qtxt+'</text>';
+    h+='<text x="280" y="250" text-anchor="middle" fill="'+(target.length>1?'#fbbf24':'#34d399')+'" font-size="10">扫描 '+target.length+' / 4 分片</text>';
+    svg.innerHTML=h;
+    // bar: relative cost
+    const cost={point:1,range:2,scan:4}[q];
+    const names=[{n:'点查',c:1,co:'#34d399'},{n:'范围',c:2,co:'#fbbf24'},{n:'全扫描',c:4,co:'#f87171'}];
+    let bh='';
+    names.forEach((o,i)=>{
+      const y=24+i*40;
+      bh+='<text x="20" y="'+(y+14)+'" fill="'+o.co+'" font-size="11">'+o.n+'</text>';
+      const w=o.c/4*360;
+      bh+='<rect x="70" y="'+y+'" width="'+w+'" height="20" rx="4" fill="'+o.co+'" opacity="'+(o.n==={point:'点查',range:'范围',scan:'全扫描'}[q]?1:0.4)+'"/>';
+      bh+='<text x="'+(76+w)+'" y="'+(y+14)+'" fill="#a1a1aa" font-size="10">'+o.c+'x 代价</text>';
+    });
+    bar.innerHTML=bh;
+    $('#rtStats').innerHTML=
+      '<div class="stat"><div class="k">查询类型</div><div class="v acc" style="font-size:12px">'+{point:'点查',range:'范围',scan:'全扫描'}[q]+'</div></div>'+
+      '<div class="stat"><div class="k">扫描分片</div><div class="v '+(target.length>1?'warn':'acc')+'">'+target.length+'/4</div></div>'+
+      '<div class="stat"><div class="k">相对代价</div><div class="v '+(cost>1?'warn':'acc')+'">'+cost+'x</div></div>'+
+      '<div class="stat"><div class="k">命中分片键</div><div class="v '+(q!=='scan'?'acc':'bad')+'" style="font-size:12px">'+(q!=='scan'?'是':'否')+'</div></div>';
+    $('#rtNote').innerHTML=q==='scan'?'<span style="color:var(--red)">非分片键过滤需广播到所有分片再聚合，代价随分片数线性增长。</span>':'命中分片键，路由器精确定位 1~2 个分片，避免广播。';
+  }
+  body.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{
+    body.querySelectorAll('[data-q]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    q=b.dataset.q;draw();
+  }));
+  draw();
+})();
+
+/* ============================ 模块8: 一致性保证对比 ============================ */
+(()=>{
+  const body=$('#body-consistency');
+  body.innerHTML=`
+    <div class="panel" style="grid-column:1/-1">
+      <div class="panel-title">一致性谱系</div>
+      <div class="desc">从最强到最弱：<strong>线性一致 > 顺序一致 > 因果一致 > 读已提交 > 最终一致</strong>。越强约束越多、性能越低；分布式系统常按场景取舍。点击某档查看其保证与代价。</div>
+      <div class="svg-wrap"><svg viewBox="0 0 560 220" id="cs2Svg"></svg></div>
+      <div class="controls" id="cs2Btns">
+        <button class="btn" data-l="0">线性一致</button>
+        <button class="btn" data-l="1">顺序一致</button>
+        <button class="btn" data-l="2">因果一致</button>
+        <button class="btn" data-l="3">读已提交</button>
+        <button class="btn" data-l="4">最终一致</button>
+      </div>
+      <div class="desc" style="margin-top:14px" id="cs2Desc"></div>
+    </div>
+    <div class="panel" style="grid-column:1/-1">
+      <div class="panel-title">保证与代价对比</div>
+      <table class="cmp" id="cs2Table"></table>
+    </div>`;
+  const svg=$('#cs2Svg');
+  const levels=[
+    {n:'线性一致',en:'Linearizable',g:'所有操作看似在某一瞬间原子完成，跨副本全局全序，实时读最新。',cost:'高(需多数派/锁)，延迟最高',sys:'Spanner, CockroachDB(默认)',c:'#f97316'},
+    {n:'顺序一致',en:'Sequential',g:'存在一个所有进程认同的全局顺序，但不保证实时(读可能滞后)。',cost:'中高',sys:'ZooKeeper sync 读',c:'#fbbf24'},
+    {n:'因果一致',en:'Causal',g:'保持因果关系的操作顺序，无因果关系的并发操作可乱序。',cost:'中，可用性更好',sys:'MongoDB causal',c:'#22d3ee'},
+    {n:'读已提交',en:'Read Committed',g:'只读到已提交数据，无脏读；但不保证可重复读，可能不可重复。',cost:'低',sys:'PostgreSQL 默认',c:'#34d399'},
+    {n:'最终一致',en:'Eventual',g:'停止写入后副本最终收敛；期间可读到旧数据。',cost:'最低，AP 系统首选',sys:'DynamoDB, Cassandra',c:'#a855f7'}
+  ];
+  let active=0;
+  function draw(){
+    let h='';
+    h+='<text x="280" y="20" text-anchor="middle" fill="#a1a1aa" font-size="11">一致性强度光谱（左强右弱）</text>';
+    // gradient bar
+    const x0=40,w=480;
+    levels.forEach((l,i)=>{
+      const x=x0+i*(w/levels.length);
+      const on=i===active;
+      h+='<rect x="'+x+'" y="50" width="'+(w/levels.length-6)+'" height="50" rx="8" fill="'+(on?'rgba('+hexFill(l.c)+',0.2)':'#0f1115')+'" stroke="'+l.c+'" stroke-width="'+(on?2:1)+'"/>';
+      h+='<text x="'+(x+(w/levels.length-6)/2)+'" y="74" text-anchor="middle" fill="'+l.c+'" font-size="10.5" font-weight="600">'+l.n+'</text>';
+      h+='<text x="'+(x+(w/levels.length-6)/2)+'" y="90" text-anchor="middle" fill="#71717a" font-size="8">'+l.en+'</text>';
+      if(i<levels.length-1)h+='<text x="'+(x+w/levels.length-3)+'" y="78" fill="#71717a" font-size="12">›</text>';
+    });
+    // strength vs latency arrows
+    h+='<text x="40" y="130" fill="#f87171" font-size="10">← 强一致 · 约束多 · 延迟高</text>';
+    h+='<text x="520" y="130" text-anchor="end" fill="#34d399" font-size="10">弱一致 · 可用高 · 延迟低 →</text>';
+    // selected detail
+    const l=levels[active];
+    h+='<rect x="40" y="150" width="480" height="50" rx="9" fill="rgba('+hexFill(l.c)+',0.06)" stroke="'+l.c+'"/>';
+    h+='<text x="60" y="172" fill="'+l.c+'" font-size="11" font-weight="600">'+l.n+' · '+l.en+'</text>';
+    h+='<text x="60" y="190" fill="#a1a1aa" font-size="10">'+l.g+'</text>';
+    svg.innerHTML=h;
+    $('#cs2Desc').innerHTML='<strong style="color:'+l.c+'">保证：</strong>'+l.g+' <span class="acc">代价：</span>'+l.cost+' <span class="acc">代表：</span>'+l.sys;
+    // table
+    let t='<tr><th>级别</th><th>保证</th><th>代价</th><th>代表系统</th></tr>';
+    levels.forEach((lv,i)=>{
+      t+='<tr style="'+(i===active?'background:rgba(249,115,22,0.05)':'')+'"><td style="color:'+lv.c+';font-weight:600">'+lv.n+'</td><td>'+lv.g+'</td><td>'+lv.cost+'</td><td>'+lv.sys+'</td></tr>';
+    });
+    $('#cs2Table').innerHTML=t;
+  }
+  function hexFill(c){const m={'#f97316':'249,115,22','#fbbf24':'251,191,36','#22d3ee':'34,211,238','#34d399':'52,211,153','#a855f7':'168,85,247'};return m[c]||'249,115,22';}
+  body.querySelectorAll('[data-l]').forEach(b=>b.addEventListener('click',()=>{
+    body.querySelectorAll('[data-l]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    active=+b.dataset.l;draw();
+  }));
+  body.querySelector('[data-l="0"]').classList.add('active');
+  draw();
+})();
+</script>
+</body>
+</html>
