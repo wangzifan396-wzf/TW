@@ -35,7 +35,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 配套工具
 
-除了 130 个可视化实验室，TW 生态还包含三个独立的大型交互工具：
+除了 130 个可视化实验室，TW 生态还包含七个独立的大型交互工具：
 
 | 工具 | 描述 | 链接 |
 |------|------|------|
@@ -44,6 +44,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | TW Roadmap | 交互式学习路线图，5 层 27 节点 39 条依赖边，4 条精选学习路径，支持进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-roadmap.html) |
 | TW Compare | 多维概念对比工具，15 组技术对比 × 7 维度评分，雷达图可视化差异 | [打开](https://wangzifan396-wzf.github.io/TW/tw-compare.html) |
 | TW Quiz | 知识挑战问答系统，65 道题 × 4 分类 × 3 难度，即时解析与历史记录 | [打开](https://wangzifan396-wzf.github.io/TW/tw-quiz.html) |
+| TW Glossary | 交互式技术百科，205 个术语 × 4 分类，搜索筛选与交叉引用 | [打开](https://wangzifan396-wzf.github.io/TW/tw-glossary.html) |
+| TW Flashcards | 间隔重复记忆系统，119 张卡 × SM-2 算法，3D 翻转与进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-flashcards.html) |
 
 ## 快速统计
 
