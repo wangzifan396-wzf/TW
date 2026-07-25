@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW Benchmark — 浏览器内算法基准测试套件</title>
+<style>
+  :root{
+    --bg:#08090a; --panel:#0d0f11; --panel2:#111417; --panel3:#161a1e;
+    --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.04); --border3:rgba(255,255,255,.11);
+    --text:#e6edf3; --dim:#8b949e; --faint:#565f66;
+    --accent:#0ea5e9; --accent-dim:rgba(14,165,233,.14); --accent-glow:rgba(14,165,233,.35);
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --violet:#c084fc;
+    --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+  a{color:var(--accent);text-decoration:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  ::selection{background:var(--accent-dim)}
+
+  /* ---------- Header ---------- */
+  header.topbar{display:flex;align-items:center;gap:16px;padding:0 18px;height:54px;min-height:54px;
+    border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0a0c0e,#08090a);
+    position:sticky;top:0;z-index:30;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em;font-size:14px;white-space:nowrap}
+  .brand .mk{display:flex}
+  .brand .tw{color:var(--text)} .brand .sub{color:var(--faint);font-weight:500;font-size:11px;letter-spacing:.04em}
+  .topbar .spacer{flex:1}
+  .bench-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid var(--border);
+    border-radius:6px;background:var(--panel);color:var(--dim);font-size:11px;font-family:var(--mono);white-space:nowrap}
+  .chip b{color:var(--text);font-weight:600}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 13px;border-radius:7px;
+    font-size:12px;font-weight:600;letter-spacing:.01em;border:1px solid var(--border3);background:var(--panel2);
+    color:var(--text);transition:background .15s,border-color .15s,color .15s;white-space:nowrap}
+  .btn:hover{background:var(--panel3);border-color:var(--accent)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#04121b}
+  .btn.primary:hover{background:#38bdf8;border-color:#38bdf8}
+  .btn.ghost{background:transparent;border-color:var(--border)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.sm{height:26px;padding:0 10px;font-size:11px}
+  .btn.toggle{background:var(--panel);border-color:var(--border)}
+  .btn.toggle.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+
+  /* ---------- Layout ---------- */
+  .layout{flex:1;display:flex;min-height:0}
+  nav.sidebar{width:232px;min-width:232px;border-right:1px solid var(--border);background:var(--panel);
+    overflow-y:auto;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+  .nav-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+    padding:10px 10px 6px;font-weight:600}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:var(--dim);
+    font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:background .12s,color .12s}
+  .nav-item:hover{background:var(--panel2);color:var(--text)}
+  .nav-item.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(14,165,233,.25)}
+  .nav-item .ic{width:16px;height:16px;flex:none;display:flex;opacity:.9}
+  .nav-item .num{margin-left:auto;font-size:10px;color:var(--faint);font-family:var(--mono)}
+  .nav-item.active .num{color:var(--accent)}
+  .nav-item.sep{margin-top:6px;border-top:1px solid var(--border2);padding-top:10px}
+
+  main.content{flex:1;overflow-y:auto;padding:22px 26px 80px;min-width:0}
+  .module-head{margin-bottom:16px}
+  .module-head h1{margin:0 0 4px;font-size:19px;font-weight:600;letter-spacing:-.015em}
+  .module-head .desc{color:var(--dim);font-size:12.5px;max-width:760px}
+
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;
+    padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--panel)}
+  .field{display:flex;align-items:center;gap:7px}
+  .field label{font-size:11px;color:var(--faint);letter-spacing:.03em;text-transform:uppercase;font-weight:600}
+  select{height:28px;padding:0 8px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);font-size:12px;font-family:inherit;outline:none}
+  select:focus{border-color:var(--accent)}
+  .progress{flex:1;min-width:140px;height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;border:1px solid var(--border2)}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#38bdf8);transition:width .12s}
+  .progress-txt{font-size:11px;color:var(--dim);font-family:var(--mono);min-width:64px;text-align:right}
+
+  .scenario-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .stab{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--panel);
+    color:var(--dim);font-size:12px;font-weight:500;cursor:pointer;transition:.12s}
+  .stab:hover{color:var(--text);border-color:var(--border3)}
+  .stab.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(14,165,233,.3)}
+
+  /* ---------- Chart ---------- */
+  .chart-card{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:14px;margin-bottom:16px}
+  .chart-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap}
+  .chart-top .t{font-size:12px;font-weight:600;color:var(--text);letter-spacing:.01em}
+  .chart-top .t span{color:var(--faint);font-weight:400;margin-left:6px}
+  .toggles{display:flex;gap:6px}
+  .chart-wrap{width:100%;overflow-x:auto}
+  svg.chart{width:100%;height:auto;display:block;min-width:520px;font-family:var(--mono)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)}
+  .lg{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dim)}
+  .lg .sw{width:18px;height:3px;border-radius:2px;flex:none}
+  .lg b{color:var(--text);font-weight:600}
+  .lg .cx{color:var(--faint);font-family:var(--mono);font-size:10.5px;margin-left:3px}
+
+  /* ---------- Table ---------- */
+  .table-card{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden}
+  .table-card .th{padding:11px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;
+    display:flex;align-items:center;justify-content:space-between}
+  .table-card .th span{color:var(--faint);font-weight:400;font-size:11px}
+  .tbl-scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th,td{padding:8px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{position:sticky;top:0;background:var(--panel2);color:var(--faint);font-weight:600;
+    font-size:11px;letter-spacing:.03em;text-transform:uppercase}
+  tbody td:first-child{color:var(--text);font-weight:500}
+  tbody tr:hover{background:var(--panel2)}
+  td .cx{color:var(--faint);font-family:var(--mono);font-size:10.5px;margin-left:6px}
+  td .fast{color:var(--good)} td .slow{color:var(--bad)} td .mid{color:var(--warn)}
+  td .na{color:var(--faint)}
+
+  /* ---------- Summary ---------- */
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:16px}
+  .stat{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:16px}
+  .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .stat .v{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:6px;font-family:var(--mono)}
+  .stat .v small{font-size:13px;color:var(--dim);font-weight:500;margin-left:4px}
+  .stat .sub{font-size:11.5px;color:var(--dim);margin-top:6px}
+  .score-bar{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-top:10px;border:1px solid var(--border2)}
+  .score-bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--bad),var(--warn),var(--good));transition:width .4s}
+  .module-scores{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+  .ms-row{display:flex;align-items:center;gap:10px;font-size:12px}
+  .ms-row .nm{width:120px;color:var(--dim);flex:none}
+  .ms-row .track{flex:1;height:7px;border-radius:4px;background:var(--panel2);overflow:hidden;border:1px solid var(--border2)}
+  .ms-row .track > i{display:block;height:100%;background:var(--accent);transition:width .4s}
+  .ms-row .vv{width:54px;text-align:right;font-family:var(--mono);font-size:11.5px;color:var(--text)}
+
+  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--border);
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .info-cell{background:var(--panel);padding:13px 15px}
+  .info-cell .k{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .info-cell .v{font-size:12.5px;color:var(--text);margin-top:5px;font-family:var(--mono);word-break:break-all}
+
+  .history-list{display:flex;flex-direction:column;gap:8px}
+  .hrow{display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--border);
+    border-radius:9px;background:var(--panel);font-size:12px}
+  .hrow .when{color:var(--dim);font-family:var(--mono);font-size:11px;width:150px;flex:none}
+  .hrow .sc{font-family:var(--mono);font-weight:600;width:54px;text-align:right}
+  .hrow .br{color:var(--faint);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hrow .del{color:var(--faint);font-size:11px;cursor:pointer;padding:2px 6px;border-radius:5px}
+  .hrow .del:hover{color:var(--bad);background:var(--panel2)}
+
+  .empty{padding:40px;text-align:center;color:var(--faint);font-size:12.5px;border:1px dashed var(--border);border-radius:12px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;letter-spacing:.02em}
+  .pill.good{background:rgba(52,211,153,.12);color:var(--good)}
+  .pill.warn{background:rgba(251,191,36,.12);color:var(--warn)}
+  .pill.bad{background:rgba(248,113,113,.12);color:var(--bad)}
+  .pill.dim{background:var(--panel2);color:var(--dim)}
+
+  footer.foot{padding:14px 26px;border-top:1px solid var(--border);color:var(--faint);font-size:11px;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .note{font-size:11px;color:var(--faint);line-height:1.6}
+  .note code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--dim)}
+
+  @media (max-width:880px){
+    nav.sidebar{width:100%;min-width:0;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);padding:8px}
+    .nav-label{display:none} .nav-item.sep{border-top:none;padding-top:0;margin-top:0}
+    .nav-item{white-space:nowrap} .nav-item .num{display:none}
+    .layout{flex-direction:column}
+    main.content{padding:16px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mk" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="12" width="3" height="7" fill="#0ea5e9"/><rect x="8" y="8" width="3" height="11" fill="#0ea5e9"/><rect x="13" y="4" width="3" height="15" fill="#0ea5e9"/><rect x="18" y="10" width="3" height="9" fill="#0ea5e9" opacity="0.4"/></svg>
+    </span>
+    <span><span class="tw">TW Benchmark</span> <span class="sub">/ browser algo suite</span></span>
+  </div>
+  <div class="spacer"></div>
+  <div class="bench-info" id="benchInfo"></div>
+  <button class="btn ghost sm" id="btnHistory">历史</button>
+  <button class="btn primary" id="btnRunAll">全部运行</button>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main class="content" id="content"></main>
+</div>
+
+<footer class="foot">
+  <span>TW Benchmark · 浏览器内算法基准测试 · 数据均在本地运行，不上传</span>
+  <span id="footStat">就绪</span>
+</footer>
+
+<script>
+'use strict';
+/* ============================================================
+   TW Benchmark — 单文件浏览器内算法基准测试套件
+   ============================================================ */
+
+/* ---------- DOM helpers ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+function el(tag, props, ...kids){
+  const e = document.createElement(tag);
+  if(props) for(const k in props){
+    if(k==='class') e.className=props[k];
+    else if(k==='html') e.innerHTML=props[k];
+    else if(k==='text') e.textContent=props[k];
+    else if(k.startsWith('on')&&typeof props[k]==='function') e.addEventListener(k.slice(2),props[k]);
+    else if(k==='style'&&typeof props[k]==='object') Object.assign(e.style,props[k]);
+    else e.setAttribute(k,props[k]);
+  }
+  for(const c of kids){ if(c==null) continue; e.appendChild(typeof c==='string'?document.createTextNode(c):c); }
+  return e;
+}
+function clear(n){ while(n.firstChild) n.removeChild(n.firstChild); }
+
+/* ---------- formatting ---------- */
+function fmtTime(ms){
+  if(ms==null) return '—';
+  if(ms<0.001) return '0.001';
+  if(ms<1) return ms.toFixed(3);
+  if(ms<10) return ms.toFixed(2);
+  if(ms<1000) return ms.toFixed(1);
+  return (ms/1000).toFixed(2)+'s';
+}
+function fmtInt(n){ return n>=1000 ? n.toLocaleString('en-US') : String(n); }
+function timeClass(ms){
+  if(ms==null) return 'na';
+  if(ms<5) return 'fast'; if(ms<100) return 'mid'; return 'slow';
+}
+
+/* ---------- async yield (chunked execution) ---------- */
+const yieldUI = () => new Promise(r=>setTimeout(r,0));
+const yieldRAF = () => new Promise(r=>requestAnimationFrame(r));
+
+/* ============================================================
+   DATA GENERATION
+   ============================================================ */
+function genArray(n, dtype){
+  const a = new Array(n);
+  const max = Math.max(n*10, 100);
+  for(let i=0;i<n;i++) a[i] = Math.floor(Math.random()*max);
+  if(dtype==='sorted'){ a.sort((x,y)=>x-y); }
+  else if(dtype==='reverse'){ a.sort((x,y)=>y-x); }
+  else if(dtype==='nearly'){
+    a.sort((x,y)=>x-y);
+    const sw = Math.max(1, Math.floor(n*0.02));
+    for(let k=0;k<sw;k++){ const i=Math.floor(Math.random()*n), j=Math.floor(Math.random()*n); const t=a[i];a[i]=a[j];a[j]=t; }
+  }
+  return a;
+}
+function genText(n){ const A='ACGT'; let s=''; for(let i=0;i<n;i++) s+=A[Math.floor(Math.random()*4)]; return s; }
+
+/* ============================================================
+   SORTING ALGORITHMS
+   ============================================================ */
+const Sort = {
+  bubble(a){ const n=a.length; for(let i=0;i<n-1;i++){ let sw=false; for(let j=0;j<n-1-i;j++){ if(a[j]>a[j+1]){ const t=a[j];a[j]=a[j+1];a[j+1]=t; sw=true; } } if(!sw) break; } return a; },
+  insertion(a){ for(let i=1;i<a.length;i++){ const k=a[i]; let j=i-1; while(j>=0&&a[j]>k){ a[j+1]=a[j]; j--; } a[j+1]=k; } return a; },
+  selection(a){ const n=a.length; for(let i=0;i<n-1;i++){ let m=i; for(let j=i+1;j<n;j++) if(a[j]<a[m]) m=j; if(m!==i){ const t=a[i];a[i]=a[m];a[m]=t; } } return a; },
+  merge(a){ if(a.length<=1) return a; const mid=a.length>>1; return Sort._merge(Sort.merge(a.slice(0,mid)),Sort.merge(a.slice(mid))); },
+  _merge(l,r){ const res=new Array(l.length+r.length); let i=0,j=0,k=0; while(i<l.length&&j<r.length){ if(l[i]<=r[j]) res[k++]=l[i++]; else res[k++]=r[j++]; } while(i<l.length) res[k++]=l[i++]; while(j<r.length) res[k++]=r[j++]; return res; },
+  quick(a){ if(a.length<=1) return a; const p=a[a.length>>1]; const lo=[],eq=[],hi=[]; for(const x of a){ if(x<p) lo.push(x); else if(x>p) hi.push(x); else eq.push(x); } return Sort.quick(lo).concat(eq,Sort.quick(hi)); },
+  heap(a){ const n=a.length; for(let i=(n>>1)-1;i>=0;i--) Sort._heapify(a,n,i); for(let i=n-1;i>0;i--){ const t=a[0];a[0]=a[i];a[i]=t; Sort._heapify(a,i,0); } return a; },
+  _heapify(a,n,i){ let lg=i; const l=2*i+1,r=2*i+2; if(l<n&&a[l]>a[lg]) lg=l; if(r<n&&a[r]>a[lg]) lg=r; if(lg!==i){ const t=a[i];a[i]=a[lg];a[lg]=t; Sort._heapify(a,n,lg); } },
+  radix(a){ if(a.length===0) return a; let mx=0; for(let i=0;i<a.length;i++) if(a[i]>mx) mx=a[i]; let exp=1; const out=new Array(a.length); while(Math.floor(mx/exp)>0){ const cnt=new Array(10).fill(0); for(let i=0;i<a.length;i++) cnt[Math.floor(a[i]/exp)%10]++; for(let i=1;i<10;i++) cnt[i]+=cnt[i-1]; for(let i=a.length-1;i>=0;i--) out[--cnt[Math.floor(a[i]/exp)%10]]=a[i]; for(let i=0;i<a.length;i++) a[i]=out[i]; exp*=10; } return a; },
+  counting(a){ if(a.length===0) return a; let mn=Infinity,mx=-Infinity; for(const x of a){ if(x<mn)mn=x; if(x>mx)mx=x; } const range=mx-mn+1; const cnt=new Array(range).fill(0); const out=new Array(a.length); for(let i=0;i<a.length;i++) cnt[a[i]-mn]++; for(let i=1;i<range;i++) cnt[i]+=cnt[i-1]; for(let i=a.length-1;i>=0;i--) out[--cnt[a[i]-mn]]=a[i]; for(let i=0;i<a.length;i++) a[i]=out[i]; return a; }
+};
+
+/* ============================================================
+   SEARCH ALGORITHMS + structures
+   ============================================================ */
+class BSTNode{ constructor(v){ this.v=v; this.left=null; this.right=null; } }
+class BST{
+  constructor(){ this.root=null; }
+  insert(v){ let n=this.root; if(!n){ this.root=new BSTNode(v); return; } while(true){ if(v<n.v){ if(!n.left){ n.left=new BSTNode(v); return; } n=n.left; } else if(v>n.v){ if(!n.right){ n.right=new BSTNode(v); return; } n=n.right; } else return; } }
+  has(v){ let n=this.root; while(n){ if(v===n.v) return true; n = v<n.v?n.left:n.right; } return false; }
+}
+class SkipNode{ constructor(v,lvl){ this.v=v; this.fwd=new Array(lvl+1).fill(null); } }
+class SkipList{
+  constructor(maxLvl=16){ this.maxLvl=maxLvl; this.head=new SkipNode(-Infinity,maxLvl); this.lvl=0; }
+  _rl(){ let l=0; while(l<this.maxLvl && Math.random()<0.5) l++; return l; }
+  insert(v){ const up=new Array(this.maxLvl+1); let c=this.head; for(let i=this.lvl;i>=0;i--){ while(c.fwd[i]&&c.fwd[i].v<v) c=c.fwd[i]; up[i]=c; } c=c.fwd[0]; if(!c||c.v!==v){ const l=this._rl(); if(l>this.lvl){ for(let i=this.lvl+1;i<=l;i++) up[i]=this.head; this.lvl=l; } const node=new SkipNode(v,l); for(let i=0;i<=l;i++){ node.fwd[i]=up[i].fwd[i]; up[i].fwd[i]=node; } } }
+  has(v){ let c=this.head; for(let i=this.lvl;i>=0;i--){ while(c.fwd[i]&&c.fwd[i].v<v) c=c.fwd[i]; } c=c.fwd[0]; return c&&c.v===v; }
+}
+const Search = {
+  linear(arr,t){ for(let i=0;i<arr.length;i++) if(arr[i]===t) return i; return -1; },
+  binary(arr,t){ let lo=0,hi=arr.length-1; while(lo<=hi){ const m=(lo+hi)>>1; if(arr[m]===t) return m; if(arr[m]<t) lo=m+1; else hi=m-1; } return -1; },
+  interpolation(arr,t){ let lo=0,hi=arr.length-1; while(lo<=hi&&t>=arr[lo]&&t<=arr[hi]){ if(lo===hi){ return arr[lo]===t?lo:-1; } const pos=lo+Math.floor(((t-arr[lo])*(hi-lo))/(arr[hi]-arr[lo]||1)); if(arr[pos]===t) return pos; if(arr[pos]<t) lo=pos+1; else hi=pos-1; } return -1; }
+};
+
+/* ============================================================
+   GRAPH ALGORITHMS
+   ============================================================ */
+const Graph = {
+  genRandom(n,p){ const adj=Array.from({length:n},()=>[]); const mat=Array.from({length:n},()=>new Float64Array(n)); for(let i=0;i<n;i++) for(let j=0;j<n;j++){ if(i!==j&&Math.random()<p){ const w=Math.floor(Math.random()*99)+1; adj[i].push([j,w]); mat[i][j]=w; } } return {adj,mat,n}; },
+  genGrid(side){ const n=side*side; const adj=Array.from({length:n},()=>[]); for(let r=0;r<side;r++) for(let c=0;c<side;c++){ const u=r*side+c; if(c<side-1){ const w=Math.random()*9+1; adj[u].push([u+1,w]); adj[u+1].push([u,w]); } if(r<side-1){ const w=Math.random()*9+1; adj[u].push([u+side,w]); adj[u+side].push([u,w]); } } return {adj,n,side}; },
+  bfs(adj,n,s){ const vis=new Uint8Array(n); const q=[s]; vis[s]=1; let h=0,cnt=0; while(h<q.length){ const u=q[h++]; cnt++; const nb=adj[u]; for(let k=0;k<nb.length;k++){ const v=nb[k][0]; if(!vis[v]){ vis[v]=1; q.push(v); } } } return cnt; },
+  dfs(adj,n,s){ const vis=new Uint8Array(n); const st=[s]; let cnt=0; while(st.length){ const u=st.pop(); if(vis[u]) continue; vis[u]=1; cnt++; const nb=adj[u]; for(let k=nb.length-1;k>=0;k--){ const v=nb[k][0]; if(!vis[v]) st.push(v); } } return cnt; },
+  bfsMat(mat,n,s){ const vis=new Uint8Array(n); const q=[s]; vis[s]=1; let h=0,cnt=0; while(h<q.length){ const u=q[h++]; cnt++; const row=mat[u]; for(let v=0;v<n;v++) if(row[v]&&!vis[v]){ vis[v]=1; q.push(v); } } return cnt; },
+  dfsMat(mat,n,s){ const vis=new Uint8Array(n); const st=[s]; let cnt=0; while(st.length){ const u=st.pop(); if(vis[u]) continue; vis[u]=1; cnt++; const row=mat[u]; for(let v=0;v<n;v++) if(row[v]&&!vis[v]) st.push(v); } return cnt; },
+  dijkstra(adj,n,src){ const dist=new Float64Array(n).fill(Infinity); const vis=new Uint8Array(n); dist[src]=0; for(let i=0;i<n;i++){ let u=-1,best=Infinity; for(let j=0;j<n;j++) if(!vis[j]&&dist[j]<best){ best=dist[j]; u=j; } if(u===-1) break; vis[u]=1; const nb=adj[u]; for(let k=0;k<nb.length;k++){ const v=nb[k][0],w=nb[k][1]; if(!vis[v]&&dist[u]+w<dist[v]) dist[v]=dist[u]+w; } } return dist; },
+  astar(adj,side,src,goal){ const n=side*side; const g=new Float64Array(n).fill(Infinity); const f=new Float64Array(n).fill(Infinity); const vis=new Uint8Array(n); const inOpen=new Uint8Array(n); const h=(u)=>{ const ur=Math.floor(u/side),uc=u%side,gr=Math.floor(goal/side),gc=goal%side; return Math.abs(ur-gr)+Math.abs(uc-gc); }; g[src]=0; f[src]=h(src); const open=[src]; inOpen[src]=1; while(open.length){ let bi=0; for(let i=1;i<open.length;i++) if(f[open[i]]<f[open[bi]]) bi=i; const u=open[bi]; open[bi]=open[open.length-1]; open.pop(); if(u===goal) return g[u]; if(vis[u]) continue; vis[u]=1; const nb=adj[u]; for(let k=0;k<nb.length;k++){ const v=nb[k][0],w=nb[k][1]; if(vis[v]) continue; const ng=g[u]+w; if(ng<g[v]){ g[v]=ng; f[v]=ng+h(v); if(!inOpen[v]){ open.push(v); inOpen[v]=1; } } } } return g[goal]; },
+  floyd(mat,n){ const d=Array.from({length:n},(_,i)=>{ const r=new Float64Array(n); for(let j=0;j<n;j++) r[j]= i===j?0:(mat[i][j]||Infinity); return r; }); for(let k=0;k<n;k++) for(let i=0;i<n;i++){ const dik=d[i][k]; if(dik===Infinity) continue; for(let j=0;j<n;j++){ const nd=dik+d[k][j]; if(nd<d[i][j]) d[i][j]=nd; } } return d; }
+};
+
+/* ============================================================
+   STRING ALGORITHMS
+   ============================================================ */
+const Str = {
+  naive(t,p){ let c=0; const n=t.length,m=p.length; for(let i=0;i<=n-m;i++){ let j=0; while(j<m&&t[i+j]===p[j]) j++; if(j===m) c++; } return c; },
+  kmp(t,p){ const m=p.length; if(m===0) return 0; const lps=new Array(m).fill(0); let len=0,i=1; while(i<m){ if(p[i]===p[len]){ len++; lps[i]=len; i++; } else { if(len) len=lps[len-1]; else { lps[i]=0; i++; } } } let c=0; i=0; let j=0; const n=t.length; while(i<n){ if(t[i]===p[j]){ i++; j++; if(j===m){ c++; j=lps[j-1]; } } else { if(j) j=lps[j-1]; else i++; } } return c; },
+  bm(t,p){ const m=p.length,n=t.length; if(m===0||m>n) return 0; const bc=new Map(); for(let i=0;i<m;i++) bc.set(p[i],i); let c=0,s=0; while(s<=n-m){ let j=m-1; while(j>=0&&p[j]===t[s+j]) j--; if(j<0){ c++; s += (s+m<n) ? Math.max(1, m-(bc.has(t[s+m])?bc.get(t[s+m]):-1)) : 1; } else { s += Math.max(1, j-(bc.has(t[s+j])?bc.get(t[s+j]):-1)); } } return c; },
+  rk(t,p){ const n=t.length,m=p.length; if(m===0||m>n) return 0; const base=256,mod=1000000007; let ph=0,th=0,h=1; for(let i=0;i<m-1;i++) h=(h*base)%mod; for(let i=0;i<m;i++){ ph=(ph*base+p.charCodeAt(i))%mod; th=(th*base+t.charCodeAt(i))%mod; } let c=0; for(let i=0;i<=n-m;i++){ if(ph===th){ let j=0; while(j<m&&t[i+j]===p[j]) j++; if(j===m) c++; } if(i<n-m){ th=(base*(th-t.charCodeAt(i)*h)+t.charCodeAt(i+m))%mod; if(th<0) th+=mod; } } return c; },
+  lcs(a,b){ const n=a.length,m=b.length; let prev=new Array(m+1).fill(0); let cur=new Array(m+1).fill(0); for(let i=1;i<=n;i++){ for(let j=1;j<=m;j++){ if(a[i-1]===b[j-1]) cur[j]=prev[j-1]+1; else cur[j]=prev[j]>cur[j-1]?prev[j]:cur[j-1]; } const tmp=prev; prev=cur; cur=tmp; cur.fill(0,1); } return prev[m]; }
+};
+
+/* ============================================================
+   MATH ALGORITHMS
+   ============================================================ */
+const MathB = {
+  matMulNaive(a,b){ const n=a.length; const c=Array.from({length:n},()=>new Array(n).fill(0)); for(let i=0;i<n;i++){ const ai=a[i],ci=c[i]; for(let k=0;k<n;k++){ const aik=ai[k]; const bk=b[k]; for(let j=0;j<n;j++) ci[j]+=aik*bk[j]; } } return c; },
+  _add(a,b){ const n=a.length; const c=new Array(n); for(let i=0;i<n;i++){ const ai=a[i],bi=b[i],ci=new Array(n); for(let j=0;j<n;j++) ci[j]=ai[j]+bi[j]; c[i]=ci; } return c; },
+  _sub(a,b){ const n=a.length; const c=new Array(n); for(let i=0;i<n;i++){ const ai=a[i],bi=b[i],ci=new Array(n); for(let j=0;j<n;j++) ci[j]=ai[j]-bi[j]; c[i]=ci; } return c; },
+  _split(m){ const n=m.length,mid=n>>1; const a11=[],a12=[],a21=[],a22=[]; for(let i=0;i<mid;i++){ a11.push(m[i].slice(0,mid)); a12.push(m[i].slice(mid)); a21.push(m[mid+i].slice(0,mid)); a22.push(m[mid+i].slice(mid)); } return [a11,a12,a21,a22]; },
+  _join(a11,a12,a21,a22){ const half=a11.length,n=half*2; const m=new Array(n); for(let i=0;i<n;i++){ if(i<half) m[i]=a11[i].concat(a12[i]); else m[i]=a21[i-half].concat(a22[i-half]); } return m; },
+  strassen(a,b){ const n=a.length; if(n<=64) return MathB.matMulNaive(a,b); const [a11,a12,a21,a22]=MathB._split(a); const [b11,b12,b21,b22]=MathB._split(b); const m1=MathB.strassen(MathB._add(a11,a22),MathB._add(b11,b22)); const m2=MathB.strassen(MathB._add(a21,a22),b11); const m3=MathB.strassen(a11,MathB._sub(b12,b22)); const m4=MathB.strassen(a22,MathB._sub(b21,b11)); const m5=MathB.strassen(MathB._add(a11,a12),b22); const m6=MathB.strassen(MathB._sub(a21,a11),MathB._add(b11,b12)); const m7=MathB.strassen(MathB._sub(a12,a22),MathB._add(b21,b22)); const c11=MathB._add(MathB._sub(MathB._add(m1,m4),m5),m7); const c12=MathB._add(m3,m5); const c21=MathB._add(m2,m4); const c22=MathB._add(MathB._sub(MathB._add(m1,m3),m2),m6); return MathB._join(c11,c12,c21,c22); },
+  fft(re,im){ const n=re.length; for(let i=1,j=0;i<n;i++){ let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; } } for(let len=2;len<=n;len<<=1){ const ang=-2*Math.PI/len; const wRe=Math.cos(ang),wIm=Math.sin(ang); for(let i=0;i<n;i+=len){ let wr=1,wi=0; const half=len>>1; for(let j=0;j<half;j++){ const uRe=re[i+j],uIm=im[i+j]; const idx=i+j+half; const vRe=re[idx]*wr-im[idx]*wi; const vIm=re[idx]*wi+im[idx]*wr; re[i+j]=uRe+vRe; im[i+j]=uIm+vIm; re[idx]=uRe-vRe; im[idx]=uIm-vIm; const nwr=wr*wRe-wi*wIm; wi=wr*wIm+wi*wRe; wr=nwr; } } } },
+  bigintMul(digits){ let aStr='',bStr=''; for(let i=0;i<digits;i++){ aStr+=String(Math.floor(Math.random()*10)); bStr+=String(Math.floor(Math.random()*10)); } const a=BigInt(aStr||'0'),b=BigInt(bStr||'0'); return a*b; },
+  monteCarlo(iters){ let inside=0; for(let i=0;i<iters;i++){ const x=Math.random(),y=Math.random(); if(x*x+y*y<=1) inside++; } return 4*inside/iters; }
+};
+
+/* ============================================================
+   DATA STRUCTURES
+   ============================================================ */
+class LLNode{ constructor(v){ this.v=v; this.next=null; } }
+class LinkedList{
+  constructor(){ this.head=null; this.tail=null; this.size=0; }
+  push(v){ const n=new LLNode(v); if(!this.head){ this.head=n; this.tail=n; } else { this.tail.next=n; this.tail=n; } this.size++; }
+  has(v){ let c=this.head; while(c){ if(c.v===v) return true; c=c.next; } return false; }
+  delete(v){ if(!this.head) return false; if(this.head.v===v){ this.head=this.head.next; if(!this.head) this.tail=null; this.size--; return true; } let c=this.head; while(c.next){ if(c.next.v===v){ c.next=c.next.next; if(!c.next) this.tail=c; this.size--; return true; } c=c.next; } return false; }
+  traverse(){ let c=this.head,cnt=0; while(c){ cnt++; c=c.next; } return cnt; }
+}
+
+/* ============================================================
+   DYNAMIC PROGRAMMING
+   ============================================================ */
+const DP = {
+  fibRec(n){ if(n<2) return n; return DP.fibRec(n-1)+DP.fibRec(n-2); },
+  fibMemo(n){ const m=new Array(n+1); m[0]=0; if(n>=1) m[1]=1; for(let i=2;i<=n;i++) m[i]=m[i-1]+m[i-2]; return m[n]; },
+  fibIter(n){ let a=0,b=1; for(let i=0;i<n;i++){ const t=a+b; a=b; b=t; } return a; },
+  fibMatrix(n){ if(n<2) return n; const mul=(x,y)=>[[x[0][0]*y[0][0]+x[0][1]*y[1][0],x[0][0]*y[0][1]+x[0][1]*y[1][1]],[x[1][0]*y[0][0]+x[1][1]*y[1][0],x[1][0]*y[0][1]+x[1][1]*y[1][1]]]; let r=[[1,0],[0,1]]; let b=[[1,1],[1,0]]; let k=n-1; while(k>0){ if(k&1) r=mul(r,b); b=mul(b,b); k>>=1; } return r[0][0]; },
+  knap01(items,W){ const dp=new Float64Array(W+1); for(const it of items){ for(let j=W;j>=it.w;j--){ const v=dp[j-it.w]+it.v; if(v>dp[j]) dp[j]=v; } } return dp[W]; },
+  knapComplete(items,W){ const dp=new Float64Array(W+1); for(const it of items){ for(let j=it.w;j<=W;j++){ const v=dp[j-it.w]+it.v; if(v>dp[j]) dp[j]=v; } } return dp[W]; }
+};
+
+/* ============================================================
+   PALETTE
+   ============================================================ */
+const PALETTE = ['#0ea5e9','#34d399','#fbbf24','#c084fc','#f472b6','#22d3ee','#fb923c','#a3e635','#94a3b8','#60a5fa'];
+function color(i){ return PALETTE[i%PALETTE.length]; }
+
+/* ============================================================
+   BIG-O FITTING
+   ============================================================ */
+function bigOFn(cx){
+  switch(cx){
+    case 'O(1)': return n=>1;
+    case 'O(log n)': return n=>Math.log2(Math.max(2,n));
+    case 'O(n)': return n=>n;
+    case 'O(n log n)': return n=>n*Math.log2(Math.max(2,n));
+    case 'O(n²)': return n=>n*n;
+    case 'O(n³)': return n=>n*n*n;
+    case 'O(nk)': return n=>n*Math.log2(Math.max(2,n));
+    case 'O(n+k)': return n=>n;
+    case 'O(√n)': return n=>Math.sqrt(n);
+    case 'O(2^n)': return n=>Math.pow(2,n);
+    case 'O(n^2.807)': return n=>Math.pow(n,2.807);
+    case 'O(n*m)': return n=>n*n;
+    default: return n=>n;
+  }
+}
+function fitCurve(points, cx){
+  const f=bigOFn(cx); let num=0,den=0;
+  for(const p of points){ if(p.time==null||p.time<=0) continue; const fi=f(p.size); num+=p.time*fi; den+=fi*fi; }
+  const c = den>0 ? num/den : 0;
+  return points.map(p=>({size:p.size, time:c*f(p.size)}));
+}
+
+/* ============================================================
+   DEFAULT CHUNKED RUNNER
+   ============================================================ */
+async function defaultRunner(scenario, params, onProgress){
+  const algos=scenario.algorithms, sizes=scenario.sizes;
+  const series=algos.map(a=>({name:a.name,color:a.color||color(algos.indexOf(a)),complexity:a.complexity,points:[]}));
+  let done=0; const total=algos.length*sizes.length;
+  for(const size of sizes){
+    let baseInput;
+    try{ baseInput=scenario.genInput(size,params); }
+    catch(e){ for(let ai=0;ai<algos.length;ai++){ series[ai].points.push({size,time:null}); done++; } onProgress(done,total); await yieldUI(); continue; }
+    for(let ai=0;ai<algos.length;ai++){
+      const a=algos[ai]; const si=series[ai];
+      if(a.maxSize && size>a.maxSize){ si.points.push({size,time:null}); done++; onProgress(done,total); await yieldUI(); continue; }
+      const input = scenario.cloneInput ? scenario.cloneInput(baseInput) : baseInput;
+      let t0,t1;
+      try{ t0=performance.now(); a.fn(input,params,size); t1=performance.now(); si.points.push({size,time:t1-t0}); }
+      catch(e){ si.points.push({size,time:null}); }
+      done++; onProgress(done,total); await yieldUI();
+    }
+  }
+  return {series,sizes};
+}
+
+/* ============================================================
+   CONCURRENCY RUNNER (async, real timers)
+   ============================================================ */
+async function concurrencyRunner(scenario, params, onProgress){
+  const sizes=(scenario&&scenario.sizes)||[100,500,1000,5000];
+  const work = 20000;
+  const strategies=[
+    {name:'同步顺序',complexity:'O(n)',color:'#0ea5e9'},
+    {name:'setTimeout分块',complexity:'O(n)',color:'#34d399'},
+    {name:'rAF分批',complexity:'O(n)',color:'#fbbf24'},
+    {name:'大块分片',complexity:'O(n)',color:'#c084fc'}
+  ];
+  const series=strategies.map(s=>({...s,points:[]}));
+  const doWork=(it)=>{ let s=0; for(let i=0;i<it;i++) s+=i; return s; };
+  let done=0; const total=strategies.length*sizes.length;
+  for(const size of sizes){
+    let t0,t1;
+    t0=performance.now(); for(let i=0;i<size;i++) doWork(work); t1=performance.now();
+    series[0].points.push({size,time:t1-t0}); done++; onProgress(done,total); await yieldUI();
+    t0=performance.now(); await new Promise(res=>{ let i=0; (function step(){ const end=Math.min(i+50,size); for(;i<end;i++) doWork(work); if(i<size) setTimeout(step,0); else res(); })(); }); t1=performance.now();
+    series[1].points.push({size,time:t1-t0}); done++; onProgress(done,total); await yieldUI();
+    t0=performance.now(); await new Promise(res=>{ let i=0; (function step(){ const end=Math.min(i+50,size); for(;i<end;i++) doWork(work); if(i<size) requestAnimationFrame(step); else res(); })(); }); t1=performance.now();
+    series[2].points.push({size,time:t1-t0}); done++; onProgress(done,total); await yieldUI();
+    t0=performance.now(); await new Promise(res=>{ let i=0; (function step(){ const end=Math.min(i+500,size); for(;i<end;i++) doWork(work); if(i<size) setTimeout(step,0); else res(); })(); }); t1=performance.now();
+    series[3].points.push({size,time:t1-t0}); done++; onProgress(done,total); await yieldUI();
+  }
+  return {series,sizes};
+}
+
+/* ============================================================
+   MODULE DEFINITIONS
+   ============================================================ */
+const MODULES = [
+  {
+    id:'sorting', name:'排序算法对比', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12V4M3 4L1.5 5.5M3 4l1.5 1.5M13 4v8M13 12l1.5-1.5M13 12l-1.5-1.5"/></svg>',
+    desc:'8 种排序算法在不同输入规模与数据分布下的耗时对比，拟合 O(n²)/O(n log n)/O(nk) 曲线。',
+    scenarios:[{
+      id:'default', name:'通用排序',
+      sizes:[100,500,1000,5000,10000,50000],
+      params:[{key:'dtype',label:'数据类型',options:[['random','随机'],['sorted','已排序'],['reverse','逆序'],['nearly','近似排序']],default:'random'}],
+      genInput:(s,p)=>genArray(s,p.dtype),
+      cloneInput:a=>a.slice(),
+      algorithms:[
+        {name:'冒泡排序',complexity:'O(n²)',maxSize:10000,fn:(a)=>Sort.bubble(a)},
+        {name:'插入排序',complexity:'O(n²)',maxSize:10000,fn:(a)=>Sort.insertion(a)},
+        {name:'选择排序',complexity:'O(n²)',maxSize:10000,fn:(a)=>Sort.selection(a)},
+        {name:'归并排序',complexity:'O(n log n)',fn:(a)=>Sort.merge(a)},
+        {name:'快速排序',complexity:'O(n log n)',fn:(a)=>Sort.quick(a)},
+        {name:'堆排序',complexity:'O(n log n)',fn:(a)=>Sort.heap(a)},
+        {name:'基数排序',complexity:'O(nk)',fn:(a)=>Sort.radix(a)},
+        {name:'计数排序',complexity:'O(n+k)',fn:(a)=>Sort.counting(a)}
+      ]
+    }]
+  },
+  {
+    id:'search', name:'搜索算法对比', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>',
+    desc:'线性 / 二分 / 插值搜索，以及哈希表、BST、跳表查找在不同数据规模下的对比。',
+    scenarios:[{
+      id:'default', name:'查找对比',
+      sizes:[1000,10000,100000,500000],
+      params:[],
+      genInput:(s)=>{
+        const arr=genArray(s,'sorted'); const map=new Map(); const bst=new BST(); const sl=new SkipList();
+        const order=arr.slice();
+        for(let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=order[i];order[i]=order[j];order[j]=t; }
+        for(let i=0;i<order.length;i++){ map.set(order[i],i); bst.insert(order[i]); sl.insert(order[i]); }
+        const K=Math.min(s,500); const targets=new Array(K);
+        for(let i=0;i<K;i++) targets[i]=arr[Math.floor(Math.random()*arr.length)];
+        return {arr,map,bst,sl,targets,K};
+      },
+      algorithms:[
+        {name:'线性搜索',complexity:'O(n)',fn:(d)=>{ let c=0; for(let i=0;i<d.K;i++) Search.linear(d.arr,d.targets[i]); return c; }},
+        {name:'二分搜索',complexity:'O(log n)',fn:(d)=>{ for(let i=0;i<d.K;i++) Search.binary(d.arr,d.targets[i]); }},
+        {name:'插值搜索',complexity:'O(log n)',fn:(d)=>{ for(let i=0;i<d.K;i++) Search.interpolation(d.arr,d.targets[i]); }},
+        {name:'哈希表',complexity:'O(1)',fn:(d)=>{ for(let i=0;i<d.K;i++) d.map.has(d.targets[i]); }},
+        {name:'BST 查找',complexity:'O(log n)',fn:(d)=>{ for(let i=0;i<d.K;i++) d.bst.has(d.targets[i]); }},
+        {name:'跳表查找',complexity:'O(log n)',fn:(d)=>{ for(let i=0;i<d.K;i++) d.sl.has(d.targets[i]); }}
+      ]
+    }]
+  },
+  {
+    id:'graph', name:'图算法基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="3.5" cy="3.5" r="1.6"/><circle cx="12.5" cy="4" r="1.6"/><circle cx="8" cy="12.5" r="1.6"/><path d="M4.6 4.6L7 11M11.5 5L9 11M5 3.5h6"/></svg>',
+    desc:'BFS / DFS / Dijkstra / A* / Floyd-Warshall，以及邻接矩阵 vs 邻接表的性能差异。',
+    scenarios:[
+      {
+        id:'traversal', name:'遍历 & 表示对比',
+        sizes:[100,200,400,600],
+        params:[],
+        genInput:(s)=>{ const g=Graph.genRandom(s,0.02); return {adj:g.adj,mat:g.mat,n:s}; },
+        algorithms:[
+          {name:'BFS (邻接表)',complexity:'O(V+E)',fn:(g)=>Graph.bfs(g.adj,g.n,0)},
+          {name:'DFS (邻接表)',complexity:'O(V+E)',fn:(g)=>Graph.dfs(g.adj,g.n,0)},
+          {name:'BFS (邻接矩阵)',complexity:'O(V²)',maxSize:600,fn:(g)=>Graph.bfsMat(g.mat,g.n,0)},
+          {name:'DFS (邻接矩阵)',complexity:'O(V²)',maxSize:600,fn:(g)=>Graph.dfsMat(g.mat,g.n,0)}
+        ]
+      },
+      {
+        id:'path', name:'最短路径',
+        sizes:[100,400,900,2500],
+        params:[],
+        genInput:(s)=>{ let side=Math.round(Math.sqrt(s)); return Graph.genGrid(side); },
+        algorithms:[
+          {name:'Dijkstra',complexity:'O(n²)',fn:(g)=>Graph.dijkstra(g.adj,g.n,0)},
+          {name:'A*',complexity:'O(E log V)',fn:(g)=>Graph.astar(g.adj,g.side,0,g.n-1)},
+          {name:'Floyd-Warshall',complexity:'O(n³)',maxSize:400,fn:(g)=>{ const n=g.n; const mat=new Array(n); for(let i=0;i<n;i++){ const r=new Float64Array(n); const nb=g.adj[i]; for(let k=0;k<nb.length;k++) r[nb[k][0]]=nb[k][1]; mat[i]=r; } return Graph.floyd(mat,n); }}
+        ]
+      }
+    ]
+  },
+  {
+    id:'string', name:'字符串算法基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 3h10M3 8h7M3 13h10"/><path d="M11 8l1.5 1.5L13 8" stroke="#0ea5e9"/></svg>',
+    desc:'朴素 / KMP / Boyer-Moore / Rabin-Karp 模式匹配，以及最长公共子序列 DP。',
+    scenarios:[
+      {
+        id:'match', name:'模式匹配',
+        sizes:[1000,5000,10000,50000,100000],
+        params:[{key:'plen',label:'模式长度',options:[['5','5'],['10','10'],['20','20'],['50','50']],default:'10'}],
+        genInput:(s,p)=>{ const text=genText(s); const plen=parseInt(p.plen); const pat=text.substr(Math.floor(Math.random()*(s-plen)),plen); return {text,pat}; },
+        algorithms:[
+          {name:'朴素匹配',complexity:'O(nm)',fn:(d)=>Str.naive(d.text,d.pat)},
+          {name:'KMP',complexity:'O(n+m)',fn:(d)=>Str.kmp(d.text,d.pat)},
+          {name:'Boyer-Moore',complexity:'O(n/m)~O(nm)',fn:(d)=>Str.bm(d.text,d.pat)},
+          {name:'Rabin-Karp',complexity:'O(n+m)',fn:(d)=>Str.rk(d.text,d.pat)}
+        ]
+      },
+      {
+        id:'lcs', name:'最长公共子序列',
+        sizes:[50,100,200,400,800],
+        params:[],
+        genInput:(s)=>{ return {a:genText(s),b:genText(s)}; },
+        algorithms:[
+          {name:'LCS DP',complexity:'O(n*m)',fn:(d)=>Str.lcs(d.a,d.b)}
+        ]
+      }
+    ]
+  },
+  {
+    id:'math', name:'数学运算基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4h12M8 4v9M5 13h6"/><path d="M11 9l2 2 2-2" stroke="#0ea5e9"/></svg>',
+    desc:'矩阵乘法（朴素 vs Strassen）、FFT、大数运算、蒙特卡洛 π。',
+    scenarios:[
+      {
+        id:'matmul', name:'矩阵乘法',
+        sizes:[16,32,64,128,256],
+        params:[],
+        genInput:(s)=>{ const a=Array.from({length:s},()=>Array.from({length:s},()=>Math.random())); const b=Array.from({length:s},()=>Array.from({length:s},()=>Math.random())); return {a,b}; },
+        algorithms:[
+          {name:'朴素 O(n³)',complexity:'O(n³)',maxSize:256,fn:(d)=>MathB.matMulNaive(d.a,d.b)},
+          {name:'Strassen O(n^2.807)',complexity:'O(n^2.807)',maxSize:256,fn:(d)=>MathB.strassen(d.a,d.b)}
+        ]
+      },
+      {
+        id:'fft', name:'快速傅里叶变换',
+        sizes:[256,512,1024,2048,4096],
+        params:[],
+        genInput:(s)=>{ const re=new Float64Array(s),im=new Float64Array(s); for(let i=0;i<s;i++){ re[i]=Math.random()*2-1; } return {re,im}; },
+        cloneInput:(d)=>({re:Float64Array.from(d.re),im:Float64Array.from(d.im)}),
+        algorithms:[
+          {name:'迭代 FFT',complexity:'O(n log n)',fn:(d)=>MathB.fft(d.re,d.im)}
+        ]
+      },
+      {
+        id:'bigint', name:'大数运算 (BigInt)',
+        sizes:[100,500,1000,5000,10000],
+        params:[],
+        genInput:(s)=>({digits:s}),
+        algorithms:[
+          {name:'BigInt 乘法',complexity:'O(n²)',fn:(d)=>MathB.bigintMul(d.digits)}
+        ]
+      },
+      {
+        id:'montecarlo', name:'蒙特卡洛 π',
+        sizes:[100000,1000000,10000000,20000000],
+        params:[],
+        genInput:()=>null,
+        algorithms:[
+          {name:'蒙特卡洛 π',complexity:'O(n)',fn:(_,__,s)=>MathB.monteCarlo(s)}
+        ]
+      }
+    ]
+  },
+  {
+    id:'datastruct', name:'数据结构操作基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="4" height="4"/><rect x="2" y="7" width="4" height="4"/><rect x="2" y="12" width="4" height="2"/><path d="M7 4h6M7 9h6M7 13h6"/></svg>',
+    desc:'Array / LinkedList / Map / Set 的插入、删除、查找、遍历操作在不同规模下的对比。',
+    scenarios:[{
+      id:'default', name:'操作对比',
+      sizes:[1000,10000,100000,500000],
+      params:[{key:'op',label:'操作',options:[['insert','插入'],['delete','删除'],['find','查找'],['traverse','遍历']],default:'find'}],
+      genInput:(s)=>{ const arr=[]; const map=new Map(); const set=new Set(); const ll=new LinkedList(); const max=Math.max(s*10,100); for(let i=0;i<s;i++){ const v=Math.floor(Math.random()*max); arr.push(v); map.set(v,i); set.add(v); ll.push(v); } const pool=arr.slice(); return {arr,map,set,ll,pool,n:s}; },
+      algorithms:[
+        {name:'Array',complexity:'O(n)',maxSize:100000,fn:(d,p)=>{ const op=p.op; if(op==='insert'){ for(let i=0;i<1000;i++) d.arr.push(i); } else if(op==='delete'){ for(let i=0;i<400;i++){ const idx=d.arr.indexOf(d.pool[Math.floor(Math.random()*d.n)]); if(idx>=0) d.arr.splice(idx,1); } } else if(op==='find'){ for(let i=0;i<500;i++) d.arr.indexOf(d.pool[Math.floor(Math.random()*d.n)]); } else { let c=0; for(let i=0;i<d.arr.length;i++) c++; } }},
+        {name:'LinkedList',complexity:'O(n)',maxSize:100000,fn:(d,p)=>{ const op=p.op; if(op==='insert'){ for(let i=0;i<1000;i++) d.ll.push(i); } else if(op==='delete'){ for(let i=0;i<400;i++) d.ll.delete(d.pool[Math.floor(Math.random()*d.n)]); } else if(op==='find'){ for(let i=0;i<500;i++) d.ll.has(d.pool[Math.floor(Math.random()*d.n)]); } else { d.ll.traverse(); } }},
+        {name:'Map',complexity:'O(1)',fn:(d,p)=>{ const op=p.op; if(op==='insert'){ for(let i=0;i<1000;i++) d.map.set(-i,i); } else if(op==='delete'){ for(let i=0;i<500;i++) d.map.delete(d.pool[Math.floor(Math.random()*d.n)]); } else if(op==='find'){ for(let i=0;i<500;i++) d.map.has(d.pool[Math.floor(Math.random()*d.n)]); } else { let c=0; for(const k of d.map.keys()) c++; } }},
+        {name:'Set',complexity:'O(1)',fn:(d,p)=>{ const op=p.op; if(op==='insert'){ for(let i=0;i<1000;i++) d.set.add(-i); } else if(op==='delete'){ for(let i=0;i<500;i++) d.set.delete(d.pool[Math.floor(Math.random()*d.n)]); } else if(op==='find'){ for(let i=0;i<500;i++) d.set.has(d.pool[Math.floor(Math.random()*d.n)]); } else { let c=0; for(const k of d.set) c++; } }}
+      ]
+    }]
+  },
+  {
+    id:'dp', name:'动态规划基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 13l4-4 3 3 5-6"/><path d="M11 6h2v2" stroke="#0ea5e9"/></svg>',
+    desc:'斐波那契：递归 vs 记忆化 vs 迭代 vs 矩阵快速幂；背包：0-1 vs 完全背包。',
+    scenarios:[
+      {
+        id:'fib', name:'斐波那契',
+        sizes:[10,15,20,25,28],
+        params:[],
+        genInput:(s)=>s,
+        algorithms:[
+          {name:'递归 O(2^n)',complexity:'O(2^n)',maxSize:28,fn:(n)=>DP.fibRec(n)},
+          {name:'记忆化 O(n)',complexity:'O(n)',fn:(n)=>DP.fibMemo(n)},
+          {name:'迭代 O(n)',complexity:'O(n)',fn:(n)=>DP.fibIter(n)},
+          {name:'矩阵快速幂 O(log n)',complexity:'O(log n)',fn:(n)=>DP.fibMatrix(n)}
+        ]
+      },
+      {
+        id:'knapsack', name:'背包问题',
+        sizes:[20,50,100,200,500],
+        params:[],
+        genInput:(s)=>{ const items=[]; for(let i=0;i<s;i++) items.push({w:Math.floor(Math.random()*20)+1,v:Math.floor(Math.random()*100)+1}); return {items,W:500}; },
+        algorithms:[
+          {name:'0-1 背包',complexity:'O(nW)',fn:(d)=>DP.knap01(d.items,d.W)},
+          {name:'完全背包',complexity:'O(nW)',fn:(d)=>DP.knapComplete(d.items,d.W)}
+        ]
+      }
+    ]
+  },
+  {
+    id:'concurrency', name:'并发基准', icon:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 8h3M11 8h3M8 2v3M8 11v3"/><circle cx="8" cy="8" r="2.2"/></svg>',
+    desc:'用 setTimeout / requestAnimationFrame 模拟任务调度，对比同步顺序、分块、分批策略的吞吐与阻塞权衡。',
+    scenarios:[{
+      id:'default', name:'任务调度',
+      sizes:[100,500,1000,5000],
+      params:[],
+      genInput:()=>null,
+      run: concurrencyRunner,
+      algorithms:[]
+    }]
+  }
+];
+
+/* ============================================================
+   BASELINES (reference machine) for scoring
+   ============================================================ */
+const BASELINES = {
+  sorting:   {algo:'归并排序', size:10000, time:4.5},
+  search:    {algo:'二分搜索', size:100000, time:0.15},
+  graph:     {algo:'Dijkstra', size:900, time:7.0},
+  string:    {algo:'KMP', size:50000, time:4.0},
+  math:      {algo:'朴素 O(n³)', size:128, time:55.0},
+  datastruct:{algo:'Map', size:100000, time:0.08},
+  dp:        {algo:'迭代 O(n)', size:25, time:0.002},
+  concurrency:{algo:'同步顺序', size:1000, time:40.0}
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  current:'sorting',
+  scenario:{},      // moduleId -> scenarioId
+  params:{},        // moduleId:scenarioId -> {key:val}
+  results:{},       // moduleId:scenarioId -> {series,sizes}
+  running:false,
+  chartOpts:{logY:false, showFit:true},
+  runAllAbort:false
+};
+
+/* ============================================================
+   SVG CHART RENDERER
+   ============================================================ */
+function renderChart(container, data, opts){
+  const W=780, H=400, pad={l:66,r:24,t:18,b:54};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const sizes=data.sizes;
+  const times=[];
+  data.series.forEach(s=>s.points.forEach(p=>{ if(p.time!=null&&p.time>0) times.push(p.time); }));
+  if(times.length===0){ container.innerHTML='<div class="empty">暂无数据，点击「运行测试」开始</div>'; return; }
+
+  const xMin=sizes[0], xMax=sizes[sizes.length-1];
+  const lmin=Math.log(xMin), lmax=Math.log(xMax);
+  let yMin = opts.logY ? Math.min.apply(null,times) : 0;
+  let yMax = Math.max.apply(null,times);
+  if(opts.logY){ yMin = Math.max(yMin, 1e-6); if(yMax<=yMin) yMax=yMin*10; }
+  else { if(yMax<=0) yMax=1; }
+  const lyMin = opts.logY?Math.log(yMin):0, lyMax = opts.logY?Math.log(yMax):yMax;
+
+  const xScale=(n)=>pad.l + (Math.log(n)-lmin)/(lmax-lmin||1)*iw;
+  const yScale=(t)=>{
+    if(t==null||t<=0) return null;
+    if(opts.logY){ return pad.t+ih - (Math.log(t)-lyMin)/(lyMax-lyMin||1)*ih; }
+    return pad.t+ih - (t-yMin)/(yMax-yMin||1)*ih;
+  };
+
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="基准测试结果图表">`;
+
+  // grid + Y axis labels
+  const yTicks=5;
+  for(let i=0;i<=yTicks;i++){
+    let val, y;
+    if(opts.logY){ val = Math.exp(lyMin + (lyMax-lyMin)*i/yTicks); y=pad.t+ih - i/yTicks*ih; }
+    else { val = yMin + (yMax-yMin)*i/yTicks; y=pad.t+ih - i/yTicks*ih; }
+    svg += `<line x1="${pad.l}" y1="${y.toFixed(1)}" x2="${W-pad.r}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.05)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l-8}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="10" fill="#565f66">${fmtTime(val)}</text>`;
+  }
+  // X axis labels
+  sizes.forEach((s,i)=>{
+    const x=xScale(s);
+    svg += `<line x1="${x.toFixed(1)}" y1="${pad.t}" x2="${x.toFixed(1)}" y2="${(pad.t+ih).toFixed(1)}" stroke="rgba(255,255,255,.03)" stroke-width="1"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(pad.t+ih+16).toFixed(1)}" text-anchor="middle" font-size="10" fill="#565f66">${fmtInt(s)}</text>`;
+  });
+
+  // axes
+  svg += `<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${(pad.t+ih).toFixed(1)}" stroke="rgba(255,255,255,.12)"/>`;
+  svg += `<line x1="${pad.l}" y1="${(pad.t+ih).toFixed(1)}" x2="${W-pad.r}" y2="${(pad.t+ih).toFixed(1)}" stroke="rgba(255,255,255,.12)"/>`;
+  svg += `<text x="${pad.l-50}" y="${(pad.t-4).toFixed(1)}" font-size="10" fill="#565f66">耗时</text>`;
+  svg += `<text x="${W-pad.r}" y="${(H-10).toFixed(1)}" text-anchor="end" font-size="10" fill="#565f66">输入规模 (对数轴)</text>`;
+
+  // fit curves (dashed) first so they sit under actual lines
+  if(opts.showFit){
+    data.series.forEach(s=>{
+      if(!s.complexity) return;
+      const fit=fitCurve(s.points,s.complexity);
+      let d='';
+      fit.forEach((p,i)=>{ const y=yScale(p.time); if(y==null) return; d+=(i===0?'M':'L')+xScale(p.size).toFixed(1)+' '+y.toFixed(1)+' '; });
+      svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>`;
+    });
+  }
+
+  // actual data lines + points
+  data.series.forEach(s=>{
+    let d='';
+    let started=false;
+    s.points.forEach(p=>{ const y=yScale(p.time); if(y==null){ started=false; return; } d+=(started?'L':'M')+xScale(p.size).toFixed(1)+' '+y.toFixed(1)+' '; started=true; });
+    svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.points.forEach(p=>{ const y=yScale(p.time); if(y==null) return; const x=xScale(p.size); svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#08090a" stroke="${s.color}" stroke-width="1.5"/>`; });
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ============================================================
+   TABLE RENDERER
+   ============================================================ */
+function renderTable(container, data){
+  const sizes=data.sizes;
+  let html='<div class="table-scroll"><table><thead><tr><th>算法</th>';
+  sizes.forEach(s=> html+=`<th>n=${fmtInt(s)}</th>`);
+  html+='</tr></thead><tbody>';
+  data.series.forEach(s=>{
+    html+=`<tr><td>${s.name}<span class="cx">${s.complexity||''}</span></td>`;
+    sizes.forEach(sz=>{
+      const p=s.points.find(x=>x.size===sz);
+      if(!p||p.time==null) html+='<td><span class="na">—</span></td>';
+      else html+=`<td><span class="${timeClass(p.time)}">${fmtTime(p.time)}</span></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+/* ============================================================
+   MODULE CONTENT RENDER
+   ============================================================ */
+function getScenario(mod){ const sid=state.scenario[mod.id]||mod.scenarios[0].id; return mod.scenarios.find(s=>s.id===sid)||mod.scenarios[0]; }
+function getParams(mod,sc){ const key=mod.id+':'+sc.id; return state.params[key]||sc.params.reduce((o,p)=>(o[p.key]=p.default,o),{}); }
+
+function renderModule(){
+  const mod=MODULES.find(m=>m.id===state.current);
+  const content=$('#content'); clear(content);
+  const sc=getScenario(mod);
+
+  // head
+  content.appendChild(el('div',{class:'module-head'},
+    el('h1',{}, mod.name),
+    el('div',{class:'desc'}, mod.desc)
+  ));
+
+  // scenario tabs
+  if(mod.scenarios.length>1){
+    const tabs=el('div',{class:'scenario-tabs'});
+    mod.scenarios.forEach(s=>{
+      tabs.appendChild(el('div',{class:'stab'+(s.id===sc.id?' active':''), onclick:()=>{ state.scenario[mod.id]=s.id; renderModule(); }}, s.name));
+    });
+    content.appendChild(tabs);
+  }
+
+  // toolbar
+  const toolbar=el('div',{class:'toolbar'});
+  // params
+  const params=getParams(mod,sc);
+  sc.params.forEach(p=>{
+    const f=el('div',{class:'field'}, el('label',{}, p.label));
+    const sel=el('select',{}); p.options.forEach(o=>{ const opt=el('option',{value:o[0]},o[1]); if(o[0]===params[p.key]) opt.selected=true; sel.appendChild(opt); });
+    sel.addEventListener('change',()=>{ const key=mod.id+':'+sc.id; state.params[key]=state.params[key]||{}; state.params[key][p.key]=sel.value; });
+    f.appendChild(sel); toolbar.appendChild(f);
+  });
+  // run button
+  const runBtn=el('button',{class:'btn primary'}, '运行测试');
+  toolbar.appendChild(runBtn);
+  // progress
+  const prog=el('div',{class:'progress'}, el('i',{}));
+  const progTxt=el('div',{class:'progress-txt'}, '空闲');
+  toolbar.appendChild(prog); toolbar.appendChild(progTxt);
+  content.appendChild(toolbar);
+
+  // chart card
+  const chartCard=el('div',{class:'chart-card'});
+  const chartTop=el('div',{class:'chart-top'});
+  chartTop.appendChild(el('div',{class:'t'}, sc.name+' 曲线', el('span',{}, '实际耗时 (实线) + Big-O 拟合 (虚线)')));
+  const toggles=el('div',{class:'toggles'});
+  const logBtn=el('button',{class:'btn sm toggle'+(state.chartOpts.logY?' on':'')}, state.chartOpts.logY?'对数 Y':'线性 Y');
+  const fitBtn=el('button',{class:'btn sm toggle'+(state.chartOpts.showFit?' on':'')}, state.chartOpts.showFit?'拟合: 开':'拟合: 关');
+  logBtn.addEventListener('click',()=>{ state.chartOpts.logY=!state.chartOpts.logY; const rk=mod.id+':'+sc.id; if(state.results[rk]) renderChart(chartWrap,state.results[rk],state.chartOpts); logBtn.textContent=state.chartOpts.logY?'对数 Y':'线性 Y'; logBtn.classList.toggle('on',state.chartOpts.logY); });
+  fitBtn.addEventListener('click',()=>{ state.chartOpts.showFit=!state.chartOpts.showFit; const rk=mod.id+':'+sc.id; if(state.results[rk]) renderChart(chartWrap,state.results[rk],state.chartOpts); fitBtn.textContent=state.chartOpts.showFit?'拟合: 开':'拟合: 关'; fitBtn.classList.toggle('on',state.chartOpts.showFit); });
+  toggles.appendChild(logBtn); toggles.appendChild(fitBtn);
+  chartTop.appendChild(toggles);
+  const chartWrap=el('div',{class:'chart-wrap'});
+  const legend=el('div',{class:'legend'});
+  chartCard.appendChild(chartTop); chartCard.appendChild(chartWrap); chartCard.appendChild(legend);
+  content.appendChild(chartCard);
+
+  // table card
+  const tableCard=el('div',{class:'table-card'});
+  tableCard.appendChild(el('div',{class:'th'}, '精确耗时表', el('span',{}, '单位 ms')));
+  const tableWrap=el('div',{});
+  tableCard.appendChild(tableWrap);
+  content.appendChild(tableCard);
+
+  // initial draw
+  const rk=mod.id+':'+sc.id;
+  if(state.results[rk]){
+    renderChart(chartWrap,state.results[rk],state.chartOpts);
+    renderTable(tableWrap,state.results[rk]);
+    drawLegend(legend,state.results[rk]);
+  } else {
+    chartWrap.innerHTML='<div class="empty">暂无数据，点击「运行测试」开始</div>';
+    tableWrap.innerHTML='<div class="empty">运行后将显示每个算法在各规模下的精确耗时</div>';
+  }
+
+  // run handler
+  runBtn.addEventListener('click', async ()=>{
+    if(state.running) return;
+    state.running=true; runBtn.disabled=true; progTxt.textContent='准备…'; $('i',prog).style.width='0%';
+    const p=getParams(mod,sc);
+    const onProg=(d,t)=>{ const pct=Math.round(d/t*100); $('i',prog).style.width=pct+'%'; progTxt.textContent=d+'/'+t; };
+    try{
+      const runner = sc.run || defaultRunner;
+      const res = await runner(sc,p,onProg);
+      state.results[rk]=res;
+      renderChart(chartWrap,res,state.chartOpts);
+      renderTable(tableWrap,res);
+      drawLegend(legend,res);
+      progTxt.textContent='完成';
+      updateNavBadges();
+    }catch(e){ progTxt.textContent='错误: '+e.message; console.error(e); }
+    state.running=false; runBtn.disabled=false;
+  });
+}
+
+function drawLegend(container, data){
+  clear(container);
+  data.series.forEach(s=>{
+    container.appendChild(el('div',{class:'lg'},
+      el('span',{class:'sw',style:{background:s.color}}),
+      el('b',{}, s.name),
+      el('span',{class:'cx'}, s.complexity||'')
+    ));
+  });
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+const NAV_ICONS = {};
+function renderSidebar(){
+  const sb=$('#sidebar'); clear(sb);
+  sb.appendChild(el('div',{class:'nav-label'}, '基准测试模块'));
+  MODULES.forEach(m=>{
+    const has = hasResult(m.id);
+    const item=el('div',{class:'nav-item'+(m.id===state.current?' active':''), onclick:()=>{ state.current=m.id; renderSidebar(); renderModule(); }},
+      el('span',{class:'ic',html:m.icon}),
+      el('span',{}, m.name),
+      el('span',{class:'num'}, has?'✓':'')
+    );
+    sb.appendChild(item);
+  });
+  sb.appendChild(el('div',{class:'nav-item sep', onclick:()=>{ state.current='__summary'; renderSidebar(); renderSummary(); }},
+    el('span',{class:'ic',html:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1"/></svg>'}),
+    el('span',{}, '汇总报告'),
+    el('span',{class:'num'}, '')
+  ));
+}
+function hasResult(mid){ for(const k in state.results){ if(k.indexOf(mid+':')===0) return true; } return false; }
+function updateNavBadges(){ renderSidebar(); }
+
+/* ============================================================
+   BROWSER INFO
+   ============================================================ */
+function browserInfo(){
+  const ua=navigator.userAgent;
+  let browser='Unknown';
+  if(/Edg\//.test(ua)) browser='Edge';
+  else if(/Chrome\//.test(ua)) browser='Chrome';
+  else if(/Firefox\//.test(ua)) browser='Firefox';
+  else if(/Safari\//.test(ua)) browser='Safari';
+  let engine='Unknown';
+  if(/Gecko\/|Firefox\//.test(ua)) engine='Gecko';
+  else if(/AppleWebKit/.test(ua)) engine=/Chrome\//.test(ua)?'Blink':'WebKit';
+  let os='Unknown';
+  if(/Windows/.test(ua)) os='Windows';
+  else if(/Mac OS X/.test(ua)) os='macOS';
+  else if(/Android/.test(ua)) os='Android';
+  else if(/iPhone|iPad/.test(ua)) os='iOS';
+  else if(/Linux/.test(ua)) os='Linux';
+  return {ua,browser,engine,os,cores:navigator.hardwareConcurrency||'?',mem:navigator.deviceMemory||'?'};
+}
+function renderBenchInfo(){
+  const info=browserInfo(); const c=$('#benchInfo'); clear(c);
+  c.appendChild(el('span',{class:'chip'}, el('span',{class:'dot'}), el('b',{}, info.browser), ' · '+info.os));
+  c.appendChild(el('span',{class:'chip'}, 'CPU ', el('b',{}, String(info.cores)+' 核')));
+  if(info.mem!=='?') c.appendChild(el('span',{class:'chip'}, 'RAM ', el('b',{}, info.mem+' GB')));
+}
+
+/* ============================================================
+   SCORING
+   ============================================================ */
+function computeScore(){
+  const scores=[];
+  const detail={};
+  for(const mid in BASELINES){
+    const bl=BASELINES[mid];
+    let found=null;
+    for(const k in state.results){
+      if(k.indexOf(mid+':')!==0) continue;
+      const res=state.results[k];
+      const s=res.series.find(x=>x.name===bl.algo);
+      if(!s) continue;
+      const p=s.points.find(x=>x.size===bl.size);
+      if(!p||p.time==null||p.time<=0) continue;
+      found=p.time; break;
+    }
+    if(found==null) continue;
+    const sc=bl.time/found*100;
+    scores.push(sc); detail[mid]=sc;
+  }
+  if(scores.length===0) return {score:null, detail:{}};
+  const gm=Math.exp(scores.reduce((a,b)=>a+Math.log(b),0)/scores.length);
+  return {score:Math.round(gm), detail};
+}
+function scorePill(score){
+  if(score==null) return el('span',{class:'pill dim'}, '未评测');
+  if(score>=110) return el('span',{class:'pill good'}, '极快');
+  if(score>=80) return el('span',{class:'pill good'}, '良好');
+  if(score>=50) return el('span',{class:'pill warn'}, '一般');
+  return el('span',{class:'pill bad'}, '较慢');
+}
+
+/* ============================================================
+   SUMMARY REPORT
+   ============================================================ */
+function renderSummary(){
+  const content=$('#content'); clear(content);
+  const {score, detail}=computeScore();
+  const info=browserInfo();
+
+  content.appendChild(el('div',{class:'module-head'},
+    el('h1',{}, '汇总报告'),
+    el('div',{class:'desc'}, '综合各测试模块结果的整体性能评分（以预设参考机为 100 基线，越高越快），以及浏览器与环境信息、历史结果。')
+  ));
+
+  // top stats
+  const grid=el('div',{class:'summary-grid'});
+  const scoreStat=el('div',{class:'stat'},
+    el('div',{class:'k'}, '整体性能评分'),
+    el('div',{class:'v'}, score==null?'—':String(score), el('small',{}, '/ 100 基线')),
+    el('div',{class:'sub'}, score==null?'运行各模块测试后生成评分':'几何平均，100 = 参考机性能'),
+    el('div',{class:'score-bar'}, el('i',{style:{width: score==null?'0%':Math.min(200,score)/2+'%'}}))
+  );
+  grid.appendChild(scoreStat);
+  grid.appendChild(el('div',{class:'stat'},
+    el('div',{class:'k'}, '已测模块'),
+    el('div',{class:'v'}, String(Object.keys(detail).length), el('small',{}, '/ '+Object.keys(BASELINES).length+' 个')),
+    el('div',{class:'sub'}, '点击左侧模块运行更多测试以提升评分覆盖率')
+  ));
+  grid.appendChild(el('div',{class:'stat'},
+    el('div',{class:'k'}, '评级'),
+    el('div',{class:'v'}, score==null?'—':(score>=110?'A+':score>=90?'A':score>=70?'B':score>=50?'C':'D')),
+    el('div',{class:'sub'}, scorePill(score))
+  ));
+  grid.appendChild(el('div',{class:'stat'},
+    el('div',{class:'k'}, '硬件并发'),
+    el('div',{class:'v'}, String(info.cores), el('small',{}, ' 核')),
+    el('div',{class:'sub'}, info.browser+' · '+info.os+' · '+info.engine)
+  ));
+  content.appendChild(grid);
+
+  // module score bars
+  const modCard=el('div',{class:'chart-card'});
+  modCard.appendChild(el('div',{class:'chart-top'}, el('div',{class:'t'}, '各模块性能指数', el('span',{}, '100 = 参考机，>100 快于参考，<100 慢于参考'))));
+  const ms=el('div',{class:'module-scores'});
+  MODULES.forEach(m=>{
+    const sc=detail[m.id];
+    const row=el('div',{class:'ms-row'},
+      el('span',{class:'nm'}, m.name),
+      el('span',{class:'track'}, el('i',{style:{width: sc==null?'0%':Math.min(200,sc)/2+'%', background: sc==null?'#333':(sc>=80?'#34d399':sc>=50?'#fbbf24':'#f87171')}})),
+      el('span',{class:'vv'}, sc==null?'—':Math.round(sc))
+    );
+    ms.appendChild(row);
+  });
+  modCard.appendChild(ms);
+  content.appendChild(modCard);
+
+  // browser info
+  const infoCard=el('div',{class:'chart-card'});
+  infoCard.appendChild(el('div',{class:'chart-top'}, el('div',{class:'t'}, '浏览器与环境信息')));
+  const ig=el('div',{class:'info-grid'});
+  const rows=[
+    ['User Agent', info.ua],
+    ['浏览器', info.browser+' (引擎: '+info.engine+')'],
+    ['操作系统', info.os],
+    ['硬件并发 (navigator.hardwareConcurrency)', String(info.cores)+' 核'],
+    ['设备内存 (navigator.deviceMemory)', info.mem==='?'?'不可用':info.mem+' GB'],
+    ['屏幕', (window.screen?window.screen.width:'?')+' × '+(window.screen?window.screen.height:'?')],
+    ['时间精度', typeof performance.now==='function'?'performance.now() 可用':'不可用'],
+    ['语言', navigator.language||'?']
+  ];
+  rows.forEach(r=>ig.appendChild(el('div',{class:'info-cell'}, el('div',{class:'k'}, r[0]), el('div',{class:'v'}, r[1]))));
+  infoCard.appendChild(ig);
+  content.appendChild(infoCard);
+
+  // baseline comparison table
+  const blCard=el('div',{class:'table-card'});
+  blCard.appendChild(el('div',{class:'th'}, '与参考性能对比', el('span',{}, '基线时间为参考机在对应规模下的耗时')));
+  const bw=el('div',{});
+  let bh='<div class="table-scroll"><table><thead><tr><th>模块</th><th>参考算法</th><th>规模</th><th>参考耗时</th><th>实测耗时</th><th>比值</th><th>指数</th></tr></thead><tbody>';
+  for(const mid in BASELINES){
+    const bl=BASELINES[mid]; const m=MODULES.find(x=>x.id===mid);
+    let actual=null;
+    for(const k in state.results){ if(k.indexOf(mid+':')!==0) continue; const res=state.results[k]; const s=res.series.find(x=>x.name===bl.algo); if(!s) continue; const p=s.points.find(x=>x.size===bl.size); if(p&&p.time!=null){ actual=p.time; break; } }
+    const idx = actual!=null ? (bl.time/actual*100) : null;
+    bh+=`<tr><td>${m?m.name:mid}</td><td>${bl.algo}</td><td>${fmtInt(bl.size)}</td><td>${fmtTime(bl.time)}</td>`;
+    bh+=`<td>${actual==null?'<span class="na">—</span>':'<span class="'+timeClass(actual)+'">'+fmtTime(actual)+'</span>'}</td>`;
+    bh+=`<td>${actual==null?'—':(bl.time/actual).toFixed(2)+'×'}</td>`;
+    bh+=`<td>${idx==null?'<span class="na">—</span>':'<b>'+Math.round(idx)+'</b>'}</td></tr>`;
+  }
+  bh+='</tbody></table></div>';
+  bw.innerHTML=bh; blCard.appendChild(bw);
+  content.appendChild(blCard);
+
+  // history
+  const histCard=el('div',{class:'chart-card'});
+  const histTop=el('div',{class:'chart-top'});
+  histTop.appendChild(el('div',{class:'t'}, '历史结果', el('span',{}, '保存在 localStorage (tw-bench-history)')));
+  const histBtns=el('div',{class:'toggles'});
+  const saveBtn=el('button',{class:'btn sm'}, '保存当前结果');
+  const clearBtn=el('button',{class:'btn sm ghost'}, '清空历史');
+  histBtns.appendChild(saveBtn); histBtns.appendChild(clearBtn);
+  histTop.appendChild(histBtns);
+  histCard.appendChild(histTop);
+  const histList=el('div',{class:'history-list'});
+  histCard.appendChild(histList);
+  content.appendChild(histCard);
+
+  drawHistory(histList);
+  saveBtn.addEventListener('click',()=>{ History.save(); drawHistory(histList); flash(saveBtn,'已保存'); });
+  clearBtn.addEventListener('click',()=>{ History.clear(); drawHistory(histList); });
+
+  content.appendChild(el('div',{class:'note'}, el('p',{}, '说明：评分基于各模块代表性算法在关键规模下的实测耗时，与预设参考机耗时（基线）的比值几何平均。运行「全部运行」可获得最完整的评分。参考机基线为通用桌面配置估算值，仅供横向参考。')));
+}
+
+function flash(btn,txt){ const o=btn.textContent; btn.textContent=txt; setTimeout(()=>btn.textContent=o,900); }
+
+function drawHistory(container){
+  const h=History.load(); clear(container);
+  if(h.length===0){ container.appendChild(el('div',{class:'empty'}, '暂无历史记录。运行测试后点击「保存当前结果」记录快照。')); return; }
+  h.slice().reverse().forEach(item=>{
+    const row=el('div',{class:'hrow'},
+      el('span',{class:'when'}, new Date(item.time).toLocaleString('zh-CN')),
+      el('span',{class:'sc'+(item.score>=100?'':' '+(item.score>=50?'mid':'slow'))}, item.score==null?'—':String(item.score)),
+      el('span',{class:'br'}, item.browser),
+      el('span',{class:'del', onclick:()=>{ History.delete(item.id); drawHistory(container); }}, '删除')
+    );
+    container.appendChild(row);
+  });
+}
+
+/* ============================================================
+   HISTORY (localStorage)
+   ============================================================ */
+const History = {
+  load(){ try{ return JSON.parse(localStorage.getItem('tw-bench-history')||'[]'); }catch(e){ return []; } },
+  save(){
+    const {score}=computeScore(); const info=browserInfo();
+    const entry={ id:'tw-'+Date.now(), time:Date.now(), score, browser:info.browser+' · '+info.os+' · '+info.cores+'核', modules:{} };
+    for(const mid in BASELINES){ const bl=BASELINES[mid]; for(const k in state.results){ if(k.indexOf(mid+':')!==0) continue; const res=state.results[k]; const s=res.series.find(x=>x.name===bl.algo); if(!s) continue; const p=s.points.find(x=>x.size===bl.size); if(p&&p.time!=null){ entry.modules[mid]=p.time; break; } } }
+    const h=this.load(); h.push(entry); if(h.length>50) h.splice(0,h.length-50);
+    try{ localStorage.setItem('tw-bench-history',JSON.stringify(h)); }catch(e){}
+  },
+  delete(id){ const h=this.load().filter(x=>x.id!==id); try{ localStorage.setItem('tw-bench-history',JSON.stringify(h)); }catch(e){} },
+  clear(){ try{ localStorage.removeItem('tw-bench-history'); }catch(e){} }
+};
+
+/* ============================================================
+   RUN ALL
+   ============================================================ */
+async function runAll(){
+  if(state.running) return;
+  state.running=true; state.runAllAbort=false;
+  const btn=$('#btnRunAll'); btn.disabled=true; btn.textContent='运行中…';
+  $('#footStat').textContent='全部运行中…';
+  // run first scenario of each module (with default params), use a quick size subset
+  for(const mod of MODULES){
+    if(state.runAllAbort) break;
+    state.current=mod.id; renderSidebar(); renderModule();
+    const sc=getScenario(mod);
+    const rk=mod.id+':'+sc.id;
+    // quick sizes: first 4 sizes for speed
+    const quickSc = Object.assign({}, sc, { sizes: sc.sizes.slice(0, Math.min(4, sc.sizes.length)) });
+    const p=getParams(mod,sc);
+    const content=$('#content');
+    const prog=$('.progress i', content); const progTxt=$('.progress-txt', content);
+    const runBtn=$('.btn.primary', content);
+    if(runBtn) runBtn.disabled=true;
+    const onProg=(d,t)=>{ if(prog) prog.style.width=Math.round(d/t*100)+'%'; if(progTxt) progTxt.textContent=d+'/'+t; };
+    try{
+      const runner = sc.run || defaultRunner;
+      const res = await runner(quickSc, p, onProg);
+      // merge into full-size slot (store quick results)
+      state.results[rk]=res;
+      renderModule();
+    }catch(e){ console.error('Run-all error in '+mod.id, e); }
+    await yieldUI();
+  }
+  state.running=false; btn.disabled=false; btn.textContent='全部运行';
+  $('#footStat').textContent='全部运行完成';
+  state.current='__summary'; renderSidebar(); renderSummary();
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  renderBenchInfo();
+  renderSidebar();
+  renderModule();
+  $('#btnRunAll').addEventListener('click', runAll);
+  $('#btnHistory').addEventListener('click', ()=>{ state.current='__summary'; renderSidebar(); renderSummary(); });
+  // footer
+  $('#footStat').textContent='就绪 · 共 '+MODULES.length+' 个模块';
+}
+init();
+</script>
+</body>
+</html>

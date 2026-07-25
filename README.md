@@ -1,9 +1,9 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 140 个零依赖交互式可视化项目，1040+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 170 个零依赖交互式可视化项目 + 22 个配套工具，1360+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-140-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1120+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-170-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1360+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -35,38 +35,51 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 配套工具
 
-除了 130 个可视化实验室，TW 生态还包含九个独立的大型交互工具：
+除了 170 个可视化实验室，TW 生态还包含二十二个独立的大型交互工具：
 
 | 工具 | 描述 | 链接 |
 |------|------|------|
-| TW Universe | 交互式知识星图，130 个节点 + 429 条边的力导向网络图 | [打开](https://wangzifan396-wzf.github.io/TW/tw-universe.html) |
-| TW Timeline | 技术演进时间线，从 1936 年图灵机到 2026 年 AI 时代的 56 个关键里程碑 | [打开](https://wangzifan396-wzf.github.io/TW/tw-timeline.html) |
-| TW Roadmap | 交互式学习路线图，5 层 27 节点 39 条依赖边，4 条精选学习路径，支持进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-roadmap.html) |
-| TW Compare | 多维概念对比工具，15 组技术对比 × 7 维度评分，雷达图可视化差异 | [打开](https://wangzifan396-wzf.github.io/TW/tw-compare.html) |
-| TW Quiz | 知识挑战问答系统，65 道题 × 4 分类 × 3 难度，即时解析与历史记录 | [打开](https://wangzifan396-wzf.github.io/TW/tw-quiz.html) |
-| TW Glossary | 交互式技术百科，205 个术语 × 4 分类，搜索筛选与交叉引用 | [打开](https://wangzifan396-wzf.github.io/TW/tw-glossary.html) |
-| TW Flashcards | 间隔重复记忆系统，119 张卡 × SM-2 算法，3D 翻转与进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-flashcards.html) |
+| TW Universe | 交互式知识星图，140 个节点 + 力导向网络图 | [打开](https://wangzifan396-wzf.github.io/TW/tw-universe.html) |
+| TW Timeline | 技术演进时间线，从 1936 年图灵机到 2026 年 AI 时代的 65 个关键里程碑 | [打开](https://wangzifan396-wzf.github.io/TW/tw-timeline.html) |
+| TW Roadmap | 交互式学习路线图，5 层 35 节点 39 条依赖边，4 条精选学习路径，支持进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-roadmap.html) |
+| TW Compare | 多维概念对比工具，22 组技术对比 × 7 维度评分，雷达图可视化差异 | [打开](https://wangzifan396-wzf.github.io/TW/tw-compare.html) |
+| TW Quiz | 知识挑战问答系统，90 道题 × 4 分类 × 3 难度，即时解析与历史记录 | [打开](https://wangzifan396-wzf.github.io/TW/tw-quiz.html) |
+| TW Glossary | 交互式技术百科，277 个术语 × 4 分类，搜索筛选与交叉引用 | [打开](https://wangzifan396-wzf.github.io/TW/tw-glossary.html) |
+| TW Flashcards | 间隔重复记忆系统，155 张卡 × SM-2 算法，3D 翻转与进度追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-flashcards.html) |
 | TW Dashboard | 学习驾驶舱，跨工具进度聚合，活动热力图 + 雷达图 + 成就徽章 + 智能推荐 | [打开](https://wangzifan396-wzf.github.io/TW/tw-dashboard.html) |
 | TW Cheatsheet | 开发者速查手册，11 张表 258 行，Big-O/排序/设计模式/ML公式/Git/SQL/Python/Docker | [打开](https://wangzifan396-wzf.github.io/TW/tw-cheatsheet.html) |
+| TW Papers | 可视化论文解读实验室，经典论文图解 + 核心思想可视化 | [打开](https://wangzifan396-wzf.github.io/TW/tw-papers.html) |
+| TW Playground | 交互式算法实验场，代码编辑器 + 实时可视化执行 | [打开](https://wangzifan396-wzf.github.io/TW/tw-playground.html) |
+| TW Mindmap | 可缩放概念思维导图，8 大根主题 202 节点，搜索与折叠 | [打开](https://wangzifan396-wzf.github.io/TW/tw-mindmap.html) |
+| TW Challenge | 交互式算法挑战，12 个挑战 × 3 难度，实时反馈与星级评分 | [打开](https://wangzifan396-wzf.github.io/TW/tw-challenge.html) |
+| TW Career | CS 职业路线图，6 条路径 × 4 级别，薪资可视化与技能对比 | [打开](https://wangzifan396-wzf.github.io/TW/tw-career.html) |
+| TW Interview | 技术面试模拟器，4 岗位 × 8 题 + 交互式系统设计，模拟面试与评分报告 | [打开](https://wangzifan396-wzf.github.io/TW/tw-interview.html) |
+| TW Quest | 学习冒险 RPG，12 大陆 × 72 关卡，等级/成就/每日任务系统 | [打开](https://wangzifan396-wzf.github.io/TW/tw-quest.html) |
+| TW Calculator | CS 计算器合集，张量形状/CIDR/显存/浮点/Big-O/哈希/编码/色彩 8 模块 | [打开](https://wangzifan396-wzf.github.io/TW/tw-calculator.html) |
+| TW Art | 算法艺术工坊，L-System/元胞自动机/Perlin地形/分形/流场/三角剖分/频谱/递归图案 8 生成器 | [打开](https://wangzifan396-wzf.github.io/TW/tw-art.html) |
+| TW Tree | 层级知识依赖树，6 层 152 节点，前置依赖可视化与掌握状态追踪 | [打开](https://wangzifan396-wzf.github.io/TW/tw-tree.html) |
+| TW Story | 交互式 CS 叙事史，1936-2026 共 40 个故事节点，6 章节 SVG 插图与分支探索 | [打开](https://wangzifan396-wzf.github.io/TW/tw-story.html) |
+| TW Trends | 技术采用趋势追踪，12 组对比 × 12 年数据，折线/面积/柱状/雷达四视图 | [打开](https://wangzifan396-wzf.github.io/TW/tw-trends.html) |
+| TW Benchmark | 浏览器内基准测试套件，8 模块 × 15 场景，Big-O 拟合曲线与性能评分 | [打开](https://wangzifan396-wzf.github.io/TW/tw-benchmark.html) |
 
 ## 快速统计
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 140 |
-| 可视化模块 | 1120+ |
+| 项目总数 | 170 |
+| 可视化模块 | 1360+ |
 | 外部依赖 | 0 |
-| 代码总大小 | ~9.1 MB |
+| 代码总大小 | ~12.2 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
 
 ## 分类导航
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 56 | #01–#52 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
-| CS 系统 | 32 | #36–#48, #74–#90 | 分布式、数据库、编译器、操作系统、网络、区块链... |
-| CS 理论 | 16 | #53–#57, #72–#73, #85–#96 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
-| 交叉学科 | 33 | #51–#52, #58–#71, #91–#97 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
+| AI / 机器学习 | 72 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
+| CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
+| CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
+| 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
 
 ## 项目列表
 
@@ -203,6 +216,46 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 128 | 计算金融可视化实验室 | Black-Scholes 期权定价、蒙特卡洛定价、投资组合优化 Markowitz、VaR 风险价值、Greeks 风险敏感度、波动率建模 GARCH、利率期限结构、高频交易策略等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/computational-finance-viz-lab/) |
 | 129 | 人机交互设计可视化实验室 | Fitts 定律运动时间、Hick 定律决策选择、Nielsen 可用性原则、GOMS 目标操作方法、信息 scent 理论、心智模型与概念图、交互模式分类、无障碍设计 a11y 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hci-viz-lab/) |
 | 130 | 图数据库与图查询可视化实验室 | Neo4j 属性图模型、Cypher 查询语言、图遍历 BFS/DFS、最短路径查询、子图匹配模式、图索引与优化、Cypher 执行计划、图数据库 vs 关系数据库对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/graphdb-viz-lab/) |
+| 131 | 世界模型可视化实验室 | Dreamer、RSSM、潜空间想象、Model-based RL、GAIA-1/Sora 生成式世界模型等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/world-models-viz-lab/) |
+| 132 | AI Agent 框架实验室 | ReAct、Tool Use、记忆系统、ToT 规划、多智能体协作、自我反思、Agent 评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agent-framework-viz-lab/) |
+| 133 | 端侧 AI 可视化实验室 | 模型压缩、MobileNets、NAS、NPU 加速、TFLite/CoreML、联邦学习端侧、端侧 LLM 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/edge-ai-viz-lab/) |
+| 134 | 以数据为中心的 AI 实验室 | 数据质量、数据增强、主动学习、弱监督、数据版本管理、合成数据、数据飞轮等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/data-centric-ai-viz-lab/) |
+| 135 | 高级系统设计可视化实验室 | 限流算法、一致性哈希、分布式锁、消息队列、缓存策略、分库分表、服务发现、熔断降级等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/systems-design-advanced-viz-lab/) |
+| 136 | 数据库内核深度实验室 | Volcano 迭代器、向量化执行、列式编码、事务隔离、WAL/Checkpoint、MVCC、分布式数据库等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/database-internals-viz-lab/) |
+| 137 | 高级算法可视化实验室 | 线段树(Lazy)、树状数组、莫队、后缀自动机、LCT、Slope Trick、模拟退火、字符串哈希等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/algorithm-advanced-viz-lab/) |
+| 138 | 计算生物学可视化实验室 | 序列比对、系统发生树、蛋白质结构、基因组组装、RNA 折叠、HMM、群体遗传学等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/computational-biology-viz-lab/) |
+| 139 | 科学计算可视化实验室 | PDE 数值解、特征值算法、稀疏矩阵求解、蒙特卡洛、FMM、AMR、并行算法、高精度计算等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/scientific-computing-viz-lab/) |
+| 140 | AI for Science 实验室 | AlphaFold、AI 分子模拟、药物发现、PINN、AI 天气预测、材料科学、定理证明、科研 LLM 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-for-science-viz-lab/) |
+| 141 | AI 记忆系统可视化实验室 | LLM 记忆架构、Episodic Memory、向量记忆检索、记忆压缩、Working Memory、Memory-augmented LLM 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-memory-viz-lab/) |
+| 142 | 3D 生成可视化实验室 | Text-to-3D、DreamFusion、Magic3D、SDS Loss、3D Gaussian 编辑、NeRF 生成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/3d-generation-viz-lab/) |
+| 143 | 合成数据可视化实验室 | GAN 合成、Diffusion 合成、表格数据合成、隐私保护、数据增强、SDV、质量评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/synthetic-data-viz-lab/) |
+| 144 | AI 经济学可视化实验室 | 推理成本趋势、Token 定价、GPU 经济学、Scaling Laws 成本、基础设施投资、开源vs闭源等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-economy-viz-lab/) |
+| 145 | 边缘计算可视化实验室 | Edge-Cloud 架构、Fog 计算、边缘 AI 部署、CDN 缓存、IoT 网关、任务卸载、Edge-Cloud 同步等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/edge-computing-viz-lab/) |
+| 146 | 分布式数据库可视化实验室 | 2PC/3PC、Spanner TrueTime、CockroachDB、Calvin、Clock-SI、分片副本、查询路由等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/distributed-db-viz-lab/) |
+| 147 | 近似算法可视化实验室 | 近似比、Vertex Cover 2-近似、TSP Christofides、Set Cover 贪心、PTAS/FPTAS、在线算法等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/approximation-algo-viz-lab/) |
+| 148 | 气候计算可视化实验室 | 气候模型层次、ESM、碳足迹计算、绿色 AI 训练、可持续推理优化、碳中和路径等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/climate-computing-viz-lab/) |
+| 149 | 量子化学计算可视化实验室 | DFT、分子轨道、Hartree-Fock、分子动力学模拟、化学反应路径、电子密度图等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/quantum-chemistry-viz-lab/) |
+| 150 | 分布式计算理论可视化实验室 | CAP 定理、FLP 不可能性、共识上界、Wait-Free 层次、拜占庭容错、故障模型等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/distributed-computing-theory-viz-lab/) |
+| 151 | 自动驾驶可视化实验室 | 多传感器融合、BEV转换、轨迹预测、路径规划、PID/MPC控制、端到端驾驶、仿真、安全冗余等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/self-driving-viz-lab/) |
+| 152 | LLM应用架构可视化实验室 | RAG系统、Agent编排、工具调用、多模型路由、LLM网关、向量存储选型、可观测性等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/llm-applications-viz-lab/) |
+| 153 | 高级多模态可视化实验室 | 视觉语言模型、Any-to-Any生成、统一表征、跨模态对齐、多模态推理链、图文互检索等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multimodal-advanced-viz-lab/) |
+| 154 | AI测试与质量可视化实验室 | 模型测试策略、覆盖率分析、对抗样本测试、鲁棒性评估、偏差公平性、A/B测试等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-testing-viz-lab/) |
+| 155 | GPU计算可视化实验室 | CUDA编程模型、GPU架构、线程层次、Warp调度、内存层次、共享内存优化、流与异步等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/gpu-computing-viz-lab/) |
+| 156 | 实时系统可视化实验室 | 硬实时vs软实时、速率单调调度、EDF、优先级反转与继承、实时通信、资源预留、抖动分析等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/realtime-systems-viz-lab/) |
+| 157 | 高级存储系统可视化实验室 | 对象存储、块存储、文件系统、纠删码、多副本一致性、CDN缓存、存储分层、数据去重等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/storage-advanced-viz-lab/) |
+| 158 | 社会选择理论可视化实验室 | 投票系统、Arrow不可能性、Gibbard-Satterthwaite、机制设计、匹配市场、拍卖理论等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/social-choice-viz-lab/) |
+| 159 | 计算创造力可视化实验室 | 创意生成、进化艺术、程序化生成、音乐AI、故事生成、创意评估、人机协作等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/computational-creativity-viz-lab/) |
+| 160 | 数字人文可视化实验室 | 文本挖掘、社会网络分析、历史GIS、数字考古、文献计量学、数字叙事、文化遗产数字化等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/digital-humanities-viz-lab/) |
+| 161 | AI 辅助编程可视化实验室 | AST可视化、代码补全、语义检索、Bug检测、代码重构、测试生成、Code Review、Code LLM架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-coding-viz-lab/) |
+| 162 | 可信AI综合框架可视化实验室 | 安全框架、公平性度量、隐私保护、鲁棒性评估、可解释性、问责制、透明度、综合评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/trustworthy-ai-viz-lab/) |
+| 163 | 具身智能可视化实验室 | 具身感知、Sim-to-Real、操作学习、Affordance、多模态接地、导航规划、交互学习、世界模型等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/embodied-ai-viz-lab/) |
+| 164 | AI治理与合规可视化实验室 | AI法案、模型卡片、风险评估、合规审计、监管沙盒、责任框架、数据治理、国际比较等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-governance-viz-lab/) |
+| 165 | LLM服务化部署可视化实验室 | vLLM架构、连续批处理、推测解码、PagedAttention、TensorRT-LLM、模型路由、流式输出、弹性伸缩等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/llm-serving-viz-lab/) |
+| 166 | 混沌工程可视化实验室 | 故障注入、弹性测试、游戏日、爆炸半径、稳态指标、故障编排、自动化实验、恢复验证等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/chaos-engineering-viz-lab/) |
+| 167 | 站点可靠性工程可视化实验室 | SLI/SLO、错误预算、事件响应、事后复盘、容量规划、监控告警、自动化运维、可靠性预算等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/sre-viz-lab/) |
+| 168 | 神经符号AI可视化实验室 | 神经符号集成、可微逻辑编程、知识图谱推理、因果推理、概率逻辑、归纳逻辑、可微分编程、符号回归等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/neuro-symbolic-viz-lab/) |
+| 169 | AI伦理与公平性可视化实验室 | 算法偏见、公平性度量、伦理框架、道德推理、价值对齐、算法问责、隐私伦理、AI人权等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-ethics-viz-lab/) |
+| 170 | 多模态智能体可视化实验室 | VLA模型、GUI Agent、工具使用、任务分解、多模态推理、动作生成、环境交互、Agent评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multimodal-agent-viz-lab/) |
 
 ## 技术栈
 
@@ -220,7 +273,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 使用方式
 
-1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 130 个项目
+1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 170 个项目
 2. **搜索筛选** — 在 Hub 页面使用搜索框和分类标签快速定位
 3. **随机探索** — 点击 "🎲 随机探索" 按钮发现新项目
 4. **本地运行** — 下载任意项目的 `index.html`，双击即可在浏览器中打开

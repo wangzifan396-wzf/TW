@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TW Tree — 层级知识树</title>
+<style>
+  :root {
+    --bg: #08090a;
+    --bg-1: #0c0d0f;
+    --bg-2: #111315;
+    --bg-3: #16181b;
+    --border: #1c1f23;
+    --border-2: #2a2e33;
+    --border-3: #3a3f45;
+    --text: #e7e8ea;
+    --text-2: #9ba1a6;
+    --text-3: #5f656b;
+    --text-4: #40454b;
+    --green: #22c55e;
+    --green-dim: #15803d;
+    --green-glow: rgba(34, 197, 94, 0.12);
+    --amber: #f59e0b;
+    --amber-dim: #b45309;
+    --yellow: #fbbf24;
+    --red: #ef4444;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 18px;
+    height: 56px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    z-index: 20;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 0 0 auto;
+  }
+  .logo-icon { width: 20px; height: 20px; flex: 0 0 auto; color: var(--green); }
+  .logo-mark {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--green);
+    border: 1px solid var(--green-dim);
+    border-radius: 5px;
+    padding: 2px 6px;
+    background: var(--green-glow);
+  }
+  .logo-name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-left: 2px;
+  }
+
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 320px;
+    max-width: 380px;
+    min-width: 160px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--text-3);
+    pointer-events: none;
+  }
+  #search-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 30px 0 32px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--sans);
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  #search-input::placeholder { color: var(--text-3); }
+  #search-input:focus {
+    border-color: var(--green-dim);
+    background: var(--bg-3);
+  }
+  .search-count {
+    position: absolute;
+    right: 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  .search-count.has { color: var(--yellow); }
+
+  .stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 0 0 auto;
+  }
+  .stat-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-2);
+    font-family: var(--mono);
+  }
+  .stat-legend .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .stat-legend .dot-mastered { background: var(--green); }
+  .stat-legend .dot-learning { background: var(--amber); }
+  .stat-legend .dot-todo { background: var(--text-4); }
+  .stat-legend span:not(.dot) { min-width: 14px; text-align: center; }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progress-track {
+    width: 90px;
+    height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--green-dim), var(--green));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .progress-text {
+    font-size: 11px;
+    color: var(--text-2);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  .btn {
+    height: 32px;
+    padding: 0 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 7px;
+    color: var(--text-2);
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover {
+    background: var(--bg-3);
+    border-color: var(--border-3);
+    color: var(--text);
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 13px; height: 13px; }
+
+  /* ===== Main canvas ===== */
+  #main {
+    position: relative;
+    flex: 1 1 auto;
+    overflow: hidden;
+    background-color: var(--bg);
+    background-image: radial-gradient(circle, #131619 1px, transparent 1px);
+    background-size: 26px 26px;
+    background-position: 0 0;
+    cursor: grab;
+  }
+  #main.dragging { cursor: grabbing; }
+  #tree-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  /* ===== Zoom controls ===== */
+  .zoom-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+  }
+  .zoom-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-1);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .zoom-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--border-3);
+    color: var(--text);
+  }
+  .zoom-btn svg { width: 15px; height: 15px; }
+  .zoom-level {
+    font-size: 10px;
+    color: var(--text-3);
+    text-align: center;
+    font-family: var(--mono);
+    padding: 2px 0;
+  }
+
+  .help-hint {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 10;
+    font-size: 11px;
+    color: var(--text-4);
+    font-family: var(--mono);
+    line-height: 1.7;
+    pointer-events: none;
+    user-select: none;
+  }
+  .help-hint kbd {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+    color: var(--text-3);
+  }
+
+  /* ===== SVG node styling ===== */
+  .node { cursor: pointer; }
+  .node rect {
+    fill: var(--bg-2);
+    stroke: var(--border-2);
+    stroke-width: 1;
+    transition: fill 0.14s, stroke 0.14s, stroke-width 0.14s;
+  }
+  .node:hover rect {
+    fill: var(--bg-3);
+    stroke: var(--border-3);
+  }
+  .node text {
+    fill: var(--text);
+    font-size: 12.5px;
+    pointer-events: none;
+    font-family: var(--sans);
+    dominant-baseline: middle;
+  }
+  .node-depth-0 text { font-weight: 700; font-size: 13px; }
+  .node-depth-1 text { font-weight: 600; }
+  .node-count {
+    fill: var(--text-3);
+    font-size: 10px;
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+
+  .node-dot {
+    stroke: none;
+    cursor: pointer;
+    transition: r 0.14s;
+  }
+  .node-dot:hover { filter: brightness(1.25); }
+  .node-todo .node-dot { fill: var(--text-4); }
+  .node-learning .node-dot { fill: var(--amber); }
+  .node-learning rect { stroke: rgba(245, 158, 11, 0.55); }
+  .node-learning:hover rect { stroke: var(--amber); }
+  .node-mastered .node-dot { fill: var(--green); }
+  .node-mastered rect {
+    stroke: rgba(34, 197, 94, 0.55);
+    fill: rgba(34, 197, 94, 0.05);
+  }
+  .node-mastered:hover rect { stroke: var(--green); }
+
+  .node-path rect { stroke: var(--border-3); }
+  .node-path:hover rect { stroke: var(--text-3); }
+
+  .node-selected rect {
+    stroke: var(--green) !important;
+    stroke-width: 1.6;
+    fill: rgba(34, 197, 94, 0.08) !important;
+  }
+
+  .node-match rect {
+    stroke: var(--yellow);
+    stroke-width: 1.4;
+  }
+  .node-match.dim { opacity: 0.35; }
+
+  .collapse-badge circle {
+    fill: var(--bg-1);
+    stroke: var(--border-3);
+    stroke-width: 1;
+    transition: fill 0.14s, stroke 0.14s;
+  }
+  .collapse-badge:hover circle { fill: var(--bg-3); stroke: var(--text-2); }
+  .collapse-badge text {
+    fill: var(--text-2);
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+
+  .link {
+    fill: none;
+    stroke: var(--border-2);
+    stroke-width: 1;
+    transition: stroke 0.14s, stroke-width 0.14s;
+  }
+  .link-active {
+    stroke: var(--green);
+    stroke-width: 1.5;
+  }
+  .link-dim { opacity: 0.4; }
+
+  /* ===== Tooltip ===== */
+  .tooltip {
+    position: absolute;
+    z-index: 30;
+    min-width: 200px;
+    max-width: 300px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-3);
+    border-radius: 9px;
+    padding: 11px 13px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.13s, visibility 0.13s;
+    pointer-events: none;
+  }
+  .tooltip.show { opacity: 1; visibility: visible; }
+  .tip-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .tip-desc {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.55;
+    margin-bottom: 7px;
+  }
+  .tip-meta {
+    font-size: 10.5px;
+    color: var(--text-3);
+    font-family: var(--mono);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tip-meta .tag {
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-2);
+  }
+  .tip-meta .tag-mastered { color: var(--green); border-color: var(--green-dim); }
+  .tip-meta .tag-learning { color: var(--amber); border-color: var(--amber-dim); }
+  .tip-meta .tag-todo { color: var(--text-3); }
+
+  /* ===== Path panel ===== */
+  .pathbar {
+    flex: 0 0 auto;
+    background: var(--bg-1);
+    border-top: 1px solid var(--border);
+    padding: 10px 18px 12px;
+    z-index: 20;
+    min-height: 56px;
+  }
+  .path-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .path-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    font-family: var(--mono);
+    flex: 0 0 auto;
+    padding-top: 3px;
+  }
+  .path-content {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 26px;
+    flex: 1 1 auto;
+  }
+  .path-hint {
+    font-size: 12px;
+    color: var(--text-4);
+  }
+  .path-item {
+    font-size: 12.5px;
+    color: var(--text-2);
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.13s;
+    white-space: nowrap;
+  }
+  .path-item:hover {
+    color: var(--text);
+    background: var(--bg-2);
+    border-color: var(--border-2);
+  }
+  .path-item-current {
+    color: var(--green);
+    background: var(--green-glow);
+    border-color: var(--green-dim);
+    font-weight: 600;
+  }
+  .path-sep {
+    color: var(--text-4);
+    font-size: 11px;
+    user-select: none;
+  }
+  .path-desc {
+    margin-top: 7px;
+    margin-left: 0;
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.55;
+    min-height: 18px;
+  }
+
+  /* ===== Scrollbar ===== */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-3); }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 860px) {
+    .topbar { flex-wrap: wrap; height: auto; padding: 10px 12px; gap: 10px; }
+    .logo-sub { display: none; }
+    .search-wrap { order: 3; flex: 1 1 100%; max-width: none; }
+    .stats { gap: 10px; }
+    .progress-track { width: 60px; }
+    .help-hint { display: none; }
+  }
+  @media (max-width: 520px) {
+    .stat-legend { font-size: 11px; }
+    .progress-text { display: none; }
+  }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">
+    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="4" r="2"/>
+      <circle cx="5" cy="14" r="2"/>
+      <circle cx="19" cy="14" r="2"/>
+      <circle cx="12" cy="20" r="2"/>
+      <path d="M12 6v4l-7 4M12 6v4l7 4M12 14v4"/>
+    </svg>
+    <span class="logo-mark">TW</span>
+    <span class="logo-name">Tree</span>
+    <span class="logo-sub">/ 知识依赖图</span>
+  </div>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="7"/>
+      <path d="m21 21-4.3-4.3"/>
+    </svg>
+    <input id="search-input" type="text" placeholder="搜索知识点…" autocomplete="off" spellcheck="false" />
+    <span id="search-count" class="search-count"></span>
+  </div>
+
+  <div class="stats">
+    <div class="stat-legend">
+      <span class="dot dot-mastered"></span><span id="stat-mastered">0</span>
+      <span class="dot dot-learning"></span><span id="stat-learning">0</span>
+      <span class="dot dot-todo"></span><span id="stat-todo">0</span>
+    </div>
+    <div class="progress">
+      <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+      <span class="progress-text"><span id="stat-pct">0</span>% · <span id="stat-total">0</span></span>
+    </div>
+  </div>
+
+  <button id="reset-btn" class="btn" title="重置所有状态与布局">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
+      <path d="M3 3v5h5"/>
+    </svg>
+    重置
+  </button>
+</header>
+
+<main id="main">
+  <svg id="tree-svg" xmlns="http://www.w3.org/2000/svg">
+    <g id="viewport">
+      <g id="links"></g>
+      <g id="nodes"></g>
+    </g>
+  </svg>
+
+  <div class="help-hint">
+    <div><kbd>拖拽</kbd> 平移 · <kbd>滚轮</kbd> 缩放</div>
+    <div><kbd>点击</kbd> 展开/折叠 · <kbd>圆点</kbd> 切换状态</div>
+  </div>
+
+  <div class="zoom-controls">
+    <button id="zoom-in" class="zoom-btn" title="放大">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <div id="zoom-level" class="zoom-level">100%</div>
+    <button id="zoom-out" class="zoom-btn" title="缩小">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+    </button>
+    <button id="zoom-fit" class="zoom-btn" title="适应窗口">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
+    </button>
+  </div>
+
+  <div id="tooltip" class="tooltip">
+    <div class="tip-name"></div>
+    <div class="tip-desc"></div>
+    <div class="tip-meta"></div>
+  </div>
+</main>
+
+<footer class="pathbar">
+  <div class="path-row">
+    <div class="path-label">PATH</div>
+    <div id="path-content" class="path-content"></div>
+  </div>
+  <div id="path-desc" class="path-desc"></div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     知识树数据 — 计算机科学基础 → 前沿研究
+     6 层 / 152 节点
+     ========================================================= */
+  var TREE_DATA = {
+    name: '计算机科学基础',
+    desc: '计算机科学的知识根基，串联数学、编程、系统、算法、工程与前沿研究的主干脉络。',
+    children: [
+      {
+        name: '数学基础',
+        desc: '支撑计算思维与算法分析的数学理论集合。',
+        children: [
+          {
+            name: '离散数学', desc: '研究离散结构的数学，是计算理论的语言基础。',
+            children: [
+              { name: '集合论', desc: '集合、关系与映射的形式化理论。', children: [
+                { name: '关系与函数', desc: '集合间的二元关系与函数定义及性质。' }
+              ]},
+              { name: '图论', desc: '顶点与边构成的图结构及其性质。', children: [
+                { name: '最短路径算法', desc: '在赋权图中求两点间最短路径的经典算法。' }
+              ]},
+              { name: '逻辑学', desc: '形式化推理与证明的数学基础。', children: [
+                { name: '命题逻辑', desc: '以命题为基本单位的逻辑演算系统。' }
+              ]},
+              { name: '组合数学', desc: '离散对象的计数、枚举与组合结构。', children: [
+                { name: '生成函数', desc: '用幂级数编码组合计数的方法。' }
+              ]}
+            ]
+          },
+          {
+            name: '线性代数', desc: '向量、矩阵与线性空间的理论，机器学习的数学底座。',
+            children: [
+              { name: '矩阵运算', desc: '矩阵的加减乘法与求逆等基本运算。', children: [
+                { name: '特征值分解', desc: '将矩阵分解为特征值与特征向量的方法。' }
+              ]},
+              { name: '向量空间', desc: '向量构成的线性空间及其基与维数。', children: [
+                { name: '正交基', desc: '互相正交的基向量组与正交化过程。' }
+              ]},
+              { name: '线性变换', desc: '保持线性结构的向量空间映射。', children: [
+                { name: 'SVD分解', desc: '奇异值分解及其在降维中的应用。' }
+              ]}
+            ]
+          },
+          {
+            name: '概率与统计', desc: '不确定性建模与数据推断的数学工具。',
+            children: [
+              { name: '概率论', desc: '随机现象的数学描述与概率公理。', children: [
+                { name: '贝叶斯定理', desc: '基于先验更新后验概率的核心公式。' }
+              ]},
+              { name: '统计推断', desc: '从样本数据推断总体参数的方法。', children: [
+                { name: '假设检验', desc: '对统计假设进行显著性检验的框架。' }
+              ]},
+              { name: '随机过程', desc: '随时间演化的随机现象序列。', children: [
+                { name: '马尔可夫链', desc: '具备无记忆性的状态转移随机过程。' }
+              ]}
+            ]
+          },
+          {
+            name: '微积分', desc: '连续变化的数学，优化与分析的语言。',
+            children: [
+              { name: '极限与连续', desc: '函数极限与连续性的严格定义。' },
+              { name: '微分学', desc: '变化率与导数的理论与应用。', children: [
+                { name: '优化方法', desc: '梯度下降等基于导数的极值求解方法。' }
+              ]},
+              { name: '积分学', desc: '累积量与积分的计算理论。', children: [
+                { name: '数值积分', desc: '用离散方法近似计算定积分的算法。' }
+              ]}
+            ]
+          }
+        ]
+      },
+      {
+        name: '编程基础',
+        desc: '从语言原理到工程实践的核心编程能力。',
+        children: [
+          {
+            name: '编程语言原理', desc: '编程语言的语法、语义与实现机制。',
+            children: [
+              { name: '语法与语义', desc: '语言结构的书写规则与含义定义。' },
+              { name: '类型系统', desc: '约束程序中类型的规则与检查机制。', children: [
+                { name: '泛型编程', desc: '类型参数化以实现通用算法的技术。' }
+              ]},
+              { name: '编译原理', desc: '源代码到可执行代码的翻译过程。', children: [
+                { name: '词法分析', desc: '将源码切分为记号流的编译阶段。' }
+              ]}
+            ]
+          },
+          {
+            name: '编程范式', desc: '组织程序结构与控制流的不同思想流派。',
+            children: [
+              { name: '面向对象', desc: '以对象与类封装数据与行为的范式。', children: [
+                { name: '设计模式', desc: '面向对象设计中可复用的经验方案。' }
+              ]},
+              { name: '函数式编程', desc: '以纯函数与不可变数据为核心的范式。', children: [
+                { name: '高阶函数', desc: '以函数为参数或返回值的抽象手段。' }
+              ]},
+              { name: '响应式编程', desc: '基于数据流与变化传播的编程范式。' }
+            ]
+          },
+          {
+            name: '语言实践', desc: '主流编程语言的特性与工程运用。',
+            children: [
+              { name: 'C语言', desc: '贴近硬件的系统级编程语言。' },
+              { name: 'Python', desc: '简洁动态的高层通用编程语言。' },
+              { name: 'JavaScript', desc: '运行于浏览器与服务端的动态语言。' },
+              { name: 'Rust', desc: '兼顾安全与性能的系统编程语言。' }
+            ]
+          },
+          {
+            name: '代码质量', desc: '保障代码可读、可维护与高效的方法。',
+            children: [
+              { name: '代码规范', desc: '统一团队代码风格与命名约定。' },
+              { name: '重构技术', desc: '在不改变行为下改善代码结构的技巧。' },
+              { name: '性能优化', desc: '识别瓶颈并提升程序运行效率。' }
+            ]
+          }
+        ]
+      },
+      {
+        name: '计算机系统',
+        desc: '从硬件到网络的底层系统原理。',
+        children: [
+          {
+            name: '计算机组成', desc: '计算机硬件结构与运行原理。',
+            children: [
+              { name: '数字逻辑', desc: '用逻辑门构建数字电路的基础。' },
+              { name: 'CPU架构', desc: '处理器指令执行与数据通路设计。', children: [
+                { name: '流水线技术', desc: '指令级并行执行的流水线机制。' }
+              ]},
+              { name: '存储系统', desc: '内存与外存的层次化结构。', children: [
+                { name: '缓存层次', desc: '多级缓存提升访存速度的设计。' }
+              ]}
+            ]
+          },
+          {
+            name: '操作系统', desc: '管理硬件资源并为程序提供运行环境。',
+            children: [
+              { name: '进程管理', desc: '进程创建调度与通信机制。', children: [
+                { name: '调度算法', desc: '决定进程执行顺序的策略。' }
+              ]},
+              { name: '内存管理', desc: '内存分配回收与地址映射。', children: [
+                { name: '虚拟内存', desc: '用磁盘扩展内存空间的抽象。' }
+              ]},
+              { name: '文件系统', desc: '数据的组织存储与访问接口。' },
+              { name: '并发与同步', desc: '多执行体协作与资源互斥。', children: [
+                { name: '锁机制', desc: '保障临界区互斥访问的同步原语。' }
+              ]}
+            ]
+          },
+          {
+            name: '计算机网络', desc: '计算机互联通信的协议与架构。',
+            children: [
+              { name: '网络协议', desc: '通信双方约定的规则与格式。', children: [
+                { name: 'TCP/IP', desc: '互联网核心的传输与网络层协议族。' }
+              ]},
+              { name: '网络架构', desc: '分层模型与典型网络拓扑设计。' },
+              { name: '网络安全', desc: '保障通信机密性与完整性的技术。', children: [
+                { name: '加密算法', desc: '对称与非对称加密的原理与算法。' }
+              ]},
+              { name: '分布式系统', desc: '多机协作完成统一目标的系统。', children: [
+                { name: '共识算法', desc: '分布式节点达成一致的算法。' }
+              ]}
+            ]
+          },
+          {
+            name: '数据库系统', desc: '结构化数据的存储查询与管理。',
+            children: [
+              { name: '关系数据库', desc: '基于关系模型的数据库系统。', children: [
+                { name: 'SQL优化', desc: '查询计划与索引的执行优化。' }
+              ]},
+              { name: 'NoSQL', desc: '非关系型数据库的多种模型。' },
+              { name: '事务处理', desc: '保证数据一致性的并发控制。', children: [
+                { name: 'ACID特性', desc: '事务原子一致隔离持久四要素。' }
+              ]},
+              { name: '数据仓库', desc: '面向分析的海量数据存储系统。' }
+            ]
+          }
+        ]
+      },
+      {
+        name: '数据结构与算法',
+        desc: '高效组织与处理数据的核心方法学。',
+        children: [
+          {
+            name: '基本数据结构', desc: '存储与组织数据的基础结构。',
+            children: [
+              { name: '数组与链表', desc: '线性连续与链式存储结构。' },
+              { name: '栈与队列', desc: '后进先出与先进先出的受限结构。' },
+              { name: '树结构', desc: '具备层级关系的非线性结构。', children: [
+                { name: '平衡树', desc: '自动维持高度平衡的树结构。' }
+              ]},
+              { name: '哈希表', desc: '基于哈希函数的快速查找结构。' }
+            ]
+          },
+          {
+            name: '算法设计', desc: '解决问题的通用算法策略与思想。',
+            children: [
+              { name: '分治算法', desc: '将问题分解为子问题求解的策略。', children: [
+                { name: '快速排序', desc: '基于分治的高效排序算法。' }
+              ]},
+              { name: '动态规划', desc: '用子问题最优解构建整体最优。', children: [
+                { name: '背包问题', desc: '经典动态规划的优化组合问题。' }
+              ]},
+              { name: '贪心算法', desc: '每步取局部最优的近似策略。' },
+              { name: '回溯算法', desc: '系统性搜索解空间的试错方法。', children: [
+                { name: '八皇后问题', desc: '回溯求解的经典组合约束问题。' }
+              ]}
+            ]
+          },
+          {
+            name: '复杂度分析', desc: '度量算法效率的理论工具。',
+            children: [
+              { name: '时间复杂度', desc: '算法运行时间随输入规模的增长。' },
+              { name: '空间复杂度', desc: '算法所需内存随输入规模的增长。' },
+              { name: '渐近分析', desc: '大O等渐近记号的定义与运用。' }
+            ]
+          },
+          {
+            name: '高级算法', desc: '面向特定领域的高阶算法主题。',
+            children: [
+              { name: '图算法', desc: '处理图结构问题的算法集合。', children: [
+                { name: 'Dijkstra算法', desc: '求非负权图单源最短路径的算法。' }
+              ]},
+              { name: '字符串算法', desc: '字符串匹配与处理的算法。' },
+              { name: '机器学习算法', desc: '从数据中学习模型的算法。', children: [
+                { name: '神经网络', desc: '模拟神经元的可学习函数模型。' }
+              ]},
+              { name: '加密算法', desc: '信息安全中的密码学算法。' }
+            ]
+          }
+        ]
+      },
+      {
+        name: '软件工程',
+        desc: '系统化开发与维护高质量软件的方法。',
+        children: [
+          {
+            name: '开发方法论', desc: '组织软件开发过程的模型与实践。',
+            children: [
+              { name: '敏捷开发', desc: '迭代增量响应变化的开发方法。' },
+              { name: '瀑布模型', desc: '顺序推进各阶段的传统开发模型。' },
+              { name: 'DevOps', desc: '开发运维一体化的协作实践。', children: [
+                { name: '持续集成', desc: '频繁集成与自动化构建交付。' }
+              ]}
+            ]
+          },
+          {
+            name: '版本控制', desc: '管理代码历史与协作变更的工具与方法。',
+            children: [
+              { name: 'Git', desc: '分布式版本控制系统的代表。' },
+              { name: '分支策略', desc: '团队协作的分支模型与规范。' },
+              { name: '代码审查', desc: '合并前对变更的质量把关流程。' }
+            ]
+          },
+          {
+            name: '测试与质量', desc: '保障软件正确性与可靠性的测试体系。',
+            children: [
+              { name: '单元测试', desc: '对最小代码单元的隔离测试。' },
+              { name: '集成测试', desc: '验证模块间协作的集成测试。' },
+              { name: '性能测试', desc: '评估系统负载下的性能表现。' },
+              { name: '自动化测试', desc: '用脚本自动执行的回归测试。' }
+            ]
+          },
+          {
+            name: '系统设计', desc: '软件架构与可扩展性设计原则。',
+            children: [
+              { name: '架构模式', desc: '可复用的系统结构设计方案。', children: [
+                { name: '微服务', desc: '将系统拆分为独立小服务的架构。' }
+              ]},
+              { name: '设计原则', desc: 'SOLID等指导设计的基本准则。' },
+              { name: '可扩展性', desc: '系统应对负载增长的设计能力。' }
+            ]
+          }
+        ]
+      },
+      {
+        name: '前沿研究',
+        desc: '计算机科学的前沿探索与新兴方向。',
+        children: [
+          {
+            name: '人工智能', desc: '使机器具备智能行为的研究领域。',
+            children: [
+              { name: '机器学习', desc: '从数据中自动学习规律的方法。', children: [
+                { name: '深度学习', desc: '基于多层神经网络的学习方法。', children: [
+                  { name: '大语言模型', desc: '海量参数的语言理解生成模型。' }
+                ]}
+              ]},
+              { name: '自然语言处理', desc: '让机器理解与生成人类语言。', children: [
+                { name: '文本生成', desc: '自动生成连贯自然语言文本。' }
+              ]},
+              { name: '计算机视觉', desc: '让机器理解图像与视频内容。', children: [
+                { name: '图像识别', desc: '识别图像中物体与场景的技术。' }
+              ]},
+              { name: '强化学习', desc: '通过与环境交互学习最优策略。', children: [
+                { name: '策略梯度', desc: '直接优化策略函数的强化学习方法。' }
+              ]}
+            ]
+          },
+          {
+            name: '量子计算', desc: '基于量子力学原理的新型计算范式。',
+            children: [
+              { name: '量子算法', desc: '利用量子叠加加速计算的算法。', children: [
+                { name: 'Shor算法', desc: '量子计算机的大数分解算法。' }
+              ]},
+              { name: '量子纠缠', desc: '量子比特间的非局域关联现象。' }
+            ]
+          },
+          {
+            name: '区块链', desc: '去中心化可信账本与相关技术。',
+            children: [
+              { name: '共识机制', desc: '分布式节点达成账本一致的机制。', children: [
+                { name: '工作量证明', desc: '以算力竞争出块的共识算法。' }
+              ]},
+              { name: '智能合约', desc: '链上自动执行的程序化合约。' }
+            ]
+          },
+          {
+            name: '前沿方向', desc: '计算技术的新兴交叉探索领域。',
+            children: [
+              { name: '边缘计算', desc: '在数据源附近进行计算的模式。' },
+              { name: '元宇宙', desc: '沉浸式虚拟世界的构建技术。' },
+              { name: '脑机接口', desc: '连接大脑与计算机的交互技术。' }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  /* =========================================================
+     常量
+     ========================================================= */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var NODE_W = 178;
+  var NODE_H = 38;
+  var X_STEP = 232;
+  var Y_STEP = 54;
+  var STATES = ['todo', 'learning', 'mastered'];
+  var STATE_LABEL = { todo: '未开始', learning: '学习中', mastered: '已掌握' };
+  var STORAGE_KEY = 'tw-tree-state-v1';
+
+  /* =========================================================
+     状态
+     ========================================================= */
+  var rootNode = null;
+  var nodeIndex = {};
+  var idCounter = 0;
+  var selectedId = null;
+  var searchTerm = '';
+  var searchMatchIds = null;
+  var view = { x: 60, y: 40, scale: 1 };
+  var drag = { active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false };
+  var didInitFit = false;
+
+  /* DOM refs */
+  var svg = document.getElementById('tree-svg');
+  var viewport = document.getElementById('viewport');
+  var linksLayer = document.getElementById('links');
+  var nodesLayer = document.getElementById('nodes');
+  var mainEl = document.getElementById('main');
+  var tooltip = document.getElementById('tooltip');
+  var searchInput = document.getElementById('search-input');
+  var searchCount = document.getElementById('search-count');
+  var tipName = tooltip.querySelector('.tip-name');
+  var tipDesc = tooltip.querySelector('.tip-desc');
+  var tipMeta = tooltip.querySelector('.tip-meta');
+
+  /* =========================================================
+     构建树
+     ========================================================= */
+  function buildTree(data, depth, parent) {
+    var node = {
+      id: 'n' + (idCounter++),
+      name: data.name,
+      desc: data.desc || '',
+      depth: depth,
+      parent: parent || null,
+      children: [],
+      state: 'todo',
+      collapsed: depth >= 2,
+      x: 0,
+      y: 0
+    };
+    nodeIndex[node.id] = node;
+    if (data.children) {
+      for (var i = 0; i < data.children.length; i++) {
+        node.children.push(buildTree(data.children[i], depth + 1, node));
+      }
+    }
+    return node;
+  }
+
+  /* =========================================================
+     持久化
+     ========================================================= */
+  function saveState() {
+    var states = {};
+    var collapsed = {};
+    var keys = Object.keys(nodeIndex);
+    for (var i = 0; i < keys.length; i++) {
+      var n = nodeIndex[keys[i]];
+      if (n.state !== 'todo') states[n.id] = n.state;
+      if (n.collapsed !== (n.depth >= 2)) collapsed[n.id] = n.collapsed;
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        states: states,
+        collapsed: collapsed,
+        view: view,
+        selectedId: selectedId
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function loadState() {
+    var raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    var saved;
+    try { saved = JSON.parse(raw); } catch (e) { return; }
+    if (saved.states) {
+      var sk = Object.keys(saved.states);
+      for (var i = 0; i < sk.length; i++) {
+        if (nodeIndex[sk[i]]) nodeIndex[sk[i]].state = saved.states[sk[i]];
+      }
+    }
+    if (saved.collapsed) {
+      var ck = Object.keys(saved.collapsed);
+      for (var j = 0; j < ck.length; j++) {
+        if (nodeIndex[ck[j]]) nodeIndex[ck[j]].collapsed = saved.collapsed[ck[j]];
+      }
+    }
+    if (saved.view) view = saved.view;
+    if (saved.selectedId && nodeIndex[saved.selectedId]) selectedId = saved.selectedId;
+    didInitFit = true;
+  }
+
+  /* =========================================================
+     布局（递归水平树）
+     ========================================================= */
+  function layout() {
+    var yc = { v: 0 };
+    layoutNode(rootNode, 0, yc);
+  }
+
+  function layoutNode(node, depth, yc) {
+    node.x = depth * X_STEP;
+    if (!node.children.length || node.collapsed) {
+      node.y = yc.v * Y_STEP;
+      yc.v += 1;
+      return;
+    }
+    var firstY = 0, lastY = 0;
+    for (var i = 0; i < node.children.length; i++) {
+      layoutNode(node.children[i], depth + 1, yc);
+      if (i === 0) firstY = node.children[i].y;
+      lastY = node.children[i].y;
+    }
+    node.y = (firstY + lastY) / 2;
+  }
+
+  function computeVisibleBounds() {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    var visited = 0;
+    function walk(n) {
+      if (n.x < minX) minX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
+      if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
+      visited++;
+      if (!n.collapsed) {
+        for (var i = 0; i < n.children.length; i++) walk(n.children[i]);
+      }
+    }
+    walk(rootNode);
+    if (visited === 0) return { minX: 0, minY: 0, maxX: 1, maxY: 1, width: 1, height: 1 };
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, width: maxX - minX, height: maxY - minY };
+  }
+
+  /* =========================================================
+     路径 / 搜索辅助
+     ========================================================= */
+  function isOnSelectedPath(node) {
+    if (!selectedId) return false;
+    var n = nodeIndex[selectedId];
+    while (n) {
+      if (n.id === node.id) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+
+  function nodeMatches(node) {
+    if (!searchTerm) return false;
+    return node.name.toLowerCase().indexOf(searchTerm) !== -1 ||
+           node.desc.toLowerCase().indexOf(searchTerm) !== -1;
+  }
+
+  function collectMatches() {
+    var ids = [];
+    if (!searchTerm) { searchMatchIds = null; return; }
+    var keys = Object.keys(nodeIndex);
+    for (var i = 0; i < keys.length; i++) {
+      if (nodeMatches(nodeIndex[keys[i]])) ids.push(keys[i]);
+    }
+    searchMatchIds = ids;
+  }
+
+  function isMatch(id) {
+    if (!searchMatchIds) return false;
+    return searchMatchIds.indexOf(id) !== -1;
+  }
+
+  /* =========================================================
+     渲染
+     ========================================================= */
+  function applyTransform() {
+    viewport.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.scale + ')');
+    document.getElementById('zoom-level').textContent = Math.round(view.scale * 100) + '%';
+  }
+
+  function render() {
+    layout();
+    while (linksLayer.firstChild) linksLayer.removeChild(linksLayer.firstChild);
+    while (nodesLayer.firstChild) nodesLayer.removeChild(nodesLayer.firstChild);
+    renderNode(rootNode);
+    applyTransform();
+  }
+
+  function renderNode(node) {
+    if (node.parent) drawLink(node.parent, node);
+    drawNode(node);
+    if (!node.collapsed) {
+      for (var i = 0; i < node.children.length; i++) {
+        renderNode(node.children[i]);
+      }
+    }
+  }
+
+  function drawLink(parent, child) {
+    var x1 = parent.x + NODE_W;
+    var y1 = parent.y + NODE_H / 2;
+    var x2 = child.x;
+    var y2 = child.y + NODE_H / 2;
+    var mx = (x1 + x2) / 2;
+    var path = document.createElementNS(SVG_NS, 'path');
+    var cls = 'link';
+    if (isOnSelectedPath(child) && isOnSelectedPath(parent)) cls += ' link-active';
+    if (searchTerm && !(isMatch(parent.id) || isMatch(child.id))) cls += ' link-dim';
+    path.setAttribute('class', cls);
+    path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ', ' + mx + ' ' + y2 + ', ' + x2 + ' ' + y2);
+    linksLayer.appendChild(path);
+  }
+
+  function drawNode(node) {
+    var g = document.createElementNS(SVG_NS, 'g');
+    var cls = 'node node-' + node.state + ' node-depth-' + Math.min(node.depth, 2);
+    g.setAttribute('class', cls);
+    g.setAttribute('transform', 'translate(' + node.x + ',' + node.y + ')');
+    g.dataset.id = node.id;
+
+    var onPath = isOnSelectedPath(node);
+    if (onPath && node.id !== selectedId) g.classList.add('node-path');
+
+    if (isMatch(node.id)) {
+      g.classList.add('node-match');
+    } else if (searchTerm) {
+      g.classList.add('dim');
+    }
+
+    if (node.id === selectedId) g.classList.add('node-selected');
+
+    /* rect */
+    var rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', 0);
+    rect.setAttribute('y', 0);
+    rect.setAttribute('width', NODE_W);
+    rect.setAttribute('height', NODE_H);
+    rect.setAttribute('rx', 8);
+    g.appendChild(rect);
+
+    /* status dot (clickable) */
+    var dot = document.createElementNS(SVG_NS, 'circle');
+    dot.setAttribute('cx', 13);
+    dot.setAttribute('cy', NODE_H / 2);
+    dot.setAttribute('r', 5);
+    dot.setAttribute('class', 'node-dot');
+    g.appendChild(dot);
+
+    /* label */
+    var text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', 26);
+    text.setAttribute('y', NODE_H / 2 + 1);
+    text.textContent = node.name;
+    g.appendChild(text);
+
+    /* collapse badge */
+    if (node.children.length) {
+      var badge = document.createElementNS(SVG_NS, 'g');
+      badge.setAttribute('class', 'collapse-badge');
+      badge.setAttribute('transform', 'translate(' + (NODE_W - 15) + ',' + (NODE_H / 2) + ')');
+      var bc = document.createElementNS(SVG_NS, 'circle');
+      bc.setAttribute('r', 7.5);
+      badge.appendChild(bc);
+      var bt = document.createElementNS(SVG_NS, 'text');
+      bt.setAttribute('text-anchor', 'middle');
+      bt.setAttribute('y', 1);
+      bt.textContent = node.collapsed ? '+' : '\u2212';
+      badge.appendChild(bt);
+      g.appendChild(badge);
+
+      if (node.collapsed) {
+        var cnt = document.createElementNS(SVG_NS, 'text');
+        cnt.setAttribute('class', 'node-count');
+        cnt.setAttribute('x', NODE_W - 28);
+        cnt.setAttribute('y', NODE_H / 2 + 1);
+        cnt.setAttribute('text-anchor', 'end');
+        cnt.textContent = String(countDescendants(node));
+        g.appendChild(cnt);
+      }
+    }
+
+    /* events */
+    dot.addEventListener('click', makeDotHandler(node));
+    g.addEventListener('click', makeNodeHandler(node));
+    g.addEventListener('pointerenter', makeEnterHandler(node, g));
+    g.addEventListener('pointerleave', onNodeLeave);
+
+    nodesLayer.appendChild(g);
+  }
+
+  function countDescendants(node) {
+    var c = 0;
+    function walk(n) {
+      for (var i = 0; i < n.children.length; i++) {
+        c++;
+        walk(n.children[i]);
+      }
+    }
+    walk(node);
+    return c;
+  }
+
+  /* =========================================================
+     事件处理器工厂
+     ========================================================= */
+  function makeNodeHandler(node) {
+    return function (e) {
+      if (e.target.classList && e.target.classList.contains('node-dot')) return;
+      if (node.children.length) node.collapsed = !node.collapsed;
+      selectAndRender(node.id);
+    };
+  }
+
+  function makeDotHandler(node) {
+    return function (e) {
+      e.stopPropagation();
+      var idx = STATES.indexOf(node.state);
+      node.state = STATES[(idx + 1) % STATES.length];
+      render();
+      updateStats();
+      saveState();
+    };
+  }
+
+  function makeEnterHandler(node, gEl) {
+    return function () {
+      tipName.textContent = node.name;
+      tipDesc.textContent = node.desc || '暂无说明。';
+      tipMeta.textContent = '';
+      var tier = document.createElement('span');
+      tier.className = 'tag';
+      tier.textContent = 'L' + (node.depth + 1);
+      tipMeta.appendChild(tier);
+      var st = document.createElement('span');
+      st.className = 'tag tag-' + node.state;
+      st.textContent = STATE_LABEL[node.state];
+      tipMeta.appendChild(st);
+      if (node.children.length) {
+        var cn = document.createElement('span');
+        cn.className = 'tag';
+        cn.textContent = countDescendants(node) + ' 子节点';
+        tipMeta.appendChild(cn);
+      }
+
+      var nr = gEl.getBoundingClientRect();
+      var mr = mainEl.getBoundingClientRect();
+      var tr = tooltip.getBoundingClientRect();
+      var left = nr.left - mr.left + nr.width / 2 - tr.width / 2;
+      var above = (nr.top - mr.top) > (tr.height + 24);
+      var top = above ? (nr.top - mr.top - tr.height - 10) : (nr.bottom - mr.top + 10);
+      if (left < 8) left = 8;
+      if (left + tr.width > mr.width - 8) left = mr.width - tr.width - 8;
+      if (top < 8) top = 8;
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+      tooltip.classList.add('show');
+    };
+  }
+
+  function onNodeLeave() {
+    tooltip.classList.remove('show');
+  }
+
+  /* =========================================================
+     选择 / 路径面板
+     ========================================================= */
+  function selectAndRender(id) {
+    selectedId = id;
+    updatePathPanel();
+    render();
+    saveState();
+  }
+
+  function updatePathPanel() {
+    var panel = document.getElementById('path-content');
+    var descEl = document.getElementById('path-desc');
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+    if (!selectedId) {
+      var hint = document.createElement('span');
+      hint.className = 'path-hint';
+      hint.textContent = '点击任意节点查看从根到该节点的学习路径';
+      panel.appendChild(hint);
+      descEl.textContent = '';
+      return;
+    }
+    var path = [];
+    var n = nodeIndex[selectedId];
+    while (n) { path.unshift(n); n = n.parent; }
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < path.length; i++) {
+      if (i > 0) {
+        var sep = document.createElement('span');
+        sep.className = 'path-sep';
+        sep.textContent = '\u203a';
+        frag.appendChild(sep);
+      }
+      (function (nd) {
+        var span = document.createElement('span');
+        span.className = 'path-item' + (nd.id === selectedId ? ' path-item-current' : '');
+        span.textContent = nd.name;
+        span.addEventListener('click', function () {
+          selectAndRender(nd.id);
+          centerOnNode(nd);
+        });
+        frag.appendChild(span);
+      })(path[i]);
+    }
+    panel.appendChild(frag);
+    descEl.textContent = nodeIndex[selectedId].desc || '暂无说明。';
+  }
+
+  function centerOnNode(node) {
+    var r = mainEl.getBoundingClientRect();
+    var targetScale = view.scale < 0.6 ? 0.7 : view.scale;
+    view.scale = targetScale;
+    view.x = r.width / 2 - (node.x + NODE_W / 2) * view.scale;
+    view.y = r.height / 2 - (node.y + NODE_H / 2) * view.scale;
+    clampView();
+    applyTransform();
+    saveState();
+  }
+
+  /* =========================================================
+     统计
+     ========================================================= */
+  function updateStats() {
+    var mastered = 0, learning = 0, todo = 0, total = 0;
+    var keys = Object.keys(nodeIndex);
+    for (var i = 0; i < keys.length; i++) {
+      var s = nodeIndex[keys[i]].state;
+      total++;
+      if (s === 'mastered') mastered++;
+      else if (s === 'learning') learning++;
+      else todo++;
+    }
+    var pct = total ? Math.round(mastered / total * 100) : 0;
+    document.getElementById('stat-mastered').textContent = mastered;
+    document.getElementById('stat-learning').textContent = learning;
+    document.getElementById('stat-todo').textContent = todo;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-pct').textContent = pct;
+    document.getElementById('progress-fill').style.width = pct + '%';
+  }
+
+  /* =========================================================
+     搜索
+     ========================================================= */
+  function onSearch() {
+    searchTerm = searchInput.value.trim().toLowerCase();
+    if (searchTerm) {
+      collectMatches();
+      /* 展开匹配节点的祖先，使其可见 */
+      if (searchMatchIds) {
+        for (var i = 0; i < searchMatchIds.length; i++) {
+          var p = nodeIndex[searchMatchIds[i]].parent;
+          while (p) { p.collapsed = false; p = p.parent; }
+        }
+      }
+    } else {
+      searchMatchIds = null;
+    }
+    render();
+    updateSearchCount();
+    saveState();
+  }
+
+  function updateSearchCount() {
+    if (!searchTerm || !searchMatchIds) {
+      searchCount.textContent = '';
+      searchCount.classList.remove('has');
+      return;
+    }
+    searchCount.textContent = searchMatchIds.length + ' 项';
+    searchCount.classList.add('has');
+  }
+
+  /* =========================================================
+     视图：缩放 / 平移
+     ========================================================= */
+  function clampView() {
+    if (view.scale < 0.2) view.scale = 0.2;
+    if (view.scale > 2.5) view.scale = 2.5;
+  }
+
+  function zoomAt(factor, cx, cy) {
+    var ns = view.scale * factor;
+    clampView();
+    ns = view.scale * factor;
+    if (ns < 0.2) ns = 0.2;
+    if (ns > 2.5) ns = 2.5;
+    var contentX = (cx - view.x) / view.scale;
+    var contentY = (cy - view.y) / view.scale;
+    view.scale = ns;
+    view.x = cx - contentX * ns;
+    view.y = cy - contentY * ns;
+    applyTransform();
+    saveState();
+  }
+
+  function fitView() {
+    layout();
+    var b = computeVisibleBounds();
+    var r = mainEl.getBoundingClientRect();
+    var pad = 48;
+    var sx = (r.width - pad * 2) / b.width;
+    var sy = (r.height - pad * 2) / b.height;
+    view.scale = Math.min(sx, sy, 1.4);
+    if (view.scale < 0.2) view.scale = 0.2;
+    view.x = pad - b.minX * view.scale;
+    view.y = (r.height - b.height * view.scale) / 2 - b.minY * view.scale;
+    applyTransform();
+    saveState();
+  }
+
+  /* 拖拽（仅拖拽期间监听 pointermove，不使用 mousemove） */
+  function onPointerMove(e) {
+    if (!drag.active) return;
+    var dx = e.clientX - drag.startX;
+    var dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    view.x = drag.origX + dx;
+    view.y = drag.origY + dy;
+    applyTransform();
+  }
+
+  function endDrag(e) {
+    if (!drag.active) return;
+    drag.active = false;
+    mainEl.classList.remove('dragging');
+    svg.removeEventListener('pointermove', onPointerMove);
+    try { svg.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (!drag.moved) {
+      selectAndRender(null);
+    }
+    saveState();
+  }
+
+  function onBackgroundDown(e) {
+    if (e.target.closest && e.target.closest('.node')) return;
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    drag.active = true;
+    drag.moved = false;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.origX = view.x;
+    drag.origY = view.y;
+    mainEl.classList.add('dragging');
+    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    svg.addEventListener('pointermove', onPointerMove);
+  }
+
+  /* =========================================================
+     重置
+     ========================================================= */
+  function resetAll() {
+    var keys = Object.keys(nodeIndex);
+    for (var i = 0; i < keys.length; i++) {
+      var n = nodeIndex[keys[i]];
+      n.state = 'todo';
+      n.collapsed = n.depth >= 2;
+    }
+    selectedId = null;
+    searchTerm = '';
+    searchMatchIds = null;
+    searchInput.value = '';
+    searchCount.textContent = '';
+    searchCount.classList.remove('has');
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    didInitFit = false;
+    render();
+    updateStats();
+    updatePathPanel();
+    fitView();
+  }
+
+  /* =========================================================
+     初始化
+     ========================================================= */
+  function init() {
+    rootNode = buildTree(TREE_DATA, 0, null);
+    loadState();
+    updateStats();
+    updatePathPanel();
+
+    /* 渲染 */
+    render();
+    if (!didInitFit) {
+      fitView();
+    } else {
+      applyTransform();
+    }
+
+    /* 搜索 */
+    searchInput.addEventListener('input', onSearch);
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        searchInput.value = '';
+        onSearch();
+        searchInput.blur();
+      }
+    });
+
+    /* 重置 */
+    document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+    /* 缩放按钮 */
+    document.getElementById('zoom-in').addEventListener('click', function () {
+      var r = mainEl.getBoundingClientRect();
+      zoomAt(1.2, r.width / 2, r.height / 2);
+    });
+    document.getElementById('zoom-out').addEventListener('click', function () {
+      var r = mainEl.getBoundingClientRect();
+      zoomAt(1 / 1.2, r.width / 2, r.height / 2);
+    });
+    document.getElementById('zoom-fit').addEventListener('click', fitView);
+
+    /* 滚轮缩放 */
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = svg.getBoundingClientRect();
+      var mx = e.clientX - r.left;
+      var my = e.clientY - r.top;
+      var factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAt(factor, mx, my);
+    }, { passive: false });
+
+    /* 拖拽平移 */
+    svg.addEventListener('pointerdown', onBackgroundDown);
+    svg.addEventListener('pointerup', endDrag);
+    svg.addEventListener('pointercancel', endDrag);
+
+    /* 窗口尺寸变化时重适应（仅当未手动操作过） */
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { applyTransform(); }, 120);
+    });
+
+    /* 键盘快捷 */
+    document.addEventListener('keydown', function (e) {
+      if (e.target === searchInput) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        searchInput.focus();
+      } else if (e.key === 'f' || e.key === 'F') {
+        fitView();
+      } else if (e.key === 'Escape') {
+        if (selectedId) selectAndRender(null);
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
