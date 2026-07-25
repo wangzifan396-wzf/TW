@@ -1,6 +1,6 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 100 个零依赖交互式可视化项目，800+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 130 个零依赖交互式可视化项目，1040+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
 ## 总入口
 
@@ -112,6 +112,37 @@
 | 98 | 缓存体系结构可视化实验室 | CPU缓存层次、替换策略、缓存一致性、虚拟内存、写策略、分组策略、缓存行预取、多级缓存一致性等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/cache-arch-viz-lab/) |
 | 99 | 编译器进阶可视化实验室 | 中间表示、寄存器分配、指令调度、循环优化、全局优化、内联与特化、别名分析、代码生成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/compiler-advanced-viz-lab/) |
 | 100 | AI 对齐可视化实验室 | 奖励学习、Constitutional AI、价值对齐、可扩展监督、可解释性、红队测试、机制可解释、对齐评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-alignment-viz-lab/) |
+
+| 101 | 自监督学习可视化实验室 | SimCLR 对比学习、MAE 掩码自编码、BYOL 自蒸馏、InfoNCE 损失、MoCo 队列对比、Barlow Twins 冗余消除、DINO 自蒸馏、SimSiam 对称设计等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/self-supervised-viz-lab/) |
+| 102 | 3D 高斯泼溅可视化实验室 | 3D 高斯表示、球谐函数、自适应密度控制、可微光栅化、各向异性高斯、训练管线、渲染加速、编辑与变形等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/gaussian-splatting-viz-lab/) |
+| 103 | 模型量化推理加速可视化实验室 | PTQ 后训练量化、QAT 量化感知训练、GPTQ 二阶量化、AWQ 激活感知、GGUF 格式、INT4/INT8 对比、KV-Cache 量化、量化误差分析等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/quantization-viz-lab/) |
+| 104 | 扩散模型进阶可视化实验室 | ControlNet 空间控制、IP-Adapter 图像提示、LoRA 微调扩散、Classifier-Free Guidance、DPM-Solver 采样、Latent Consistency、Cross-Attention、编辑与融合等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/diffusion-advanced-viz-lab/) |
+| 105 | 视频理解与生成可视化实验室 | 3D 卷积时序建模、TimeSformer 时空注意力、VideoMAE 掩码学习、动作识别、视频生成扩散、光流估计、视频目标分割、长视频理解等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/video-viz-lab/) |
+| 106 | AI 编译器可视化实验室 | 计算图构建、TVM 算子调度、MLIR 多级 IR、XLA 编译优化、自动微分 AutoDiff、算子融合、内存规划、硬件后端代码生成等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-compiler-viz-lab/) |
+| 107 | Transformer 架构演进可视化实验室 | Mamba SSM 选择性状态空间、RWKV 线性注意力、FlashAttention IO 优化、RoPE 旋转位置编码、GQA 分组注意力、MoE 路由、KV-Cache 压缩、长上下文外推等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/transformer-evolution-viz-lab/) |
+| 108 | RAG 进阶可视化实验室 | GraphRAG 图谱增强检索、Multi-hop 多跳推理、Self-RAG 自反思检索、HyDE 假设文档嵌入、重排序 Cross-Encoder、查询改写与扩展、混合检索策略、端到端评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/rag-advanced-viz-lab/) |
+| 109 | 可观测性可视化实验室 | 分布式追踪 OpenTelemetry、Metrics 指标体系、结构化日志、Trace 传播上下文、Exemplar 采样、Span 分析、SLO/SLI 误差预算、告警与根因分析等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/observability-viz-lab/) |
+| 110 | 消息队列内部机制可视化实验室 | Kafka 分区与副本、消费者组 Rebalance、RabbitMQ 交换器路由、消息持久化与确认、Exactly-Once 语义、背压与限流、死信队列、消息顺序性保证等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/message-queue-viz-lab/) |
+| 111 | 虚拟化与容器运行时可视化实验室 | Hypervisor 类型对比、Namespace 隔离、Cgroup 资源限制、容器镜像层叠 OverlayFS、OCI 运行时规范、KVM 硬件虚拟化、安全容器 Kata、沙箱隔离机制等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/virtualization-viz-lab/) |
+| 112 | WebAssembly 运行时可视化实验室 | WASM 字节码格式、模块解析与验证、JIT 编译管线、内存模型与线性内存、WASI 系统接口、函数调用约定、trap 处理、SIMD 向量指令等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/wasm-viz-lab/) |
+| 113 | CI/CD 流水线可视化实验室 | GitHub Actions 工作流、GitOps 声明式部署、蓝绿发布与金丝雀、制品管理 Artifact、依赖缓存策略、并行矩阵构建、部署门禁与审批、回滚与恢复策略等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/cicd-viz-lab/) |
+| 114 | 数据湖与湖仓一体可视化实验室 | Iceberg 表格式、Delta Lake ACID 事务、Hudi 增量摄取、Time Travel 时间旅行、Z-Order 数据聚类、Manifest 文件索引、Schema 演化、数据跳过 MinMax 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/lakehouse-viz-lab/) |
+| 115 | 差分隐私可视化实验室 | DP-SGD 梯度裁剪、Laplace 机制、Gaussian 机制、隐私预算 ε-δ 组合、Rényi DP、本地差分隐私、DP-SGD 训练流程、隐私审计与校准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/differential-privacy-viz-lab/) |
+| 116 | AI 安全对抗可视化实验室 | FGSM 快速梯度符号、PGD 投影梯度下降、C&W 攻击优化、Backdoor 后门攻击、对抗训练防御、认证鲁棒性、模型窃取攻击、后门检测与清除等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/adversarial-ml-viz-lab/) |
+| 117 | 零信任架构可视化实验室 | BeyondCorp 零信任模型、mTLS 双向认证、SPIFFE 身份框架、策略引擎 OPA、微分段网络、持续信任评估、设备姿态检查、访问代理架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/zero-trust-viz-lab/) |
+| 118 | 供应链安全可视化实验室 | SBOM 软件物料清单、SLSA 供应链级别、Sigstore 签名验证、Cosign 密钥管理、依赖漏洞扫描、构建溯源 Provenance、策略门控、制品签名等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/supply-chain-viz-lab/) |
+| 119 | 编码理论可视化实验室 | LDPC 稀疏校验矩阵、Polar 极化编码、Reed-Solomon 循环码、Turbo 迭代译码、BCH 纠错码、卷积码 Viterbi、编码增益分析、信道容量逼近等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/coding-theory-viz-lab/) |
+| 120 | 随机过程与马尔可夫可视化实验室 | 马尔可夫链平稳分布、MCMC 采样 Metropolis-Hastings、Poisson 过程到达率、布朗运动随机游走、排队论 M/M/1、隐马尔可夫模型、鞅与停时、随机微分方程等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/stochastic-process-viz-lab/) |
+| 121 | 博弈论进阶可视化实验室 | 机制设计激励相容、VCG 拍卖机制、Myerson 最优拍卖、重复博弈触发策略、进化博弈动力学、贝叶斯博弈、合作博弈 Shapley 值、显示原理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/game-theory-advanced-viz-lab/) |
+| 122 | 元学习可视化实验室 | MAML 模型不可知元学习、Reptile 一阶近似、Few-Shot 少样本学习、元强化学习、Prototypical Network 原型网络、Task 分布构造、内循环外循环优化、元学习评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/meta-learning-viz-lab/) |
+| 123 | 持续学习可视化实验室 | EWC 弹性权重巩固、Replay 经验回放、知识蒸馏 LwF、梯度投影 GPM、突触智能 SI、动态网络扩展、遗忘评估指标、持续学习基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/continual-learning-viz-lab/) |
+| 124 | 计算神经科学可视化实验室 | Hodgkin-Huxley 神经元模型、SNN 脉冲神经网络、STDP 脉冲时序依赖可塑性、突触可塑性规则、神经编码与解码、脑网络拓扑、神经群体动力学、脑启发的学习算法等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/comp-neuro-viz-lab/) |
+| 125 | 地理空间计算可视化实验室 | 空间索引 R-Tree/GeoHash、GIS 投影变换、路径规划 A*/Dijkstra、空间聚合与连接、地理围栏判定、空间自相关 Moran's I、地图瓦片与缩放、轨迹分析与聚类等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/geospatial-viz-lab/) |
+| 126 | 生成艺术与创意编程可视化实验室 | L-System 递归生成、Mandelbrot 分形渲染、Perlin/Simplex 噪声、Flow Field 粒子流场、反应扩散 Gray-Scott、元胞自动机、波干涉与衍射、生成式字体与排版等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/creative-coding-viz-lab/) |
+| 127 | 量子机器学习可视化实验室 | 变分量子电路 VQC、VQE 变分本征求解、QAOA 量子近似优化、量子核方法、量子神经网络、参数化门优化、量子优势验证、混合经典-量子算法等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/quantum-ml-viz-lab/) |
+| 128 | 计算金融可视化实验室 | Black-Scholes 期权定价、蒙特卡洛定价、投资组合优化 Markowitz、VaR 风险价值、Greeks 风险敏感度、波动率建模 GARCH、利率期限结构、高频交易策略等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/computational-finance-viz-lab/) |
+| 129 | 人机交互设计可视化实验室 | Fitts 定律运动时间、Hick 定律决策选择、Nielsen 可用性原则、GOMS 目标操作方法、信息 scent 理论、心智模型与概念图、交互模式分类、无障碍设计 a11y 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hci-viz-lab/) |
+| 130 | 图数据库与图查询可视化实验室 | Neo4j 属性图模型、Cypher 查询语言、图遍历 BFS/DFS、最短路径查询、子图匹配模式、图索引与优化、Cypher 执行计划、图数据库 vs 关系数据库对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/graphdb-viz-lab/) |
 
 ## 技术栈
 
