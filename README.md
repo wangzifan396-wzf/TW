@@ -1,4 +1,4 @@
-# AI 可视化实验室集 · AI Visualization Labs
+﻿# AI 可视化实验室集 · AI Visualization Labs
 
 > 173 个零依赖交互式可视化项目 + 30 个配套工具，1384+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
