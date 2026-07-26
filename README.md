@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 185 个零依赖交互式可视化项目 + 30 个配套工具，1472+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 193 个零依赖交互式可视化项目 + 30 个配套工具，1544+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-185-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1472+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-193-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1544+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 185 |
-| 可视化模块 | 1472+ |
+| 项目总数 | 193 |
+| 可视化模块 | 1544+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -84,7 +84,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 87 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#185 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型... |
+| AI / 机器学习 | 95 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#193 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型、注意力演进... |
 | CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
 | CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
 | 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
@@ -279,6 +279,14 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 183 | AI搜索与信息检索可视化实验室 | AI原生搜索架构(Perplexity模式)、查询理解与改写、多跳推理搜索、RAG增强搜索、实时索引与增量更新、多模态搜索、AI重排序策略、搜索评估体系等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-search-viz-lab/) |
 | 184 | AI产品架构可视化实验室 | AI产品系统架构(五层分层)、用户交互设计(对话/表单/嵌入式)、数据管线架构、模型服务架构、评估反馈闭环、成本与性能优化、安全与合规体系、产品成熟度模型(Demo→Scale)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-product-arch-viz-lab/) |
 | 185 | AI Agent记忆架构可视化实验室 | 记忆类型分类(工作/短期/长期/情景/语义)、工作记忆管理(Token预算)、长期记忆存储(向量库/知识图谱/文档)、记忆编码与检索、记忆压缩与遗忘、情景记忆回放、记忆一致性管理、记忆架构对比(MemGPT/Letta/Mem0/Zep)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agent-memory-viz-lab/) |
+| 186 | AI Agent规划与推理可视化实验室 | 任务分解策略、Plan-and-Execute架构、ReAct推理模式、层次化规划、反思与自我修正、规划搜索算法、计划评估与选择、规划基准(PlanBench/AgentBench)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agent-planning-viz-lab/) |
+| 187 | 小语言模型设计可视化实验室 | SLM架构全景(Phi/Gemma/Qwen/Llama)、知识打包技术、参数效率分析、架构创新(GQA/滑动窗口)、训练数据策略(教材即一切)、推理效率对比、SLM vs LLM能力边界、应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/slm-design-viz-lab/) |
+| 188 | 数字孪生与仿真可视化实验室 | 数字孪生五层架构、实时数据映射、多物理场仿真引擎、预测性维护、降阶模型ROM、多尺度建模、孪生校准与验证、应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/digital-twin-viz-lab/) |
+| 189 | AI个性化与自适应系统可视化实验室 | 用户画像构建、LLM个性化架构(Prompt/微调/RAG)、实时偏好学习、冷启动策略、上下文感知适配、个性化推荐2.0、隐私与可控性、个性化评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-personalization-viz-lab/) |
+| 190 | AI网关与模型路由可视化实验室 | 网关架构、智能路由策略(任务/复杂度/成本/延迟/质量)、模型池管理、级联与回退、成本优化引擎、限流与负载均衡、质量监控闭环、平台对比(LiteLLM/Portkey等)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-gateway-routing-viz-lab/) |
+| 191 | 注意力机制演进可视化实验室 | 标准自注意力(QKV计算)、稀疏注意力、滑动窗口注意力、Flash Attention(分块计算)、线性注意力(核函数近似)、MLA多头潜在注意力、MoD混合深度、机制对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/attention-evolution-viz-lab/) |
+| 192 | AI音乐与音频生成可视化实验室 | 音乐生成三种范式(符号/频谱/波形)、符号音乐生成、音频扩散模型、声音克隆与转换、音乐结构与理论、多轨音乐生成、评估(FAD/MusicGen/Suno)、应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-music-audio-viz-lab/) |
+| 193 | AI教育与智能辅导可视化实验室 | AI辅导架构、知识追踪(BKT/DKT)、自适应学习路径、智能题目生成、多模学习分析、协作学习增强、AI教师辅助、教育效果评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-education-viz-lab/) |
 
 ## 技术栈
 

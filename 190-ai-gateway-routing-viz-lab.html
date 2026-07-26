@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · AI 网关与模型路由可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+.range-label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)}
+input[type=range]{accent-color:var(--accent);width:140px}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">AI 网关与模型路由可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 190</span>
+    <h1>AI 网关与模型路由可视化实验室</h1>
+    <p>从多模型编排到成本优化——把 2026 年 AI 网关如何智能路由请求到最优模型的核心机制以可交互 SVG 呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">网关架构</button>
+    <button class="tab" data-m="m2">路由策略</button>
+    <button class="tab" data-m="m3">模型池</button>
+    <button class="tab" data-m="m4">级联回退</button>
+    <button class="tab" data-m="m5">成本优化</button>
+    <button class="tab" data-m="m6">负载均衡</button>
+    <button class="tab" data-m="m7">质量闭环</button>
+    <button class="tab" data-m="m8">平台对比</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>AI 网关架构</h2></div>
+    <p class="m-desc">网关核心组件构成完整请求链路：请求入口 → 认证鉴权 → 路由引擎 → 模型池 → 响应处理 → 监控日志。点击按钮观察请求流动。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="gwRun()">模拟请求 ▸</button>
+      <button class="btn" onclick="gwReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="gw-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">请求入口</div><div class="v">REST / gRPC / WebSocket</div><div class="d">统一接入协议</div></div>
+      <div class="info-card"><div class="k">认证鉴权</div><div class="v">API Key / OAuth / JWT</div><div class="d">租户与配额校验</div></div>
+      <div class="info-card"><div class="k">路由引擎</div><div class="v">策略匹配 + 成本估算</div><div class="d">选择最优模型</div></div>
+      <div class="info-card"><div class="k">监控日志</div><div class="v">耗时 / Token / 成本</div><div class="d">全链路追踪</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>智能路由策略</h2></div>
+    <p class="m-desc">五种核心路由策略：任务类型路由、复杂度路由、成本路由、延迟路由、质量路由。切换策略观察决策树路径变化。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="routeSwitch()">切换策略</button>
+    </div>
+    <div class="viz"><svg id="route-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="route-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>模型池管理</h2></div>
+    <p class="m-desc">多模型池包含商用 API、开源模型、自部署模型三类。矩阵图展示各模型在能力、成本、延迟维度的对比。切换模型查看详情。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="poolSwitch()">切换模型</button>
+    </div>
+    <div class="viz"><svg id="pool-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="pool-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>级联与回退</h2></div>
+    <p class="m-desc">级联推理（先小后大）节省成本，故障回退（主模型→备模型）保障可用性。点击按钮观察级联与回退的执行路径。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="cascRun()">执行级联 ▸</button>
+    </div>
+    <div class="viz"><svg id="casc-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="casc-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>成本优化引擎</h2></div>
+    <p class="m-desc">Token 预算管理、缓存命中、批处理合并、模型降级四种策略协同降低成本。拖动滑块调整月预算，观察各项指标变化。</p>
+    <div class="ctrl">
+      <label class="range-label">月预算: $<span id="bud-val">5000</span>
+        <input type="range" id="bud-slider" min="1000" max="20000" value="5000" step="500" oninput="costDraw()">
+      </label>
+    </div>
+    <div class="viz"><svg id="cost-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">缓存命中率</div><div class="v" id="c-cache">38%</div><div class="d">语义缓存命中</div></div>
+      <div class="info-card"><div class="k">批处理合并</div><div class="v" id="c-batch">12 req/批</div><div class="d">降低单价 40%</div></div>
+      <div class="info-card"><div class="k">模型降级率</div><div class="v" id="c-downgrade">22%</div><div class="d">小模型替代大模型</div></div>
+      <div class="info-card"><div class="k">月度成本</div><div class="v" id="c-monthly">$3,150</div><div class="d">实际消耗</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>限流与负载均衡</h2></div>
+    <p class="m-desc">多模型间负载均衡：加权轮询、最少连接、响应时间优先、成本优先。切换算法观察请求在不同模型间的分配变化。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="lbSwitch()">切换算法</button>
+    </div>
+    <div class="viz"><svg id="lb-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="lb-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>质量监控闭环</h2></div>
+    <p class="m-desc">响应质量评估 → 模型表现排名 → 路由策略调整形成持续改进闭环。点击按钮观察闭环流转。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="qLoopRun()">执行评估 ▸</button>
+    </div>
+    <div class="viz"><svg id="qloop-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="qloop-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>网关平台对比</h2></div>
+    <p class="m-desc">LiteLLM / Portkey / OpenRouter / Cloudflare AI Gateway / Kong AI 在路由能力、成本控制、可观测性等维度的对比。切换平台高亮。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="platSwitch()">切换平台</button>
+    </div>
+    <div class="viz"><svg id="plat-svg" viewBox="0 0 880 380"></svg></div>
+  </section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: 网关架构
+var gwTimer=null;
+function gwDraw(){
+  var svg=document.getElementById('gw-svg');clear(svg);
+  var nodes=[
+    {x:90,y:170,t:'请求入口',d:'Gateway',c:AC},
+    {x:240,y:170,t:'认证鉴权',d:'Auth',c:WARN},
+    {x:390,y:170,t:'路由引擎',d:'Router',c:INFO},
+    {x:540,y:100,t:'商用模型',d:'GPT-4o',c:PUR},
+    {x:540,y:170,t:'开源模型',d:'Llama',c:PUR},
+    {x:540,y:240,t:'自部署',d:'Qwen',c:PUR},
+    {x:690,y:170,t:'响应处理',d:'Response',c:AC},
+    {x:820,y:100,t:'监控日志',d:'Metrics',c:ROSE},
+    {x:820,y:240,t:'计费',d:'Billing',c:ROSE}
+  ];
+  var edges=[[0,1],[1,2],[2,3],[2,4],[2,5],[3,6],[4,6],[5,6],[6,7],[6,8]];
+  edges.forEach(function(e){
+    el('line',{x1:nodes[e[0]].x,y1:nodes[e[0]].y,x2:nodes[e[1]].x,y2:nodes[e[1]].y,stroke:BD,'stroke-width':1.5,'stroke-dasharray':'4 3'},svg);
+  });
+  nodes.forEach(function(n){
+    el('rect',{x:n.x-55,y:n.y-24,w:110,h:48,rx:8,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':1.5,class:'gw-node'},svg);
+    el('text',{x:n.x,y:n.y-3,'text-anchor':'middle',fill:n.c,'font-size':11,'font-weight':500},svg).textContent=n.t;
+    el('text',{x:n.x,y:n.y+12,'text-anchor':'middle',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=n.d;
+  });
+}
+function gwRun(){
+  if(gwTimer)clearInterval(gwTimer);
+  gwDraw();
+  var svg=document.getElementById('gw-svg');
+  var path=[0,1,2,4,6,7];
+  var t=0;
+  var dot=el('circle',{cx:90,cy:170,r:6,fill:AC,stroke:'#0a0b0f','stroke-width':2},svg);
+  el('text',{x:90,y:150,'text-anchor':'middle',fill:AC,'font-size':9,'font-family':'monospace'},svg).textContent='REQ';
+  var nodes=[{x:90,y:170},{x:240,y:170},{x:390,y:170},{x:540,y:170},{x:690,y:170},{x:820,y:100}];
+  var ns=svg.querySelectorAll('.gw-node');
+  gwTimer=setInterval(function(){
+    t++;
+    var step=Math.floor(t/12)%path.length;
+    var cur=path[step],nxt=path[(step+1)%path.length];
+    var p=t%12/12;
+    var targets=[{x:90,y:170},{x:240,y:170},{x:390,y:170},{x:540,y:170},{x:690,y:170},{x:820,y:100}];
+    var cx=targets[step].x+(targets[(step+1)%path.length].x-targets[step].x)*p;
+    var cy=targets[step].y+(targets[(step+1)%path.length].y-targets[step].y)*p;
+    dot.setAttribute('cx',cx);dot.setAttribute('cy',cy);
+    ns.forEach(function(nn,i){nn.setAttribute('stroke-width',i===cur?3:1.5);nn.setAttribute('fill',i===cur?'rgba(0,212,170,.12)':'rgba(0,0,0,.3)');});
+    if(t>72){clearInterval(gwTimer);ns.forEach(function(nn){nn.setAttribute('stroke-width',1.5);nn.setAttribute('fill','rgba(0,0,0,.3)');});}
+  },80);
+}
+function gwReset(){if(gwTimer)clearInterval(gwTimer);gwDraw();}
+gwDraw();
+
+// M2: 路由策略
+var routeIdx=0;
+var routeStrategies=[
+  {name:'任务类型路由',c:AC,desc:'按任务类型分配: 编码→Code模型, 对话→Chat模型, 推理→Reasoning模型',branch:'编码任务',target:'CodeLlama-34B',metric:'匹配度 96%'},
+  {name:'复杂度路由',c:INFO,desc:'评估请求复杂度: 简单→小模型, 中等→中模型, 复杂→大模型',branch:'中等复杂度',target:'GPT-4o-mini',metric:'成本节省 58%'},
+  {name:'成本路由',c:PUR,desc:'在预算约束内选择最优性价比: 优先低成本高收益模型',branch:'预算约束',target:'Claude Haiku',metric:'单价 $0.25/M'},
+  {name:'延迟路由',c:WARN,desc:'优先选择响应最快的模型, 适合实时交互场景',branch:'低延迟请求',target:'Gemini Flash',metric:'P99 280ms'},
+  {name:'质量路由',c:ROSE,desc:'优先选择质量评分最高的模型, 适合关键任务',branch:'高质量需求',target:'GPT-4o',metric:'质量分 9.2/10'}
+];
+function routeSwitch(){
+  routeIdx=(routeIdx+1)%routeStrategies.length;
+  routeDraw();
+}
+function routeDraw(){
+  var svg=document.getElementById('route-svg');clear(svg);
+  var s=routeStrategies[routeIdx];
+  // Input
+  el('rect',{x:50,y:140,w:110,h:44,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:105,y:160,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':500},svg).textContent='用户请求';
+  el('text',{x:105,y:175,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='Request';
+  // Strategy node
+  el('rect',{x:230,y:140,w:130,h:44,rx:8,fill:'rgba(56,189,248,.06)',stroke:INFO},svg);
+  el('text',{x:295,y:160,'text-anchor':'middle',fill:INFO,'font-size':11,'font-weight':500},svg).textContent='策略评估';
+  el('text',{x:295,y:175,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='Policy Engine';
+  el('path',{d:'M 160 162 L 230 162',stroke:WARN,'stroke-width':1.5,fill:'none','marker-end':'url(#arr)'},svg);
+  // 5 branches
+  var branches=[
+    {y:50,t:'分支A',c:AC},
+    {y:105,t:'分支B',c:INFO},
+    {y:162,t:'分支C',c:PUR},
+    {y:219,t:'分支D',c:WARN},
+    {y:274,t:'分支E',c:ROSE}
+  ];
+  var activeIdx=Math.floor(Math.random()*5);
+  activeIdx=routeIdx%5;
+  branches.forEach(function(b,i){
+    var act=i===activeIdx;
+    el('path',{d:'M 360 162 Q 420 '+(b.y)+', 480 '+b.y,stroke:act?s.c:BD,'stroke-width':act?2.5:1,fill:'none','stroke-dasharray':act?'none':'4 3'},svg);
+    el('rect',{x:480,y:b.y-18,w:110,h:36,rx:6,fill:act?'rgba(0,212,170,.08)':'rgba(0,0,0,.2)',stroke:act?s.c:BD,'stroke-width':act?2:1},svg);
+    el('text',{x:535,y:b.y+4,'text-anchor':'middle',fill:act?s.c:DIM,'font-size':10},svg).textContent=b.t;
+  });
+  // Selected target
+  el('rect',{x:650,y:140,w:130,h:44,rx:8,fill:'rgba(0,212,170,.06)',stroke:s.c,'stroke-width':2},svg);
+  el('text',{x:715,y:160,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.target;
+  el('text',{x:715,y:175,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent=s.metric;
+  el('path',{d:'M '+(480+55)+' '+(branches[activeIdx].y)+' Q 600 '+(branches[activeIdx].y)+', 650 162',stroke:s.c,'stroke-width':2.5,fill:'none'},svg);
+  // Title
+  el('rect',{x:50,y:20,w:200,h:26,rx:6,fill:s.c,'fill-opacity':0.1,stroke:s.c},svg);
+  el('text',{x:150,y:38,'text-anchor':'middle',fill:s.c,'font-size':12,'font-weight':600},svg).textContent=s.name;
+  el('text',{x:50,y:300,fill:DIM,'font-size':10},svg).textContent=s.desc;
+  document.getElementById('route-log').textContent='[Policy] '+s.name+'\n[Match] '+s.branch+' → '+s.target+'\n[Result] '+s.metric;
+}
+routeDraw();
+
+// M3: 模型池管理
+var poolIdx=0;
+var poolModels=[
+  {name:'GPT-4o',type:'商用API',cap:9.2,cost:5.0,latency:800,c:AC,vendor:'OpenAI'},
+  {name:'Claude 3.5 Sonnet',type:'商用API',cap:9.0,cost:3.0,latency:750,c:INFO,vendor:'Anthropic'},
+  {name:'Gemini 1.5 Pro',type:'商用API',cap:8.8,cost:1.25,latency:700,c:PUR,vendor:'Google'},
+  {name:'Llama-3.1-70B',type:'开源模型',cap:8.0,cost:0.6,latency:900,c:WARN,vendor:'Meta'},
+  {name:'Qwen2.5-72B',type:'自部署',cap:7.8,cost:0.3,latency:1100,c:ROSE,vendor:'阿里云'},
+  {name:'DeepSeek-V2',type:'自部署',cap:8.2,cost:0.2,latency:850,c:AC,vendor:'DeepSeek'}
+];
+function poolSwitch(){
+  poolIdx=(poolIdx+1)%poolModels.length;
+  poolDraw();
+}
+function poolDraw(){
+  var svg=document.getElementById('pool-svg');clear(svg);
+  var m=poolModels[poolIdx];
+  // 3 columns: 商用/开源/自部署
+  var cols=[
+    {x:140,t:'商用 API',c:AC,models:['GPT-4o','Claude','Gemini']},
+    {x:420,t:'开源模型',c:INFO,models:['Llama-3.1','Mistral','Yi']},
+    {x:700,t:'自部署',c:PUR,models:['Qwen2.5','DeepSeek','InternLM']}
+  ];
+  cols.forEach(function(col){
+    el('rect',{x:col.x-110,y:20,w:220,h:50,rx:8,fill:col.c,'fill-opacity':0.08,stroke:col.c,'stroke-width':1.5},svg);
+    el('text',{x:col.x,y:42,'text-anchor':'middle',fill:col.c,'font-size':13,'font-weight':600},svg).textContent=col.t;
+    el('text',{x:col.x,y:58,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent=col.models.join(' · ');
+    el('rect',{x:col.x-110,y:80,w:220,h:240,rx:8,fill:'rgba(255,255,255,.01)',stroke:BD,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+  });
+  // Highlight selected model in its column
+  var colMap={'商用API':0,'开源模型':1,'自部署':2};
+  var ci=colMap[m.type];
+  var cx=cols[ci].x;
+  el('rect',{x:cx-100,y:95,w:200,h:210,rx:6,fill:m.c,'fill-opacity':0.06,stroke:m.c,'stroke-width':2},svg);
+  el('text',{x:cx,y:120,'text-anchor':'middle',fill:m.c,'font-size':14,'font-weight':700},svg).textContent=m.name;
+  el('text',{x:cx,y:138,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent=m.vendor;
+  // 3 metric bars
+  var metrics=[
+    {label:'能力评分',val:m.cap/10,c:AC,disp:m.cap+'/10'},
+    {label:'成本($/M)',val:m.cost/5,c:WARN,disp:'$'+m.cost},
+    {label:'延迟(ms)',val:m.latency/1200,c:INFO,disp:m.latency+'ms'}
+  ];
+  metrics.forEach(function(mt,i){
+    var by=160+i*55;
+    el('text',{x:cx-95,y:by,fill:DIM,'font-size':10},svg).textContent=mt.label;
+    el('rect',{x:cx-95,y:by+6,w:190,h:10,rx:5,fill:'rgba(255,255,255,.03)'},svg);
+    el('rect',{x:cx-95,y:by+6,w:190*mt.val,h:10,rx:5,fill:mt.c,'fill-opacity':0.4},svg);
+    el('text',{x:cx+95,y:by+15,'text-anchor':'end',fill:mt.c,'font-size':10,'font-family':'monospace'},svg).textContent=mt.disp;
+  });
+  // Legend
+  el('text',{x:140,y:300,fill:DIM,'font-size':10},svg).textContent='← 选择模型查看能力/成本/延迟三维评分 →';
+  document.getElementById('pool-log').textContent='['+m.type+'] '+m.name+' | 能力 '+m.cap+'/10 | 成本 $'+m.cost+'/M | 延迟 '+m.latency+'ms';
+}
+poolDraw();
+
+// M4: 级联与回退
+var cascTimer=null;
+function cascDraw(){
+  var svg=document.getElementById('casc-svg');clear(svg);
+  // Cascade path (top)
+  el('text',{x:120,y:40,fill:AC,'font-size':12,'font-weight':600},svg).textContent='级联推理 (先小后大)';
+  var casc=[
+    {x:80,y:90,t:'请求',c:AC,d:'Request'},
+    {x:250,y:90,t:'小模型',c:INFO,d:'Haiku $0.25'},
+    {x:430,y:90,t:'置信度<0.8?',c:WARN,d:'Confidence'},
+    {x:620,y:90,t:'大模型',c:PUR,d:'Sonnet $3'},
+    {x:800,y:90,t:'响应',c:AC,d:'Response'}
+  ];
+  casc.forEach(function(n,i){
+    el('rect',{x:n.x-55,y:n.y-20,w:110,h:40,rx:8,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':1.5,class:'casc-n'},svg);
+    el('text',{x:n.x,y:n.y-2,'text-anchor':'middle',fill:n.c,'font-size':10,'font-weight':500},svg).textContent=n.t;
+    el('text',{x:n.x,y:n.y+11,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=n.d;
+    if(i<4)el('path',{d:'M '+(n.x+55)+' '+n.y+' L '+(casc[i+1].x-55)+' '+n.y,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  });
+  // skip arrow (small model enough)
+  el('path',{d:'M 430 70 L 430 50 L 800 50 L 800 70',stroke:AC,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  el('text',{x:615,y:44,'text-anchor':'middle',fill:AC,'font-size':9},svg).textContent='置信度≥0.8 直接返回';
+  // Fallback path (bottom)
+  el('text',{x:120,y:185,fill:ROSE,'font-size':12,'font-weight':600},svg).textContent='故障回退 (主→备)';
+  var fb=[
+    {x:80,y:230,t:'请求',c:AC,d:'Request'},
+    {x:250,y:230,t:'主模型',c:INFO,d:'GPT-4o'},
+    {x:430,y:230,t:'超时/错误?',c:ERR,d:'Timeout'},
+    {x:620,y:230,t:'备模型',c:WARN,d:'Claude'},
+    {x:800,y:230,t:'响应',c:AC,d:'Response'}
+  ];
+  fb.forEach(function(n,i){
+    el('rect',{x:n.x-55,y:n.y-20,w:110,h:40,rx:8,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':1.5,class:'casc-n'},svg);
+    el('text',{x:n.x,y:n.y-2,'text-anchor':'middle',fill:n.c,'font-size':10,'font-weight':500},svg).textContent=n.t;
+    el('text',{x:n.x,y:n.y+11,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=n.d;
+    if(i<4)el('path',{d:'M '+(n.x+55)+' '+n.y+' L '+(fb[i+1].x-55)+' '+n.y,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  });
+  // success arrow
+  el('path',{d:'M 430 210 L 430 190 L 800 190 L 800 210',stroke:AC,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  el('text',{x:615,y:184,'text-anchor':'middle',fill:AC,'font-size':9},svg).textContent='成功 直接返回';
+}
+function cascRun(){
+  if(cascTimer)clearInterval(cascTimer);
+  cascDraw();
+  var svg=document.getElementById('casc-svg');
+  var ns=svg.querySelectorAll('.casc-n');
+  var mode=Math.random()>0.5?0:1; // 0=cascade, 1=fallback
+  var path=mode===0?[0,1,2,3,4]:[0,1,2,3,4];
+  var ys=mode===0?[90,90,90,90,90]:[230,230,230,230,230];
+  var dot=el('circle',{cx:80,cy:ys[0],r:6,fill:mode===0?AC:ROSE,stroke:'#0a0b0f','stroke-width':2},svg);
+  var t=0;
+  cascTimer=setInterval(function(){
+    t++;
+    var step=Math.floor(t/10)%5;
+    var p=(t%10)/10;
+    var xs=[80,250,430,620,800];
+    var cx=xs[step]+(xs[(step+1)%5]-xs[step])*p;
+    dot.setAttribute('cx',cx);
+    ns.forEach(function(nn,i){nn.setAttribute('stroke-width',i===step?3:1.5);});
+    if(t>50){clearInterval(cascTimer);ns.forEach(function(nn){nn.setAttribute('stroke-width',1.5);});}
+  },100);
+  var log=mode===0
+    ?'[Cascade] 请求→小模型\n[Eval] 置信度=0.72 < 0.8\n[Upgrade] 升级到大模型\n[Result] 成本 $0.25+$3.00, 质量↑'
+    :'[Fallback] 请求→主模型 GPT-4o\n[Error] 504 超时 (3.2s)\n[Retry] 切换备模型 Claude\n[Result] 成功, 总延迟 4.1s';
+  document.getElementById('casc-log').textContent=log;
+}
+cascDraw();
+
+// M5: 成本优化
+function costDraw(){
+  var budget=+document.getElementById('bud-slider').value;
+  document.getElementById('bud-val').textContent=budget;
+  var svg=document.getElementById('cost-svg');clear(svg);
+  // 4 gauges: cache, batch, downgrade, budget usage
+  var cacheHit=Math.min(0.55,0.25+budget/40000);
+  var batchReq=Math.round(5+budget/1500);
+  var downgradeRate=Math.min(0.45,budget/50000);
+  var usage=Math.min(1,budget/8000*0.6+0.1);
+  var gauges=[
+    {label:'Token预算',val:usage,c:AC,disp:'$'+budget},
+    {label:'缓存命中',val:cacheHit,c:INFO,disp:(cacheHit*100|0)+'%'},
+    {label:'批处理合并',val:Math.min(1,batchReq/20),c:PUR,disp:batchReq+' req/批'},
+    {label:'模型降级',val:downgradeRate,c:WARN,disp:(downgradeRate*100|0)+'%'}
+  ];
+  var gx=[120,330,540,750];
+  gauges.forEach(function(g,i){
+    var cx=gx[i],cy=140,R=60;
+    // arc background
+    el('path',{d:arc(cx,cy,R,-Math.PI*0.75,Math.PI*0.75),stroke:BD,'stroke-width':8,fill:'none','stroke-linecap':'round'},svg);
+    // arc value
+    var ang=-Math.PI*0.75+Math.PI*1.5*g.val;
+    el('path',{d:arc(cx,cy,R,-Math.PI*0.75,ang),stroke:g.c,'stroke-width':8,fill:'none','stroke-linecap':'round'},svg);
+    el('text',{x:cx,y:cy-2,'text-anchor':'middle',fill:g.c,'font-size':16,'font-weight':700,'font-family':'monospace'},svg).textContent=g.disp;
+    el('text',{x:cx,y:cy+18,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=g.label;
+  });
+  // trend line
+  el('text',{x:50,y:240,fill:AC,'font-size':11,'font-weight':600},svg).textContent='月度成本趋势';
+  var pts=[];
+  for(var i=0;i<12;i++){
+    var x=80+i*30;
+    var v=Math.min(1,0.8-i*0.04-cacheHit*0.3-downgradeRate*0.4);
+    var y=310-v*60;
+    pts.push(x+','+y);
+    if(i%3===0){el('text',{x:x,y:325,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='M'+(i+1);}
+  }
+  el('polyline',{points:pts.join(' '),stroke:AC,'stroke-width':2,fill:'none'},svg);
+  pts.forEach(function(p,i){
+    var xy=p.split(',');
+    el('circle',{cx:xy[0],cy:xy[1],r:3,fill:AC},svg);
+  });
+  // baseline
+  el('line',{x1:80,y1:250,x2:440,y2:250,stroke:WARN,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+  el('text',{x:450,y:254,fill:WARN,'font-size':9},svg).textContent='预算基线';
+  // monthly cost
+  var monthly=Math.round(budget*0.63*(1-cacheHit*0.3)*(1-downgradeRate*0.2));
+  document.getElementById('c-cache').textContent=(cacheHit*100|0)+'%';
+  document.getElementById('c-batch').textContent=batchReq+' req/批';
+  document.getElementById('c-downgrade').textContent=(downgradeRate*100|0)+'%';
+  document.getElementById('c-monthly').textContent='$'+monthly.toLocaleString();
+}
+function arc(cx,cy,r,a1,a2){
+  var x1=cx+Math.cos(a1)*r,y1=cy+Math.sin(a1)*r;
+  var x2=cx+Math.cos(a2)*r,y2=cy+Math.sin(a2)*r;
+  var large=Math.abs(a2-a1)>Math.PI?1:0;
+  return 'M '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2;
+}
+costDraw();
+
+// M6: 负载均衡
+var lbIdx=0;
+var lbAlgos=[
+  {name:'加权轮询',c:AC,desc:'按预设权重分配请求, 简单稳定',weights:[0.4,0.3,0.2,0.1]},
+  {name:'最少连接',c:INFO,desc:'优先分配给当前连接数最少的模型',weights:[0.15,0.25,0.3,0.3]},
+  {name:'响应时间优先',c:PUR,desc:'优先选择响应最快的模型',weights:[0.5,0.25,0.15,0.1]},
+  {name:'成本优先',c:WARN,desc:'优先选择成本最低的模型',weights:[0.1,0.15,0.25,0.5]}
+];
+function lbSwitch(){
+  lbIdx=(lbIdx+1)%lbAlgos.length;
+  lbDraw();
+}
+function lbDraw(){
+  var svg=document.getElementById('lb-svg');clear(svg);
+  var a=lbAlgos[lbIdx];
+  var models=['GPT-4o','Claude','Llama','Qwen'];
+  var colors=[AC,INFO,PUR,WARN];
+  // Gateway
+  el('rect',{x:60,y:140,w:110,h:44,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:115,y:160,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':500},svg).textContent='网关入口';
+  el('text',{x:115,y:175,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='100 req/s';
+  // Title
+  el('rect',{x:60,y:20,w:200,h:26,rx:6,fill:a.c,'fill-opacity':0.1,stroke:a.c},svg);
+  el('text',{x:160,y:38,'text-anchor':'middle',fill:a.c,'font-size':12,'font-weight':600},svg).textContent=a.name;
+  // 4 model targets
+  var total=0;
+  models.forEach(function(mn,i){
+    var y=50+i*65;
+    var pct=a.weights[i];
+    var reqs=Math.round(100*pct);
+    el('path',{d:'M 170 162 Q 320 '+y+', 440 '+y,stroke:colors[i],'stroke-width':1+pct*5,fill:'none','stroke-opacity':0.6},svg);
+    el('rect',{x:440,y:y-22,w:120,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:colors[i],'stroke-width':1.5},svg);
+    el('text',{x:500,y:y-5,'text-anchor':'middle',fill:colors[i],'font-size':11,'font-weight':500},svg).textContent=mn;
+    el('text',{x:500,y:y+10,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent=reqs+' req/s ('+(pct*100|0)+'%)';
+    // bar
+    el('rect',{x:580,y:y-8,w:200,h:16,rx:4,fill:'rgba(255,255,255,.03)'},svg);
+    el('rect',{x:580,y:y-8,w:200*pct,h:16,rx:4,fill:colors[i],'fill-opacity':0.4},svg);
+    el('text',{x:790,y:y+4,fill:colors[i],'font-size':10,'font-family':'monospace'},svg).textContent=(pct*100|0)+'%';
+  });
+  el('text',{x:60,y:320,fill:DIM,'font-size':10},svg).textContent=a.desc;
+  document.getElementById('lb-log').textContent='[Algo] '+a.name+'\n[Dist] '+models.map(function(m,i){return m+':'+(a.weights[i]*100|0)+'%';}).join('  ');
+}
+lbDraw();
+
+// M7: 质量监控闭环
+var qLoopTimer=null;
+function qLoopDraw(){
+  var svg=document.getElementById('qloop-svg');clear(svg);
+  var cx=440,cy=170,R=110;
+  var stages=[
+    {t:'响应采集',d:'Collect',c:AC},
+    {t:'质量评估',d:'Evaluate',c:INFO},
+    {t:'模型排名',d:'Rank',c:PUR},
+    {t:'策略调整',d:'Adjust',c:WARN},
+    {t:'路由更新',d:'Update',c:ROSE}
+  ];
+  // ring
+  el('circle',{cx:cx,cy:cy,r:R,fill:'none',stroke:BD,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+  el('circle',{cx:cx,cy:cy,r:R-30,fill:'none',stroke:BD,'stroke-width':.5,'stroke-dasharray':'2 2'},svg);
+  el('text',{x:cx,y:cy-5,'text-anchor':'middle',fill:AC,'font-size':13,'font-weight':700},svg).textContent='质量闭环';
+  el('text',{x:cx,y:cy+12,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='Continuous Loop';
+  stages.forEach(function(s,i){
+    var a=-Math.PI/2+i*2*Math.PI/5;
+    var x=cx+Math.cos(a)*R,y=cy+Math.sin(a)*R;
+    el('circle',{cx:x,cy:y,r:32,fill:'rgba(0,0,0,.4)',stroke:s.c,'stroke-width':2,class:'qloop-n'},svg);
+    el('text',{x:x,y:y-2,'text-anchor':'middle',fill:s.c,'font-size':10,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:x,y:y+11,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=s.d;
+    // arrow to next
+    var a2=-Math.PI/2+((i+1)%5)*2*Math.PI/5;
+    var x2=cx+Math.cos(a2)*R,y2=cy+Math.sin(a2)*R;
+    var mx=(x+x2)/2,my=(y+y2)/2;
+    var dx=x2-x,dy=y2-y;var len=Math.sqrt(dx*dx+dy*dy);
+    var sx=x+dx/len*32,ex=x2-dx/len*32;
+    el('path',{d:'M '+sx+' '+y+' A '+R+' '+R+' 0 0 1 '+ex+' '+y2,stroke:s.c,'stroke-width':1.5,fill:'none','stroke-opacity':0.5},svg);
+  });
+  // metrics on right
+  var mx=660;
+  el('text',{x:mx,y:80,fill:AC,'font-size':11,'font-weight':600},svg).textContent='模型质量排名';
+  var ranks=[{n:'GPT-4o',s:9.2,c:AC},{n:'Claude',s:9.0,c:INFO},{n:'Gemini',s:8.8,c:PUR},{n:'Llama',s:8.0,c:WARN},{n:'Qwen',s:7.8,c:ROSE}];
+  ranks.forEach(function(r,i){
+    var y=100+i*32;
+    el('text',{x:mx,y:y+4,fill:r.c,'font-size':11,'font-weight':500},svg).textContent=(i+1)+'. '+r.n;
+    el('rect',{x:mx+80,y:y-8,w:120,h:14,rx:3,fill:'rgba(255,255,255,.03)'},svg);
+    el('rect',{x:mx+80,y:y-8,w:120*r.s/10,h:14,rx:3,fill:r.c,'fill-opacity':0.4},svg);
+    el('text',{x:mx+205,y:y+4,fill:r.c,'font-size':10,'font-family':'monospace'},svg).textContent=r.s;
+  });
+}
+function qLoopRun(){
+  if(qLoopTimer)clearInterval(qLoopTimer);
+  qLoopDraw();
+  var svg=document.getElementById('qloop-svg');
+  var ns=svg.querySelectorAll('.qloop-n');
+  var t=0;
+  qLoopTimer=setInterval(function(){
+    t++;
+    var idx=Math.floor(t/8)%5;
+    ns.forEach(function(n,i){n.setAttribute('fill',i===idx?'rgba(0,212,170,.15)':'rgba(0,0,0,.4)');n.setAttribute('stroke-width',i===idx?3:2);});
+    if(t>40){clearInterval(qLoopTimer);ns.forEach(function(n){n.setAttribute('fill','rgba(0,0,0,.4)');n.setAttribute('stroke-width',2);});}
+  },120);
+  var steps=['[1] 采集 1000 条响应样本','[2] 评估: 准确率/相关性/安全性','[3] 排名: GPT-4o > Claude > Gemini','[4] 调整: 提升 GPT-4o 权重 +15%','[5] 路由更新生效, 进入下一轮'];
+  document.getElementById('qloop-log').textContent=steps.join('\n');
+}
+qLoopDraw();
+
+// M8: 平台对比
+var platIdx=-1;
+var plats=[
+  {name:'LiteLLM',vals:[0.85,0.9,0.75,0.8,0.85],c:AC,desc:'开源统一API代理, 支持100+模型'},
+  {name:'Portkey',vals:[0.8,0.85,0.9,0.85,0.8],c:INFO,desc:'商用网关, 强可观测性与回退'},
+  {name:'OpenRouter',vals:[0.9,0.7,0.85,0.7,0.75],c:PUR,desc:'聚合路由, 按量计费多模型'},
+  {name:'Cloudflare AI GW',vals:[0.7,0.75,0.95,0.9,0.9],c:WARN,desc:'边缘网关, 全球加速与缓存'},
+  {name:'Kong AI',vals:[0.75,0.8,0.8,0.95,0.85],c:ROSE,desc:'企业级API网关, 插件生态丰富'}
+];
+var platDims=['路由能力','成本控制','可观测性','企业就绪','生态集成'];
+function platSwitch(){
+  platIdx=(platIdx+1)%plats.length;
+  platDraw();
+}
+function platDraw(){
+  var svg=document.getElementById('plat-svg');clear(svg);
+  var cx=260,cy=190,R=130;
+  for(var i=0;i<5;i++){
+    var a=-Math.PI/2+i*2*Math.PI/5;
+    el('line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*R,y2:cy+Math.sin(a)*R,stroke:BD,'stroke-width':1},svg);
+    el('text',{x:cx+Math.cos(a)*(R+22),y:cy+Math.sin(a)*(R+22)+4,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=platDims[i];
+  }
+  for(var r=1;r<=4;r++){var pts=[];for(var i=0;i<5;i++){var a=-Math.PI/2+i*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*r/4)+','+(cy+Math.sin(a)*R*r/4));}el('polygon',{points:pts.join(' '),fill:'none',stroke:BD,'stroke-width':.5,'stroke-dasharray':'2 2'},svg);}
+  plats.forEach(function(p,i){
+    var act=i===platIdx;
+    var pts=[];for(var j=0;j<5;j++){var a=-Math.PI/2+j*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*p.vals[j])+','+(cy+Math.sin(a)*R*p.vals[j]));}
+    el('polygon',{points:pts.join(' '),fill:p.c,'fill-opacity':act?0.15:0.05,stroke:p.c,'stroke-width':act?3:1.5},svg);
+  });
+  // table on right
+  var tx=520;
+  el('text',{x:tx,y:60,fill:AC,'font-size':12,'font-weight':600},svg).textContent='平台对比';
+  plats.forEach(function(p,i){
+    var y=85+i*42;
+    var act=i===platIdx;
+    el('rect',{x:tx,y:y-12,w:340,h:32,rx:6,fill:act?'rgba(0,212,170,.08)':'rgba(0,0,0,.15)',stroke:act?p.c:BD,'stroke-width':act?1.5:1},svg);
+    el('rect',{x:tx+8,y:y-4,w:10,h:10,rx:2,fill:p.c,'fill-opacity':0.4,stroke:p.c},svg);
+    el('text',{x:tx+26,y:y+5,fill:p.c,'font-size':12,'font-weight':act?600:500},svg).textContent=p.name;
+    el('text',{x:tx+150,y:y+5,fill:DIM,'font-size':9},svg).textContent=p.desc.slice(0,22);
+    // score
+    var avg=(p.vals.reduce(function(a,b){return a+b;},0)/5*100|0);
+    el('text',{x:tx+325,y:y+5,'text-anchor':'end',fill:act?p.c:DIM,'font-size':11,'font-family':'monospace','font-weight':600},svg).textContent=avg;
+  });
+  el('text',{x:tx,y:310,fill:DIM,'font-size':9},svg).textContent='数值为综合评分(0-100), 点击切换平台高亮';
+}
+platDraw();
+</script>
+</body>
+</html>
