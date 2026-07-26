@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 232 |
-| 可视化模块 | 1856+ |
+| 项目总数 | 241 |
+| 可视化模块 | 1928+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -84,7 +84,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 134 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#229, #239–#241 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型、注意力演进、VLA、AI代码生成、MCP、神经符号、医疗AI、联邦学习、自监督学习、空间智能、药物发现、自动驾驶、知识编辑、AI设计GenUI、AI可信度、因果AI... |
+| AI / 机器学习 | 143 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#241 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型、注意力演进、VLA、AI代码生成、MCP、神经符号、医疗AI、联邦学习、自监督学习、空间智能、药物发现、自动驾驶、知识编辑、Physical AI、AI科学家、上下文工程、AI视频生成、AI安全运营、文档智能、机械可解释性、AI数据中心、工作流自动化、AI设计GenUI、AI可信度、因果AI... |
 | CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
 | CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
 | 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
@@ -323,6 +323,15 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 227 | AI内容安全与审核可视化实验室 | 内容安全体系、有害内容检测(仇恨/骚扰/自残/暴力)、深度伪造检测(C2PA/水印)、虚假信息核查、内容多标签分类、审核流水线(发布前/后+人工)、CSAM防护与Safety by Design、平台政策与治理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-content-safety-viz-lab/) |
 | 228 | AI法律与监管可视化实验室 | AI监管全景(EU AI Act/美国/中国/国际)、GDPR与数据保护、AI版权争议、责任框架(开发者/部署者/用户)、企业AI治理架构、合规自动化检查、AI审计(偏见/安全/合规)、AI法律未来趋势等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-legal-regulatory-viz-lab/) |
 | 229 | 可编程AI与AI DSL可视化实验室 | AI编程范式(声明式/可微/函数式)、ML DSL对比(JAX/PyTorch/TensorFlow)、AI SDK架构(LangChain/LlamaIndex/CrewAI)、模型编译(XLA/TVM/MLIR)、AI类型系统、AI运行时引擎、AI调试工具、AI编程未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/programmable-ai-viz-lab/) |
+| 230 | Physical AI与仿真到现实可视化实验室 | Physical AI全景架构、Sim2Real迁移、数字孪生层级、部署管线、VLA训练阶段、仿真对比、物理交互、评估体系等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/physical-ai-sim2real-viz-lab/) |
+| 231 | AI科学家可视化实验室 | 研究全景、文献综述、假设生成、实验设计、数据分析、论文写作、研究循环、科研伦理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-scientist-viz-lab/) |
+| 232 | 上下文工程可视化实验室 | 上下文全景、窗口演进、RAG对比、上下文压缩、记忆巩固、上下文路由、评估体系、前沿方向等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/context-engineering-viz-lab/) |
+| 233 | AI视频生成可视化实验室 | 视频生成全景、扩散视频模型、DiT架构、文本到视频、视频编辑、长视频生成、视频质量评估、视频生成生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-video-generation-viz-lab/) |
+| 234 | AI网络安全运营可视化实验室 | 安全运营全景、威胁检测、SIEM与AI、自动响应、漏洞管理、威胁情报、AI安全代理、安全度量等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-cybersecurity-ops-viz-lab/) |
+| 235 | 文档智能可视化实验室 | 文档智能全景、OCR引擎、文档解析、信息提取、文档理解、文档分类、文档比对、文档流水线等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/document-intelligence-viz-lab/) |
+| 236 | 机械可解释性可视化实验室 | 全景、电路分析、超位置、稀疏自编码器、探针技术、因果干预、表征工程、前沿等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/mech-interp-viz-lab/) |
+| 237 | AI数据中心基础设施可视化实验室 | 全景、算力集群、散热系统、供电系统、网络架构、存储系统、运维管理、对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-datacenter-viz-lab/) |
+| 238 | AI工作流自动化可视化实验室 | 全景、工作流引擎、AI节点类型、编排模式、事件驱动、Agent编排、监控、生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-workflow-automation-viz-lab/) |
 | 239 | AI设计与生成式UI可视化实验室 | AI设计全景(设计→AI→代码)、生成式UI(文本→UI/草图→代码)、设计系统AI(DESIGN.md/Token管理)、AI辅助设计(布局/配色/字体)、设计到代码(Figma→代码/组件映射)、原型自动化(交互原型/A-B测试)、设计评估(可用性/无障碍/设计债务)、AI设计生态(v0/Figma AI/Galileo/Uizard对比)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-design-genui-viz-lab/) |
 | 240 | AI可信度与可靠性可视化实验室 | 可信度全景(框架/维度/评估/治理)、幻觉问题(事实/逻辑/来源幻觉·检测·Grounding)、可靠性工程(故障模式/容错/降级/弹性)、一致性评估(稳定性/温度/种子/评分)、透明度与解释(决策透明/不确定性/置信度校准)、公平性与偏见(偏见类型/公平度量/审计)、隐私保护(差分隐私/联邦学习/遗忘权)、可信度框架(NIST AI RMF/ISO 42001/EU AI Act)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-trust-reliability-viz-lab/) |
 | 241 | 因果AI与LLM因果推理可视化实验室 | 因果AI全景(因果阶梯·关联→干预→反事实·Pearl框架)、因果发现(PC/FCI/LiNGAM)、LLM因果推理(提示因果/知识因果)、因果表征学习(变量发现/解耦/不变性)、反事实推理(SCM/what-if/责任分配)、因果强化学习(Causal bandit/离策略)、因果基准评估(CauseNet/CRAB/CausalBench)、因果AI前沿(因果大模型/神经符号因果)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/causal-ai-llm-viz-lab/) |
