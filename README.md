@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 241 |
-| 可视化模块 | 1928+ |
+| 项目总数 | 251 |
+| 可视化模块 | 2008+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -84,7 +84,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 143 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#241 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型、注意力演进、VLA、AI代码生成、MCP、神经符号、医疗AI、联邦学习、自监督学习、空间智能、药物发现、自动驾驶、知识编辑、Physical AI、AI科学家、上下文工程、AI视频生成、AI安全运营、文档智能、机械可解释性、AI数据中心、工作流自动化、AI设计GenUI、AI可信度、因果AI... |
+| AI / 机器学习 | 153 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#251 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型、注意力演进、VLA、AI代码生成、MCP、神经符号、医疗AI、联邦学习、自监督学习、空间智能、药物发现、自动驾驶、知识编辑、Physical AI、AI科学家、上下文工程、AI视频生成、AI安全运营、文档智能、机械可解释性、AI数据中心、工作流自动化、AI设计GenUI、AI可信度、因果AI、AI音乐生成、AI 3D生成、GraphRAG、全模态融合、LLMOps、合成数据、声明式提示优化、AI对齐、AI评估基准、TinyML... |
 | CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
 | CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
 | 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
@@ -335,6 +335,16 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 239 | AI设计与生成式UI可视化实验室 | AI设计全景(设计→AI→代码)、生成式UI(文本→UI/草图→代码)、设计系统AI(DESIGN.md/Token管理)、AI辅助设计(布局/配色/字体)、设计到代码(Figma→代码/组件映射)、原型自动化(交互原型/A-B测试)、设计评估(可用性/无障碍/设计债务)、AI设计生态(v0/Figma AI/Galileo/Uizard对比)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-design-genui-viz-lab/) |
 | 240 | AI可信度与可靠性可视化实验室 | 可信度全景(框架/维度/评估/治理)、幻觉问题(事实/逻辑/来源幻觉·检测·Grounding)、可靠性工程(故障模式/容错/降级/弹性)、一致性评估(稳定性/温度/种子/评分)、透明度与解释(决策透明/不确定性/置信度校准)、公平性与偏见(偏见类型/公平度量/审计)、隐私保护(差分隐私/联邦学习/遗忘权)、可信度框架(NIST AI RMF/ISO 42001/EU AI Act)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-trust-reliability-viz-lab/) |
 | 241 | 因果AI与LLM因果推理可视化实验室 | 因果AI全景(因果阶梯·关联→干预→反事实·Pearl框架)、因果发现(PC/FCI/LiNGAM)、LLM因果推理(提示因果/知识因果)、因果表征学习(变量发现/解耦/不变性)、反事实推理(SCM/what-if/责任分配)、因果强化学习(Causal bandit/离策略)、因果基准评估(CauseNet/CRAB/CausalBench)、因果AI前沿(因果大模型/神经符号因果)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/causal-ai-llm-viz-lab/) |
+| 242 | AI音乐生成可视化实验室 | 音乐生成全景/架构对比/歌词-音乐对齐/全曲结构/音频编解码器/风格控制/质量评估/开源生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-music-generation-viz-lab/) |
+| 243 | AI 3D资产生成可视化实验室 | 3D生成全景/隐式vs显式/单图转3D/PBR材质/3D扩散/拓扑优化/4D动画/资产生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-3d-generation-viz-lab/) |
+| 244 | GraphRAG与知识图谱LLM可视化实验室 | GraphRAG全景/实体关系抽取/社区检测/全局局部查询/图嵌入/增量更新/Token优化/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/graphrag-llm-viz-lab/) |
+| 245 | 全模态融合可视化实验室 | 全模态全景/统一Tokenizer/模态对齐/Any-to-Any生成/离散流匹配/模态缺失鲁棒/跨模态推理/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/omni-modal-fusion-viz-lab/) |
+| 246 | LLMOps与AI可观测性可视化实验室 | LLMOps全景/Trace-Span模型/Token成本归因/Prompt版本管理/Drift检测/Agent行为回放/采样策略/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/llmops-observability-viz-lab/) |
+| 247 | 合成数据工厂可视化实验室 | 合成数据全景/表格数据合成/差分隐私/多模态合成/分布对齐/对齐训练/质量评估/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/synthetic-data-factory-viz-lab/) |
+| 248 | 声明式提示工程与自动优化可视化实验室 | 提示工程演进/DSPy架构/自动示例选择/MIPRO优化器/TextGrad梯度回传/声明式vs命令式/编译验证闭环/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/declarative-prompt-opt-viz-lab/) |
+| 249 | AI对齐新范式可视化实验室 | 对齐三代演进/RLHF/DPO/Constitutional AI/可扩展监督/对齐税/越狱防御/对齐前沿等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-alignment-paradigms-viz-lab/) |
+| 250 | AI评估基准与LLM-as-Judge可视化实验室 | 评估演进/基准污染/LLM-as-Judge架构/Judge偏置/Agentic评估/人机一致性/框架对比/评估前沿等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-evaluation-benchmarks-viz-lab/) |
+| 251 | TinyML与边缘微控制器AI可视化实验室 | TinyML全景/模型压缩/MCU算子库/关键词唤醒/传感器融合/超低功耗推理/设备端训练/生态对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/tinyml-edge-ai-viz-lab/) |
 
 ## 技术栈
 

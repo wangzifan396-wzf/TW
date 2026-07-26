@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · GraphRAG 与知识图谱 LLM 可视化实验室</title>
+<style>
+:root{--bg:#0a0b0f;--bg-2:#101218;--bg-3:#161922;--border:#232734;--border-2:#2d3344;--text:#e6e8ee;--text-2:#9aa0b0;--text-3:#62697b;--accent:#00d4aa;--accent-dim:rgba(0,212,170,.14);--accent-soft:rgba(0,212,170,.08);--warn:#f59e0b;--err:#ef4444;--info:#38bdf8;--pur:#a78bfa;--rose:#fb7185;--mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;--sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">GraphRAG 与知识图谱 LLM</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 244</span>
+    <h1>GraphRAG 与知识图谱 LLM 可视化实验室</h1>
+    <p>从向量检索到图结构检索——把 GraphRAG 如何增强 LLM 知识能力的核心机制以可交互 SVG 呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">全景对比</button>
+    <button class="tab" data-m="m2">实体关系抽取</button>
+    <button class="tab" data-m="m3">社区检测</button>
+    <button class="tab" data-m="m4">全局局部查询</button>
+    <button class="tab" data-m="m5">图嵌入检索</button>
+    <button class="tab" data-m="m6">增量更新</button>
+    <button class="tab" data-m="m7">Token优化</button>
+    <button class="tab" data-m="m8">生态对比</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>GraphRAG 全景</h2></div>
+    <p class="m-desc">传统 RAG 基于向量检索片段，GraphRAG 构建知识图谱并基于图结构检索。切换视图对比两种范式与知识图谱构建流程。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM1()">切换视图 ▸</button></div>
+    <div class="viz"><svg id="svg-m1" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">传统RAG</div><div class="v">向量相似检索</div><div class="d">片段独立，缺全局关系</div></div>
+      <div class="info-card"><div class="k">GraphRAG</div><div class="v">图结构检索</div><div class="d">实体关系显式建模</div></div>
+      <div class="info-card"><div class="k">核心优势</div><div class="v">全局问答能力</div><div class="d">跨文档关系推理</div></div>
+      <div class="info-card"><div class="k">构建流程</div><div class="v">抽取 → 聚类 → 索引</div><div class="d">离线建图，在线检索</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>实体关系抽取</h2></div>
+    <p class="m-desc">LLM 从文档中抽取实体、关系、属性，构建三元组形成知识图。点击抽取按钮观察三元组构建过程。</p>
+    <div class="ctrl"><button class="btn primary" onclick="playM2()">执行抽取 ▸</button></div>
+    <div class="viz"><svg id="svg-m2" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">实体</div><div class="v">名词性概念</div><div class="d">人/组织/地点/事件</div></div>
+      <div class="info-card"><div class="k">关系</div><div class="v">实体间连接</div><div class="d">谓词性边标签</div></div>
+      <div class="info-card"><div class="k">属性</div><div class="v">实体特征</div><div class="d">键值对附加信息</div></div>
+      <div class="info-card"><div class="k">三元组</div><div class="v">(头, 关系, 尾)</div><div class="d">知识图基本单元</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>社区检测与层级摘要</h2></div>
+    <p class="m-desc">Leiden 算法发现社区结构，生成多层级摘要支持全局查询。切换层级观察社区树结构。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM3()">切换层级 ▸</button></div>
+    <div class="viz"><svg id="svg-m3" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Leiden算法</div><div class="v">社区发现</div><div class="d">改进 Louvain，保证连通</div></div>
+      <div class="info-card"><div class="k">层级摘要</div><div class="v">多粒度聚合</div><div class="d">叶节点 → 社区 → 全局</div></div>
+      <div class="info-card"><div class="k">社区树</div><div class="v">层级结构</div><div class="d">支持自顶向下检索</div></div>
+      <div class="info-card"><div class="k">用途</div><div class="v">全局问答</div><div class="d">摘要作为检索单元</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>全局 vs 局部查询</h2></div>
+    <p class="m-desc">全局查询遍历社区摘要回答宏观问题，局部查询聚焦子图回答具体问题。切换查询类型观察路由策略。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM4()">切换查询 ▸</button></div>
+    <div class="viz"><svg id="svg-m4" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">全局查询</div><div class="v">遍历社区摘要</div><div class="d">回答宏观/总结性问题</div></div>
+      <div class="info-card"><div class="k">局部查询</div><div class="v">聚焦子图</div><div class="d">回答具体实体问题</div></div>
+      <div class="info-card"><div class="k">查询路由</div><div class="v">分类器分流</div><div class="d">根据问题类型选择策略</div></div>
+      <div class="info-card"><div class="k">混合策略</div><div class="v">全局+局部融合</div><div class="d">兼顾宏观与细节</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>图嵌入与检索</h2></div>
+    <p class="m-desc">Node2Vec、GraphRIT 将图结构编码为向量，结合向量与图进行混合检索。切换方法对比嵌入策略。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM5()">切换方法 ▸</button></div>
+    <div class="viz"><svg id="svg-m5" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Node2Vec</div><div class="v">随机游走嵌入</div><div class="d">平衡广度/深度优先</div></div>
+      <div class="info-card"><div class="k">GraphRIT</div><div class="v">关系感知嵌入</div><div class="d">编码关系语义</div></div>
+      <div class="info-card"><div class="k">向量检索</div><div class="v">近邻查找</div><div class="d">高效但忽略结构</div></div>
+      <div class="info-card"><div class="k">混合检索</div><div class="v">向量+图遍历</div><div class="d">兼顾相似与连通</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>增量更新机制</h2></div>
+    <p class="m-desc">新增文档需增量更新图结构与索引，维护一致性。点击新增观察增量更新流程。</p>
+    <div class="ctrl"><button class="btn primary" onclick="stepM6()">新增文档 ▸</button></div>
+    <div class="viz"><svg id="svg-m6" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">动态图</div><div class="v">边/节点增删</div><div class="d">支持流式更新</div></div>
+      <div class="info-card"><div class="k">增量索引</div><div class="v">局部重建</div><div class="d">避免全量重算</div></div>
+      <div class="info-card"><div class="k">一致性</div><div class="v">版本与锁</div><div class="d">读写隔离保证正确</div></div>
+      <div class="info-card"><div class="k">社区重算</div><div class="v">受影响子图</div><div class="d">局部 Leiden 重新聚类</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>Token 优化策略</h2></div>
+    <p class="m-desc">图压缩、摘要裁剪、层级路由降低 token 消耗。切换策略观察 token 节省效果。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM7()">切换策略 ▸</button></div>
+    <div class="viz"><svg id="svg-m7" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">图压缩</div><div class="v">合并冗余节点</div><div class="d">低度数节点折叠</div></div>
+      <div class="info-card"><div class="k">摘要裁剪</div><div class="v">截断长摘要</div><div class="d">保留关键句</div></div>
+      <div class="info-card"><div class="k">层级路由</div><div class="v">先粗后细</div><div class="d">按需下钻减少 token</div></div>
+      <div class="info-card"><div class="k">缓存</div><div class="v">重复查询复用</div><div class="d">避免重复检索消耗</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>GraphRAG 生态</h2></div>
+    <p class="m-desc">Microsoft GraphRAG、LightRAG、nano-graphrag 等构成生态，在性能与易用性上各有侧重。切换维度查看对比矩阵。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM8()">切换维度 ▸</button></div>
+    <div class="viz"><svg id="svg-m8" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Microsoft GraphRAG</div><div class="v">官方参考实现</div><div class="d">功能完整，社区检测+摘要</div></div>
+      <div class="info-card"><div class="k">LightRAG</div><div class="v">轻量高效</div><div class="d">简化流程，部署友好</div></div>
+      <div class="info-card"><div class="k">nano-graphrag</div><div class="v">极简教学</div><div class="d">代码精简，便于理解</div></div>
+      <div class="info-card"><div class="k">性能基准</div><div class="v">质量 vs 速度</div><div class="d">官方最全，轻量最快</div></div>
+    </div>
+  </section>
+
+  <script>
+  var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+  tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+  function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+  function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+  var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344',BG='#161922';
+  function arrow(s,x1,y1,x2,y2,c){el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:c||BD,'stroke-width':1.5},s);var a=Math.atan2(y2-y1,x2-x1),h=6;el('polygon',{points:x2+','+y2+' '+(x2-h*Math.cos(a-0.4))+','+(y2-h*Math.sin(a-0.4))+' '+(x2-h*Math.cos(a+0.4))+','+(y2-h*Math.sin(a+0.4)),fill:c||BD},s);}
+  function box(s,x,y,w,h,t,sub,c,fill){el('rect',{x:x,y:y,width:w,height:h,rx:8,fill:fill||BG,stroke:c||BD,'stroke-width':1.5},s);el('text',{x:x+w/2,y:y+h/2-3,'text-anchor':'middle','font-size':13,fill:'#e6e8ee','font-weight':600},s).textContent=t;if(sub)el('text',{x:x+w/2,y:y+h/2+15,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=sub;}
+  function tag(s,x,y,t,c){el('text',{x:x,y:y,'font-size':12,fill:c||AC,'font-family':'var(--mono)'},s).textContent=t;}
+
+  /* M1 GraphRAG 全景 */
+  var m1State=0;
+  function drawM1(){
+    var s=document.getElementById('svg-m1');clear(s);
+    tag(s,30,30,'视图: '+(m1State===0?'RAG vs GraphRAG':'构建流程'),AC);
+    if(m1State===0){
+      // 左：传统 RAG
+      el('rect',{x:40,y:70,width:380,height:240,rx:10,fill:'#101218',stroke:INFO,'stroke-width':1.5,'stroke-dasharray':'5 3'},s);
+      el('text',{x:230,y:95,'text-anchor':'middle','font-size':14,fill:INFO,'font-weight':700},s).textContent='传统 RAG';
+      // 文档块
+      var docs=[['Doc1',60],['Doc2',150],['Doc3',240],['Doc4',330]];
+      for(var i=0;i<4;i++){el('rect',{x:docs[i][1],y:115,width:70,height:50,rx:6,fill:BG,stroke:INFO},s);el('text',{x:docs[i][1]+35,y:145,'text-anchor':'middle','font-size':11,fill:'#e6e8ee'},s).textContent=docs[i][0];}
+      // 切分+嵌入
+      el('rect',{x:90,y:185,width:280,height:34,rx:6,fill:BG,stroke:INFO},s);
+      el('text',{x:230,y:207,'text-anchor':'middle','font-size':11,fill:INFO},s).textContent='切分 → 嵌入 → 向量库';
+      // 检索
+      el('rect',{x:90,y:235,width:280,height:34,rx:6,fill:BG,stroke:INFO},s);
+      el('text',{x:230,y:257,'text-anchor':'middle','font-size':11,fill:INFO},s).textContent='向量相似检索 Top-K 片段';
+      el('text',{x:230,y:295,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent='片段独立，缺全局关系';
+      // 右：GraphRAG
+      el('rect',{x:460,y:70,width:380,height:240,rx:10,fill:'#101218',stroke:AC,'stroke-width':1.5},s);
+      el('text',{x:650,y:95,'text-anchor':'middle','font-size':14,fill:AC,'font-weight':700},s).textContent='GraphRAG';
+      // 知识图节点
+      var nodes=[[540,140,'E1',AC],[640,130,'E2',PUR],[740,150,'E3',AC],[560,200,'E4',INFO],[680,210,'E5',ROSE],[600,260,'E6',WARN]];
+      var edges=[[0,1],[1,2],[0,3],[3,4],[1,4],[3,5],[4,5]];
+      for(var i=0;i<edges.length;i++){var a=nodes[edges[i][0]],b=nodes[edges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:AC,'stroke-width':1,opacity:0.5},s);}
+      for(var i=0;i<nodes.length;i++){el('circle',{cx:nodes[i][0],cy:nodes[i][1],r:18,fill:BG,stroke:nodes[i][3],'stroke-width':1.5},s);el('text',{x:nodes[i][0],y:nodes[i][1]+4,'text-anchor':'middle','font-size':10,fill:nodes[i][3]},s).textContent=nodes[i][2];}
+      el('text',{x:650,y:295,'text-anchor':'middle','font-size':10,fill:AC},s).textContent='实体关系显式建模，支持全局推理');
+    }else{
+      var steps=[['文档输入','原始语料',INFO],['实体关系抽取','LLM 抽取三元组',PUR],['社区检测','Leiden 聚类',AC],['层级摘要','多粒度摘要',WARN],['索引构建','向量+图索引',ROSE]];
+      var x0=30,w=160,gap=12,y=130,h=100;
+      for(var i=0;i<5;i++){var x=x0+i*(w+gap);el('rect',{x:x,y:y,width:w,height:h,rx:8,fill:BG,stroke:steps[i][2],'stroke-width':1.5},s);el('text',{x:x+w/2,y:y+30,'text-anchor':'middle','font-size':11,fill:steps[i][2],'font-weight':700},s).textContent='步骤 '+(i+1);el('text',{x:x+w/2,y:y+55,'text-anchor':'middle','font-size':13,fill:'#e6e8ee','font-weight':600},s).textContent=steps[i][0];el('text',{x:x+w/2,y:y+78,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent=steps[i][1];if(i<4)arrow(s,x+w,y+50,x+gap,y+50,steps[i][2]);}
+      el('text',{x:440,y:285,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='离线建图：抽取 → 聚类 → 摘要 → 索引';
+      el('text',{x:440,y:305,'text-anchor':'middle','font-size':11,fill:AC},s).textContent='在线检索：查询路由 → 全局/局部检索 → LLM 生成');
+    }
+  }
+  function toggleM1(){m1State=(m1State+1)%2;drawM1();}
+
+  /* M2 实体关系抽取 */
+  var m2Prog=0,m2Timer=null;
+  function drawM2(){
+    var s=document.getElementById('svg-m2');clear(s);
+    tag(s,30,30,'抽取进度: '+Math.round(m2Prog*100)+'%',AC);
+    // 文档
+    el('rect',{x:30,y:80,width:200,height:200,rx:8,fill:'#101218',stroke:INFO,'stroke-width':1.5},s);
+    el('text',{x:130,y:100,'text-anchor':'middle','font-size':12,fill:INFO,'font-weight':600},s).textContent='原始文档';
+    var txt=['OpenAI 发布了 GPT-4。','GPT-4 由微软投资。','微软总部位于雷德蒙德。'];
+    for(var i=0;i<3;i++){el('text',{x:45,y:125+i*20,'font-size':10,fill:'#9aa0b0'},s).textContent=txt[i];}
+    // LLM 抽取
+    arrow(s,230,180,310,180,AC);
+    el('rect',{x:310,y:140,width:120,height:80,rx:8,fill:'#1a2230',stroke:AC,'stroke-width':2},s);
+    el('text',{x:370,y:175,'text-anchor':'middle','font-size':13,fill:AC,'font-weight':700},s).textContent='LLM 抽取';
+    el('text',{x:370,y:195,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent='实体+关系+属性';
+    arrow(s,430,180,510,180,AC);
+    // 三元组（右侧）
+    var triples=[['OpenAI','发布','GPT-4',AC],['微软','投资','GPT-4',PUR],['微软','位于','雷德蒙德',INFO]];
+    var drawn=Math.floor(m2Prog*3);
+    for(var i=0;i<3;i++){var y=90+i*70;var shown=i<drawn;var t=triples[i];
+      el('rect',{x:510,y:y,width:80,height:34,rx:6,fill:shown?BG:'#101218',stroke:shown?t[3]:BD,'stroke-width':shown?1.5:1},s);el('text',{x:550,y:y+22,'text-anchor':'middle','font-size':11,fill:shown?'#e6e8ee':DIM},s).textContent=shown?t[0]:'?';
+      arrow(s,590,y+17,640,y+17,shown?t[3]:BD);
+      el('rect',{x:640,y:y,width:90,height:34,rx:6,fill:shown?'#1a2230':'#101218',stroke:shown?WARN:BD,'stroke-width':shown?1.5:1},s);el('text',{x:685,y:y+22,'text-anchor':'middle','font-size':11,fill:shown?WARN:DIM},s).textContent=shown?t[1]:'关系';
+      arrow(s,730,y+17,780,y+17,shown?t[3]:BD);
+      el('rect',{x:780,y:y,width:80,height:34,rx:6,fill:shown?BG:'#101218',stroke:shown?t[3]:BD,'stroke-width':shown?1.5:1},s);el('text',{x:820,y:y+22,'text-anchor':'middle','font-size':11,fill:shown?'#e6e8ee':DIM},s).textContent=shown?t[2]:'?';
+    }
+    el('text',{x:440,y:310,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='三元组 (头实体, 关系, 尾实体) 构成知识图基本单元';
+    el('text',{x:440,y:332,'text-anchor':'middle','font-size':11,fill:AC},s).textContent='LLM 抽取后去重、归一化、消歧形成结构化知识图');
+    if(m2Prog>=1){el('text',{x:440,y:350,'text-anchor':'middle','font-size':11,fill:AC,'font-weight':700},s).textContent='抽取完成 ✓';}
+  }
+  function playM2(){if(m2Timer)return;m2Prog=0;drawM2();m2Timer=setInterval(function(){m2Prog+=0.04;if(m2Prog>=1){m2Prog=1;clearInterval(m2Timer);m2Timer=null;drawM2();setTimeout(function(){m2Prog=0;drawM2();},1500);}else drawM2();},50);}
+
+  /* M3 社区检测 */
+  var m3State=0;
+  function drawM3(){
+    var s=document.getElementById('svg-m3');clear(s);
+    var levels=[['全局层','所有社区聚合',AC,0],['社区层','Leiden 聚类结果',PUR,1],['实体层','原始节点',INFO,2]];
+    var lv=levels[m3State];
+    tag(s,30,30,'层级: '+lv[0],lv[2]);
+    // 左侧社区图
+    el('rect',{x:30,y:70,width:420,height:260,rx:10,fill:'#101218',stroke:lv[2],'stroke-width':1.5},s);
+    el('text',{x:240,y:95,'text-anchor':'middle','font-size':13,fill:lv[2],'font-weight':600},s).textContent='知识图社区结构';
+    // 社区颜色
+    var comm=[INFO,PUR,AC,WARN,ROSE];
+    var layout=[
+      [80,140,0],[120,120,0],[100,180,0],[150,160,0],
+      [260,130,1],[300,150,1],[280,190,1],
+      [380,140,2],[360,190,2],
+      [100,260,3],[150,280,3],
+      [280,260,4],[330,270,4],[300,300,4]
+    ];
+    var edges=[[0,1],[0,2],[1,3],[2,3],[4,5],[5,6],[4,6],[7,8],[9,10],[11,12],[12,13],[11,13]];
+    for(var i=0;i<edges.length;i++){var a=layout[edges[i][0]],b=layout[edges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:m3State===0?AC:comm[a[2]],'stroke-width':m3State===2?0.5:1.5,opacity:m3State===2?0.3:0.7},s);}
+    for(var i=0;i<layout.length;i++){var n=layout[i];var col=m3State===0?AC:(m3State===1?comm[n[2]]:INFO);var r=m3State===0?6:(m3State===1?7:5);el('circle',{cx:n[0],cy:n[1],r:r,fill:col,opacity:0.85},s);}
+    // 社区边界（社区层）
+    if(m3State===1){var centers=[[115,150,INFO],[280,160,PUR],[370,165,AC],[125,270,WARN],[305,275,ROSE]];for(var i=0;i<centers.length;i++){el('ellipse',{cx:centers[i][0],cy:centers[i][1],rx:45,ry:35,fill:'none',stroke:centers[i][2],'stroke-width':1.5,'stroke-dasharray':'4 3',opacity:0.6},s);el('text',{x:centers[i][0],y:centers[i][1]-40,'text-anchor':'middle','font-size':10,fill:centers[i][2]},s).textContent='社区'+(i+1);}}
+    // 右侧层级树
+    el('text',{x:620,y:90,'text-anchor':'middle','font-size':13,fill:AC,'font-weight':600},s).textContent='社区层级树';
+    var treeY=[120,180,240];
+    var treeNodes=[['全局摘要',AC,620,120,0],['社区A',PUR,560,190,1],['社区B',INFO,680,190,1],['实体1',DIM,520,250,2],['实体2',DIM,600,250,2],['实体3',DIM,660,250,2],['实体4',DIM,740,250,2]];
+    var treeEdges=[[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]];
+    for(var i=0;i<treeEdges.length;i++){var a=treeNodes[treeEdges[i][0]],b=treeNodes[treeEdges[i][1]];el('line',{x1:a[3],y1:a[4],x2:b[3],y2:b[4],stroke:BD,'stroke-width':1},s);}
+    for(var i=0;i<treeNodes.length;i++){var n=treeNodes[i];var active=(n[5]===m3State);el('rect',{x:n[3]-40,y:n[4]-12,width:80,height:24,rx:6,fill:active?n[2]:'#161922',stroke:n[2],'stroke-width':active?2:1},s);el('text',{x:n[3],y:n[4]+4,'text-anchor':'middle','font-size':11,fill:active?'#0a0b0f':n[2],'font-weight':active?700:400},s).textContent=n[0];}
+    el('text',{x:240,y:350,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='Leiden 聚类 → 多层级摘要 → 支持自顶向下全局检索';
+  }
+  function toggleM3(){m3State=(m3State+1)%3;drawM3();}
+
+  /* M4 全局 vs 局部查询 */
+  var m4State=0;
+  function drawM4(){
+    var s=document.getElementById('svg-m4');clear(s);
+    var modes=[['全局查询','遍历社区摘要',AC,'宏观/总结性'],['_局部查询','聚焦子图',INFO,'具体实体']];
+    var m=modes[m4State];
+    tag(s,30,30,'查询类型: '+m[0].replace('_','')+' · '+m[3],m[2]);
+    // 查询输入
+    el('rect',{x:30,y:90,width:160,height:60,rx:8,fill:'#1a2230',stroke:WARN,'stroke-width':2},s);
+    el('text',{x:110,y:115,'text-anchor':'middle','font-size':13,fill:WARN,'font-weight':600},s).textContent='用户查询';
+    el('text',{x:110,y:135,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent='问题分类';
+    arrow(s,190,120,260,120,m[2]);
+    // 路由器
+    el('rect',{x:260,y:90,width:140,height:60,rx:8,fill:BG,stroke:m[2],'stroke-width':2},s);
+    el('text',{x:330,y:115,'text-anchor':'middle','font-size':13,fill:m[2],'font-weight':600},s).textContent='查询路由';
+    el('text',{x:330,y:135,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent='分类器分流';
+    arrow(s,400,120,460,120,m[2]);
+    // 检索区
+    el('rect',{x:460,y:80,width:390,height:230,rx:10,fill:'#101218',stroke:m[2],'stroke-width':1.5},s);
+    el('text',{x:655,y:105,'text-anchor':'middle','font-size':13,fill:m[2],'font-weight':600},s).textContent=m[2].replace('_','')+'检索';
+    if(m4State===0){
+      // 全局：遍历社区摘要
+      var comms=[['社区A摘要',INFO,480],['社区B摘要',PUR,580],['社区C摘要',AC,680],['社区D摘要',WARN,780]];
+      for(var i=0;i<4;i++){el('rect',{x:comms[i][2],y:130,width:80,height:50,rx:6,fill:BG,stroke:comms[i][1],'stroke-width':1.5},s);el('text',{x:comms[i][2]+40,y:150,'text-anchor':'middle','font-size':10,fill:comms[i][1]},s).textContent='摘要';el('text',{x:comms[i][2]+40,y:168,'text-anchor':'middle','font-size':9,fill:DIM},s).textContent=comms[i][0];}
+      el('text',{x:655,y:210,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='汇总所有社区摘要 → 全局视角';
+      arrow(s,480,250,655,260,AC);arrow(s,820,250,655,260,AC);
+      el('rect',{x:580,y:270,width:150,height:30,rx:6,fill:AC,opacity:0.2,stroke:AC},s);el('text',{x:655,y:290,'text-anchor':'middle','font-size':11,fill:AC,'font-weight':600},s).textContent='全局答案';
+    }else{
+      // 局部：聚焦子图
+      var nodes=[[520,150,'E1',AC],[600,140,'E2',PUR],[680,160,'E3',INFO],[560,210,'E4',WARN],[640,220,'E5',ROSE],[720,200,'E6',AC]];
+      var edges=[[0,1],[1,2],[0,3],[3,4],[1,4],[4,5]];
+      // 高亮查询实体
+      el('circle',{cx:560,cy:210,r:30,fill:'none',stroke:WARN,'stroke-width':1.5,'stroke-dasharray':'3 3'},s);
+      for(var i=0;i<edges.length;i++){var a=nodes[edges[i][0]],b=nodes[edges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:INFO,'stroke-width':1.5,opacity:0.6},s);}
+      for(var i=0;i<nodes.length;i++){el('circle',{cx:nodes[i][0],cy:nodes[i][1],r:16,fill:BG,stroke:nodes[i][3],'stroke-width':1.5},s);el('text',{x:nodes[i][0],y:nodes[i][1]+4,'text-anchor':'middle','font-size':10,fill:nodes[i][3]},s).textContent=nodes[i][2];}
+      el('text',{x:655,y:280,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='子图遍历 → 实体细节答案';
+    }
+    el('text',{x:440,y:340,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='路由策略：根据问题类型自动选择全局或局部检索路径';
+  }
+  function toggleM4(){m4State=(m4State+1)%2;drawM4();}
+
+  /* M5 图嵌入与检索 */
+  var m5State=0;
+  function drawM5(){
+    var s=document.getElementById('svg-m5');clear(s);
+    var methods=[['Node2Vec','随机游走嵌入',INFO],['GraphRIT','关系感知嵌入',PUR],['混合检索','向量+图遍历',AC]];
+    var m=methods[m5State];
+    tag(s,30,30,'方法: '+m[0],m[2]);
+    // 左：图结构
+    el('rect',{x:30,y:80,width:240,height:240,rx:8,fill:'#101218',stroke:m[2],'stroke-width':1.5},s);
+    el('text',{x:150,y:100,'text-anchor':'middle','font-size':12,fill:m[2],'font-weight':600},s).textContent='原始图结构');
+    var nodes=[[80,150,'A',INFO],[150,140,'B',PUR],[220,160,'C',AC],[100,220,'D',WARN],[180,230,'E',ROSE]];
+    var edges=[[0,1],[1,2],[0,3],[3,4],[1,4],[2,4]];
+    for(var i=0;i<edges.length;i++){var a=nodes[edges[i][0]],b=nodes[edges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:BD,'stroke-width':1.5},s);}
+    for(var i=0;i<nodes.length;i++){el('circle',{cx:nodes[i][0],cy:nodes[i][1],r:16,fill:BG,stroke:nodes[i][3],'stroke-width':1.5},s);el('text',{x:nodes[i][0],y:nodes[i][1]+4,'text-anchor':'middle','font-size':11,fill:nodes[i][3]},s).textContent=nodes[i][2];}
+    // Node2Vec 游走路径
+    if(m5State===0){var path=[[80,150],[150,140],[220,160],[180,230],[100,220]];for(var i=0;i<path.length-1;i++){el('line',{x1:path[i][0],y1:path[i][1],x2:path[i+1][0],y2:path[i+1][1],stroke:INFO,'stroke-width':2,'stroke-dasharray':'4 2',opacity:0.8},s);}el('text',{x:150,y:280,'text-anchor':'middle','font-size':10,fill:INFO},s).textContent='随机游走 → 序列 → 嵌入';}
+    // GraphRIT 关系标签
+    if(m5State===1){var rels=['r1','r2','r3','r4','r5','r6'];var ei=0;for(var i=0;i<edges.length;i++){var a=nodes[edges[i][0]],b=nodes[edges[i][1]];el('text',{x:(a[0]+b[0])/2,y:(a[1]+b[1])/2-4,'text-anchor':'middle','font-size':9,fill:PUR},s).textContent=rels[ei++];}el('text',{x:150,y:280,'text-anchor':'middle','font-size':10,fill:PUR},s).textContent='关系语义编码进嵌入';}
+    arrow(s,270,200,330,200,m[2]);
+    // 右：嵌入空间/检索
+    el('rect',{x:330,y:80,width:520,height:240,rx:8,fill:'#101218',stroke:m[2],'stroke-width':1.5},s);
+    el('text',{x:590,y:100,'text-anchor':'middle','font-size':12,fill:m[2],'font-weight':600},s).textContent=m[0]+' 检索空间';
+    if(m5State<2){
+      // 嵌入散点
+      var pts=[[380,150,INFO],[420,180,PUR],[470,140,AC],[380,220,WARN],[440,240,ROSE],[520,160,INFO],[560,200,PUR],[610,170,AC],[680,210,WARN],[740,180,ROSE]];
+      for(var i=0;i<pts.length;i++){el('circle',{cx:pts[i][0],cy:pts[i][1],r:6,fill:pts[i][2],opacity:0.7},s);}
+      // 查询点
+      el('circle',{cx:470,cy:180,r:10,fill:'none',stroke:WARN,'stroke-width':2},s);
+      el('text',{x:470,y:160,'text-anchor':'middle','font-size':10,fill:WARN},s).textContent='查询');
+      // 近邻连线
+      for(var i=0;i<3;i++){el('line',{x1:470,y1:180,x2:pts[i][0],y2:pts[i][1],stroke:WARN,'stroke-width':1,'stroke-dasharray':'2 2',opacity:0.6},s);}
+      el('text',{x:590,y:290,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='向量近邻查找 Top-K';
+    }else{
+      // 混合：向量+图
+      var nodes2=[[380,150,'A',INFO],[460,140,'B',PUR],[540,160,'C',AC],[620,150,'D',WARN],[700,170,'E',ROSE],[420,230,'F',INFO],[500,240,'G',PUR],[580,220,'H',AC]];
+      var edges2=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[1,6]];
+      for(var i=0;i<edges2.length;i++){var a=nodes2[edges2[i][0]],b=nodes2[edges2[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:AC,'stroke-width':1,opacity:0.5},s);}
+      for(var i=0;i<nodes2.length;i++){el('circle',{cx:nodes2[i][0],cy:nodes2[i][1],r:14,fill:BG,stroke:nodes2[i][3],'stroke-width':1.5},s);el('text',{x:nodes2[i][0],y:nodes2[i][1]+4,'text-anchor':'middle','font-size':10,fill:nodes2[i][3]},s).textContent=nodes2[i][2];}
+      el('circle',{cx:460,cy:140,r:22,fill:'none',stroke:WARN,'stroke-width':1.5,'stroke-dasharray':'3 3'},s);
+      el('text',{x:590,y:290,'text-anchor':'middle','font-size':11,fill:AC},s).textContent='向量召回 + 图遍历扩展 = 混合检索');
+    }
+    el('text',{x:440,y:345,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='嵌入编码结构语义；混合检索兼顾相似性与连通性');
+  }
+  function toggleM5(){m5State=(m5State+1)%3;drawM5();}
+
+  /* M6 增量更新 */
+  var m6State=0;
+  function drawM6(){
+    var s=document.getElementById('svg-m6');clear(s);
+    tag(s,30,30,'增量更新: 第 '+m6State+' 次新增',AC);
+    // 原始图
+    el('rect',{x:30,y:80,width:380,height:200,rx:8,fill:'#101218',stroke:INFO,'stroke-width':1.5},s);
+    el('text',{x:220,y:100,'text-anchor':'middle','font-size':12,fill:INFO,'font-weight':600},s).textContent='当前知识图';
+    var baseNodes=[[80,150,'A',INFO],[150,140,'B',PUR],[220,160,'C',AC],[290,150,'D',WARN],[360,170,'E',ROSE],[120,220,'F',INFO],[250,230,'G',PUR]];
+    var baseEdges=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[1,6]];
+    for(var i=0;i<baseEdges.length;i++){var a=baseNodes[baseEdges[i][0]],b=baseNodes[baseEdges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:BD,'stroke-width':1.5,opacity:0.7},s);}
+    for(var i=0;i<baseNodes.length;i++){el('circle',{cx:baseNodes[i][0],cy:baseNodes[i][1],r:14,fill:BG,stroke:baseNodes[i][3],'stroke-width':1.5},s);el('text',{x:baseNodes[i][0],y:baseNodes[i][1]+4,'text-anchor':'middle','font-size':10,fill:baseNodes[i][3]},s).textContent=baseNodes[i][2];}
+    arrow(s,410,180,470,180,AC);
+    // 新增文档
+    el('rect',{x:470,y:120,width:130,height:120,rx:8,fill:'#1a2230',stroke:WARN,'stroke-width':2},s);
+    el('text',{x:535,y:145,'text-anchor':'middle','font-size':12,fill:WARN,'font-weight':600},s).textContent='新增文档';
+    el('text',{x:535,y:170,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent='抽取新三元组';
+    // 新节点（根据 m6State 数量）
+    var newNodes=[[540,200,'N'+(m6State+1),AC],[580,220,'N'+(m6State+2),AC],[620,200,'N'+(m6State+3),AC]];
+    for(var i=0;i<Math.min(m6State+1,3);i++){el('circle',{cx:newNodes[i][0],cy:newNodes[i][1],r:12,fill:AC,opacity:0.3,stroke:AC,'stroke-width':1.5},s);el('text',{x:newNodes[i][0],y:newNodes[i][1]+4,'text-anchor':'middle','font-size':9,fill:AC},s).textContent=newNodes[i][2];}
+    arrow(s,470,300,470,300,AC);
+    arrow(s,600,180,660,180,AC);
+    // 更新后图
+    el('rect',{x:660,y:80,width:200,height:240,rx:8,fill:'#101218',stroke:AC,'stroke-width':1.5},s);
+    el('text',{x:760,y:100,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='更新后图';
+    var updNodes=[[700,140,'A',INFO],[760,130,'B',PUR],[820,150,'C',AC],[700,210,'F',INFO],[780,220,'N',AC],[820,200,'G',PUR]];
+    var updEdges=[[0,1],[1,2],[0,3],[3,4],[4,5],[1,4]];
+    for(var i=0;i<updEdges.length;i++){var a=updNodes[updEdges[i][0]],b=updNodes[updEdges[i][1]];el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:AC,'stroke-width':1.5,opacity:0.7},s);}
+    for(var i=0;i<updNodes.length;i++){el('circle',{cx:updNodes[i][0],cy:updNodes[i][1],r:12,fill:updNodes[i][3]==='N'?'#1a2230':BG,stroke:updNodes[i][3],'stroke-width':updNodes[i][3]==='N'?2:1.5},s);el('text',{x:updNodes[i][0],y:updNodes[i][1]+4,'text-anchor':'middle','font-size':10,fill:updNodes[i][3]},s).textContent=updNodes[i][2];}
+    el('text',{x:760,y:280,'text-anchor':'middle','font-size':10,fill:AC},s).textContent='+'+(m6State+1)+' 新节点';
+    // 流程标签
+    var flowY=320;
+    el('text',{x:220,y:flowY,'text-anchor':'middle','font-size':10,fill:INFO},s).textContent='受影响子图局部重算';
+    el('text',{x:535,y:flowY,'text-anchor':'middle','font-size':10,fill:WARN},s).textContent='增量抽取 + 合并');
+    el('text',{x:760,y:flowY,'text-anchor':'middle','font-size':10,fill:AC},s).textContent='社区局部重新聚类';
+    el('text',{x:440,y:345,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='增量更新：仅重算受影响子图，避免全量重建';
+  }
+  function stepM6(){m6State=(m6State+1)%3;drawM6();}
+
+  /* M7 Token 优化 */
+  var m7State=0;
+  function drawM7(){
+    var s=document.getElementById('svg-m7');clear(s);
+    var strategies=[['图压缩','合并冗余节点',INFO,65],['摘要裁剪','截断长摘要',PUR,45],['层级路由','先粗后细',AC,70],['缓存','复用结果',WARN,55]];
+    var st=strategies[m7State];
+    tag(s,30,30,'策略: '+st[0],st[2]);
+    // 原始 token 消耗
+    el('text',{x:30,y:90,'font-size':12,fill:DIM},s).textContent='原始 token 消耗';
+    el('rect',{x:30,y:100,width:820,height:30,rx:4,fill:'#101218',stroke:BD},s);
+    el('rect',{x:30,y:100,width:820,height:30,rx:4,fill:ROSE,opacity:0.4},s);
+    el('text',{x:850,y:120,'text-anchor':'end','font-size':12,fill:ROSE,'font-weight':600},s).textContent='100%';
+    // 优化后
+    el('text',{x:30,y:160,'font-size':12,fill:st[2],'font-weight':600},s).textContent=st[0]+' 后';
+    el('rect',{x:30,y:170,width:820,height:30,rx:4,fill:'#101218',stroke:BD},s);
+    el('rect',{x:30,y:170,width:820*st[3]/100,height:30,rx:4,fill:st[2],opacity:0.7},s);
+    el('text',{x:850,y:190,'text-anchor':'end','font-size':12,fill:st[2],'font-weight':600},s).textContent=st[3]+'%';
+    // 节省
+    el('text',{x:30,y:230,'font-size':12,fill:AC},s).textContent='节省';
+    el('rect',{x:30,y:240,width:820,height:30,rx:4,fill:'#101218',stroke:BD},s);
+    el('rect',{x:30,y:240,width:820*(100-st[3])/100,height:30,rx:4,fill:AC,opacity:0.6},s);
+    el('text',{x:850,y:260,'text-anchor':'end','font-size':12,fill:AC,'font-weight':600},s).textContent=(100-st[3])+'%';
+    // 策略示意
+    el('text',{x:440,y:310,'text-anchor':'middle','font-size':12,fill:st[2],'font-weight':600},s).textContent=st[1];
+    var details=['低度数节点折叠为超节点','长摘要截断保留首尾关键句','先查社区摘要，命中则不下钻实体','相同查询复用缓存检索结果'];
+    el('text',{x:440,y:335,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=details[m7State];
+  }
+  function toggleM7(){m7State=(m7State+1)%4;drawM7();}
+
+  /* M8 GraphRAG 生态 */
+  var m8State=0;
+  function drawM8(){
+    var s=document.getElementById('svg-m8');clear(s);
+    var rows=[['Microsoft GraphRAG','微软','开源','社区+摘要','高',0.85],['LightRAG','社区','开源','简化流程','中',0.92],['nano-graphrag','社区','开源','极简教学','低',0.95],['ApexRAG','社区','开源','混合检索','中',0.80],['GraphRAG-SDK','企业','商业','生产级','高',0.75]];
+    var cols=['模型','机构','协议','架构','完整度'];
+    var dims=['完整度','机构','架构','协议'];
+    var cur=m8State;
+    tag(s,30,30,'对比维度: '+dims[cur],AC);
+    var x0=60,y0=70,cw=130,rh=38,hw=140;
+    el('rect',{x:x0,y:y0,width:hw,height:rh,rx:6,fill:BG,stroke:BD},s);
+    el('text',{x:x0+70,y:y0+24,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='模型';
+    for(var c=0;c<4;c++){el('rect',{x:x0+hw+c*cw,y:y0,width:cw,height:rh,rx:6,fill:BG,stroke:BD},s);el('text',{x:x0+hw+c*cw+cw/2,y:y0+24,'text-anchor':'middle','font-size':12,fill:c===cur?AC:DIM,'font-weight':600},s).textContent=cols[c+1];}
+    for(var r=0;r<5;r++){var y=y0+(r+1)*rh;el('rect',{x:x0,y:y,width:hw,height:rh,rx:6,fill:'#1a2230',stroke:BD},s);el('text',{x:x0+70,y:y+24,'text-anchor':'middle','font-size':11,fill:'#e6e8ee','font-weight':600},s).textContent=rows[r][0];
+      var cellVals=[rows[r][1],rows[r][2],rows[r][3],rows[r][4]];
+      for(var c=0;c<4;c++){var active=(c===cur);el('rect',{x:x0+hw+c*cw,y:y,width:cw,height:rh,rx:6,fill:active?'#1a2230':BG,stroke:active?AC:BD,'stroke-width':active?2:1},s);el('text',{x:x0+hw+c*cw+cw/2,y:y+24,'text-anchor':'middle','font-size':11,fill:active?AC:'#9aa0b0'},s).textContent=cellVals[c];}
+    }
+    if(cur===0){
+      el('text',{x:30,y:300,'font-size':11,fill:DIM},s).textContent='完整度评分（功能覆盖）:';
+      for(var r=0;r<5;r++){el('rect',{x:200,y:290+r*12,width:rows[r][5]*600,height:10,rx:3,fill:AC,opacity:0.6},s);el('text',{x:190,y:298+r*12,'text-anchor':'end','font-size':10,fill:'#9aa0b0'},s).textContent=rows[r][0];}
+    }else{
+      el('text',{x:440,y:310,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='Microsoft GraphRAG 功能最全；LightRAG 性能最优；nano-graphrag 最易理解';
+    }
+  }
+  function toggleM8(){m8State=(m8State+1)%4;drawM8();}
+
+  drawM1();drawM2();drawM3();drawM4();drawM5();drawM6();drawM7();drawM8();
+  </script>
+</body>
+</html>

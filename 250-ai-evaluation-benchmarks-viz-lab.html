@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · AI 评估基准与 LLM-as-Judge 可视化实验室</title>
+<style>
+:root{--bg:#0a0b0f;--bg-2:#101218;--bg-3:#161922;--border:#232734;--border-2:#2d3344;--text:#e6e8ee;--text-2:#9aa0b0;--text-3:#62697b;--accent:#00d4aa;--accent-dim:rgba(0,212,170,.14);--accent-soft:rgba(0,212,170,.08);--warn:#f59e0b;--err:#ef4444;--info:#38bdf8;--pur:#a78bfa;--rose:#fb7185;--mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;--sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">AI 评估基准与 LLM-as-Judge</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 250</span>
+    <h1>AI 评估基准与 LLM-as-Judge 可视化实验室</h1>
+    <p>从静态基准到 LLM 评审——把 AI 模型评估方法演进的核心机制以可交互 SVG 呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">评估演进全景</button>
+    <button class="tab" data-m="m2">基准污染检测</button>
+    <button class="tab" data-m="m3">LLM-as-Judge</button>
+    <button class="tab" data-m="m4">Judge偏置分析</button>
+    <button class="tab" data-m="m5">Agentic评估</button>
+    <button class="tab" data-m="m6">人机一致性</button>
+    <button class="tab" data-m="m7">评估框架对比</button>
+    <button class="tab" data-m="m8">评估前沿</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>评估演进全景</h2></div>
+    <p class="m-desc">评估方法经历人工评估、固定基准、动态基准到 LLM-as-Judge 四代演进。切换视角观察方法论时间线与覆盖维度。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM1()">切换视角 ▸</button></div>
+    <div class="viz"><svg id="svg-m1" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">人工评估</div><div class="v">专家盲测打分</div><div class="d">高质量但昂贵难扩展</div></div>
+      <div class="info-card"><div class="k">固定基准</div><div class="v">MMLU/HumanEval 等</div><div class="d">标准化但易污染过时</div></div>
+      <div class="info-card"><div class="k">动态基准</div><div class="v">LiveBench/动态更新</div><div class="d">抗污染，持续新鲜</div></div>
+      <div class="info-card"><div class="k">LLM-as-Judge</div><div class="v">大模型自动评审</div><div class="d">可扩展但有偏置</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>基准污染检测</h2></div>
+    <p class="m-desc">基准数据泄漏到训练集会虚高分数。点击执行观察污染检测、去重与污染分数计算过程。</p>
+    <div class="ctrl"><button class="btn primary" onclick="runM2()">执行检测 ▸</button></div>
+    <div class="viz"><svg id="svg-m2" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">泄漏检测</div><div class="v">n-gram 匹配训练集</div><div class="d">检测基准样本是否泄漏</div></div>
+      <div class="info-card"><div class="k">数据去重</div><div class="v">MinHash/近似去重</div><div class="d">移除训练集重复样本</div></div>
+      <div class="info-card"><div class="k">污染分数</div><div class="v">泄漏比例量化</div><div class="d">评估可信度的关键指标</div></div>
+      <div class="info-card"><div class="k">基准时效</div><div class="v">动态更新防过时</div><div class="d">LiveBench 定期换题</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>LLM-as-Judge 架构</h2></div>
+    <p class="m-desc">LLM-as-Judge 通过评分 Prompt 设计、多维评分、参考答案对比与评分聚合实现自动评审。切换阶段观察评审管线。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM3()">切换阶段 ▸</button></div>
+    <div class="viz"><svg id="svg-m3" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">评分 Prompt</div><div class="v">结构化评审指令</div><div class="d">含评分标准与输出格式</div></div>
+      <div class="info-card"><div class="k">评分维度</div><div class="v">正确性/流畅/相关/安全</div><div class="d">多维度细粒度评估</div></div>
+      <div class="info-card"><div class="k">参考对比</div><div class="v">与标准答案对照</div><div class="d">提升评分客观性</div></div>
+      <div class="info-card"><div class="k">评分聚合</div><div class="v">多 Judge 投票/平均</div><div class="d">降低单 Judge 噪声</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>Judge 偏置分析</h2></div>
+    <p class="m-desc">LLM Judge 存在位置偏置、长度偏置、自我偏好等系统性偏差。切换偏置类型观察表现与缓解。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM4()">切换偏置 ▸</button></div>
+    <div class="viz"><svg id="svg-m4" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">位置偏置</div><div class="v">偏好首个/末个答案</div><div class="d">交换位置可缓解</div></div>
+      <div class="info-card"><div class="k">长度偏置</div><div class="v">偏好更长回复</div><div class="d">冗长但无信息内容得分高</div></div>
+      <div class="info-card"><div class="k">自我偏好</div><div class="v">偏好同模型输出</div><div class="d">同源模型互评失真</div></div>
+      <div class="info-card"><div class="k">偏好反转</div><div class="v">轻微扰动改变排名</div><div class="d">评分鲁棒性不足</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>Agentic 评估</h2></div>
+    <p class="m-desc">Agentic 评估考察多轮工具调用、长程规划与任务完成能力。切换任务观察 Agent 轨迹与完成率。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM5()">切换任务 ▸</button></div>
+    <div class="viz"><svg id="svg-m5" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">多轮工具调用</div><div class="v">检索/计算/代码执行</div><div class="d">考察工具编排能力</div></div>
+      <div class="info-card"><div class="k">长程规划</div><div class="v">多步任务分解</div><div class="d">考察规划与纠错</div></div>
+      <div class="info-card"><div class="k">任务完成率</div><div class="v">端到端成功比例</div><div class="d">Agent 能力核心指标</div></div>
+      <div class="info-card"><div class="k">基准代表</div><div class="v">SWE-bench/WebArena</div><div class="d">真实复杂任务环境</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>人机一致性</h2></div>
+    <p class="m-desc">LLM 评审需与人类标注者保持一致。切换视角观察 Kappa 系数、校准曲线与争议样本。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM6()">切换视角 ▸</button></div>
+    <div class="viz"><svg id="svg-m6" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">标注者协议</div><div class="v">人类间一致性基线</div><div class="d">衡量任务本身难度</div></div>
+      <div class="info-card"><div class="k">Kappa 系数</div><div class="v">机会校正一致性</div><div class="d">&gt;0.6 为良好一致</div></div>
+      <div class="info-card"><div class="k">校准曲线</div><div class="v">预测 vs 实际偏好</div><div class="d">评估 Judge 可靠性</div></div>
+      <div class="info-card"><div class="k">争议样本</div><div class="v">人机分歧案例</div><div class="d">揭示 Judge 盲区</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>评估框架对比</h2></div>
+    <p class="m-desc">LM Eval Harness、OpenCompass、RAGAS、JETTS 各有侧重：通用基准、中文生态、RAG 评估、Agent 测试。切换视角对比功能矩阵。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM7()">切换视角 ▸</button></div>
+    <div class="viz"><svg id="svg-m7" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">LM Eval Harness</div><div class="v">EleutherAI 通用框架</div><div class="d">数百基准标准化接入</div></div>
+      <div class="info-card"><div class="k">OpenCompass</div><div class="v">中文生态完善</div><div class="d">多模型多任务一站式</div></div>
+      <div class="info-card"><div class="k">RAGAS</div><div class="v">RAG 专用评估</div><div class="d">检索/生成质量分离</div></div>
+      <div class="info-card"><div class="k">JETTS</div><div class="v">Agent 测试套件</div><div class="d">多轮交互能力评估</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>评估前沿</h2></div>
+    <p class="m-desc">评估前沿包括因果判断评估 CJE、动态基准生成、对抗性评估等方向。切换方向观察研究布局。</p>
+    <div class="ctrl"><button class="btn primary" onclick="toggleM8()">切换方向 ▸</button></div>
+    <div class="viz"><svg id="svg-m8" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">因果判断 CJE</div><div class="v">因果推理评估</div><div class="d">超越相关性的判断能力</div></div>
+      <div class="info-card"><div class="k">动态基准生成</div><div class="v">自动生成新题</div><div class="d">永不过时的评估池</div></div>
+      <div class="info-card"><div class="k">对抗性评估</div><div class="v">红队生成难例</div><div class="d">压力测试模型边界</div></div>
+      <div class="info-card"><div class="k">元评估</div><div class="v">评估评估器</div><div class="d">校准 Judge 自身可靠性</div></div>
+    </div>
+  </section>
+
+  <script>
+  var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+  tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+  function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+  function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+  var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344',BG='#161922';
+  function arrow(s,x1,y1,x2,y2,c){el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:c||BD,'stroke-width':1.5},s);var a=Math.atan2(y2-y1,x2-x1),h=6;el('polygon',{points:x2+','+y2+' '+(x2-h*Math.cos(a-0.4))+','+(y2-h*Math.sin(a-0.4))+' '+(x2-h*Math.cos(a+0.4))+','+(y2-h*Math.sin(a+0.4)),fill:c||BD},s);}
+  function box(s,x,y,w,h,t,sub,c,fill){el('rect',{x:x,y:y,width:w,height:h,rx:8,fill:fill||BG,stroke:c||BD,'stroke-width':1.5},s);el('text',{x:x+w/2,y:y+h/2-3,'text-anchor':'middle','font-size':13,fill:'#e6e8ee','font-weight':600},s).textContent=t;if(sub)el('text',{x:x+w/2,y:y+h/2+15,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=sub;}
+  function tag(s,x,y,t,c){el('text',{x:x,y:y,'font-size':12,fill:c||AC,'font-family':'var(--mono)'},s).textContent=t;}
+
+  /* M1 评估演进全景 */
+  var m1State=0;
+  function drawM1(){
+    var s=document.getElementById('svg-m1');clear(s);
+    tag(s,30,30,'视角: '+(m1State===0?'方法论时间线':'覆盖维度雷达'),AC);
+    if(m1State===0){
+      var gens=[['人工评估','专家盲测',INFO],['固定基准','MMLU/HumanEval',PUR],['动态基准','LiveBench',AC],['LLM-as-Judge','大模型评审',ROSE]];
+      var x0=30,w=195,gap=16,y=120;
+      for(var i=0;i<4;i++){var x=x0+i*(w+gap);box(s,x,y,w,95,gens[i][0],gens[i][1],gens[i][2]);if(i<3)arrow(s,x+w,y+47,x+gap,y+47,gens[i][2]);}
+      el('line',{x1:40,y1:255,x2:840,y2:255,stroke:BD,'stroke-width':1.5,'stroke-dasharray':'4 3'},s);
+      var yrs=['2020前','2021','2023','2024+'];
+      for(var i=0;i<4;i++){var x=x0+i*(w+gap)+w/2;el('circle',{cx:x,cy:255,r:4,fill:gens[i][2]},s);el('text',{x:x,y:278,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=yrs[i];}
+      el('text',{x:440,y:320,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='可扩展性递增 · 成本递减 · 自动化程度提升';
+    }else{
+      var dims=['可扩展性','成本','速度','覆盖率','抗污染'];
+      var scores=[[20,20,30,40,90],[80,80,90,70,30],[75,60,80,65,85],[90,70,85,80,60]];
+      var cols=[INFO,PUR,AC,ROSE];
+      var names=['人工','固定基准','动态基准','LLM-Judge'];
+      var cx=300,cy=185,R=120,n=5;
+      for(var i=0;i<n;i++){var a=-Math.PI/2+i*2*Math.PI/n;el('line',{x1:cx,y1:cy,x2:cx+R*Math.cos(a),y2:cy+R*Math.sin(a),stroke:BD,'stroke-width':1},s);el('text',{x:cx+(R+18)*Math.cos(a),y:cy+(R+18)*Math.sin(a)+4,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=dims[i];}
+      for(var r=1;r<=4;r++){var rr=R*r/4;var pp=[];for(var i=0;i<n;i++){var a=-Math.PI/2+i*2*Math.PI/n;pp.push(cx+rr*Math.cos(a)+','+(cy+rr*Math.sin(a)));}el('polygon',{points:pp.join(' '),fill:'none',stroke:BD,'stroke-width':0.8,'stroke-dasharray':'2 3'},s);}
+      for(var g=0;g<4;g++){var pp=[];for(var i=0;i<n;i++){var a=-Math.PI/2+i*2*Math.PI/n;var rr=R*scores[g][i]/100;pp.push(cx+rr*Math.cos(a)+','+(cy+rr*Math.sin(a)));}el('polygon',{points:pp.join(' '),fill:cols[g],'fill-opacity':0.08,stroke:cols[g],'stroke-width':1.5},s);}
+      for(var i=0;i<4;i++){el('rect',{x:600,y:90+i*28,width:14,height:14,rx:3,fill:cols[i],opacity:0.7},s);el('text',{x:622,y:102+i*28,'font-size':12,fill:'#e6e8ee'},s).textContent=names[i];}
+      el('text',{x:300,y:335,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='各代评估在五维上的权衡：无单一方法全面最优';
+    }
+  }
+  function toggleM1(){m1State=(m1State+1)%2;drawM1();}
+
+  /* M2 基准污染检测 */
+  var m2Prog=0,m2Timer=null;
+  function drawM2(){
+    var s=document.getElementById('svg-m2');clear(s);
+    tag(s,30,30,'检测进度: '+Math.round(m2Prog*100)+'%',AC);
+    // training set
+    el('rect',{x:40,y:80,width:180,height:140,rx:10,fill:'#101218',stroke:INFO,'stroke-width':1.5},s);
+    el('text',{x:130,y:100,'text-anchor':'middle','font-size':12,fill:INFO,'font-weight':600},s).textContent='训练集语料';
+    var trainSamples=[[60,115,'T1',false],[60,140,'T2',false],[60,165,'T3',true],[60,190,'T4',false],[120,115,'T5',false],[120,140,'T6',true],[120,165,'T7',false],[120,190,'T8',false]];
+    for(var i=0;i<trainSamples.length;i++){var t=trainSamples[i];var on=m2Prog>0.3&&t[3];el('rect',{x:t[0],y:t[1]-12,width:40,height:22,rx:4,fill:on?'#2a1a1a':BG,stroke:on?ERR:BD,'stroke-width':on?1.5:1},s);el('text',{x:t[0]+20,y:t[1]+3,'text-anchor':'middle','font-size':10,fill:on?ERR:DIM},s).textContent=t[2];}
+    arrow(s,220,150,320,150,AC);
+    el('text',{x:270,y:142,'text-anchor':'middle','font-size':10,fill:AC},s).textContent='n-gram 匹配';
+    // benchmark
+    el('rect',{x:320,y:80,width:180,height:140,rx:10,fill:'#101218',stroke:PUR,'stroke-width':1.5},s);
+    el('text',{x:410,y:100,'text-anchor':'middle','font-size':12,fill:PUR,'font-weight':600},s).textContent='基准题集';
+    var benchSamples=[[340,115,'Q1',false],[340,140,'Q2',true],[340,165,'Q3',false],[340,190,'Q4',false],[400,115,'Q5',false],[400,140,'Q6',true],[400,165,'Q7',false],[400,190,'Q8',false]];
+    for(var i=0;i<benchSamples.length;i++){var b=benchSamples[i];var on=m2Prog>0.3&&b[3];el('rect',{x:b[0],y:b[1]-12,width:40,height:22,rx:4,fill:on?'#2a1a1a':BG,stroke:on?ERR:BD,'stroke-width':on?1.5:1},s);el('text',{x:b[0]+20,y:b[1]+3,'text-anchor':'middle','font-size':10,fill:on?ERR:DIM},s).textContent=b[2];}
+    arrow(s,500,150,600,150,WARN);
+    // contamination score
+    el('rect',{x:600,y:80,width:240,height:140,rx:10,fill:'#101218',stroke:WARN,'stroke-width':1.5},s);
+    el('text',{x:720,y:102,'text-anchor':'middle','font-size':12,fill:WARN,'font-weight':600},s).textContent='污染报告';
+    el('text',{x:720,y:128,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='泄漏题数: '+Math.round(m2Prog*2)+'/8');
+    var polScore=Math.round(m2Prog*25);
+    el('rect',{x:630,y:145,width:180,height:20,rx:4,fill:'#101218',stroke:BD},s);
+    el('rect',{x:630,y:145,width:180*polScore/25,height:20,rx:4,fill:polScore>15?ERR:WARN,opacity:0.7},s);
+    el('text',{x:720,y:160,'text-anchor':'middle','font-size':11,fill:polScore>15?ERR:WARN,'font-weight':700},s).textContent='污染分数 '+polScore+'%';
+    el('text',{x:720,y:190,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent=m2Prog>=1?'虚高风险：分数不可信':'检测中...';
+    // dedup below
+    el('rect',{x:40,y:250,width:800,height:60,rx:8,fill:'#101218',stroke:AC,'stroke-width':1.5},s);
+    el('text',{x:60,y:272,'font-size':12,fill:AC,'font-weight':600},s).textContent='缓解：MinHash 去重 + 动态基准换题 + 污染分数标注';
+    el('text',{x:60,y:292,'font-size':11,fill:DIM},s).textContent='LiveBench 定期更新题库 · 训练前过滤基准样本 · 报告污染分数供可信度参考';
+    el('text',{x:440,y:335,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='污染检测：n-gram 匹配定位泄漏，污染分数量化评估可信度';
+  }
+  function runM2(){if(m2Timer)return;m2Prog=0;drawM2();m2Timer=setInterval(function(){m2Prog+=0.05;if(m2Prog>=1){m2Prog=1;clearInterval(m2Timer);m2Timer=null;drawM2();setTimeout(function(){m2Prog=0;drawM2();},1800);}else drawM2();},70);}
+
+  /* M3 LLM-as-Judge 架构 */
+  var m3State=0;
+  function drawM3(){
+    var s=document.getElementById('svg-m3');clear(s);
+    var ph=[['评分 Prompt','结构化评审指令','含标准+格式',INFO],['多维评分','正确/流畅/相关','细粒度评估',PUR],['参考对比','与标准答案对照','提升客观性',AC],['评分聚合','多 Judge 投票','降低噪声',ROSE]];
+    tag(s,30,30,'阶段: '+(m3State+1)+' / 4 · '+ph[m3State][0],ph[m3State][3]);
+    var x0=30,w=200,gap=12,y=110,h=130;
+    for(var i=0;i<4;i++){var x=x0+i*(w+gap);var active=(i===m3State);el('rect',{x:x,y:y,width:w,height:h,rx:10,fill:active?'#1a2230':BG,stroke:ph[i][3],'stroke-width':active?2.5:1.5},s);el('text',{x:x+w/2,y:y+24,'text-anchor':'middle','font-size':12,fill:ph[i][3],'font-weight':700},s).textContent='阶段 '+(i+1);el('text',{x:x+w/2,y:y+52,'text-anchor':'middle','font-size':13,fill:'#e6e8ee','font-weight':600},s).textContent=ph[i][0];el('text',{x:x+w/2,y:y+78,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent=ph[i][1];el('text',{x:x+w/2,y:y+104,'text-anchor':'middle','font-size':10,fill:ph[i][3]},s).textContent=ph[i][2];if(i<3)arrow(s,x+w,y+75,x+gap,y+75,active?AC:BD);}
+    // input/output
+    el('rect',{x:40,y:270,width:380,height:60,rx:8,fill:'#101218',stroke:INFO},s);
+    el('text',{x:60,y:290,'font-size':12,fill:INFO,'font-weight':600},s).textContent='输入: 问题 + 候选答案 (+ 参考答案)';
+    el('text',{x:60,y:310,'font-size':11,fill:DIM},s).textContent='可选多答案对比或单答案绝对评分';
+    el('rect',{x:460,y:270,width:380,height:60,rx:8,fill:'#101218',stroke:ROSE},s);
+    el('text',{x:480,y:290,'font-size':12,fill:ROSE,'font-weight':600},s).textContent='输出: 多维分数 + 偏好排序 + 评语';
+    el('text',{x:480,y:310,'font-size':11,fill:DIM},s).textContent='结构化 JSON 便于聚合与统计分析';
+    el('text',{x:440,y:350,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='LLM-as-Judge 管线：Prompt 设计 → 多维评分 → 参考对比 → 聚合输出';
+  }
+  function toggleM3(){m3State=(m3State+1)%4;drawM3();}
+
+  /* M4 Judge 偏置分析 */
+  var m4State=0;
+  function drawM4(){
+    var s=document.getElementById('svg-m4');clear(s);
+    var biases=[['位置偏置','偏好首个答案',INFO],['长度偏置','偏好更长回复',PUR],['自我偏好','偏好同模型',WARN],['偏好反转','扰动改变排名',ERR]];
+    var b=biases[m4State];
+    tag(s,30,30,'偏置: '+(m4State+1)+' / 4 · '+b[0],b[2]);
+    if(m4State===0){
+      // position bias: two answers swapped
+      el('text',{x:220,y:80,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='排列 A 在前';
+      box(s,120,100,120,70,'答案 A','得分 8.2',INFO);
+      box(s,260,100,120,70,'答案 B','得分 6.5',PUR);
+      el('text',{x:660,y:80,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='交换位置后';
+      box(s,560,100,120,70,'答案 B','得分 8.0',PUR);
+      box(s,700,100,120,70,'答案 A','得分 6.7',INFO);
+      arrow(s,440,135,560,135,ERR);
+      el('text',{x:440,y:200,'text-anchor':'middle','font-size':13,fill:ERR,'font-weight':600},s).textContent='同一对答案，位置交换导致偏好反转';
+      el('rect',{x:200,y:230,width:480,height:60,rx:8,fill:'#101a18',stroke:AC},s);
+      el('text',{x:440,y:252,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='缓解: 位置交换取平均 + 双向评审';
+      el('text',{x:440,y:272,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='对每对答案正反各评一次，取平均消除位置效应';
+    }else if(m4State===1){
+      // length bias
+      el('text',{x:120,y:90,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='短答案 (50字)';
+      el('rect',{x:60,y:105,width:120,height:40,rx:6,fill:BG,stroke:PUR},s);el('text',{x:120,y:130,'text-anchor':'middle','font-size':11,fill:PUR},s).textContent='得分 6.0';
+      el('text',{x:440,y:90,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='中答案 (150字)';
+      el('rect',{x:380,y:105,width:120,height:40,rx:6,fill:BG,stroke:AC},s);el('text',{x:440,y:130,'text-anchor':'middle','font-size':11,fill:AC},s).textContent='得分 7.5';
+      el('text',{x:760,y:90,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='长答案 (300字冗余)';
+      el('rect',{x:700,y:105,width:120,height:40,rx:6,fill:BG,stroke:WARN},s);el('text',{x:760,y:130,'text-anchor':'middle','font-size':11,fill:WARN},s).textContent='得分 8.8';
+      el('text',{x:440,y:180,'text-anchor':'middle','font-size':13,fill:WARN,'font-weight':600},s).textContent='冗长但无信息量得分更高';
+      el('rect',{x:200,y:210,width:480,height:60,rx:8,fill:'#101a18',stroke:AC},s);
+      el('text',{x:440,y:232,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='缓解: 长度归一化 + 信息密度惩罚';
+      el('text',{x:440,y:252,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='评分时显式约束长度，惩罚冗余填充内容';
+    }else if(m4State===2){
+      // self-preference
+      var models=[['GPT-4',AC],['Claude',PUR],['Gemini',INFO],['Llama',WARN]];
+      el('text',{x:440,y:75,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='Judge 模型对自身输出的偏好';
+      // matrix
+      for(var i=0;i<4;i++){el('text',{x:200+i*120,y:105,'text-anchor':'middle','font-size':11,fill:models[i][1],'font-weight':600},s).textContent=models[i][0];el('text',{x:130,y:140+i*40,'text-anchor':'end','font-size':11,fill:models[i][1],'font-weight':600},s).textContent=models[i][0];}
+      for(var i=0;i<4;i++){for(var j=0;j<4;j++){var v=(i===j)?'+3':(Math.abs(i-j)===1?'+1':'0');var col=(i===j)?models[i][1]:DIM;el('rect',{x:160+j*120,y:125+i*40,width:80,height:30,rx:5,fill:(i===j)?'#1a2230':BG,stroke:col,'stroke-width':(i===j)?1.5:1},s);el('text',{x:200+j*120,y:145+i*40,'text-anchor':'middle','font-size':11,fill:col},s).textContent=v;}}
+      el('rect',{x:200,y:300,width:480,height:40,rx:8,fill:'#101a18',stroke:AC},s);
+      el('text',{x:440,y:325,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='缓解: 跨模型交叉评审 + 多 Judge 集成';
+    }else{
+      // preference reversal
+      el('text',{x:220,y:90,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='原始答案';
+      box(s,120,105,140,70,'答案 A','胜出',AC);
+      box(s,270,105,140,70,'答案 B','落败',DIM);
+      el('text',{x:660,y:90,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='轻微改写后';
+      box(s,560,105,140,70,'答案 A\'','落败',DIM);
+      box(s,710,105,140,70,'答案 B','胜出',AC);
+      arrow(s,440,140,560,140,ERR);
+      el('text',{x:440,y:200,'text-anchor':'middle','font-size':13,fill:ERR,'font-weight':600},s).textContent='仅改写无关措辞，排名却反转';
+      el('rect',{x:200,y:230,width:480,height:60,rx:8,fill:'#101a18',stroke:AC},s);
+      el('text',{x:440,y:252,'text-anchor':'middle','font-size':12,fill:AC,'font-weight':600},s).textContent='缓解: 多次采样取多数 + 扰动鲁棒性测试';
+      el('text',{x:440,y:272,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='对同对答案多次评审，统计显著性再决策';
+    }
+  }
+  function toggleM4(){m4State=(m4State+1)%4;drawM4();}
+
+  /* M5 Agentic 评估 */
+  var m5State=0;
+  function drawM5(){
+    var s=document.getElementById('svg-m5');clear(s);
+    var tasks=[['信息检索','多轮搜索整合',INFO],['代码修复','定位+编辑+测试',PUR],['网页操作','点击+填表+导航',AC],['数据分析','查询+计算+可视化',WARN]];
+    var t=tasks[m5State];
+    tag(s,30,30,'任务: '+(m5State+1)+' / 4 · '+t[0],t[2]);
+    // agent trajectory
+    box(s,40,140,100,60,'用户任务',t[1],t[2]);
+    arrow(s,140,170,200,170,t[2]);
+    var steps=m5State===0?[['检索','查文档',INFO],['整合','汇总信息',INFO],['回答','输出答案',AC]]:
+      m5State===1?[['定位','读代码',PUR],['编辑','改 bug',PUR],['测试','跑用例',AC]]:
+      m5State===2?[['点击','导航页面',AC],['填表','输入数据',AC],['提交','完成',ROSE]]:
+      [['查询','SQL取数',WARN],['计算','统计',WARN],['可视化','出图',ROSE]];
+    var stepCols=[t[2],t[2],ROSE];
+    for(var i=0;i<3;i++){var x=200+i*180;box(s,x,140,140,60,steps[i][0],steps[i][1],stepCols[i]);if(i<2)arrow(s,x+140,170,x+40,170,BD);}
+    // tool calls
+    el('text',{x:440,y:240,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='工具调用轨迹';
+    var tools=m5State===0?['search','read','summarize']:m5State===1?['grep','edit','pytest']:m5State===2?['click','type','submit']:['query','compute','plot'];
+    for(var i=0;i<3;i++){el('rect',{x:280+i*120,y:255,width:100,height:30,rx:6,fill:BG,stroke:t[2]},s);el('text',{x:330+i*120,y:275,'text-anchor':'middle','font-size':11,fill:t[2],'font-family':'var(--mono)'},s).textContent=tools[i];}
+    // completion rate
+    var rates=[78,42,55,61];
+    el('text',{x:40,y:325,'font-size':12,fill:DIM},s).textContent='任务完成率: ';
+    el('rect',{x:130,y:312,width:300,height:18,rx:4,fill:'#101218',stroke:BD},s);
+    el('rect',{x:130,y:312,width:300*rates[m5State]/100,height:18,rx:4,fill:t[2],opacity:0.7},s);
+    el('text',{x:450,y:325,'font-size':12,fill:t[2],'font-weight':700},s).textContent=rates[m5State]+'%';
+    el('text',{x:600,y:325,'font-size':11,fill:DIM},s).textContent='(SOTA Agent 基准)';
+  }
+  function toggleM5(){m5State=(m5State+1)%4;drawM5();}
+
+  /* M6 人机一致性 */
+  var m6State=0;
+  function drawM6(){
+    var s=document.getElementById('svg-m6');clear(s);
+    var views=['Kappa 一致性','校准曲线'];
+    tag(s,30,30,'视角: '+views[m6State],AC);
+    if(m6State===0){
+      var pairs=[['人工 vs 人工',0.72,INFO],['人工 vs GPT-4',0.68,AC],['人工 vs Claude',0.65,PUR],['人工 vs Llama',0.55,WARN],['人工 vs 小模型',0.38,ERR]];
+      el('text',{x:440,y:60,'text-anchor':'middle','font-size':13,fill:DIM},s).textContent='Cohen Kappa 一致性系数';
+      var y0=85,barW=480,barH=32,gap=16;
+      for(var i=0;i<pairs.length;i++){var y=y0+i*(barH+gap);el('text',{x:30,y:y+20,'font-size':12,fill:'#e6e8ee'},s).textContent=pairs[i][0];el('rect',{x:180,y:y,width:barW,height:barH,rx:5,fill:'#101218',stroke:BD},s);el('rect',{x:180,y:y,width:barW*pairs[i][1],height:barH,rx:5,fill:pairs[i][2],opacity:0.7},s);el('text',{x:670,y:y+20,'font-size':12,fill:pairs[i][2],'font-weight':700},s).textContent=pairs[i][1];}
+      el('line',{x1:180,y1:75,x2:180,y2:265,stroke:BD,'stroke-width':1},s);
+      el('line',{x1:516,y1:75,x2:516,y2:265,stroke:AC,'stroke-width':1,'stroke-dasharray':'4 3'},s);
+      el('text',{x:516,y:280,'text-anchor':'middle','font-size':10,fill:AC},s).textContent='0.7 良好阈值');
+      el('text',{x:440,y:335,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='GPT-4 级 Judge 接近人类间一致性，小模型差距明显';
+    }else{
+      // calibration curve
+      el('line',{x1:100,y1:300,x2:820,y2:300,stroke:BD,'stroke-width':1.5},s);
+      el('line',{x1:100,y1:80,x2:100,y2:300,stroke:BD,'stroke-width':1.5},s);
+      el('text',{x:460,y:335,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='Judge 预测偏好概率 →';
+      el('text',{x:55,y:190,'text-anchor':'middle','font-size':11,fill:DIM,transform:'rotate(-90 55 190)'},s).textContent='↑ 实际人类偏好比例';
+      // perfect diagonal
+      el('line',{x1:100,y1:300,x2:820,y2:100,stroke:AC,'stroke-width':1.2,'stroke-dasharray':'5 4'},s);
+      el('text',{x:780,y:115,'font-size':10,fill:AC},s).textContent='完美校准';
+      // GPT-4 curve (close)
+      var gpt4=[[100,300],[220,270],[340,220],[460,170],[580,130],[700,110],[820,100]];
+      var path='M'+gpt4[0][0]+','+gpt4[0][1];for(var i=1;i<gpt4.length;i++){path+=' L'+gpt4[i][0]+','+gpt4[i][1];}
+      el('path',{d:path,fill:'none',stroke:AC,'stroke-width':2.5},s);
+      for(var i=0;i<gpt4.length;i++){el('circle',{cx:gpt4[i][0],cy:gpt4[i][1],r:3.5,fill:AC},s);}
+      // small model curve (deviates)
+      var small=[[100,300],[220,240],[340,250],[460,200],[580,160],[700,130],[820,120]];
+      var path2='M'+small[0][0]+','+small[0][1];for(var i=1;i<small.length;i++){path2+=' L'+small[i][0]+','+small[i][1];}
+      el('path',{d:path2,fill:'none',stroke:ERR,'stroke-width':2.5},s);
+      for(var i=0;i<small.length;i++){el('circle',{cx:small[i][0],cy:small[i][1],r:3.5,fill:ERR},s);}
+      el('rect',{x:620,y:85,width:14,height:14,rx:3,fill:AC},s);el('text',{x:642,y:97,'font-size':11,fill:'#e6e8ee'},s).textContent='GPT-4 Judge';
+      el('rect',{x:620,y:108,width:14,height:14,rx:3,fill:ERR},s);el('text',{x:642,y:120,'font-size':11,fill:'#e6e8ee'},s).textContent='小模型 Judge';
+      el('text',{x:440,y:270,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='越接近对角线校准越好，小模型过度自信';
+    }
+  }
+  function toggleM6(){m6State=(m6State+1)%2;drawM6();}
+
+  /* M7 评估框架对比 */
+  var m7State=0;
+  function drawM7(){
+    var s=document.getElementById('svg-m7');clear(s);
+    tag(s,30,30,'视角: '+(m7State===0?'功能矩阵':'适用场景'),AC);
+    var frameworks=[['LM Eval Harness','通用基准',AC],['OpenCompass','中文生态',PUR],['RAGAS','RAG 评估',INFO],['JETTS','Agent 测试',WARN]];
+    var features=['基准覆盖','中文支持','RAG 评估','Agent 评估','LLM-Judge','可扩展性'];
+    var matrix=[[5,2,1,1,3,4],[4,5,2,2,4,4],[1,2,5,1,3,3],[2,2,1,5,3,3]];
+    if(m7State===0){
+      // header
+      el('text',{x:200,y:70,'text-anchor':'middle','font-size':11,fill:DIM},s).textContent='框架');
+      for(var i=0;i<6;i++){el('text',{x:280+i*95,y:70,'text-anchor':'middle','font-size':10,fill:DIM},s).textContent=features[i];}
+      for(var i=0;i<4;i++){
+        var y=95+i*45;
+        el('rect',{x:80,y:y-18,width:240,height:36,rx:6,fill:'#1a2230',stroke:frameworks[i][2],'stroke-width':1.5},s);
+        el('text',{x:200,y:y+4,'text-anchor':'middle','font-size':12,fill:frameworks[i][2],'font-weight':600},s).textContent=frameworks[i][0];
+        for(var j=0;j<6;j++){var v=matrix[i][j];var cx=280+j*95;el('circle',{cx:cx,cy:y,r:11,fill:BG,stroke:frameworks[i][2],'stroke-width':1},s);el('text',{x:cx,y:y+4,'text-anchor':'middle','font-size':11,fill:v>=3?frameworks[i][2]:DIM,'font-weight':700},s).textContent=v;}
+      }
+      el('text',{x:440,y:305,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='功能矩阵（1-5 分）：各框架专长领域互补，无单一全能方案';
+    }else{
+      var scenes=[['学术论文评测','LM Eval Harness',AC],['中文模型榜','OpenCompass',PUR],['RAG 系统验收','RAGAS',INFO],['Agent 能力测试','JETTS',WARN]];
+      for(var i=0;i<4;i++){var y=85+i*60;el('rect',{x:80,y:y,width:280,height:48,rx:8,fill:BG,stroke:scenes[i][2],'stroke-width':1.5},s);el('text',{x:100,y:y+30,'font-size':13,fill:'#e6e8ee','font-weight':600},s).textContent=scenes[i][0];arrow(s,360,y+24,520,y+24,scenes[i][2]);el('rect',{x:520,y:y,width:280,height:48,rx:8,fill:'#1a2230',stroke:scenes[i][2],'stroke-width':1.5},s);el('text',{x:660,y:y+30,'text-anchor':'middle','font-size':13,fill:scenes[i][2],'font-weight':700},s).textContent=scenes[i][1];}
+      el('text',{x:440,y:335,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='按场景选框架：通用/中文/RAG/Agent 各有最佳工具';
+    }
+  }
+  function toggleM7(){m7State=(m7State+1)%2;drawM7();}
+
+  /* M8 评估前沿 */
+  var m8State=0;
+  function drawM8(){
+    var s=document.getElementById('svg-m8');clear(s);
+    var dirs=[['因果判断 CJE','因果推理评估',INFO,'超越相关性'],['动态基准生成','自动出题',PUR,'永不过时'],['对抗性评估','红队难例',AC,'压力边界'],['元评估','评估评估器',WARN,'校准 Judge']];
+    var d=dirs[m8State];
+    tag(s,30,30,'方向: '+(m8State+1)+' / 4 · '+d[0],d[2]);
+    el('rect',{x:340,y:130,width:200,height:80,rx:10,fill:'#1a2230',stroke:d[2],'stroke-width':2},s);
+    el('text',{x:440,y:160,'text-anchor':'middle','font-size':14,fill:'#e6e8ee','font-weight':700},s).textContent=d[0];
+    el('text',{x:440,y:182,'text-anchor':'middle','font-size':11,fill:d[2]},s).textContent=d[1];
+    var rels=m8State===0?
+      [['因果图',120,90,AC],['反事实',120,180,PUR],['干预实验',720,90,INFO],['混杂控制',720,180,WARN]]:
+      m8State===1?
+      [['题库种子',120,90,AC],['LLM 生成',120,180,PUR],['难度校准',720,90,INFO],['答案验证',720,180,WARN]]:
+      m8State===2?
+      [['红队生成',120,90,AC],['扰动样本',120,180,PUR],['边界探测',720,90,INFO],['鲁棒评分',720,180,WARN]]:
+      [['Judge 评估',120,90,AC],['一致性测',120,180,PUR],['偏置量化',720,90,INFO],['可信度分',720,180,WARN]];
+    for(var i=0;i<4;i++){var r=rels[i];el('rect',{x:r[1]-50,y:r[2]-22,width:100,height:44,rx:8,fill:BG,stroke:r[3],'stroke-width':1.5},s);el('text',{x:r[1],y:r[2]+4,'text-anchor':'middle','font-size':11,fill:'#e6e8ee'},s).textContent=r[0];var tx=r[1]<440?r[1]+50:r[1]-50;arrow(s,tx,r[2],r[1]<440?340:540,r[2],r[3]);}
+    el('text',{x:440,y:260,'text-anchor':'middle','font-size':12,fill:d[2],'font-weight':600},s).textContent='核心特征: '+d[3];
+    el('text',{x:440,y:290,'text-anchor':'middle','font-size':12,fill:DIM},s).textContent='评估前沿从「静态指标」走向「动态、对抗、因果、自校准」';
+    el('text',{x:440,y:312,'text-anchor':'middle','font-size':11,fill:AC},s).textContent='未来方向：永不污染、抗博弈、可因果解释的评估体系';
+  }
+  function toggleM8(){m8State=(m8State+1)%4;drawM8();}
+
+  drawM1();drawM2();drawM3();drawM4();drawM5();drawM6();drawM7();drawM8();
+  </script>
+</body>
+</html>
