@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>向量数据库可视化实验室 · Vector DB Visualization Lab</title>
+<style>
+/* ============ RESET & BASE ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+--border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+--ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+--accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+--font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+--font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{
+background:var(--bg);color:var(--ink);font-family:var(--font-sans);
+font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
+overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+
+/* ============ PROGRESS BAR ============ */
+.progress-bar{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:1000}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--violet));transition:width .1s linear}
+
+/* ============ NAV ============ */
+.nav{
+position:fixed;top:2px;left:0;right:0;height:54px;z-index:900;
+background:rgba(16,17,20,.92);border-bottom:1px solid var(--border);
+display:flex;align-items:center;justify-content:space-between;padding:0 20px;
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.nav-brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--cyan),var(--violet));display:flex;align-items:center;justify-content:center;font-size:12px;color:#08090a;font-weight:700}
+.nav-brand .sub{color:var(--faint);font-size:12px;font-weight:400;font-family:var(--font-mono)}
+.nav-links{display:flex;align-items:center;gap:18px}
+.nav-links a{color:var(--muted);font-size:13px;transition:color .15s}
+.nav-links a:hover{color:var(--ink)}
+.nav-toggle{display:none;background:none;border:1px solid var(--border-strong);color:var(--ink);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+position:fixed;top:56px;left:0;bottom:0;width:240px;z-index:800;
+background:var(--surface);border-right:1px solid var(--border);
+padding:20px 0;overflow-y:auto;transition:transform .25s ease;
+}
+.side-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 20px;margin-bottom:12px;font-family:var(--font-mono)}
+.side-nav{list-style:none}
+.side-nav li a{display:flex;align-items:center;gap:10px;padding:8px 20px;color:var(--muted);font-size:13px;transition:all .15s;border-left:2px solid transparent}
+.side-nav li a .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);min-width:22px}
+.side-nav li a:hover{color:var(--ink);background:var(--surface-2)}
+.side-nav li a.active{color:var(--cyan);border-left-color:var(--cyan);background:rgba(45,212,255,.06)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700}
+
+/* ============ MAIN ============ */
+.main{margin-left:240px;margin-top:56px;padding:40px 36px 80px;max-width:1180px}
+.hero{margin-bottom:48px;padding:24px 0}
+.hero .eyebrow{font-family:var(--font-mono);font-size:12px;color:var(--cyan);letter-spacing:.05em;margin-bottom:12px}
+.hero h1{font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-bottom:14px}
+.hero h1 .grad{background:linear-gradient(90deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--muted);font-size:15px;max-width:640px}
+.hero .tags{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.hero .tag{font-family:var(--font-mono);font-size:11px;color:var(--muted);border:1px solid var(--border-strong);padding:4px 10px;border-radius:20px}
+
+/* ============ MODULE ============ */
+.module{margin-bottom:56px;opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease}
+.module.visible{opacity:1;transform:translateY(0)}
+.mod-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.mod-num{font-family:var(--font-mono);font-size:13px;color:var(--faint);background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;flex-shrink:0}
+.mod-head-text h2{font-size:20px;font-weight:600;margin-bottom:4px;letter-spacing:-.01em}
+.mod-head-text p{color:var(--muted);font-size:13px}
+.mod-head-text .en{color:var(--faint);font-family:var(--font-mono);font-size:11px}
+
+.mod-grid{display:grid;grid-template-columns:200px 1fr 200px;gap:16px;align-items:start}
+.mod-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;min-height:200px}
+.panel-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:12px}
+.mod-viz{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;overflow:hidden}
+.mod-viz svg{width:100%;height:auto;border-radius:6px}
+
+/* ============ CONTROLS ============ */
+.ctrl-box{display:flex;flex-direction:column;gap:12px}
+.btn{font-family:var(--font-sans);font-size:12px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted);padding:7px 12px;border-radius:7px;cursor:pointer;transition:all .15s;text-align:left}
+.btn:hover{border-color:var(--cyan);color:var(--ink);background:var(--surface-3)}
+.btn.active{background:rgba(45,212,255,.12);border-color:var(--cyan);color:var(--cyan)}
+.btn-sm{font-size:11px;padding:6px 10px}
+.btn-group{display:flex;flex-direction:column;gap:6px}
+.btn-group-row{display:flex;gap:6px;flex-wrap:wrap}
+.btn-group-row .btn{flex:1;text-align:center}
+.ctrl-sep{height:1px;background:var(--border);margin:2px 0}
+.slider-wrap{display:flex;flex-direction:column;gap:4px}
+.slider-wrap>span:first-child{font-size:11px;color:var(--muted)}
+.slider-wrap .val{font-family:var(--font-mono);font-size:12px;color:var(--cyan);text-align:right}
+.slider-wrap input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--surface-3);border-radius:2px;outline:none}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+.slider-wrap input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+
+/* ============ STATS ============ */
+.stats-box{display:flex;flex-direction:column;gap:10px}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.stat-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.stat-item .lbl{color:var(--muted)}
+.stat-item .v{font-family:var(--font-mono);color:var(--ink);margin-left:auto}
+.stat-formula{font-family:var(--font-mono);font-size:10px;color:var(--faint);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:8px;line-height:1.5;word-break:break-all}
+
+/* ============ FOOTER ============ */
+.foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--border);color:var(--faint);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--cyan)}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:1024px){
+.mod-grid{grid-template-columns:1fr;gap:12px}
+.mod-panel{min-height:auto}
+}
+@media(max-width:768px){
+.nav-toggle{display:flex;align-items:center;justify-content:center}
+.nav-links{display:none}
+.sidebar{transform:translateX(-100%)}
+.sidebar.open{transform:translateX(0)}
+.sidebar-overlay.show{display:block}
+.main{margin-left:0;padding:24px 16px 60px}
+.hero h1{font-size:24px}
+}
+@media(prefers-reduced-motion:reduce){
+*{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+.module{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <span class="logo">V</span>
+    <span>向量数据库可视化实验室</span>
+    <span class="sub">vector-db-viz-lab</span>
+  </div>
+  <div class="nav-links">
+    <a href="#m1">HNSW</a>
+    <a href="#m2">IVF</a>
+    <a href="#m3">PQ</a>
+    <a href="#m4">Search</a>
+    <a href="#m5">Compress</a>
+    <a href="#m6">Hybrid</a>
+    <a href="#m7">Filter</a>
+    <a href="#m8">Shard</a>
+  </div>
+  <button class="nav-toggle" id="navToggle" aria-label="menu">&#9776;</button>
+</nav>
+
+<div class="sidebar-overlay" id="sideOverlay"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="side-title">模块导航</div>
+  <ul class="side-nav" id="sideNav">
+    <li><a href="#m1"><span class="num">01</span> HNSW 图结构</a></li>
+    <li><a href="#m2"><span class="num">02</span> IVF 倒排文件</a></li>
+    <li><a href="#m3"><span class="num">03</span> PQ 乘积量化</a></li>
+    <li><a href="#m4"><span class="num">04</span> 相似度搜索</a></li>
+    <li><a href="#m5"><span class="num">05</span> 向量压缩</a></li>
+    <li><a href="#m6"><span class="num">06</span> 混合检索</a></li>
+    <li><a href="#m7"><span class="num">07</span> 过滤索引</a></li>
+    <li><a href="#m8"><span class="num">08</span> 分片策略</a></li>
+  </ul>
+</aside>
+
+<main class="main">
+  <div class="hero">
+    <div class="eyebrow">INTERACTIVE VECTOR DATABASE VISUALIZATION</div>
+    <h1>探索 <span class="grad">向量索引</span> 的内部世界</h1>
+    <p>通过 8 个交互式 SVG 可视化模块，直观理解 HNSW、IVF、PQ 等核心向量检索算法的工作原理。调整参数、观察动画、对比策略——所有计算在浏览器本地完成。</p>
+    <div class="tags">
+      <span class="tag">零依赖</span>
+      <span class="tag">单文件</span>
+      <span class="tag">SVG 可视化</span>
+      <span class="tag">Linear 美学</span>
+    </div>
+  </div>
+
+  <!-- Module 1: HNSW -->
+  <section class="module" id="m1">
+    <div class="mod-head">
+      <span class="mod-num">01</span>
+      <div class="mod-head-text">
+        <h2>HNSW 图结构</h2>
+        <p>分层可导航小世界图——上层稀疏快速导航，下层密集精确搜索。<span class="en">Hierarchical Navigable Small World</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m1-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m1-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m1-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 2: IVF -->
+  <section class="module" id="m2">
+    <div class="mod-head">
+      <span class="mod-num">02</span>
+      <div class="mod-head-text">
+        <h2>IVF 倒排文件</h2>
+        <p>K-means 聚类划分向量空间，查询时只搜索最近的 nprobe 个单元。<span class="en">Inverted File Index</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m2-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m2-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m2-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 3: PQ -->
+  <section class="module" id="m3">
+    <div class="mod-head">
+      <span class="mod-num">03</span>
+      <div class="mod-head-text">
+        <h2>PQ 乘积量化</h2>
+        <p>高维向量切分为 m 段子向量，每段独立量化到码本，极致压缩内存。<span class="en">Product Quantization</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m3-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m3-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m3-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 4: Similarity Search -->
+  <section class="module" id="m4">
+    <div class="mod-head">
+      <span class="mod-num">04</span>
+      <div class="mod-head-text">
+        <h2>相似度搜索</h2>
+        <p>kNN 搜索动画——扫描、计算距离、排序、返回 top-k。<span class="en">k-Nearest Neighbor Search</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m4-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m4-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m4-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 5: Vector Compression -->
+  <section class="module" id="m5">
+    <div class="mod-head">
+      <span class="mod-num">05</span>
+      <div class="mod-head-text">
+        <h2>向量压缩</h2>
+        <p>对比 FP32 / SQ 标量量化 / PQ 乘积量化的内存与召回权衡。<span class="en">Vector Compression Comparison</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m5-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m5-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m5-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 6: Hybrid Search -->
+  <section class="module" id="m6">
+    <div class="mod-head">
+      <span class="mod-num">06</span>
+      <div class="mod-head-text">
+        <h2>混合检索</h2>
+        <p>稠密向量检索 + 稀疏 BM25 关键词检索，RRF 融合排序。<span class="en">Hybrid Dense + Sparse Search</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m6-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m6-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m6-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 7: Filtered Search -->
+  <section class="module" id="m7">
+    <div class="mod-head">
+      <span class="mod-num">07</span>
+      <div class="mod-head-text">
+        <h2>过滤索引</h2>
+        <p>元数据标签过滤 + 向量搜索，对比先过滤后搜索 vs 先搜索后过滤。<span class="en">Filtered Vector Search</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m7-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m7-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m7-stats"></div></div>
+    </div>
+  </section>
+
+  <!-- Module 8: Sharding -->
+  <section class="module" id="m8">
+    <div class="mod-head">
+      <span class="mod-num">08</span>
+      <div class="mod-head-text">
+        <h2>分片策略</h2>
+        <p>多节点数据分片拓扑，哈希 / 范围 / 随机策略对比，查询路由动画。<span class="en">Sharding Strategy</span></p>
+      </div>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-panel"><div class="panel-label">控制</div><div class="ctrl-box" id="m8-ctrl"></div></div>
+      <div class="mod-viz"><svg id="m8-svg" viewBox="0 0 760 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="mod-panel"><div class="panel-label">统计</div><div class="stats-box" id="m8-stats"></div></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>vector-db-viz-lab &middot; 纯 HTML/CSS/JS + SVG &middot; 零外部依赖</span>
+    <span><a href="https://wangzifan396-wzf.github.io/vector-db-viz-lab/" target="_blank">Live Demo</a> &middot; MIT License</span>
+  </div>
+</main>
+
+<script>
+"use strict";
+/* ============ UTILITIES (bug-safe template) ============ */
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var lbl=document.createElement('span');lbl.className='lbl';lbl.textContent=it.label;var val=document.createElement('span');val.className='v';val.textContent=it.val;d.appendChild(dot);d.appendChild(lbl);d.appendChild(val);c.appendChild(d);});}
+function setStatsFormula(c,items,formula){setStats(c,items);if(formula){var f=document.createElement('div');f.className='stat-formula';f.textContent=formula;c.appendChild(f);}}
+function rnd(min,max){return min+Math.random()*(max-min);}
+function dist(a,b){var dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function reduceMotion(){return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+function animStep(fn,delay){if(reduceMotion()){fn();return null;}return setTimeout(fn,delay);}
+
+/* ============ PROGRESS BAR ============ */
+function initProgress(){
+  var fill=document.getElementById('progressFill');
+  function update(){var h=document.documentElement.scrollHeight-window.innerHeight;var p=h>0?(window.scrollY/h*100):0;fill.style.width=p+'%';}
+  window.addEventListener('scroll',update,{passive:true});
+  update();
+}
+
+/* ============ INTERSECTION OBSERVER ============ */
+function initObserver(){
+  var mods=document.querySelectorAll('.module');
+  if(!('IntersectionObserver'in window)){mods.forEach(function(m){m.classList.add('visible');});return;}
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.08});
+  mods.forEach(function(m){io.observe(m);});
+}
+
+/* ============ SIDEBAR TOGGLE ============ */
+function initSidebar(){
+  var toggle=document.getElementById('navToggle');
+  var sb=document.getElementById('sidebar');
+  var ov=document.getElementById('sideOverlay');
+  function close(){sb.classList.remove('open');ov.classList.remove('show');}
+  toggle.onclick=function(){sb.classList.toggle('open');ov.classList.toggle('show');};
+  ov.onclick=close;
+  var links=document.getElementById('sideNav').querySelectorAll('a');
+  links.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();});});
+  // active link tracking
+  var sections=document.querySelectorAll('.module');
+  function trackActive(){
+    var scrollY=window.scrollY+120;
+    var cur='m1';
+    sections.forEach(function(s){if(s.offsetTop<=scrollY)cur=s.id;});
+    links.forEach(function(a){a.classList.toggle('active',a.getAttribute('href')==='#'+cur);});
+  }
+  window.addEventListener('scroll',trackActive,{passive:true});
+  trackActive();
+}
+
+/* ============ MODULE 1: HNSW ============ */
+function initM1(){
+  var svg=document.getElementById('m1-svg');
+  var ctrl=document.getElementById('m1-ctrl');
+  var stats=document.getElementById('m1-stats');
+  var W=760,H=440;
+  var state={M:8,efC:200,layers:[],query:null,searchHops:0,animating:false,timers:[]};
+  var layerColors=[C.violet,C.cyan,C.emerald,C.amber];
+  var layerYs=[60,170,280,390];
+  var layerLabels=['Layer 3','Layer 2','Layer 1','Layer 0'];
+
+  function genNode(layer){
+    var xRange=[60,W-60];
+    return{x:rnd(xRange[0],xRange[1]),y:layerYs[layer]+rnd(-18,18),layer:layer,id:Math.random().toString(36).slice(2,7),neighbors:[]};
+  }
+  function pickLayer(){var l=0;while(Math.random()<0.5&&l<3)l++;return l;}
+  function connect(node){
+    var candidates=state.layers[node.layer].filter(function(n){return n!==node;});
+    candidates.sort(function(a,b){return dist(node,a)-dist(node,b);});
+    var m=Math.min(state.M,candidates.length);
+    for(var i=0;i<m;i++){node.neighbors.push(candidates[i]);candidates[i].neighbors.push(node);}
+  }
+  function initGraph(){
+    state.layers=[[],[],[],[]];
+    // layer 0: dense
+    for(var i=0;i<22;i++){var n=genNode(0);state.layers[0].push(n);}
+    // layer 1
+    for(i=0;i<11;i++){n=genNode(1);state.layers[1].push(n);}
+    // layer 2
+    for(i=0;i<5;i++){n=genNode(2);state.layers[2].push(n);}
+    // layer 3
+    for(i=0;i<2;i++){n=genNode(3);state.layers[3].push(n);}
+    state.layers.forEach(function(lay){lay.forEach(function(n){connect(n);});});
+  }
+  function allNodes(){var a=[];state.layers.forEach(function(l){a=a.concat(l);});return a;}
+
+  function draw(highlight){
+    clearSvg(svg);
+    // layer bands
+    for(var i=3;i>=0;i--){
+      var band=svgEl(svg,'rect',{x:20,y:layerYs[i]-30,width:W-40,height:60,rx:8,fill:i%2===0?'rgba(255,255,255,.015)':'transparent',stroke:C.border,'stroke-width':1});
+      var lab=svgEl(svg,'text',{x:30,y:layerYs[i]-34,fill:C.faint,'font-size':10,'font-family':'monospace'});
+      lab.textContent=layerLabels[3-i];
+    }
+    // edges
+    var drawn={};
+    state.layers.forEach(function(lay,li){
+      lay.forEach(function(n){
+        n.neighbors.forEach(function(nb){
+          var key=n.id<nb.id?n.id+'-'+nb.id:nb.id+'-'+n.id;
+          if(drawn[key])return;drawn[key]=1;
+          var isHi=highlight&&highlight.edges&&highlight.edges.indexOf(key)>=0;
+          svgEl(svg,'line',{x1:n.x,y1:n.y,x2:nb.x,y2:nb.y,stroke:isHi?C.cyan:'rgba(255,255,255,.06)','stroke-width':isHi?1.5:1});
+        });
+      });
+    });
+    // nodes
+    state.layers.forEach(function(lay,li){
+      lay.forEach(function(n){
+        var isHi=highlight&&highlight.nodes&&highlight.nodes.indexOf(n.id)>=0;
+        var isQuery=highlight&&highlight.query===n.id;
+        var r=isQuery?7:isHi?6:4.5;
+        var col=isQuery?C.rose:(isHi?C.cyan:layerColors[3-li]);
+        svgEl(svg,'circle',{cx:n.x,cy:n.y,r:r,fill:col,stroke:'#08090a','stroke-width':1.5,'opacity':isHi||isQuery?1:0.8});
+      });
+    });
+    // query marker (search)
+    if(state.query&&highlight&&highlight.showQuery){
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:10,fill:'none',stroke:C.rose,'stroke-width':1.5,'stroke-dasharray':'3 2',opacity:0.8});
+    }
+  }
+
+  function updateStats(){
+    var nodes=allNodes().length;
+    var deg=0;allNodes().forEach(function(n){deg+=n.neighbors.length;});
+    var avgDeg=nodes>0?(deg/nodes).toFixed(1):0;
+    setStats(stats,[
+      {color:C.cyan,label:'层数',val:'4'},
+      {color:C.emerald,label:'节点数',val:String(nodes)},
+      {color:C.violet,label:'平均度数',val:String(avgDeg)},
+      {color:C.amber,label:'搜索跳数',val:String(state.searchHops)}
+    ]);
+  }
+
+  function insertNode(){
+    if(state.animating)return;
+    state.animating=true;
+    state.timers.forEach(clearTimeout);
+    state.timers=[];
+    var maxLayer=pickLayer();
+    var newNodes=[];
+    var visitedEdges=[];
+    var visitedNodes=[];
+    for(var l=3;l>=(3-maxLayer);l--){
+      var n=genNode(l);n.id='new'+l+Date.now();
+      // find nearest in this layer as initial neighbor
+      var nearest=null,nd=Infinity;
+      state.layers[l].forEach(function(nn){var d=dist(n,nn);if(d<nd){nd=d;nearest=nn;}});
+      state.layers[l].push(n);
+      if(nearest){n.neighbors.push(nearest);nearest.neighbors.push(n);visitedEdges.push(n.id<nearest.id?n.id+'-'+nearest.id:nearest.id+'-'+n.id);}
+      visitedNodes.push(n.id);
+      connect(n);
+      newNodes.push(n);
+    }
+    var step=0;
+    function doStep(){
+      if(step>=newNodes.length){state.animating=false;draw({nodes:visitedNodes,edges:visitedEdges});updateStats();return;}
+      var cur=newNodes[step];
+      draw({nodes:[cur.id],edges:[],showQuery:false});
+      step++;
+      state.timers.push(setTimeout(doStep,reduceMotion()?0:400));
+    }
+    doStep();
+  }
+
+  function search(){
+    if(state.animating)return;
+    state.animating=true;
+    state.timers.forEach(clearTimeout);
+    state.timers=[];
+    state.query={x:rnd(80,W-80),y:rnd(280,400)};
+    state.searchHops=0;
+    var path=[];
+    var pathEdges=[];
+    var entry=state.layers[3][0]||state.layers[2][0]||state.layers[1][0]||state.layers[0][0];
+    if(!entry){state.animating=false;return;}
+    path.push(entry.id);
+    // greedy descent
+    var cur=entry;
+    for(var l=3;l>=0;l--){
+      var layerNodes=state.layers[l];
+      var improved=true;
+      while(improved){
+        improved=false;
+        var bestD=dist(state.query,cur);
+        // check neighbors
+        var cands=layerNodes.filter(function(n){return n!==cur;}).sort(function(a,b){return dist(state.query,a)-dist(state.query,b);});
+        for(var ci=0;ci<Math.min(3,cands.length);ci++){
+          var d=dist(state.query,cands[ci]);
+          if(d<bestD){
+            bestD=d;
+            if(cur.id!==cands[ci].id){pathEdges.push(cur.id<cands[ci].id?cur.id+'-'+cands[ci].id:cands[ci].id+'-'+cur.id);}
+            cur=cands[ci];
+            path.push(cur.id);
+            state.searchHops++;
+            improved=true;
+            break;
+          }
+        }
+      }
+    }
+    // animate path
+    var idx=0;
+    function doStep(){
+      if(idx>=path.length){
+        state.animating=false;
+        draw({nodes:path,edges:pathEdges,showQuery:true});
+        updateStats();
+        return;
+      }
+      draw({nodes:path.slice(0,idx+1),edges:pathEdges.slice(0,idx),showQuery:true});
+      idx++;
+      state.timers.push(setTimeout(doStep,reduceMotion()?0:350));
+    }
+    doStep();
+  }
+
+  function reset(){
+    state.timers.forEach(clearTimeout);state.timers=[];
+    state.animating=false;state.query=null;state.searchHops=0;
+    initGraph();draw();updateStats();
+  }
+
+  // build controls
+  ctrl.appendChild(makeSlider('M (邻居数)',5,20,1,8,'',function(v){state.M=v;}));
+  ctrl.appendChild(makeSlider('efConstruction',100,500,10,200,'',function(v){state.efC=v;}));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  var b1=makeBtn('插入节点',false,function(){insertNode();});
+  var b2=makeBtn('搜索查询',false,function(){search();});
+  var b3=makeBtn('重置图',false,function(){reset();});
+  ctrl.appendChild(b1);ctrl.appendChild(b2);ctrl.appendChild(b3);
+
+  initGraph();draw();updateStats();
+}
+
+/* ============ MODULE 2: IVF ============ */
+function initM2(){
+  var svg=document.getElementById('m2-svg');
+  var ctrl=document.getElementById('m2-ctrl');
+  var stats=document.getElementById('m2-stats');
+  var W=760,H=440;
+  var state={nlist:8,nprobe:3,points:[],centroids:[],query:null,animating:false,timers:[]};
+  var palette=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent,C.accent2,'#4ade80','#f472b6','#60a5fa'];
+
+  function genPoints(){
+    state.points=[];
+    // generate clusters
+    var nClusters=6;
+    for(var c=0;c<nClusters;c++){
+      var cx=rnd(80,W-80),cy=rnd(60,H-60);
+      for(var i=0;i<25;i++){
+        state.points.push({x:cx+rnd(-60,60),y:cy+rnd(-60,60),cluster:0,prev:0});
+      }
+    }
+  }
+  function initCentroids(){
+    state.centroids=[];
+    for(var i=0;i<state.nlist;i++){
+      state.centroids.push({x:rnd(60,W-60),y:rnd(60,H-60),color:palette[i%palette.length]});
+    }
+  }
+  function assign(){
+    state.points.forEach(function(p){
+      p.prev=p.cluster;
+      var bd=Infinity,bi=0;
+      for(var i=0;i<state.centroids.length;i++){
+        var d=dist(p,state.centroids[i]);
+        if(d<bd){bd=d;bi=i;}
+      }
+      p.cluster=bi;
+    });
+  }
+  function updateCentroids(){
+    var sums=[];for(var i=0;i<state.centroids.length;i++)sums.push({x:0,y:0,n:0});
+    state.points.forEach(function(p){sums[p.cluster].x+=p.x;sums[p.cluster].y+=p.y;sums[p.cluster].n++;});
+    state.centroids.forEach(function(c,i){if(sums[i].n>0){c.x=sums[i].x/sums[i].n;c.y=sums[i].y/sums[i].n;}});
+  }
+
+  function draw(highlightCells){
+    clearSvg(svg);
+    // grid background
+    svgEl(svg,'rect',{x:0,y:0,width:W,height:H,fill:C.bg});
+    // cell regions (colored backgrounds for probed cells)
+    if(state.centroids.length>0&&highlightCells){
+      highlightCells.forEach(function(ci){
+        var c=state.centroids[ci];
+        svgEl(svg,'circle',{cx:c.x,cy:c.y,r:120,fill:c.color,opacity:0.04});
+        svgEl(svg,'circle',{cx:c.x,cy:c.y,r:90,fill:c.color,opacity:0.05});
+      });
+    }
+    // points
+    state.points.forEach(function(p){
+      var col=state.centroids[p.cluster]?state.centroids[p.cluster].color:C.faint;
+      svgEl(svg,'circle',{cx:p.x,cy:p.y,r:2.5,fill:col,opacity:0.7});
+    });
+    // centroids
+    state.centroids.forEach(function(c,i){
+      var isProbed=highlightCells&&highlightCells.indexOf(i)>=0;
+      // star shape
+      svgEl(svg,'circle',{cx:c.x,cy:c.y,r:isProbed?9:6,fill:'none',stroke:c.color,'stroke-width':isProbed?2.5:1.5,opacity:0.9});
+      svgEl(svg,'circle',{cx:c.x,cy:c.y,r:2,fill:c.color});
+      var lab=svgEl(svg,'text',{x:c.x+10,y:c.y-8,fill:c.color,'font-size':9,'font-family':'monospace'});
+      lab.textContent='C'+i;
+    });
+    // query
+    if(state.query){
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:8,fill:'none',stroke:C.rose,'stroke-width':2,'stroke-dasharray':'3 2'});
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:2.5,fill:C.rose});
+      // lines to probed centroids
+      if(highlightCells){
+        highlightCells.forEach(function(ci){
+          var c=state.centroids[ci];
+          svgEl(svg,'line',{x1:state.query.x,y1:state.query.y,x2:c.x,y2:c.y,stroke:C.rose,'stroke-width':1,'stroke-dasharray':'2 2',opacity:0.5});
+        });
+      }
+    }
+  }
+
+  function updateStats(){
+    var total=state.points.length;
+    var ratio=state.nlist>0?(state.nprobe/state.nlist*100).toFixed(0):0;
+    var recall=Math.min(100,(60+state.nprobe*8-(state.nlist>10?10:0))).toFixed(0);
+    setStats(stats,[
+      {color:C.cyan,label:'nlist',val:String(state.nlist)},
+      {color:C.emerald,label:'nprobe',val:String(state.nprobe)},
+      {color:C.amber,label:'召回率估算',val:recall+'%'},
+      {color:C.violet,label:'搜索范围占比',val:ratio+'%'}
+    ]);
+  }
+
+  function runKmeans(){
+    if(state.animating)return;
+    state.animating=true;
+    state.timers.forEach(clearTimeout);state.timers=[];
+    initCentroids();
+    var iter=0,maxIter=5;
+    function step(){
+      assign();
+      updateCentroids();
+      draw();
+      iter++;
+      if(iter<maxIter){state.timers.push(setTimeout(step,reduceMotion()?0:500));}
+      else{state.animating=false;assign();draw();updateStats();}
+    }
+    step();
+  }
+
+  function probeSearch(){
+    if(state.query===null)state.query={x:rnd(80,W-80),y:rnd(60,H-60)};
+    else{state.query={x:rnd(80,W-80),y:rnd(60,H-60)};}
+    // find nprobe nearest centroids
+    var sorted=state.centroids.map(function(c,i){return{i:i,d:dist(state.query,c)};}).sort(function(a,b){return a.d-b.d;});
+    var probed=[];
+    for(var i=0;i<Math.min(state.nprobe,sorted.length);i++)probed.push(sorted[i].i);
+    draw(probed);
+    updateStats();
+  }
+
+  ctrl.appendChild(makeSlider('nlist (质心数)',2,12,1,8,'',function(v){
+    state.nlist=v;initCentroids();assign();draw();updateStats();
+  }));
+  ctrl.appendChild(makeSlider('nprobe (探测数)',1,8,1,3,'',function(v){
+    state.nprobe=v;updateStats();if(state.query)probeSearch();
+  }));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  ctrl.appendChild(makeBtn('运行 K-means 聚类',false,function(){runKmeans();}));
+  ctrl.appendChild(makeBtn('探测搜索',false,function(){probeSearch();}));
+  ctrl.appendChild(makeBtn('重置数据',false,function(){state.timers.forEach(clearTimeout);state.timers=[];state.animating=false;state.query=null;genPoints();initCentroids();assign();draw();updateStats();}));
+
+  genPoints();initCentroids();assign();draw();updateStats();
+}
+
+/* ============ MODULE 3: PQ ============ */
+function initM3(){
+  var svg=document.getElementById('m3-svg');
+  var ctrl=document.getElementById('m3-ctrl');
+  var stats=document.getElementById('m3-stats');
+  var W=760,H=440;
+  var state={m:4,ks:256,D:32,phase:0,timers:[]};
+  // generate a sample vector
+  function genVec(){var v=[];for(var i=0;i<32;i++)v.push(rnd(-1,1));return v;}
+  var vec=genVec();
+  var segColors=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent,C.accent2,'#4ade80'];
+  // codebooks: each segment has ks centroids (simplified as random representative values)
+  var codebooks=[];
+  function genCodebooks(){codebooks=[];for(var s=0;s<8;s++){var cb=[];for(var k=0;k<256;k++)cb.push(rnd(-1,1));codebooks.push(cb);}}
+  genCodebooks();
+
+  function draw(){
+    clearSvg(svg);
+    var D=32,m=state.m,dsub=Math.ceil(D/m);
+    var topY=40,vecH=60;
+    var barW=(W-80)/D;
+    var lab=svgEl(svg,'text',{x:20,y:24,fill:C.muted,'font-size':11,'font-family':'monospace'});
+    lab.textContent='原始向量 D='+D+' (FP32)';
+    // original vector bars
+    for(var i=0;i<D;i++){
+      var segIdx=Math.min(Math.floor(i/dsub),m-1);
+      var col=segColors[segIdx%segColors.length];
+      var h=Math.abs(vec[i])*28;
+      svgEl(svg,'rect',{x:40+i*barW,y:topY+30-h,width:barW-1,height:h,fill:col,opacity:0.7});
+    }
+    // segment divider lines
+    for(s=0;s<=m;s++){
+      var x=40+s*dsub*barW;
+      svgEl(svg,'line',{x1:x,y1:topY+5,x2:x,y2:topY+65,stroke:C.border,'stroke-width':1});
+    }
+    // segment labels
+    for(s=0;s<m;s++){
+      var sx=40+(s*dsub+dsub/2)*barW;
+      var sl=svgEl(svg,'text',{x:sx-12,y:topY+82,fill:segColors[s%segColors.length],'font-size':10,'font-family':'monospace'});
+      sl.textContent='seg'+s;
+    }
+
+    // middle: quantization arrows + code
+    var midY=130;
+    var ml=svgEl(svg,'text',{x:20,y:midY,fill:C.muted,'font-size':11,'font-family':'monospace'});
+    ml.textContent='量化: 每段查码本 (k_s='+state.ks+') → 码字 ID';
+    for(s=0;s<m;s++){
+      var ax=40+(s*dsub+dsub/2)*barW;
+      svgEl(svg,'line',{x1:ax,y1:topY+90,x2:ax,y2:midY+15,stroke:segColors[s%segColors.length],'stroke-width':1,'stroke-dasharray':'2 2',opacity:0.5});
+      // code box
+      var codeId=Math.floor(Math.random()*state.ks);
+      var bx=ax-22,by=midY+20;
+      svgEl(svg,'rect',{x:bx,y:by,width:44,height:24,rx:4,fill:segColors[s%segColors.length],opacity:0.12,stroke:segColors[s%segColors.length],'stroke-width':1});
+      var cl=svgEl(svg,'text',{x:bx+8,y:by+16,fill:segColors[s%segColors.length],'font-size':10,'font-family':'monospace'});
+      cl.textContent='id:'+codeId;
+    }
+
+    // bottom: reconstructed vector
+    var botY=220;
+    var bl=svgEl(svg,'text',{x:20,y:botY,fill:C.muted,'font-size':11,'font-family':'monospace'});
+    bl.textContent='重构向量 (PQ 近似)';
+    // reconstructed = quantized values
+    var recon=[];
+    for(s=0;s<m;s++){
+      for(var j=0;j<dsub;j++){
+        var idx=s*dsub+j;
+        if(idx<D){
+          var qVal=codebooks[s%8][Math.floor(Math.random()*state.ks)];
+          recon.push(qVal);
+        }
+      }
+    }
+    for(i=0;i<D;i++){
+      var si=Math.min(Math.floor(i/dsub),m-1);
+      var col2=segColors[si%segColors.length];
+      var h2=Math.abs(recon[i]||0)*28;
+      svgEl(svg,'rect',{x:40+i*barW,y:botY+30-h2,width:barW-1,height:h2,fill:col2,opacity:0.45});
+      // error overlay
+      var err=Math.abs((vec[i]||0)-(recon[i]||0))*28;
+      svgEl(svg,'rect',{x:40+i*barW,y:botY+30,width:barW-1,height:Math.min(err,20),fill:C.rose,opacity:0.25});
+    }
+    // error label
+    var el2=svgEl(svg,'text',{x:20,y:botY+82,fill:C.rose,'font-size':10,'font-family':'monospace'});
+    el2.textContent='红色区域 = 量化误差';
+
+    // compression info
+    var infoY=340;
+    var origBytes=D*4;
+    var pqBytes=state.m*Math.log2(state.ks)/8;
+    var info=svgEl(svg,'text',{x:20,y:infoY,fill:C.faint,'font-size':11,'font-family':'monospace'});
+    info.textContent='FP32: '+origBytes+' B/vec  →  PQ: '+pqBytes.toFixed(1)+' B/vec  (压缩 '+ (origBytes/pqBytes).toFixed(1)+'x)';
+
+    // phase indicator
+    var phases=['切分向量','查码本量化','重构近似'];
+    var phaseY=380;
+    for(var pi=0;pi<3;pi++){
+      var px=80+pi*220;
+      var active=state.phase===pi;
+      svgEl(svg,'rect',{x:px,y:phaseY,width:180,height:30,rx:6,fill:active?C.cyan:'transparent',opacity:active?0.1:1,stroke:active?C.cyan:C.border,'stroke-width':1});
+      var pl=svgEl(svg,'text',{x:px+20,y:phaseY+19,fill:active?C.cyan:C.muted,'font-size':11,'font-family':'monospace'});
+      pl.textContent=(pi+1)+'. '+phases[pi];
+    }
+  }
+
+  function updateStats(){
+    var origBytes=state.D*4;
+    var pqBytes=state.m*Math.log2(state.ks)/8;
+    var ratio=(origBytes/pqBytes).toFixed(1);
+    var err=((1/state.ks*100)+(8-state.m)*2).toFixed(1);
+    setStats(stats,[
+      {color:C.cyan,label:'原始维度',val:String(state.D)},
+      {color:C.emerald,label:'压缩后字节',val:pqBytes.toFixed(1)+' B'},
+      {color:C.amber,label:'压缩比',val:ratio+'x'},
+      {color:C.rose,label:'近似误差',val:err+'%'}
+    ]);
+  }
+
+  function animate(){
+    state.timers.forEach(clearTimeout);state.timers=[];
+    state.phase=0;draw();
+    state.timers.push(setTimeout(function(){state.phase=1;draw();},reduceMotion()?0:700));
+    state.timers.push(setTimeout(function(){state.phase=2;draw();},reduceMotion()?0:1400));
+    state.timers.push(setTimeout(function(){state.phase=0;draw();},reduceMotion()?0:2800));
+  }
+
+  function newVec(){vec=genVec();draw();}
+
+  ctrl.appendChild(makeSlider('m (段数)',2,8,1,4,'',function(v){state.m=v;draw();updateStats();}));
+  ctrl.appendChild(makeSlider('k_s (码本大小)',16,256,1,256,'',function(v){state.ks=v;draw();updateStats();}));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  ctrl.appendChild(makeBtn('播放量化流程',false,function(){animate();}));
+  ctrl.appendChild(makeBtn('新随机向量',false,function(){newVec();}));
+
+  draw();updateStats();
+}
+
+/* ============ MODULE 4: Similarity Search ============ */
+function initM4(){
+  var svg=document.getElementById('m4-svg');
+  var ctrl=document.getElementById('m4-ctrl');
+  var stats=document.getElementById('m4-stats');
+  var W=760,H=440;
+  var state={k:5,metric:'l2',points:[],query:null,scanned:0,timers:[],animating:false};
+  var metricColors={l2:C.cyan,ip:C.violet,cos:C.emerald};
+
+  function genPoints(){
+    state.points=[];
+    for(var i=0;i<120;i++){
+      state.points.push({x:rnd(40,W-40),y:rnd(40,H-40),d:0,topk:false,scanned:false});
+    }
+  }
+  function metricDist(a,b){
+    if(state.metric==='l2')return dist(a,b);
+    if(state.metric==='ip')return -(a.x*b.x+a.y*b.y);
+    // cosine
+    var dot=a.x*b.x+a.y*b.y;
+    var na=Math.sqrt(a.x*a.x+a.y*a.y),nb=Math.sqrt(b.x*b.x+b.y*b.y);
+    if(na===0||nb===0)return 2;
+    return 1-dot/(na*nb);
+  }
+
+  function draw(){
+    clearSvg(svg);
+    svgEl(svg,'rect',{x:0,y:0,width:W,height:H,fill:C.bg});
+    // scan radius
+    if(state.query&&state.scanned>0){
+      var maxR=Math.min(300,state.scanned*2.5);
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:maxR,fill:'none',stroke:C.cyan,'stroke-width':1,opacity:0.15,'stroke-dasharray':'4 3'});
+    }
+    // points
+    state.points.forEach(function(p){
+      var col=p.topk?C.amber:(p.scanned?metricColors[state.metric]:C.faint);
+      var r=p.topk?5:(p.scanned?3:2);
+      var op=p.topk?1:(p.scanned?0.7:0.4);
+      svgEl(svg,'circle',{cx:p.x,cy:p.y,r:r,fill:col,opacity:op});
+      if(p.topk){
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:8,fill:'none',stroke:C.amber,'stroke-width':1.5,opacity:0.5});
+      }
+    });
+    // query
+    if(state.query){
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:9,fill:'none',stroke:C.rose,'stroke-width':2});
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:3,fill:C.rose});
+      var ql=svgEl(svg,'text',{x:state.query.x+12,y:state.query.y-10,fill:C.rose,'font-size':10,'font-family':'monospace'});
+      ql.textContent='Q';
+    }
+    // metric label
+    var ml=svgEl(svg,'text',{x:20,y:24,fill:metricColors[state.metric],'font-size':11,'font-family':'monospace'});
+    var mnames={l2:'L2 (欧氏距离)',ip:'内积 (Inner Product)',cos:'余弦相似度 (Cosine)'};
+    ml.textContent=mnames[state.metric];
+  }
+
+  function updateStats(){
+    var time=(state.scanned*0.08+state.k*0.3).toFixed(2);
+    setStats(stats,[
+      {color:metricColors[state.metric],label:'距离类型',val:state.metric.toUpperCase()},
+      {color:C.amber,label:'k 值',val:String(state.k)},
+      {color:C.cyan,label:'扫描点数',val:String(state.scanned)},
+      {color:C.emerald,label:'搜索耗时',val:time+' ms'}
+    ]);
+  }
+
+  function runSearch(){
+    if(state.animating)return;
+    state.animating=true;
+    state.timers.forEach(clearTimeout);state.timers=[];
+    if(!state.query)state.query={x:rnd(80,W-80),y:rnd(80,H-80)};
+    else state.query={x:rnd(80,W-80),y:rnd(80,H-80)};
+    state.scanned=0;
+    state.points.forEach(function(p){p.d=metricDist(p,state.query);p.topk=false;p.scanned=false;});
+    // sort by distance
+    var sorted=state.points.slice().sort(function(a,b){return a.d-b.d;});
+    var batch=Math.ceil(state.points.length/8);
+    var idx=0;
+    function step(){
+      for(var i=0;i<batch&&idx<state.points.length;i++,idx++){
+        state.points[idx].scanned=true;
+        state.scanned++;
+      }
+      draw();
+      updateStats();
+      if(idx<state.points.length){
+        state.timers.push(setTimeout(step,reduceMotion()?0:120));
+      }else{
+        // mark top-k
+        for(var j=0;j<Math.min(state.k,sorted.length);j++){
+          sorted[j].topk=true;
+        }
+        draw();updateStats();
+        state.animating=false;
+      }
+    }
+    step();
+  }
+
+  function setMetric(m,btn){
+    state.metric=m;
+    ctrl.querySelectorAll('.metric-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    if(state.query){
+      state.points.forEach(function(p){p.d=metricDist(p,state.query);p.topk=false;});
+      var sorted=state.points.slice().sort(function(a,b){return a.d-b.d;});
+      for(var j=0;j<Math.min(state.k,sorted.length);j++)sorted[j].topk=true;
+    }
+    draw();updateStats();
+  }
+
+  // controls
+  var mgrp=document.createElement('div');mgrp.className='btn-group-row';
+  var bl2=makeBtn('L2',true,function(b){setMetric('l2',b);});bl2.className='btn btn-sm metric-btn active';
+  var bip=makeBtn('内积',false,function(b){setMetric('ip',b);});bip.className='btn btn-sm metric-btn';
+  var bcos=makeBtn('余弦',false,function(b){setMetric('cos',b);});bcos.className='btn btn-sm metric-btn';
+  mgrp.appendChild(bl2);mgrp.appendChild(bip);mgrp.appendChild(bcos);
+  ctrl.appendChild(mgrp);
+  ctrl.appendChild(makeSlider('k (top-K)',1,20,1,5,'',function(v){state.k=v;if(state.query){state.points.forEach(function(p){p.topk=false;});var sorted=state.points.slice().sort(function(a,b){return a.d-b.d;});for(var j=0;j<Math.min(v,sorted.length);j++)sorted[j].topk=true;draw();updateStats();}}));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  ctrl.appendChild(makeBtn('运行 kNN 搜索',false,function(){runSearch();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){state.timers.forEach(clearTimeout);state.timers=[];state.animating=false;state.query=null;state.scanned=0;genPoints();draw();updateStats();}));
+
+  genPoints();draw();updateStats();
+}
+
+/* ============ MODULE 5: Vector Compression ============ */
+function initM5(){
+  var svg=document.getElementById('m5-svg');
+  var ctrl=document.getElementById('m5-ctrl');
+  var stats=document.getElementById('m5-stats');
+  var W=760,H=440;
+  var state={bits:8,N:1000000,D:128,timers:[],animating:false};
+
+  function calc(){
+    var D=state.D,N=state.N;
+    var fp32=N*D*4;
+    var sqBytes=Math.ceil(state.bits/8);
+    var sq=N*D*sqBytes;
+    var m=Math.max(1,Math.floor(D/16));
+    var pq=N*m*1; // m bytes
+    // recall estimates
+    var recallFP=100;
+    var recallSQ=state.bits>=16?99:state.bits>=8?96:88;
+    var recallPQ=state.bits>=16?94:state.bits>=8?92:82;
+    return{fp32:fp32,sq:sq,pq:pq,recallFP:recallFP,recallSQ:recallSQ,recallPQ:recallPQ,m:m};
+  }
+  function fmtBytes(b){if(b>=1e9)return(b/1e9).toFixed(2)+' GB';if(b>=1e6)return(b/1e6).toFixed(1)+' MB';if(b>=1e3)return(b/1e3).toFixed(1)+' KB';return b+' B';}
+
+  function draw(){
+    clearSvg(svg);
+    var r=calc();
+    var maxMem=r.fp32;
+    var chartX=80,chartY=60,chartW=200,chartH=280;
+    // axis
+    svgEl(svg,'line',{x1:chartX,y1:chartY,x2:chartX,y2:chartY+chartH,stroke:C.border,'stroke-width':1});
+    svgEl(svg,'line',{x1:chartX,y1:chartY+chartH,x2:chartX+chartW*3+40,y2:chartY+chartH,stroke:C.border,'stroke-width':1});
+    // title
+    var t1=svgEl(svg,'text',{x:chartX,y:30,fill:C.ink,'font-size':13,'font-weight':'600'});
+    t1.textContent='内存占用';
+    var t2=svgEl(svg,'text',{x:chartX+chartW*2+60,y:30,fill:C.ink,'font-size':13,'font-weight':'600'});
+    t2.textContent='召回率';
+    // memory bars
+    var data=[{label:'FP32',val:r.fp32,col:C.cyan},{label:'SQ'+state.bits,val:r.sq,col:C.violet},{label:'PQ',val:r.pq,col:C.emerald}];
+    data.forEach(function(d,i){
+      var bx=chartX+i*(chartW*0.7)+10;
+      var bh=(d.val/maxMem)*chartH;
+      svgEl(svg,'rect',{x:bx,y:chartY+chartH-bh,width:60,height:bh,fill:d.col,opacity:0.7,rx:3});
+      svgEl(svg,'rect',{x:bx,y:chartY+chartH-bh,width:60,height:bh,fill:'none',stroke:d.col,'stroke-width':1,rx:3});
+      var ll=svgEl(svg,'text',{x:bx+8,y:chartY+chartH+18,fill:C.muted,'font-size':10,'font-family':'monospace'});
+      ll.textContent=d.label;
+      var vl=svgEl(svg,'text',{x:bx-4,y:chartY+chartH-bh-6,fill:d.col,'font-size':10,'font-family':'monospace'});
+      vl.textContent=fmtBytes(d.val);
+    });
+    // recall bars (right side)
+    var rchartX=chartX+chartW*2+60;
+    var rdata=[{label:'FP32',val:r.recallFP,col:C.cyan},{label:'SQ'+state.bits,val:r.recallSQ,col:C.violet},{label:'PQ',val:r.recallPQ,col:C.emerald}];
+    rdata.forEach(function(d,i){
+      var bx=rchartX+i*60;
+      var bh=(d.val/100)*chartH*0.9;
+      svgEl(svg,'rect',{x:bx,y:chartY+chartH-bh,width:50,height:bh,fill:d.col,opacity:0.5,rx:3});
+      svgEl(svg,'rect',{x:bx,y:chartY+chartH-bh,width:50,height:bh,fill:'none',stroke:d.col,'stroke-width':1,rx:3});
+      var ll=svgEl(svg,'text',{x:bx+4,y:chartY+chartH+18,fill:C.muted,'font-size':10,'font-family':'monospace'});
+      ll.textContent=d.label;
+      var vl=svgEl(svg,'text',{x:bx-2,y:chartY+chartH-bh-6,fill:d.col,'font-size':10,'font-family':'monospace'});
+      vl.textContent=d.val+'%';
+    });
+    // info
+    var infoY=380;
+    var info=svgEl(svg,'text',{x:40,y:infoY,fill:C.faint,'font-size':11,'font-family':'monospace'});
+    info.textContent='N='+state.N.toExponential(0)+' vecs, D='+state.D+' dims  |  压缩比 SQ:'+(r.fp32/r.sq).toFixed(1)+'x  PQ:'+(r.fp32/r.pq).toFixed(1)+'x';
+  }
+
+  function updateStats(){
+    var r=calc();
+    setStats(stats,[
+      {color:C.cyan,label:'FP32 内存',val:fmtBytes(r.fp32)},
+      {color:C.violet,label:'SQ'+state.bits+' 内存',val:fmtBytes(r.sq)},
+      {color:C.emerald,label:'PQ 内存',val:fmtBytes(r.pq)},
+      {color:C.amber,label:'PQ 压缩比',val:(r.fp32/r.pq).toFixed(1)+'x'}
+    ]);
+  }
+
+  function setBits(v,btn){
+    state.bits=v;
+    ctrl.querySelectorAll('.bits-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    draw();updateStats();
+  }
+
+  var bgrp=document.createElement('div');bgrp.className='btn-group-row';
+  var b4=makeBtn('4-bit',false,function(b){setBits(4,b);});b4.className='btn btn-sm bits-btn';
+  var b8=makeBtn('8-bit',true,function(b){setBits(8,b);});b8.className='btn btn-sm bits-btn active';
+  var b16=makeBtn('16-bit',false,function(b){setBits(16,b);});b16.className='btn btn-sm bits-btn';
+  bgrp.appendChild(b4);bgrp.appendChild(b8);bgrp.appendChild(b16);
+  ctrl.appendChild(bgrp);
+  ctrl.appendChild(makeSlider('N (向量数)',10000,10000000,10000,1000000,'',function(v){state.N=v;draw();updateStats();}));
+  ctrl.appendChild(makeSlider('D (维度)',32,512,32,128,'',function(v){state.D=v;draw();updateStats();}));
+
+  draw();updateStats();
+}
+
+/* ============ MODULE 6: Hybrid Search ============ */
+function initM6(){
+  var svg=document.getElementById('m6-svg');
+  var ctrl=document.getElementById('m6-ctrl');
+  var stats=document.getElementById('m6-stats');
+  var W=760,H=440;
+  var state={alpha:0.6,beta:0.4,timers:[]};
+  var docs=['文档A','文档B','文档C','文档D','文档E','文档F','文档G','文档H'];
+  // pre-generated rankings
+  var denseRank=[0,2,4,1,6,3,7,5];
+  var sparseRank=[3,1,0,5,2,7,4,6];
+  var docColors=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent,C.accent2,'#4ade80'];
+
+  function rrf(rankArr,docIdx){for(var i=0;i<rankArr.length;i++){if(rankArr[i]===docIdx)return i+1;}return 999;}
+
+  function computeFusion(){
+    var scores=docs.map(function(_,i){
+      var dr=rrf(denseRank,i),sr=rrf(sparseRank,i);
+      return{i:i,score:state.alpha/dr+state.beta/sr,dr:dr,sr:sr};
+    });
+    scores.sort(function(a,b){return b.score-a.score;});
+    return scores;
+  }
+
+  function draw(){
+    clearSvg(svg);
+    var colW=200,gap=40;
+    var col1X=30,col2X=30+colW+gap+60,col3X=30+(colW+gap+60)*2;
+    // headers
+    var h1=svgEl(svg,'text',{x:col1X,y:30,fill:C.cyan,'font-size':12,'font-weight':'600','font-family':'monospace'});
+    h1.textContent='稠密检索 (Dense)';
+    var h2=svgEl(svg,'text',{x:col2X,y:30,fill:C.violet,'font-size':12,'font-weight':'600','font-family':'monospace'});
+    h2.textContent='稀疏检索 (BM25)';
+    var h3=svgEl(svg,'text',{x:col3X,y:30,fill:C.emerald,'font-size':12,'font-weight':'600','font-family':'monospace'});
+    h3.textContent='RRF 融合结果';
+    // arrows
+    svgEl(svg,'line',{x1:col1X+colW,y1:120,x2:col2X,y2:120,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'3 2',opacity:0.4});
+    svgEl(svg,'line',{x1:col2X+colW,y1:120,x2:col3X,y2:120,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'3 2',opacity:0.4});
+
+    var rowH=32,startY=50;
+    // dense list
+    denseRank.forEach(function(docIdx,rank){
+      var y=startY+rank*rowH;
+      svgEl(svg,'rect',{x:col1X,y:y,width:colW,height:rowH-4,rx:5,fill:C.cyan,opacity:0.06,stroke:'rgba(45,212,255,.2)','stroke-width':1});
+      svgEl(svg,'circle',{cx:col1X+14,cy:y+14,r:8,fill:docColors[docIdx],opacity:0.8});
+      var rl=svgEl(svg,'text',{x:col1X+30,y:y+18,fill:C.ink,'font-size':11,'font-family':'monospace'});
+      rl.textContent='#'+(rank+1)+' '+docs[docIdx];
+    });
+    // sparse list
+    sparseRank.forEach(function(docIdx,rank){
+      var y=startY+rank*rowH;
+      svgEl(svg,'rect',{x:col2X,y:y,width:colW,height:rowH-4,rx:5,fill:C.violet,opacity:0.06,stroke:'rgba(167,139,250,.2)','stroke-width':1});
+      svgEl(svg,'circle',{cx:col2X+14,cy:y+14,r:8,fill:docColors[docIdx],opacity:0.8});
+      var rl=svgEl(svg,'text',{x:col2X+30,y:y+18,fill:C.ink,'font-size':11,'font-family':'monospace'});
+      rl.textContent='#'+(rank+1)+' '+docs[docIdx];
+    });
+    // fused list
+    var fused=computeFusion();
+    fused.forEach(function(item,rank){
+      var y=startY+rank*rowH;
+      svgEl(svg,'rect',{x:col3X,y:y,width:colW+20,height:rowH-4,rx:5,fill:C.emerald,opacity:0.08,stroke:'rgba(52,211,153,.25)','stroke-width':1});
+      svgEl(svg,'circle',{cx:col3X+14,cy:y+14,r:8,fill:docColors[item.i],opacity:0.9});
+      var rl=svgEl(svg,'text',{x:col3X+30,y:y+18,fill:C.ink,'font-size':11,'font-family':'monospace'});
+      rl.textContent='#'+(rank+1)+' '+docs[item.i];
+      var sl=svgEl(svg,'text',{x:col3X+colW,y:y+18,fill:C.emerald,'font-size':10,'font-family':'monospace'});
+      sl.textContent=item.score.toFixed(3);
+    });
+    // formula
+    var fy=360;
+    var f=svgEl(svg,'text',{x:30,y:fy,fill:C.faint,'font-size':11,'font-family':'monospace'});
+    f.textContent='RRF(d) = α/rank_dense(d) + β/rank_sparse(d)';
+    var f2=svgEl(svg,'text',{x:30,y:fy+20,fill:C.muted,'font-size':11,'font-family':'monospace'});
+    f2.textContent='α='+state.alpha.toFixed(2)+'  β='+state.beta.toFixed(2);
+  }
+
+  function updateStats(){
+    setStatsFormula(stats,[
+      {color:C.cyan,label:'稠密结果数',val:String(docs.length)},
+      {color:C.violet,label:'稀疏结果数',val:String(docs.length)},
+      {color:C.emerald,label:'融合后结果数',val:String(docs.length)},
+      {color:C.amber,label:'α / β',val:state.alpha.toFixed(2)+' / '+state.beta.toFixed(2)}
+    ],'RRF(d)=α/r_d + β/r_s');
+  }
+
+  ctrl.appendChild(makeSlider('α (稠密权重)',0,1,0.05,0.6,'',function(v){state.alpha=v;state.beta=Math.max(0,1-v);draw();updateStats();}));
+  ctrl.appendChild(makeSlider('β (稀疏权重)',0,1,0.05,0.4,'',function(v){state.beta=v;state.alpha=Math.max(0,1-v);draw();updateStats();}));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  ctrl.appendChild(makeBtn('重排融合',false,function(){draw();updateStats();}));
+
+  draw();updateStats();
+}
+
+/* ============ MODULE 7: Filtered Search ============ */
+function initM7(){
+  var svg=document.getElementById('m7-svg');
+  var ctrl=document.getElementById('m7-ctrl');
+  var stats=document.getElementById('m7-stats');
+  var W=760,H=440;
+  var state={filters:{A:true,B:false,C:false},strategy:'pre',query:null,timers:[],animating:false};
+  var catColors={A:C.cyan,B:C.violet,C:C.emerald};
+  var catLabels={A:'类别 A',B:'类别 B',C:'类别 C'};
+  var points=[];
+
+  function genPoints(){
+    points=[];
+    var cats=['A','B','C'];
+    for(var i=0;i<90;i++){
+      var cat=cats[Math.floor(Math.random()*3)];
+      var cx=cat==='A'?200:cat==='B'?400:560;
+      points.push({x:cx+rnd(-80,80),y:rnd(50,H-50),cat:cat,filtered:false,result:false,scanned:false});
+    }
+  }
+
+  function draw(){
+    clearSvg(svg);
+    svgEl(svg,'rect',{x:0,y:0,width:W,height:H,fill:C.bg});
+    // category zone labels
+    var zones=[{x:200,l:'A'},{x:400,l:'B'},{x:560,l:'C'}];
+    zones.forEach(function(z){
+      svgEl(svg,'text',{x:z.x-6,y:H-10,fill:catColors[z.l],opacity:0.3,'font-size':20,'font-family':'monospace','font-weight':'700'}).textContent=z.l;
+    });
+    // points
+    points.forEach(function(p){
+      var isActive=state.filters[p.cat];
+      var col=catColors[p.cat];
+      if(p.result){
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:7,fill:'none',stroke:C.amber,'stroke-width':2,opacity:0.7});
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:4,fill:C.amber,opacity:1});
+      }else if(p.scanned){
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:3,fill:col,opacity:0.9});
+      }else if(isActive){
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:2.5,fill:col,opacity:0.6});
+      }else{
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:2,fill:col,opacity:0.15});
+      }
+    });
+    // query
+    if(state.query){
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:9,fill:'none',stroke:C.rose,'stroke-width':2});
+      svgEl(svg,'circle',{cx:state.query.x,cy:state.query.y,r:3,fill:C.rose});
+    }
+    // strategy label
+    var sl=svgEl(svg,'text',{x:20,y:24,fill:C.muted,'font-size':11,'font-family':'monospace'});
+    sl.textContent=state.strategy==='pre'?'策略: 先过滤后搜索 (Pre-filter)':'策略: 先搜索后过滤 (Post-filter)';
+  }
+
+  function updateStats(){
+    var total=points.length;
+    var filtered=points.filter(function(p){return state.filters[p.cat];}).length;
+    var results=points.filter(function(p){return p.result;}).length;
+    setStats(stats,[
+      {color:C.cyan,label:'总向量数',val:String(total)},
+      {color:C.violet,label:'过滤后数',val:String(filtered)},
+      {color:C.amber,label:'搜索结果数',val:String(results)},
+      {color:C.emerald,label:'当前策略',val:state.strategy==='pre'?'Pre-filter':'Post-filter'}
+    ]);
+  }
+
+  function toggleFilter(cat,btn){
+    state.filters[cat]=!state.filters[cat];
+    btn.classList.toggle('active');
+    runSearch(true);
+  }
+
+  function setStrategy(s,btn){
+    state.strategy=s;
+    ctrl.querySelectorAll('.strat-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    runSearch(true);
+  }
+
+  function runSearch(silent){
+    if(state.animating&&!silent)return;
+    state.timers.forEach(clearTimeout);state.timers=[];
+    if(!state.query)state.query={x:rnd(100,W-100),y:rnd(60,H-60)};
+    else if(!silent)state.query={x:rnd(100,W-100),y:rnd(60,H-60)};
+    points.forEach(function(p){p.result=false;p.scanned=false;});
+
+    if(state.strategy==='pre'){
+      // filter first, then search
+      var candidates=points.filter(function(p){return state.filters[p.cat];});
+      candidates.sort(function(a,b){return dist(state.query,a)-dist(state.query,b);});
+      var k=5;
+      state.animating=true;
+      var idx=0;
+      function step(){
+        if(idx<candidates.length){
+          candidates[idx].scanned=true;
+          idx++;
+          draw();updateStats();
+          state.timers.push(setTimeout(step,reduceMotion()?0:30));
+        }else{
+          for(var j=0;j<Math.min(k,candidates.length);j++)candidates[j].result=true;
+          draw();updateStats();state.animating=false;
+        }
+      }
+      step();
+    }else{
+      // search first, then filter
+      var all=points.slice().sort(function(a,b){return dist(state.query,a)-dist(state.query,b);});
+      state.animating=true;
+      idx=0;
+      function step2(){
+        if(idx<all.length){
+          all[idx].scanned=true;
+          idx++;
+          draw();updateStats();
+          state.timers.push(setTimeout(step2,reduceMotion()?0:20));
+        }else{
+          var count=0;
+          for(var j=0;j<all.length&&count<5;j++){
+            if(state.filters[all[j].cat]){all[j].result=true;count++;}
+          }
+          draw();updateStats();state.animating=false;
+        }
+      }
+      step2();
+    }
+  }
+
+  // controls
+  var fgrp=document.createElement('div');fgrp.className='btn-group-row';
+  var bA=makeBtn('类别 A',true,function(b){toggleFilter('A',b);});bA.className='btn btn-sm filter-btn active';
+  var bB=makeBtn('类别 B',false,function(b){toggleFilter('B',b);});bB.className='btn btn-sm filter-btn';
+  var bC=makeBtn('类别 C',false,function(b){toggleFilter('C',b);});bC.className='btn btn-sm filter-btn';
+  fgrp.appendChild(bA);fgrp.appendChild(bB);fgrp.appendChild(bC);
+  ctrl.appendChild(fgrp);
+  var sep1=document.createElement('div');sep1.className='ctrl-sep';ctrl.appendChild(sep1);
+  var sgrp=document.createElement('div');sgrp.className='btn-group';
+  var sPre=makeBtn('先过滤后搜索',true,function(b){setStrategy('pre',b);});sPre.className='btn btn-sm strat-btn active';
+  var sPost=makeBtn('先搜索后过滤',false,function(b){setStrategy('post',b);});sPost.className='btn btn-sm strat-btn';
+  sgrp.appendChild(sPre);sgrp.appendChild(sPost);
+  ctrl.appendChild(sgrp);
+  var sep2=document.createElement('div');sep2.className='ctrl-sep';ctrl.appendChild(sep2);
+  ctrl.appendChild(makeBtn('执行搜索',false,function(){runSearch(false);}));
+  ctrl.appendChild(makeBtn('重置',false,function(){state.timers.forEach(clearTimeout);state.timers=[];state.animating=false;state.query=null;genPoints();draw();updateStats();}));
+
+  genPoints();draw();updateStats();
+}
+
+/* ============ MODULE 8: Sharding ============ */
+function initM8(){
+  var svg=document.getElementById('m8-svg');
+  var ctrl=document.getElementById('m8-ctrl');
+  var stats=document.getElementById('m8-stats');
+  var W=760,H=440;
+  var state={numShards:4,strategy:'hash',query:null,timers:[],animating:false};
+  var shardColors=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent,C.accent2,'#4ade80'];
+  var shardData=[];
+
+  function genData(){
+    shardData=[];
+    var total=1000;
+    for(var i=0;i<8;i++){
+      shardData.push({count:0,replicas:2});
+    }
+    // distribute based on strategy
+    for(var v=0;v<total;v++){
+      var shard;
+      if(state.strategy==='hash')shard=(v*2654435761)>>>0%state.numShards;
+      else if(state.strategy==='range')shard=Math.min(state.numShards-1,Math.floor(v/(total/state.numShards)));
+      else shard=Math.floor(Math.random()*state.numShards);
+      shardData[shard].count++;
+    }
+  }
+
+  function draw(routeTo){
+    clearSvg(svg);
+    var n=state.numShards;
+    var nodeR=38;
+    var cx=W/2,cy=H/2-20;
+    var radius=140;
+    // router center
+    svgEl(svg,'circle',{cx:cx,cy:cy,r:28,fill:C.surface3,stroke:C.cyan,'stroke-width':2});
+    svgEl(svg,'circle',{cx:cx,cy:cy,r:16,fill:C.cyan,opacity:0.1});
+    var rl=svgEl(svg,'text',{x:cx-18,y:cy+4,fill:C.cyan,'font-size':11,'font-family':'monospace','font-weight':'600'});
+    rl.textContent='Router';
+    // shards
+    for(var i=0;i<n;i++){
+      var angle=(-Math.PI/2)+(i/n)*Math.PI*2;
+      var nx=cx+Math.cos(angle)*radius;
+      var ny=cy+Math.sin(angle)*radius;
+      var isRoute=routeTo===i;
+      // connection line
+      svgEl(svg,'line',{x1:cx,y1:cy,x2:nx,y2:ny,stroke:isRoute?shardColors[i%8]:'rgba(255,255,255,.08)','stroke-width':isRoute?2.5:1});
+      if(isRoute){
+        // animated packet
+        var t=(Date.now()%1000)/1000;
+        var px=lerp(cx,nx,t),py=lerp(cy,ny,t);
+        svgEl(svg,'circle',{cx:px,cy:py,r:5,fill:C.rose,opacity:0.9});
+      }
+      // node
+      svgEl(svg,'circle',{cx:nx,cy:ny,r:nodeR,fill:C.surface2,stroke:isRoute?shardColors[i%8]:C.border,'stroke-width':isRoute?2.5:1.5});
+      svgEl(svg,'circle',{cx:nx,cy:ny,r:nodeR-6,fill:shardColors[i%8],opacity:0.08});
+      var nl=svgEl(svg,'text',{x:nx-14,y:ny-4,fill:shardColors[i%8],'font-size':11,'font-family':'monospace','font-weight':'600'});
+      nl.textContent='S'+i;
+      var cl=svgEl(svg,'text',{x:nx-20,y:ny+12,fill:C.muted,'font-size':10,'font-family':'monospace'});
+      cl.textContent=shardData[i].count+' vec';
+      // replicas indicator
+      svgEl(svg,'text',{x:nx-12,y:ny+24,fill:C.faint,'font-size':9,'font-family':'monospace'}).textContent='×'+shardData[i].replicas;
+    }
+    // query
+    if(state.query){
+      var ql=svgEl(svg,'text',{x:20,y:30,fill:C.rose,'font-size':11,'font-family':'monospace'});
+      ql.textContent='查询: vec#'+state.query+' → Shard '+routeTo;
+    }
+    // strategy label
+    var sl=svgEl(svg,'text',{x:20,y:H-10,fill:C.faint,'font-size':11,'font-family':'monospace'});
+    var snames={hash:'哈希分片 (Hash)',range:'范围分片 (Range)',random:'随机分片 (Random)'};
+    sl.textContent='策略: '+snames[state.strategy];
+  }
+
+  function updateStats(){
+    var total=0;shardData.slice(0,state.numShards).forEach(function(s){total+=s.count;});
+    var perShard=state.numShards>0?Math.round(total/state.numShards):0;
+    var latency=(8+state.numShards*1.5+Math.random()*3).toFixed(1);
+    setStats(stats,[
+      {color:C.cyan,label:'分片数',val:String(state.numShards)},
+      {color:C.violet,label:'每片向量数',val:String(perShard)},
+      {color:C.emerald,label:'副本数',val:'2'},
+      {color:C.amber,label:'查询延迟',val:latency+' ms'}
+    ]);
+  }
+
+  function routeQuery(){
+    if(state.animating)return;
+    state.animating=true;
+    state.timers.forEach(clearTimeout);state.timers=[];
+    var v=Math.floor(Math.random()*1000);
+    var shard;
+    if(state.strategy==='hash')shard=(v*2654435761)>>>0%state.numShards;
+    else if(state.strategy==='range')shard=Math.min(state.numShards-1,Math.floor(v/(1000/state.numShards)));
+    else shard=Math.floor(Math.random()*state.numShards);
+    state.query=v;
+    var frames=0;
+    function step(){
+      draw(shard);
+      frames++;
+      if(frames<15){state.timers.push(setTimeout(step,reduceMotion()?0:60));}
+      else{state.animating=false;draw(shard);updateStats();}
+    }
+    step();
+  }
+
+  function setStrategy(s,btn){
+    state.strategy=s;
+    ctrl.querySelectorAll('.strat-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    genData();draw();updateStats();
+  }
+
+  ctrl.appendChild(makeSlider('分片数',1,8,1,4,'',function(v){state.numShards=v;genData();draw();updateStats();}));
+  var sep=document.createElement('div');sep.className='ctrl-sep';ctrl.appendChild(sep);
+  var sgrp=document.createElement('div');sgrp.className='btn-group';
+  var sHash=makeBtn('哈希分片',true,function(b){setStrategy('hash',b);});sHash.className='btn btn-sm strat-btn active';
+  var sRange=makeBtn('范围分片',false,function(b){setStrategy('range',b);});sRange.className='btn btn-sm strat-btn';
+  var sRand=makeBtn('随机分片',false,function(b){setStrategy('random',b);});sRand.className='btn btn-sm strat-btn';
+  sgrp.appendChild(sHash);sgrp.appendChild(sRange);sgrp.appendChild(sRand);
+  ctrl.appendChild(sgrp);
+  var sep2=document.createElement('div');sep2.className='ctrl-sep';ctrl.appendChild(sep2);
+  ctrl.appendChild(makeBtn('路由查询',false,function(){routeQuery();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){state.timers.forEach(clearTimeout);state.timers=[];state.animating=false;state.query=null;genData();draw();updateStats();}));
+
+  genData();draw();updateStats();
+}
+
+/* ============ INIT ============ */
+document.addEventListener('DOMContentLoaded',function(){
+  initProgress();
+  initObserver();
+  initSidebar();
+  initM1();
+  initM2();
+  initM3();
+  initM4();
+  initM5();
+  initM6();
+  initM7();
+  initM8();
+});
+</script>
+</body>
+</html>

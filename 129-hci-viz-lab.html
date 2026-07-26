@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hci-viz-lab · 人机交互设计可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#a78bfa;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(167,139,250,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:100%;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(167,139,250,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(167,139,250,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block;touch-action:manipulation}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1503;border-color:transparent}
+.btn.primary:hover{background:#bda0fc}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>hci</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">human-computer interaction</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/hci-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>Fitts 定律</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>Hick 定律</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>交互模式</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>认知负荷</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>可用性原则</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>信息架构</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>反馈延迟</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>多模态交互</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/hci-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>人机交互设计 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 Fitts 定律、Hick 定律、认知负荷、可用性原则、多模态交互等 HCI 核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 Fitts 定律 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>Fitts 定律 · 运动时间模型</h2>
+      <p>Paul Fitts 于 1954 年提出：指向一个目标所需时间与目标距离成正比，与目标宽度成反比。调节距离 D 与宽度 W，点击目标实测运动时间。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">fitts-law.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>起点 / 目标</span>
+          <span><i style="background:#7c5cff"></i>运动轨迹</span>
+          <span><i style="background:#34d399"></i>实测样本</span>
+          <span><i style="background:#fbbf24"></i>预测曲线</span>
+        </div>
+        <div class="detail-box">
+          <h4>Fitts 定律（Shannon 公式）</h4>
+          <span class="formula">MT = a + b · log₂(D / W + 1)　　ID = log₂(D / W + 1)</span>
+          <p id="p01detail">调节滑块改变目标距离 D 与宽度 W，观察难度指数 ID 的变化。点击“开始测试”后，从左侧起点快速移到右侧目标并点击，记录实测运动时间。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">距离 D</div><div class="v amber" id="st01d">300</div></div>
+          <div class="stat"><div class="k">宽度 W</div><div class="v amber" id="st01w">40</div></div>
+          <div class="stat"><div class="k">难度指数 ID</div><div class="v purple" id="st01id">—</div></div>
+          <div class="stat"><div class="k">预测 MT (ms)</div><div class="v" id="st01mt">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 Hick 定律 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>Hick 定律 · 决策时间模型</h2>
+      <p>William Hick 提出：从 n 个选项中选择一个的时间随选项数对数增长。改变选项数量，点击高亮目标，实测反应时间。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">hick-law.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>选项</span>
+          <span><i style="background:#fbbf24"></i>目标选项</span>
+          <span><i style="background:#34d399"></i>实测 RT</span>
+          <span><i style="background:#7c5cff"></i>预测曲线</span>
+        </div>
+        <div class="detail-box">
+          <h4>Hick 定律</h4>
+          <span class="formula">RT = a + b · log₂(n + 1)</span>
+          <p id="p02detail">调节选项数量 n，点击“开始测试”后等待目标高亮，尽快点击它。反应时间随 n 对数增长，但增长速率远慢于线性。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">选项数 n</div><div class="v amber" id="st02n">8</div></div>
+          <div class="stat"><div class="k">log₂(n+1)</div><div class="v purple" id="st02log">—</div></div>
+          <div class="stat"><div class="k">预测 RT (ms)</div><div class="v" id="st02rt">—</div></div>
+          <div class="stat"><div class="k">实测 RT (ms)</div><div class="v" id="st02meas">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 交互模式 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>交互模式对比</h2>
+      <p>直接操纵、命令行、菜单导航三种经典交互范式。完成同一任务（删除文件 report.pdf）的步骤数与认知成本差异显著。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">interaction-paradigms.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>直接操纵</span>
+          <span><i style="background:#7c5cff"></i>命令行 (CLI)</span>
+          <span><i style="background:#34d399"></i>菜单导航</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">直接操纵</h4>
+          <p id="p03detail">Ben Shneiderman 提出。对象可视、动作物理、效果即时。拖拽文件到废纸篓只需 1 步，认知负荷最低，适合新手与可视化任务。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">步骤数</div><div class="v amber" id="st03steps">1</div></div>
+          <div class="stat"><div class="k">学习曲线</div><div class="v purple" id="st03learn">低</div></div>
+          <div class="stat"><div class="k">效率</div><div class="v" id="st03eff">中</div></div>
+          <div class="stat"><div class="k">表达力</div><div class="v" id="st03expr">低</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 认知负荷 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>认知负荷理论</h2>
+      <p>John Sweller 提出：工作记忆容量有限。认知负荷分为内在、外在、相关三类。切换场景（专家/新手、好设计/差设计）观察负荷分布变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">cognitive-load.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>内在负荷 (Intrinsic)</span>
+          <span><i style="background:#f87171"></i>外在负荷 (Extraneous)</span>
+          <span><i style="background:#34d399"></i>相关负荷 (Germane)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">场景说明</h4>
+          <p id="p04detail">内在负荷由任务本身难度决定；外在负荷由糟糕设计产生，应尽量消除；相关负荷用于建构图式，是有益的。总负荷不应超过工作记忆容量（约 7±2 项）。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">内在负荷</div><div class="v amber" id="st04int">—</div></div>
+          <div class="stat"><div class="k">外在负荷</div><div class="v" style="color:#f87171" id="st04ext">—</div></div>
+          <div class="stat"><div class="k">相关负荷</div><div class="v" style="color:#34d399" id="st04ger">—</div></div>
+          <div class="stat"><div class="k">总负荷</div><div class="v purple" id="st04tot">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 可用性原则 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>Nielsen 十大可用性启发式</h2>
+      <p>Jakob Nielsen 于 1994 年提出十条启发式评估原则，是可用性评估的黄金标准。点击每条原则查看详情与评估示例。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">nielsen-heuristics.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 440"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="detail-box">
+          <h4 id="p05title">选中原则</h4>
+          <p id="p05detail">点击左侧任一原则卡片查看详细说明。可用性启发式是经验法则而非硬性规范，用于快速识别界面中的可用性问题。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">原则总数</div><div class="v amber">10</div></div>
+          <div class="stat"><div class="k">已评估</div><div class="v purple" id="st05done">0</div></div>
+          <div class="stat"><div class="k">通过</div><div class="v" style="color:#34d399" id="st05pass">0</div></div>
+          <div class="stat"><div class="k">问题</div><div class="v" style="color:#f87171" id="st05fail">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 信息架构 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>信息架构 · 导航层次</h2>
+      <p>网站/应用的信息组织结构：广度优先（浅而宽）vs 深度优先（窄而深）。点击节点展开/折叠，切换结构类型观察点击成本。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">information-architecture.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>根节点</span>
+          <span><i style="background:#7c5cff"></i>分类</span>
+          <span><i style="background:#34d399"></i>叶子页面</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">Miller 定律与层次设计</h4>
+          <p id="p06detail">人类短时记忆约 7±2 项。每层 5-9 个选项最易扫描。过宽则每层决策慢，过深则路径长。Hick 定律决定了每层的选择时间，层次深度决定总路径时间。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">结构类型</div><div class="v amber" id="st06type">平衡</div></div>
+          <div class="stat"><div class="k">总节点数</div><div class="v purple" id="st06nodes">—</div></div>
+          <div class="stat"><div class="k">最大深度</div><div class="v" id="st06depth">—</div></div>
+          <div class="stat"><div class="k">平均路径长</div><div class="v" id="st06path">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 反馈延迟 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>反馈延迟与 Doherty 阈值</h2>
+      <p>IBM Doherty 发现：系统响应低于 400ms 时用户保持“流畅”心流。调节延迟，点击按钮体验不同延迟下的感知差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">response-latency.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>即时 (<100ms)</span>
+          <span><i style="background:#a78bfa"></i>流畅 (<400ms)</span>
+          <span><i style="background:#fbbf24"></i>中断 (400-1s)</span>
+          <span><i style="background:#f87171"></i>断连 (>1s)</span>
+        </div>
+        <div class="detail-box">
+          <h4>Doherty 阈值</h4>
+          <p id="p07detail">响应在 100ms 内感觉“即时”；400ms 内感觉“跟手”；超过 400ms 用户注意力开始分散；超过 1s 需明确加载指示；超过 10s 用户可能离开。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前延迟</div><div class="v amber" id="st07delay">400ms</div></div>
+          <div class="stat"><div class="k">感知区间</div><div class="v purple" id="st07zone">流畅</div></div>
+          <div class="stat"><div class="k">实测延迟</div><div class="v" id="st07meas">—</div></div>
+          <div class="stat"><div class="k">建议</div><div class="v" id="st07adv">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 多模态交互 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>多模态交互</h2>
+      <p>语音、手势、眼动、触控四种模态各有特性。切换模态查看其带宽、延迟、适用场景，以及多模态融合策略。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">multimodal.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>语音 Voice</span>
+          <span><i style="background:#7c5cff"></i>手势 Gesture</span>
+          <span><i style="background:#34d399"></i>眼动 Gaze</span>
+          <span><i style="background:#fbbf24"></i>触控 Touch</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">模态特性</h4>
+          <p id="p08detail">多模态融合（Oviatt 提出）分三个层次：信号级、特征级、决策级。互补模态可提升鲁棒性，例如语音+手势在噪声环境下互相补偿。WIMP 界面正让位于自然交互。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">带宽</div><div class="v amber" id="st08bw">—</div></div>
+          <div class="stat"><div class="k">延迟</div><div class="v purple" id="st08lat">—</div></div>
+          <div class="stat"><div class="k">学习成本</div><div class="v" id="st08learn">—</div></div>
+          <div class="stat"><div class="k">疲劳度</div><div class="v" id="st08fatigue">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>hci-viz-lab · 人机交互设计可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/hci-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 Fitts 定律
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let D=300,W_=40;
+  // Fitts 参数（典型值）
+  const a=100,b=170;
+  const samples=[]; // {id,mt}
+  let trialState="idle"; // idle | armed | done
+  let trialStart=0;
+
+  function idx(){return Math.log2(D/W_+1);}
+  function predMT(){return a+b*idx();}
+
+  function draw(){
+    clearNode(svg);
+    // 坐标：起点在左，目标在右
+    const startX=70,targetX=startX+D,targetY=200;
+    // 起点
+    svg.appendChild(el("circle",{cx:startX,cy:targetY,r:16,fill:"#1c1f24",stroke:"#a78bfa","stroke-width":2}));
+    const sl=el("text",{x:startX,y:targetY+4,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#a78bfa"});sl.textContent="START";svg.appendChild(sl);
+    // 目标条
+    const tw=W_*1.4;
+    const tcol=trialState==="armed"?"#fbbf24":"#a78bfa";
+    svg.appendChild(el("rect",{x:targetX-tw/2,y:targetY-50,width:tw,height:100,rx:6,fill:trialState==="armed"?"rgba(251,191,36,.18)":"rgba(167,139,250,.1)",stroke:tcol,"stroke-width":2}));
+    const tl=el("text",{x:targetX,y:targetY-60,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:tcol});tl.textContent="TARGET W="+W_;svg.appendChild(tl);
+    // 距离标注
+    svg.appendChild(el("line",{x1:startX+16,y1:targetY+40,x2:targetX-tw/2,y2:targetY+40,stroke:"#62666d","stroke-width":1,"stroke-dasharray":"3 3"}));
+    const dl=el("text",{x:(startX+targetX)/2,y:targetY+58,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});dl.textContent="D = "+D;svg.appendChild(dl);
+    // 下方：MT-ID 曲线
+    const padL=60,padR=30,padT=250,padB=30;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    const idMax=6,mtMax=a+b*idMax;
+    // 网格
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent=Math.round(mtMax*i/4);svg.appendChild(t);
+    }
+    for(let i=0;i<=6;i++){
+      const x=padL+(i/6)*plotW;
+      svg.appendChild(el("line",{x1:x,y1:padT,x2:x,y2:padT+plotH,class:"gridline"}));
+      const t=el("text",{x:x,y:padT+plotH+14,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent=i;svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const xl=el("text",{x:padL+plotW/2,y:H-4,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});xl.textContent="难度指数 ID = log₂(D/W+1)";svg.appendChild(xl);
+    const yl=el("text",{x:18,y:padT+plotH/2,transform:"rotate(-90 18 "+(padT+plotH/2)+")","text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});yl.textContent="运动时间 MT (ms)";svg.appendChild(yl);
+    // 预测线
+    let pd="M"+padL+","+(padT+plotH);
+    for(let i=0;i<=plotW;i+=4){
+      const id=6*i/plotW;const mt=a+b*id;
+      pd+=" L"+(padL+i)+","+(padT+plotH-(mt/mtMax)*plotH);
+    }
+    svg.appendChild(el("path",{d:pd,fill:"none",stroke:"#fbbf24","stroke-width":1.8,opacity:.9}));
+    // 当前点
+    const curID=idx(),curMT=predMT();
+    const cx=padL+(curID/idMax)*plotW,cy=padT+plotH-(curMT/mtMax)*plotH;
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:5,fill:"#fbbf24"}));
+    // 样本点
+    samples.forEach(s=>{
+      const sx=padL+(s.id/idMax)*plotW,sy=padT+plotH-(s.mt/mtMax)*plotH;
+      svg.appendChild(el("circle",{cx:sx,cy:sy,r:3.5,fill:"#34d399",opacity:.85}));
+    });
+    // 统计
+    $("st01d").textContent=D;
+    $("st01w").textContent=W_;
+    $("st01id").textContent=curID.toFixed(2);
+    $("st01mt").textContent=Math.round(curMT);
+  }
+
+  function setupTarget(){
+    // 在 SVG 上放置可点击目标（覆盖矩形）
+    const startX=70,targetX=startX+D,targetY=200;
+    const tw=W_*1.4;
+    const hit=el("rect",{x:targetX-tw/2,y:targetY-50,width:tw,height:100,rx:6,fill:"transparent",cursor:"crosshair"});
+    hit.addEventListener("click",()=>{
+      if(trialState!=="armed")return;
+      const mt=performance.now()-trialStart;
+      trialState="done";
+      samples.push({id:idx(),mt:mt});
+      if(samples.length>12)samples.shift();
+      draw();
+      $("p01detail").innerHTML="实测运动时间 <b style='color:#34d399'>"+mt.toFixed(0)+" ms</b>，难度指数 ID="+idx().toFixed(2)+"，预测 MT="+Math.round(predMT())+" ms。误差 "+(mt-predMT()>0?"+":"")+(mt-predMT()).toFixed(0)+" ms。";
+    });
+    svg.appendChild(hit);
+    // 起点也要可点击以 armed
+    const start=el("circle",{cx:startX,cy:targetY,r:18,fill:"transparent",cursor:"crosshair"});
+    start.addEventListener("click",()=>{
+      if(trialState!=="idle")return;
+      trialState="armed";trialStart=performance.now();
+      draw();setupTarget();
+      $("p01detail").textContent="已就绪！快速移到右侧目标并点击它。";
+    });
+    svg.appendChild(start);
+  }
+
+  draw();
+  // 滑块 D
+  const sgD=document.createElement("div");sgD.className="slider-group";sgD.innerHTML='<span>距离 D</span>';
+  const inpD=document.createElement("input");inpD.type="range";inpD.min=120;inpD.max=520;inpD.value=D;
+  const valD=document.createElement("span");valD.className="val";valD.textContent=D;
+  inpD.addEventListener("input",()=>{D=+inpD.value;valD.textContent=D;trialState="idle";draw();});
+  sgD.appendChild(inpD);sgD.appendChild(valD);
+  // 滑块 W
+  const sgW=document.createElement("div");sgW.className="slider-group";sgW.innerHTML='<span>宽度 W</span>';
+  const inpW=document.createElement("input");inpW.type="range";inpW.min=12;inpW.max=120;inpW.value=W_;
+  const valW=document.createElement("span");valW.className="val";valW.textContent=W_;
+  inpW.addEventListener("input",()=>{W_=+inpW.value;valW.textContent=W_;trialState="idle";draw();});
+  sgW.appendChild(inpW);sgW.appendChild(valW);
+  const testBtn=document.createElement("button");testBtn.className="btn primary";testBtn.textContent="开始测试";
+  testBtn.addEventListener("click",()=>{
+    trialState="idle";draw();setupTarget();
+    $("p01detail").textContent="点击左侧 START 圆点开始计时，然后快速移到目标并点击。";
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="清空样本";
+  rst.addEventListener("click",()=>{samples.length=0;trialState="idle";draw();$("p01detail").textContent="调节滑块改变目标距离 D 与宽度 W，观察难度指数 ID 的变化。";});
+  ctl.appendChild(sgD);ctl.appendChild(sgW);ctl.appendChild(testBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 Hick 定律
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  let n=8;
+  const a=200,b=150;
+  const samples=[];
+  let trialState="idle"; // idle | waiting | done
+  let targetIdx=-1,trialStart=0,waitTimer=null;
+
+  function predRT(){return a+b*Math.log2(n+1);}
+  function layout(){
+    const cols=Math.ceil(Math.sqrt(n));
+    const rows=Math.ceil(n/cols);
+    const cellW=420/cols,cellH=120/rows;
+    const ox=40,oy=30;
+    const arr=[];
+    for(let i=0;i<n;i++){
+      const r=Math.floor(i/cols),c=i%cols;
+      arr.push({x:ox+c*cellW+cellW/2,y:oy+r*cellH+cellH/2,w:cellW-12,h:cellH-12});
+    }
+    return arr;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const slots=layout();
+    slots.forEach((s,i)=>{
+      const isTarget=trialState==="waiting"&&i===targetIdx;
+      const fill=isTarget?"rgba(251,191,36,.22)":"rgba(167,139,250,.08)";
+      const stroke=isTarget?"#fbbf24":"#a78bfa";
+      const rw=s.w,rh=s.h;
+      const r=el("rect",{x:s.x-rw/2,y:s.y-rh/2,width:rw,height:rh,rx:6,fill:fill,stroke:stroke,"stroke-width":1.5,cursor:trialState==="waiting"?"pointer":"default"});
+      r.dataset.idx=i;
+      svg.appendChild(r);
+      const t=el("text",{x:s.x,y:s.y+4,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:isTarget?"#fbbf24":"#9b9fa8"});
+      t.textContent="opt "+(i+1);svg.appendChild(t);
+    });
+    // 下方曲线
+    const padL=60,padR=30,padT=200,padB=30;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    const nMax=20,rtMax=a+b*Math.log2(nMax+1);
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent=Math.round(rtMax*i/4);svg.appendChild(t);
+    }
+    for(let i=0;i<=4;i++){
+      const x=padL+(i/4)*plotW;
+      svg.appendChild(el("line",{x1:x,y1:padT,x2:x,y2:padT+plotH,class:"gridline"}));
+      const t=el("text",{x:x,y:padT+plotH+14,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent=Math.round(nMax*i/4);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const xl=el("text",{x:padL+plotW/2,y:H-4,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});xl.textContent="选项数 n";svg.appendChild(xl);
+    const yl=el("text",{x:18,y:padT+plotH/2,transform:"rotate(-90 18 "+(padT+plotH/2)+")","text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});yl.textContent="反应时间 RT (ms)";svg.appendChild(yl);
+    // 预测曲线
+    let pd="M"+padL+","+(padT+plotH);
+    for(let i=0;i<=plotW;i+=4){
+      const nn=1+19*i/plotW;const rt=a+b*Math.log2(nn+1);
+      pd+=" L"+(padL+i)+","+(padT+plotH-(rt/rtMax)*plotH);
+    }
+    svg.appendChild(el("path",{d:pd,fill:"none",stroke:"#7c5cff","stroke-width":1.8,opacity:.9}));
+    // 当前点
+    const cx=padL+(n/nMax)*plotW,cy=padT+plotH-(predRT()/rtMax)*plotH;
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:5,fill:"#7c5cff"}));
+    // 样本
+    samples.forEach(s=>{
+      const sx=padL+(s.n/nMax)*plotW,sy=padT+plotH-(s.rt/rtMax)*plotH;
+      svg.appendChild(el("circle",{cx:sx,cy:sy,r:3.5,fill:"#34d399",opacity:.85}));
+    });
+    $("st02n").textContent=n;
+    $("st02log").textContent=Math.log2(n+1).toFixed(2);
+    $("st02rt").textContent=Math.round(predRT());
+  }
+
+  function bindTargets(){
+    const rects=svg.querySelectorAll("rect[data-idx]");
+    rects.forEach(r=>{
+      r.addEventListener("click",()=>{
+        if(trialState!=="waiting")return;
+        const rt=performance.now()-trialStart;
+        const i=+r.dataset.idx;
+        if(i===targetIdx){
+          trialState="done";
+          samples.push({n:n,rt:rt});
+          if(samples.length>12)samples.shift();
+          draw();
+          $("p02detail").innerHTML="命中目标 opt "+(i+1)+"！实测 RT = <b style='color:#34d399'>"+rt.toFixed(0)+" ms</b>，预测 RT = "+Math.round(predRT())+" ms。";
+          $("st02meas").textContent=rt.toFixed(0);
+        }
+      });
+    });
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>选项数 n</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=16;inp.value=n;
+  const val=document.createElement("span");val.className="val";val.textContent=n;
+  inp.addEventListener("input",()=>{n=+inp.value;val.textContent=n;trialState="idle";if(waitTimer)clearTimeout(waitTimer);draw();});
+  sg.appendChild(inp);sg.appendChild(val);
+  const testBtn=document.createElement("button");testBtn.className="btn primary";testBtn.textContent="开始测试";
+  testBtn.addEventListener("click",()=>{
+    if(waitTimer)clearTimeout(waitTimer);
+    trialState="idle";draw();
+    $("p02detail").textContent="准备… 目标即将高亮，请尽快点击它。";
+    const delay=800+Math.random()*1500;
+    waitTimer=setTimeout(()=>{
+      targetIdx=Math.floor(Math.random()*n);
+      trialState="waiting";trialStart=performance.now();
+      draw();bindTargets();
+      $("p02detail").textContent="目标已高亮（黄色），立刻点击它！";
+    },delay);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="清空样本";
+  rst.addEventListener("click",()=>{samples.length=0;trialState="idle";if(waitTimer)clearTimeout(waitTimer);draw();$("st02meas").textContent="—";$("p02detail").textContent="调节选项数量 n，点击“开始测试”后等待目标高亮，尽快点击它。";});
+  ctl.appendChild(sg);ctl.appendChild(testBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   03 交互模式对比
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let mode=0; // 0=direct, 1=cli, 2=menu
+  const modes=[
+    {n:"直接操纵",c:"#a78bfa",steps:["拖拽 report.pdf","→ 放入废纸篓","完成删除"],stepCount:1,learn:"低",eff:"中",expr:"低",
+     d:"Ben Shneiderman 提出。对象可视、动作物理、效果即时。拖拽文件到废纸篓只需 1 步，认知负荷最低，适合新手与可视化任务。"},
+    {n:"命令行 CLI",c:"#7c5cff",steps:["$ rm report.pdf","Enter 执行","完成删除"],stepCount:1,learn:"高",eff:"高",expr:"高",
+     d:"高表达力、高效率，但学习曲线陡峭。需要记忆命令语法。适合专家用户与自动化脚本。一条命令即可完成，但需知晓命令名。"},
+    {n:"菜单导航",c:"#34d399",steps:["右键 report.pdf","→ 选择“删除”","→ 确认对话框","完成删除"],stepCount:3,learn:"低",eff:"低",expr:"中",
+     d:"层次化菜单引导用户逐步选择。学习成本低但步骤多、效率低。适合功能发现与新手引导，不适合高频操作。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const m=modes[mode];
+    // 左：模式图标区
+    const lx=40,ly=40,lw=300,lh=300;
+    svg.appendChild(el("rect",{x:lx,y:ly,width:lw,height:lh,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:lx+lw/2,y:ly+24,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:m.c});tl.textContent=m.n;svg.appendChild(tl);
+    // 演示区
+    if(mode===0){
+      // 文件图标 + 废纸篓
+      svg.appendChild(el("rect",{x:lx+40,y:ly+90,width:50,height:60,rx:4,fill:"#1c1f24",stroke:m.c,"stroke-width":1.4}));
+      const fl=el("text",{x:lx+65,y:ly+200,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});fl.textContent="report.pdf";svg.appendChild(fl);
+      // 废纸篓
+      svg.appendChild(el("path",{d:"M"+(lx+lw-90)+","+(ly+110)+" L"+(lx+lw-50)+","+(ly+110)+" L"+(lx+lw-55)+","+(ly+170)+" L"+(lx+lw-85)+","+(ly+170)+" z",fill:"rgba(167,139,250,.1)",stroke:m.c,"stroke-width":1.4}));
+      const bl=el("text",{x:lx+lw-70,y:ly+200,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});bl.textContent="废纸篓";svg.appendChild(bl);
+      // 箭头
+      svg.appendChild(el("path",{d:"M"+(lx+95)+","+(ly+120)+" Q"+(lx+lw/2)+","+(ly+60)+" "+(lx+lw-95)+","+(ly+120),fill:"none",stroke:m.c,"stroke-width":1.8,"stroke-dasharray":"5 4","marker-end":"url(#ar03)"}));
+    }else if(mode===1){
+      // 终端
+      svg.appendChild(el("rect",{x:lx+30,y:ly+90,width:240,height:80,rx:6,fill:"#0b0b0c",stroke:m.c,"stroke-width":1.2}));
+      const p=el("text",{x:lx+44,y:ly+118,"font-size":13,"font-family":MONO,fill:"#34d399"});p.textContent="$";svg.appendChild(p);
+      const cmd=el("text",{x:lx+58,y:ly+118,"font-size":13,"font-family":MONO,fill:m.c});cmd.textContent="rm report.pdf";svg.appendChild(cmd);
+      const cur=el("rect",{x:lx+178,y:ly+106,width:8,height:14,fill:m.c});svg.appendChild(cur);
+      const out=el("text",{x:lx+44,y:ly+148,"font-size":11,"font-family":MONO,fill:"#62666d"});out.textContent="deleted ✓";svg.appendChild(out);
+    }else{
+      // 菜单
+      const items=["打开","复制","重命名","删除","属性"];
+      items.forEach((it,i)=>{
+        const y=ly+90+i*30;
+        const sel=it==="删除";
+        svg.appendChild(el("rect",{x:lx+80,y:y,width:140,height:26,rx:4,fill:sel?"rgba(52,211,153,.18)":"#1c1f24",stroke:sel?m.c:"rgba(255,255,255,.07)"}));
+        const t=el("text",{x:lx+92,y:y+17,"font-size":12,"font-family":MONO,fill:sel?m.c:"#9b9fa8"});t.textContent=it;svg.appendChild(t);
+      });
+    }
+    // 右：步骤列表
+    const rx=380,ry=40,rw=300,rh=300;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:rw,height:rh,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const stl=el("text",{x:rx+16,y:ry+26,"font-size":12,"font-family":MONO,fill:"#9b9fa8"});stl.textContent="操作步骤";svg.appendChild(stl);
+    m.steps.forEach((s,i)=>{
+      const y=ry+60+i*36;
+      svg.appendChild(el("circle",{cx:rx+30,cy:y,r:11,fill:m.c,opacity:.18,stroke:m.c,"stroke-width":1.2}));
+      const n=el("text",{x:rx+30,y:y+4,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:m.c});n.textContent=i+1;svg.appendChild(n);
+      const t=el("text",{x:rx+52,y:y+4,"font-size":12.5,"font-family":MONO,fill:"#f7f8f8"});t.textContent=s;svg.appendChild(t);
+    });
+    // 箭头
+    const defs=el("defs");const mk=el("marker",{id:"ar03",viewBox:"0 0 10 10",refX:8,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#a78bfa"}));defs.appendChild(mk);svg.appendChild(defs);
+    // 底部指标条
+    const metrics=[
+      {k:"步骤数",v:m.stepCount},
+      {k:"学习成本",v:m.learn},
+      {k:"效率",v:m.eff},
+      {k:"表达力",v:m.expr}
+    ];
+    metrics.forEach((mm,i)=>{
+      const x=40+i*160;
+      svg.appendChild(el("rect",{x:x,y:355,width:150,height:32,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      const k=el("text",{x:x+10,y:368,"font-size":9.5,"font-family":MONO,fill:"#62666d"});k.textContent=mm.k;svg.appendChild(k);
+      const v=el("text",{x:x+10,y:382,"font-size":13,"font-family":MONO,fill:m.c});v.textContent=mm.v;svg.appendChild(v);
+    });
+    // 更新
+    $("st03steps").textContent=m.stepCount;
+    $("st03learn").textContent=m.learn;
+    $("st03eff").textContent=m.eff;
+    $("st03expr").textContent=m.expr;
+    $("p03title").textContent=m.n;
+    $("p03detail").textContent=m.d;
+  }
+
+  draw();
+  modes.forEach((mm,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=mm.n;
+    b.addEventListener("click",()=>{mode=i;draw();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   04 认知负荷
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  // 场景：{name, int, ext, ger}
+  const scenarios=[
+    {n:"专家 + 好设计",int:2,ext:1,ger:3,d:"专家先验知识丰富，内在负荷低；良好设计消除外在负荷；剩余容量用于建构图式（相关负荷）。"},
+    {n:"新手 + 好设计",int:5,ext:1,ger:2,d:"新手内在负荷高，但好设计将外在负荷降至最低，留出空间用于学习。"},
+    {n:"新手 + 差设计",int:5,ext:5,ger:0,d:"糟糕设计（冗余动画、混乱排版）产生大量外在负荷，挤占工作记忆，无暇建构图式。总负荷超载。"},
+    {n:"专家 + 差设计",int:2,ext:5,ger:1,d:"即使专家内在负荷低，差设计的外在负荷仍浪费认知资源，降低学习效率。"}
+  ];
+  let cur=0;
+  const MAX=14;
+
+  function draw(){
+    clearNode(svg);
+    const s=scenarios[cur];
+    const total=s.int+s.ext+s.ger;
+    // 堆叠柱
+    const bx=80,by=80,bw=120,bh=260;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:6,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    // 容量线（7±2）
+    const capY=by+bh-(7/MAX)*bh;
+    svg.appendChild(el("line",{x1:bx-10,y1:capY,x2:bx+bw+10,y2:capY,stroke:"#fbbf24","stroke-width":1.4,"stroke-dasharray":"5 4"}));
+    const cl=el("text",{x:bx+bw+14,y:capY+4,"font-size":10,"font-family":MONO,fill:"#fbbf24"});cl.textContent="容量上限 7";svg.appendChild(cl);
+    // 三段
+    const segs=[
+      {v:s.int,c:"#a78bfa",label:"内在"},
+      {v:s.ext,c:"#f87171",label:"外在"},
+      {v:s.ger,c:"#34d399",label:"相关"}
+    ];
+    let acc=0;
+    segs.forEach(seg=>{
+      const h=(seg.v/MAX)*bh;
+      const y=by+bh-acc-h;
+      svg.appendChild(el("rect",{x:bx+4,y:y,width:bw-8,height:h,fill:seg.c,opacity:.85,rx:3}));
+      if(h>14){
+        const t=el("text",{x:bx+bw/2,y:y+h/2+4,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#0b0b0c"});t.textContent=seg.label+" "+seg.v;svg.appendChild(t);
+      }
+      acc+=h;
+    });
+    // 总负荷标注
+    const tl=el("text",{x:bx+bw/2,y:by-12,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#f7f8f8"});tl.textContent="总负荷 "+total+"/"+MAX;svg.appendChild(tl);
+    // 右侧：三负荷说明
+    const rx=300,ry=60;
+    const items=[
+      {n:"内在负荷 Intrinsic",v:s.int,c:"#a78bfa",d:"任务本身难度"},
+      {n:"外在负荷 Extraneous",v:s.ext,c:"#f87171",d:"设计不当造成"},
+      {n:"相关负荷 Germane",v:s.ger,c:"#34d399",d:"建构图式，有益"}
+    ];
+    items.forEach((it,i)=>{
+      const y=ry+i*70;
+      svg.appendChild(el("rect",{x:rx,y:y,width:380,height:56,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      svg.appendChild(el("rect",{x:rx,y:y,width:4,height:56,fill:it.c}));
+      const t=el("text",{x:rx+16,y:y+20,"font-size":12.5,"font-family":MONO,fill:it.c});t.textContent=it.n;svg.appendChild(t);
+      const d=el("text",{x:rx+16,y:y+38,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});d.textContent=it.d;svg.appendChild(d);
+      // 评分条
+      const barX=rx+250,barY=y+24,barW=120;
+      svg.appendChild(el("rect",{x:barX,y:barY,width:barW,height:8,rx:4,fill:"#1c1f24"}));
+      svg.appendChild(el("rect",{x:barX,y:barY,width:barW*(it.v/7),height:8,rx:4,fill:it.c}));
+      const vv=el("text",{x:barX+barW+8,y:barY+8,"font-size":11,"font-family":MONO,fill:"#f7f8f8"});vv.textContent=it.v;svg.appendChild(vv);
+    });
+    // 底部
+    const over=total>7;
+    const note=el("text",{x:W/2,y:355,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:over?"#f87171":"#34d399"});
+    note.textContent=over?"⚠ 总负荷超出工作记忆容量，学习效率下降":"✓ 总负荷在容量内，可有效学习";svg.appendChild(note);
+    $("st04int").textContent=s.int;
+    $("st04ext").textContent=s.ext;
+    $("st04ger").textContent=s.ger;
+    $("st04tot").textContent=total;
+    $("p04title").textContent=s.n;
+    $("p04detail").textContent=s.d;
+  }
+
+  draw();
+  scenarios.forEach((s,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=s.n;
+    b.addEventListener("click",()=>{cur=i;draw();document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   05 Nielsen 十大启发式
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=440;
+  const heuristics=[
+    {n:"系统状态可见",d:"通过合理时间的反馈让用户始终了解正在发生什么。例如加载指示器、按钮按下态。",good:"保存时显示进度条",bad:"点击后无任何反馈"},
+    {n:"系统与现实世界匹配",d:"使用用户的语言，遵循现实世界的惯例，信息自然有逻辑顺序。",good:"购物车图标",bad:"使用术语 '购物容器'"},
+    {n:"用户控制与自由",d:"用户常误选功能，需要清晰的“紧急出口”离开不想要的状态。",good:"撤销 / 重做按钮",bad:"操作不可逆"},
+    {n:"一致性与标准",d:"用户不应猜测不同词语是否指同一事物。遵循平台惯例。",good:"所有删除按钮统一红色",bad:"有的删有的移除"},
+    {n:"防错",d:"比错误提示更好的是精心设计防止问题发生。",good:"确认对话框",bad:"误点立即删除"},
+    {n:"识别而非回忆",d:"使对象、动作和选项可见。指令可见或易于检索。",good:"下拉菜单选项",bad:"需记忆命令"},
+    {n:"使用灵活与效率",d:"为新手和专家都提供快捷方式，加速高级用户操作。",good:"Ctrl+S 快捷键",bad:"只能点击菜单"},
+    {n:"美学与极简设计",d:"界面不包含无关或很少需要的信息。",good:"留白充足",bad:"信息过载"},
+    {n:"帮助用户识别诊断恢复错误",d:"错误信息用平实语言表达，指明问题与解决方法。",good:'\"文件不存在，是否新建?\"',bad:"Error 0x80070002"},
+    {n:"帮助与文档",d:"系统最好无需文档即可使用，但必要时需提供帮助。",good:"可搜索的帮助",bad:"无帮助文件"}
+  ];
+  let sel=0;
+  const evals=[]; // index -> 'pass'|'fail'|null
+
+  function draw(){
+    clearNode(svg);
+    // 左侧：10 个原则卡片网格
+    const cols=2,gx=30,gy=30,gw=380,gh=380;
+    const cardW=(gw-10)/2-6,cardH=(gh-4*10)/5;
+    heuristics.forEach((h,i)=>{
+      const r=Math.floor(i/2),c=i%2;
+      const x=gx+c*(cardW+12),y=gy+r*(cardH+8);
+      const on=i===sel;
+      const ev=evals[i];
+      const ec=ev==="pass"?"#34d399":ev==="fail"?"#f87171":null;
+      svg.appendChild(el("rect",{x:x,y:y,width:cardW,height:cardH,rx:6,fill:on?"rgba(167,139,250,.14)":"#16181c",stroke:on?"#a78bfa":(ec||"rgba(255,255,255,.07)"),"stroke-width":on?1.6:1}));
+      const num=el("text",{x:x+12,y:y+18,"font-size":11,"font-family":MONO,fill:on?"#a78bfa":"#62666d"});num.textContent=(i+1).toString().padStart(2,"0");svg.appendChild(num);
+      const t=el("text",{x:x+34,y:y+18,"font-size":11.5,"font-family":MONO,fill:on?"#f7f8f8":"#9b9fa8"});t.textContent=h.n;svg.appendChild(t);
+      if(ec){
+        svg.appendChild(el("circle",{cx:x+cardW-12,cy:y+14,r:4,fill:ec}));
+      }
+    });
+    // 右侧：详情
+    const rx=440,ry=30,rw=250,rh=380;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:rw,height:rh,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const h=heuristics[sel];
+    const n=el("text",{x:rx+16,y:ry+30,"font-size":13,"font-family":MONO,fill:"#a78bfa"});n.textContent="原则 "+(sel+1).toString().padStart(2,"0");svg.appendChild(n);
+    // 标题换行（简单截断）
+    const title=el("text",{x:rx+16,y:ry+52,"font-size":14,"font-weight":"700","font-family":MONO,fill:"#f7f8f8"});title.textContent=h.n;svg.appendChild(title);
+    // 说明
+    const words=h.d;
+    const lines=wrap(words,rw-32,12);
+    lines.forEach((ln,i)=>{
+      const t=el("text",{x:rx+16,y:ry+80+i*16,"font-size":11.5,"font-family":MONO,fill:"#9b9fa8"});t.textContent=ln;svg.appendChild(t);
+    });
+    // 好例/坏例
+    const ey=ry+80+lines.length*16+16;
+    svg.appendChild(el("rect",{x:rx+16,y:ey,width:rw-32,height:54,rx:6,fill:"#0b0b0c",stroke:"#34d399","stroke-width":1}));
+    const gl=el("text",{x:rx+24,y:ey+18,"font-size":10,"font-family":MONO,fill:"#34d399"});gl.textContent="✓ 良好实践";svg.appendChild(gl);
+    const gt=el("text",{x:rx+24,y:ey+38,"font-size":11,"font-family":MONO,fill:"#f7f8f8"});gt.textContent=h.good;svg.appendChild(gt);
+    svg.appendChild(el("rect",{x:rx+16,y:ey+66,width:rw-32,height:54,rx:6,fill:"#0b0b0c",stroke:"#f87171","stroke-width":1}));
+    const bl=el("text",{x:rx+24,y:ey+84,"font-size":10,"font-family":MONO,fill:"#f87171"});bl.textContent="✗ 反面案例";svg.appendChild(bl);
+    const bt=el("text",{x:rx+24,y:ey+104,"font-size":11,"font-family":MONO,fill:"#f7f8f8"});bt.textContent=h.bad;svg.appendChild(bt);
+    // 统计
+    $("st05done").textContent=evals.filter(e=>e).length;
+    $("st05pass").textContent=evals.filter(e=>e==="pass").length;
+    $("st05fail").textContent=evals.filter(e=>e==="fail").length;
+    $("p05title").textContent="原则 "+(sel+1)+" · "+h.n;
+    $("p05detail").textContent=h.d;
+  }
+  function wrap(str,maxW,fs){
+    // 近似：按字符数截断（中文每字约 fs px）
+    const max=Math.floor(maxW/fs);
+    const out=[];
+    let cur2="";
+    for(let i=0;i<str.length;i++){
+      cur2+=str[i];
+      if(cur2.length>=max){out.push(cur2);cur2="";}
+    }
+    if(cur2)out.push(cur2);
+    return out.slice(0,5);
+  }
+
+  draw();
+  // 点击原则卡片
+  svg.addEventListener("click",e=>{
+    // 检测命中哪个卡片
+    const pt=svg.createSVGPoint();
+    pt.x=e.clientX;pt.y=e.clientY;
+    const rect=svg.getBoundingClientRect();
+    const sx=W*(e.clientX-rect.left)/rect.width;
+    const sy=H*(e.clientY-rect.top)/rect.height;
+    const cols=2,gx=30,gy=30,gw=380,gh=380;
+    const cardW=(gw-10)/2-6,cardH=(gh-4*10)/5;
+    for(let i=0;i<10;i++){
+      const r=Math.floor(i/2),c=i%2;
+      const x=gx+c*(cardW+12),y=gy+r*(cardH+8);
+      if(sx>=x&&sx<=x+cardW&&sy>=y&&sy<=y+cardH){sel=i;draw();return;}
+    }
+  });
+  // 评估按钮
+  const passBtn=document.createElement("button");passBtn.className="btn small";passBtn.textContent="✓ 评估通过";
+  passBtn.addEventListener("click",()=>{evals[sel]="pass";draw();});
+  const failBtn=document.createElement("button");failBtn.className="btn small";failBtn.textContent="✗ 评估不通过";
+  failBtn.addEventListener("click",()=>{evals[sel]="fail";draw();});
+  const clearBtn=document.createElement("button");clearBtn.className="btn ghost small";clearBtn.textContent="清除评估";
+  clearBtn.addEventListener("click",()=>{evals[sel]=null;draw();});
+  const rstBtn=document.createElement("button");rstBtn.className="btn ghost small";rstBtn.textContent="全部重置";
+  rstBtn.addEventListener("click",()=>{evals.length=0;draw();});
+  ctl.appendChild(passBtn);ctl.appendChild(failBtn);ctl.appendChild(clearBtn);ctl.appendChild(rstBtn);
+})();
+
+/* ============================================================
+   06 信息架构
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let type=0; // 0=balanced, 1=broad, 2=deep
+  const types=[
+    {n:"平衡结构",branch:3,depth:3},
+    {n:"广度优先",branch:7,depth:2},
+    {n:"深度优先",branch:2,depth:5}
+  ];
+  let collapsed=new Set();
+
+  function buildTree(){
+    const t=types[type];
+    const tree={n:"首页",c:[],depth:0};
+    function build(node,dep){
+      if(dep>=t.depth)return;
+      const b=Math.min(t.branch,dep===0?t.branch:Math.max(2,t.branch-1));
+      for(let i=0;i<b;i++){
+        const child={n:(dep===0?"分类":"页面")+(i+1),c:[],depth:dep+1};
+        node.c.push(child);
+        build(child,dep+1);
+      }
+    }
+    build(tree,1);
+    return tree;
+  }
+  function countNodes(node){
+    let c=1;node.c.forEach(ch=>c+=countNodes(ch));return c;
+  }
+  function maxDepth(node){
+    if(node.c.length===0)return node.depth;
+    return Math.max(...node.c.map(maxDepth));
+  }
+  function avgPath(node,depth){
+    if(node.c.length===0)return depth;
+    return node.c.reduce((s,ch)=>s+avgPath(ch,depth+1),0)/node.c.length;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const tree=buildTree();
+    // 布局：水平树，从左到右
+    const x0=40,y0=40,xStep=120,areaH=300;
+    const leaves=[];
+    function collectLeaves(node){
+      if(collapsed.has(node)||node.c.length===0)leaves.push(node);
+      else node.c.forEach(collectLeaves);
+    }
+    collectLeaves(tree);
+    const nLeaves=Math.max(1,leaves.length);
+    leaves.forEach((lf,i)=>{
+      lf._y=y0+(i+0.5)*areaH/nLeaves;
+    });
+    function layoutX(node,dep){
+      node._x=x0+dep*xStep;
+      if(collapsed.has(node)||node.c.length===0)return;
+      node.c.forEach(ch=>layoutX(ch,dep+1));
+    }
+    layoutX(tree,0);
+    function parentY(node){
+      if(collapsed.has(node)||node.c.length===0)return node._y;
+      const ys=node.c.map(parentY);
+      return ys.reduce((s,v)=>s+v,0)/ys.length;
+    }
+    tree._y=parentY(tree);
+    function setY(node){
+      if(collapsed.has(node)||node.c.length===0){return;}
+      node._y=parentY(node);
+      node.c.forEach(setY);
+    }
+    setY(tree);
+
+    // 画边
+    function drawEdges(node){
+      if(collapsed.has(node))return;
+      node.c.forEach(ch=>{
+        const y1=node._y,y2=ch._y;
+        const x1=node._x+10,x2=ch._x-10;
+        const midX=(x1+x2)/2;
+        svg.appendChild(el("path",{d:"M"+x1+","+y1+" C"+midX+","+y1+" "+midX+","+y2+" "+x2+","+y2,fill:"none",stroke:"rgba(124,92,255,.3)","stroke-width":1.2}));
+        drawEdges(ch);
+      });
+    }
+    drawEdges(tree);
+    // 画节点
+    function drawNodes(node){
+      const isRoot=node.depth===0;
+      const isLeaf=node.c.length===0||collapsed.has(node);
+      const col=isRoot?"#a78bfa":isLeaf?"#34d399":"#7c5cff";
+      const r=isRoot?14:isLeaf?7:10;
+      const g=el("g",{transform:"translate("+node._x+","+node._y+")",style:"cursor:pointer"});
+      g.dataset.nid=node.n+node.depth;
+      g.addEventListener("click",()=>{
+        if(node.c.length===0)return;
+        if(collapsed.has(node))collapsed.delete(node);else collapsed.add(node);
+        draw();
+      });
+      svg.appendChild(g);
+      g.appendChild(el("circle",{r:r,fill:collapsed.has(node)?"#1c1f24":"rgba(124,92,255,.14)",stroke:col,"stroke-width":1.4}));
+      const lbl=el("text",{x:r+6,y:4,"font-size":10.5,"font-family":MONO,fill:"#f7f8f8"});lbl.textContent=node.n;g.appendChild(lbl);
+      if(collapsed.has(node)){
+        const cnt=el("text",{x:0,y:3,"text-anchor":"middle","font-size":8,"font-family":MONO,fill:col});cnt.textContent="+"+countNodesChildren(node);g.appendChild(cnt);
+      }
+      if(!collapsed.has(node))node.c.forEach(drawNodes);
+    }
+    function countNodesChildren(node){return countNodes(node)-1;}
+    drawNodes(tree);
+    // 统计
+    const cn=countNodes(tree),md=maxDepth(tree),ap=avgPath(tree,0);
+    $("st06type").textContent=types[type].n;
+    $("st06nodes").textContent=cn;
+    $("st06depth").textContent=md;
+    $("st06path").textContent=ap.toFixed(1);
+    $("p06title").textContent=types[type].n+" · 每层 "+types[type].branch+" 选项";
+    $("p06detail").textContent="共 "+cn+" 个节点，最大深度 "+md+" 层，平均路径长度 "+ap.toFixed(1)+" 次点击。点击非叶子节点可折叠/展开子树。";
+  }
+
+  draw();
+  types.forEach((t,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=t.n;
+    b.addEventListener("click",()=>{type=i;collapsed.clear();draw();document.querySelectorAll("#ctl06 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const exp=document.createElement("button");exp.className="btn ghost small";exp.textContent="全部展开";
+  exp.addEventListener("click",()=>{collapsed.clear();draw();});
+  const col=document.createElement("button");col.className="btn ghost small";col.textContent="折叠二级";
+  col.addEventListener("click",()=>{
+    const tree=buildTree();
+    collapsed.clear();
+    tree.c.forEach(ch=>collapsed.add(ch));
+    draw();
+  });
+  ctl.appendChild(exp);ctl.appendChild(col);
+})();
+
+/* ============================================================
+   07 反馈延迟 / Doherty 阈值
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let delay=400;
+  let measuring=false,measStart=0;
+
+  const zones=[
+    {max:100,n:"即时",c:"#34d399",adv:"最佳体验，感觉系统瞬时响应"},
+    {max:400,n:"流畅",c:"#a78bfa",adv:"Doherty 阈值内，用户保持心流"},
+    {max:1000,n:"中断",c:"#fbbf24",adv:"用户注意力分散，需优化"},
+    {max:3000,n:"断连",c:"#f87171",adv:"需显示加载指示器，否则用户以为卡死"},
+    {max:Infinity,n:"离线",c:"#f87171",adv:"必须后台处理并通知"}
+  ];
+  function zoneOf(d){for(const z of zones){if(d<=z.max)return z;}return zones[zones.length-1];}
+
+  function draw(){
+    clearNode(svg);
+    // 顶部时间轴
+    const ax=60,ay=120,aw=600,ah=40;
+    svg.appendChild(el("rect",{x:ax,y:ay,width:aw,height:ah,rx:6,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    // 分区
+    let prev=0;
+    const maxScale=3000;
+    zones.slice(0,4).forEach(z=>{
+      const w=(Math.min(z.max,maxScale)-prev)/maxScale*aw;
+      svg.appendChild(el("rect",{x:ax+prev/maxScale*aw,y:ay,width:w,height:ah,fill:z.c,opacity:.16}));
+      const t=el("text",{x:ax+prev/maxScale*aw+w/2,y:ay+24,"text-anchor":"middle","font-size":10.5,"font-family":MONO,fill:z.c});t.textContent=z.n;svg.appendChild(t);
+      prev=Math.min(z.max,maxScale);
+    });
+    // 刻度
+    [100,400,1000,3000].forEach(v=>{
+      const x=ax+v/maxScale*aw;
+      svg.appendChild(el("line",{x1:x,y1:ay,x2:x,y2:ay+ah,stroke:"rgba(255,255,255,.2)","stroke-width":1}));
+      const t=el("text",{x:x,y:ay+ah+16,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent=v+"ms";svg.appendChild(t);
+    });
+    // 当前延迟指针
+    const cx=ax+Math.min(delay,maxScale)/maxScale*aw;
+    svg.appendChild(el("line",{x1:cx,y1:ay-8,x2:cx,y2:ay+ah+8,stroke:"#f7f8f8","stroke-width":2}));
+    svg.appendChild(el("circle",{cx:cx,cy:ay-8,r:5,fill:"#f7f8f8"}));
+    // 大按钮（测试区）
+    const bx=250,by=220,bw=220,bh=90;
+    const z=zoneOf(delay);
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:12,fill:"rgba(124,92,255,.12)",stroke:z.c,"stroke-width":2,cursor:"pointer",id:"testBtn"}));
+    const bt=el("text",{x:bx+bw/2,y:by+bh/2+6,"text-anchor":"middle","font-size":18,"font-weight":"700","font-family":MONO,fill:z.c});bt.textContent=measuring?"等待…":"点击测试";svg.appendChild(bt);
+    // 提示
+    const hint=el("text",{x:W/2,y:by+bh+30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});hint.textContent="按钮将在 "+delay+"ms 后响应";svg.appendChild(hint);
+    // 右侧：感知说明
+    const rx=520,ry=200,rw=180;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:rw,height:140,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:rx+14,y:ry+24,"font-size":11,"font-family":MONO,fill:z.c});tl.textContent="当前区间";svg.appendChild(tl);
+    const zn=el("text",{x:rx+14,y:ry+50,"font-size":18,"font-weight":"700","font-family":MONO,fill:z.c});zn.textContent=z.n;svg.appendChild(zn);
+    const al=el("text",{x:rx+14,y:ry+72,"font-size":10,"font-family":MONO,fill:"#62666d"});al.textContent="建议";svg.appendChild(al);
+    // 建议换行
+    const lines=wrapAdv(z.adv,rw-28);
+    lines.forEach((ln,i)=>{
+      const t=el("text",{x:rx+14,y:ry+92+i*15,"font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});t.textContent=ln;svg.appendChild(t);
+    });
+    // 更新统计
+    $("st07delay").textContent=delay+"ms";
+    $("st07zone").textContent=z.n;
+    $("st07adv").textContent=z.n;
+  }
+  function wrapAdv(str,maxW){
+    const max=Math.floor(maxW/6);
+    const out=[];let c="";
+    for(let i=0;i<str.length;i++){c+=str[i];if(c.length>=max){out.push(c);c="";}}
+    if(c)out.push(c);return out;
+  }
+
+  draw();
+  // 滑块
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>延迟</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=2500;inp.step=50;inp.value=delay;
+  const val=document.createElement("span");val.className="val";val.textContent=delay+"ms";
+  inp.addEventListener("input",()=>{delay=+inp.value;val.textContent=delay+"ms";draw();});
+  sg.appendChild(inp);sg.appendChild(val);
+  // 测试按钮
+  function doTest(){
+    if(measuring)return;
+    measuring=true;measStart=performance.now();draw();
+    setTimeout(()=>{
+      const actual=performance.now()-measStart;
+      measuring=false;draw();
+      const z=zoneOf(actual);
+      $("st07meas").textContent=Math.round(actual)+"ms";
+      $("p07detail").innerHTML="点击后实际等待 <b style='color:"+z.c+"'>"+Math.round(actual)+" ms</b>，落入「"+z.n+"」区间。"+z.adv+"。";
+    },delay);
+  }
+  svg.addEventListener("click",e=>{
+    // 检测命中按钮
+    const rect=svg.getBoundingClientRect();
+    const sx=W*(e.clientX-rect.left)/rect.width;
+    const sy=H*(e.clientY-rect.top)/rect.height;
+    if(sx>=250&&sx<=470&&sy>=220&&sy<=310)doTest();
+  });
+  const testBtn=document.createElement("button");testBtn.className="btn primary";testBtn.textContent="点击测试";
+  testBtn.addEventListener("click",doTest);
+  ctl.appendChild(sg);ctl.appendChild(testBtn);
+  // 预设按钮
+  [[0,"即时"],[400,"400ms 阈值"],[1000,"1s 中断"],[2000,"2s 断连"]].forEach(p=>{
+    const b=document.createElement("button");b.className="btn small";b.textContent=p[1];
+    b.addEventListener("click",()=>{delay=p[0];inp.value=delay;val.textContent=delay+"ms";draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   08 多模态交互
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420;
+  const modalities=[
+    {n:"语音 Voice",c:"#a78bfa",bw:"低 (8kHz)",lat:"高 (300-500ms)",learn:"低",fatigue:"低",
+     d:"自然语言输入，解放双手。适合移动、无屏、远场场景。受噪声影响大，隐私性差。ASR 错误率在嘈杂环境上升。"},
+    {n:"手势 Gesture",c:"#7c5cff",bw:"中",lat:"中 (100-200ms)",learn:"中",fatigue:"高",
+     d:"基于视觉或穿戴传感器。适合空间指向、3D 操作。需要学习手势词典。长时间使用易疲劳（猩猩臂效应）。"},
+    {n:"眼动 Gaze",c:"#34d399",bw:"高",lat:"低 (50-100ms)",learn:"低",fatigue:"低",
+     d:"眼动是最快的输入通道之一。适合辅助选择、无障碍交互。但 Midas 触发问题（凝视即触发）需谨慎设计。"},
+    {n:"触控 Touch",c:"#fbbf24",bw:"高",lat:"极低 (<50ms)",learn:"低",fatigue:"低",
+     d:"最普及的多模态基础。直接操纵、即时反馈。但遮挡手指、无触觉反馈（玻璃屏）。多点触控支持丰富手势。"}
+  ];
+  let cur=0;
+  // 雷达图维度：带宽、速度(1/延迟)、学习易度(1/成本)、低疲劳、精确度
+  const dims=["带宽","速度","易学","低疲劳","精确度"];
+  const scores=[
+    [2,1.5,4.5,4,3],   // 语音
+    [3,3,3,1.5,3.5],   // 手势
+    [4,4,4,4,3],       // 眼动
+    [4.5,5,4.5,4,4.5]  // 触控
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const m=modalities[cur];
+    // 左：模态图示
+    const lx=30,ly=30,lw=280,lh=300;
+    svg.appendChild(el("rect",{x:lx,y:ly,width:lw,height:lh,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:lx+lw/2,y:ly+26,"text-anchor":"middle","font-size":14,"font-family":MONO,fill:m.c});tl.textContent=m.n;svg.appendChild(tl);
+    // 图标
+    const cx=lx+lw/2,cy=ly+130;
+    if(cur===0){
+      // 声波
+      [10,22,34,46,58].forEach((r,i)=>{
+        svg.appendChild(el("circle",{cx:cx,cy:cy,r:r,fill:"none",stroke:m.c,"stroke-width":1.4,opacity:1-i*0.18}));
+      });
+    }else if(cur===1){
+      // 手
+      svg.appendChild(el("path",{d:"M"+(cx-20)+","+(cy+30)+" L"+(cx-20)+","+(cy-10)+" L"+(cx-10)+","+(cy-15)+" L"+(cx-10)+","+(cy+20)+" z M"+(cx-8)+","+(cy-20)+" L"+(cx+2)+","+(cy-22)+" L"+(cx+2)+","+(cy+18)+" L"+(cx-8)+","+(cy+20)+" z",fill:m.c,opacity:.6,stroke:m.c,"stroke-width":1.4}));
+    }else if(cur===2){
+      // 眼睛
+      svg.appendChild(el("ellipse",{cx:cx,cy:cy,rx:40,ry:24,fill:"none",stroke:m.c,"stroke-width":2}));
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:10,fill:m.c}));
+      // 视线
+      svg.appendChild(el("line",{x1:cx+10,y1:cy,x2:cx+50,y2:cy,stroke:m.c,"stroke-width":1.4,"stroke-dasharray":"3 3"}));
+    }else{
+      // 手指触点
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:22,fill:"rgba(251,191,36,.12)",stroke:m.c,"stroke-width":2}));
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:5,fill:m.c}));
+      // 涟漪
+      [35,48,60].forEach((r,i)=>svg.appendChild(el("circle",{cx:cx,cy:cy,r:r,fill:"none",stroke:m.c,"stroke-width":1,opacity:1-i*0.3})));
+    }
+    // 参数
+    const params=[["带宽 Bandwidth",m.bw],["延迟 Latency",m.lat],["学习成本",m.learn],["疲劳度",m.fatigue]];
+    params.forEach((p,i)=>{
+      const y=ly+200+i*22;
+      const k=el("text",{x:lx+20,y:y,"font-size":11,"font-family":MONO,fill:"#62666d"});k.textContent=p[0];svg.appendChild(k);
+      const v=el("text",{x:lx+lw-20,y:y,"text-anchor":"end","font-size":11,"font-family":MONO,fill:m.c});v.textContent=p[1];svg.appendChild(v);
+    });
+    // 右：雷达图
+    const rdx=500,rdy=200,rad=110;
+    // 网格
+    for(let g=1;g<=4;g++){
+      const pts=[];
+      for(let i=0;i<5;i++){
+        const ang=-Math.PI/2+i*2*Math.PI/5;
+        pts.push(rdx+Math.cos(ang)*rad*g/4+","+rdy+Math.sin(ang)*rad*g/4);
+      }
+      svg.appendChild(el("polygon",{points:pts.join(" "),fill:"none",stroke:"rgba(255,255,255,.07)","stroke-width":1}));
+    }
+    // 轴
+    for(let i=0;i<5;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/5;
+      svg.appendChild(el("line",{x1:rdx,y1:rdy,x2:rdx+Math.cos(ang)*rad,y2:rdy+Math.sin(ang)*rad,stroke:"rgba(255,255,255,.07)","stroke-width":1}));
+      const lx2=rdx+Math.cos(ang)*(rad+16),ly2=rdy+Math.sin(ang)*(rad+16)+4;
+      const t=el("text",{x:lx2,y:ly2,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});t.textContent=dims[i];svg.appendChild(t);
+    }
+    // 当前模态数据
+    const pts=[];
+    for(let i=0;i<5;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/5;
+      const v=scores[cur][i]/5;
+      pts.push(rdx+Math.cos(ang)*rad*v+","+rdy+Math.sin(ang)*rad*v);
+    }
+    svg.appendChild(el("polygon",{points:pts.join(" "),fill:m.c,opacity:.18,stroke:m.c,"stroke-width":1.8}));
+    // 其他模态淡显
+    modalities.forEach((mm,mi)=>{
+      if(mi===cur)return;
+      const pp=[];
+      for(let i=0;i<5;i++){
+        const ang=-Math.PI/2+i*2*Math.PI/5;
+        const v=scores[mi][i]/5;
+        pp.push(rdx+Math.cos(ang)*rad*v+","+rdy+Math.sin(ang)*rad*v);
+      }
+      svg.appendChild(el("polygon",{points:pp.join(" "),fill:"none",stroke:mm.c,"stroke-width":1,opacity:.25,"stroke-dasharray":"3 3"}));
+    });
+    // 统计
+    $("st08bw").textContent=m.bw;
+    $("st08lat").textContent=m.lat;
+    $("st08learn").textContent=m.learn;
+    $("st08fatigue").textContent=m.fatigue;
+    $("p08title").textContent=m.n+" 特性";
+    $("p08detail").textContent=m.d+" 多模态融合可结合互补优势，例如语音+触控、眼动+手势。Oviatt 研究表明多模态能提升 10-20% 的鲁棒性。";
+  }
+
+  draw();
+  modalities.forEach((m,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=m.n;
+    b.addEventListener("click",()=>{cur=i;draw();document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const fuse=document.createElement("button");fuse.className="btn ghost small";fuse.textContent="融合说明";
+  fuse.addEventListener("click",()=>{
+    $("p08title").textContent="多模态融合 (Multimodal Fusion)";
+    $("p08detail").textContent="Oviatt 提出融合三层次：①信号级——原始信号层融合（如音频+视频唇语）；②特征级——提取特征后融合；③决策级——各模态独立识别后投票决策。互补融合（如语音+手势）可弥补单模态缺陷，冗余融合提升可靠性。MICASSO 框架是经典参考。";
+  });
+  ctl.appendChild(fuse);
+})();
+
+</script>
+</body>
+</html>

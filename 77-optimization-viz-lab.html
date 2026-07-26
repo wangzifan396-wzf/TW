@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运筹优化可视化实验室 · Optimization Viz Lab</title>
+<meta name="description" content="运筹学与最优化算法的交互式可视化：线性规划、整数规划、动态规划、贪心、网络流、元启发式、拉格朗日松弛、凸优化。纯 HTML/CSS/JS + SVG，零依赖。">
+<style>
+:root{
+  --bg:#08090a; --surface:#101114; --surface-2:#16181c; --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07); --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8; --muted:#9b9fa8; --faint:#62666d;
+  --accent:#5e6ad2; --accent-2:#7c5cff;
+  --accent-soft:rgba(94,106,210,.14); --accent-2-soft:rgba(124,92,255,.14);
+  --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  --nav-h:56px; --side-w:240px;
+  --radius:12px; --radius-sm:8px;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:15px;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+::selection{background:var(--accent-soft)}
+
+/* progress bar */
+.progress{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;box-shadow:0 0 8px rgba(124,92,255,.5)}
+
+/* navbar */
+.nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(16,17,20,.92);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;z-index:50}
+.menu-btn{display:none;background:none;border:1px solid var(--border);color:var(--ink);width:34px;height:34px;border-radius:8px;cursor:pointer;margin-right:10px;font-size:15px;align-items:center;justify-content:center}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.brand .dot{width:11px;height:11px;border-radius:3px;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 14px rgba(94,106,210,.6)}
+.brand .name{font-size:15px;letter-spacing:-.01em}
+.brand .sub{font-size:11px;color:var(--faint);font-family:var(--mono);padding:2px 6px;border:1px solid var(--border);border-radius:5px}
+.nav-spacer{flex:1}
+.nav-link{font-size:13px;color:var(--muted);padding:7px 12px;border-radius:7px;transition:color .18s,background .18s}
+.nav-link:hover{color:var(--ink);background:var(--surface-2)}
+.gh{display:inline-flex;align-items:center;gap:6px}
+
+/* sidebar */
+.side{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);bottom:0;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 12px;z-index:40}
+.side-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);padding:0 10px;margin:6px 0 12px}
+.side a{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:8px;color:var(--muted);font-size:13.5px;transition:background .18s,color .18s}
+.side a:hover{background:var(--surface-2);color:var(--ink)}
+.side a.active{background:var(--accent-soft);color:var(--ink)}
+.side a.active .num{color:var(--accent-2)}
+.side a .num{font-family:var(--mono);font-size:11px;color:var(--faint);width:20px}
+.side-foot{margin-top:18px;padding:12px 10px 4px;border-top:1px solid var(--border);font-size:11.5px;color:var(--faint);line-height:1.5}
+
+/* main */
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:44px 44px 90px;max-width:1120px}
+.hero{margin-bottom:52px}
+.hero h1{font-size:36px;letter-spacing:-.025em;line-height:1.12;margin-bottom:16px;font-weight:700}
+.hero h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--muted);font-size:16.5px;max-width:660px}
+.hero .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.tag{font-family:var(--mono);font-size:11.5px;padding:5px 11px;border:1px solid var(--border);border-radius:99px;color:var(--muted);background:var(--surface)}
+
+/* module */
+.module{margin-bottom:60px;scroll-margin-top:74px}
+.module-head{margin-bottom:18px}
+.kicker{font-family:var(--mono);font-size:12px;color:var(--accent-2);letter-spacing:.12em;display:block;margin-bottom:7px}
+.module-head h2{font-size:25px;letter-spacing:-.015em;margin-bottom:7px;font-weight:650}
+.module-head .desc{color:var(--muted);font-size:14px}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.viz-box{background:var(--surface-2);border-bottom:1px solid var(--border);padding:16px}
+.viz-svg{width:100%;height:auto;display:block;border-radius:var(--radius-sm)}
+.viz-svg text{font-family:var(--mono);fill:var(--muted)}
+.controls{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.btn{background:var(--surface-3);border:1px solid var(--border-strong);color:var(--ink);padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s,transform .08s;white-space:nowrap}
+.btn:hover{background:#23262d;border-color:rgba(255,255,255,.24)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:transparent;color:#fff}
+.btn.primary:hover{background:#6b77e0}
+.btn.ghost{background:transparent}
+.sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.slider-wrap input[type=range]{width:96px;accent-color:var(--accent);cursor:pointer}
+.toggle-group{display:flex;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
+.toggle-group button{background:transparent;border:none;color:var(--muted);padding:5px 12px;border-radius:6px;font-size:12.5px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.toggle-group button.active{background:var(--accent);color:#fff}
+.detail-box{padding:14px 16px;border-bottom:1px solid var(--border);font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box strong{color:var(--ink);font-weight:600}
+.detail-box code{font-family:var(--mono);font-size:12.5px;background:var(--surface-3);padding:1.5px 6px;border-radius:4px;color:#c9d0ff}
+.stats-row{display:flex;gap:0;padding:0;flex-wrap:wrap}
+.stat{flex:1;min-width:120px;padding:12px 16px;display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.stat-value{font-family:var(--mono);font-size:18px;color:var(--ink);font-weight:500}
+.stat-value.accent{color:var(--accent-2)}
+.stat-value.ok{color:var(--ok)}
+
+/* fade-in */
+.fade{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.fade.in{opacity:1;transform:none}
+
+footer{margin-top:40px;padding-top:24px;border-top:1px solid var(--border);color:var(--faint);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+footer a{color:var(--muted)}
+footer a:hover{color:var(--accent-2)}
+
+/* responsive */
+@media (max-width:920px){
+  :root{--side-w:0px}
+  .side{transform:translateX(-100%);transition:transform .25s ease;width:248px;box-shadow:0 0 40px rgba(0,0,0,.5)}
+  .side.open{transform:none}
+  .main{margin-left:0;padding:30px 18px 70px}
+  .hero h1{font-size:27px}
+  .hero p{font-size:15px}
+  .menu-btn{display:inline-flex}
+  .stat{min-width:100px}
+}
+@media (max-width:560px){
+  .stats-row{flex-direction:column}
+  .stat{border-right:none;border-bottom:1px solid var(--border)}
+  .stat:last-child{border-bottom:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .fade{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="切换菜单">&#9776;</button>
+  <div class="brand">
+    <span class="dot"></span>
+    <span class="name">Optimization Viz Lab</span>
+    <span class="sub">v1.0</span>
+  </div>
+  <span class="nav-spacer"></span>
+  <a class="nav-link gh" href="https://github.com/wangzifan396-wzf/optimization-viz-lab" target="_blank" rel="noopener">GitHub &#8599;</a>
+</nav>
+
+<aside class="side" id="side">
+  <div class="side-title">算法模块</div>
+  <a href="#m01"><span class="num">01</span>线性规划</a>
+  <a href="#m02"><span class="num">02</span>整数规划</a>
+  <a href="#m03"><span class="num">03</span>动态规划</a>
+  <a href="#m04"><span class="num">04</span>贪心算法</a>
+  <a href="#m05"><span class="num">05</span>网络流优化</a>
+  <a href="#m06"><span class="num">06</span>元启发式</a>
+  <a href="#m07"><span class="num">07</span>拉格朗日松弛</a>
+  <a href="#m08"><span class="num">08</span>凸优化</a>
+  <div class="side-foot">纯 HTML/CSS/JS + SVG<br>零依赖 · 单文件</div>
+</aside>
+
+<main class="main">
+  <header class="hero fade">
+    <h1><span class="grad">运筹优化</span>可视化实验室</h1>
+    <p>用交互式可视化理解运筹学与最优化算法的核心思想：从线性规划的单纯形法到元启发式搜索，从动态规划的最优子结构到凸优化的收敛轨迹。每一个算法都以动画呈现其求解过程。</p>
+    <div class="tags">
+      <span class="tag">纯 HTML/CSS/JS</span>
+      <span class="tag">零依赖</span>
+      <span class="tag">SVG 可视化</span>
+      <span class="tag">8 个模块</span>
+    </div>
+  </header>
+
+  <!-- 01 线性规划 -->
+  <section class="module fade" id="m01">
+    <header class="module-head">
+      <span class="kicker">01 / 08</span>
+      <h2>线性规划</h2>
+      <p class="desc">可行域多边形 · 单纯形法顶点跳跃</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg01" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl01">
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+        <span class="sep"></span>
+        <span class="slider-wrap">目标 max z = 3x + 2y</span>
+      </div>
+      <div class="detail-box" id="detail01">约束：<code>x+y&le;6</code>、<code>2x+y&le;10</code>、<code>x+3y&le;12</code>，<code>x,y&ge;0</code>。蓝色多边形为<strong>可行域</strong>，虚线为约束边界，白虚线为目标函数等值线。点击<strong>单步</strong>观察单纯形法沿可行域边界从一个顶点跳到相邻顶点，每次使目标值严格增大。</div>
+      <div class="stats-row" id="stats01">
+        <div class="stat"><span class="stat-label">迭代</span><span class="stat-value" data-stat="iter">0</span></div>
+        <div class="stat"><span class="stat-label">当前顶点</span><span class="stat-value" data-stat="vertex">(0, 0)</span></div>
+        <div class="stat"><span class="stat-label">目标值 z</span><span class="stat-value accent" data-stat="z">0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 整数规划 -->
+  <section class="module fade" id="m02">
+    <header class="module-head">
+      <span class="kicker">02 / 08</span>
+      <h2>整数规划</h2>
+      <p class="desc">分支定界树 · 割平面法</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg02" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl02">
+        <div class="toggle-group">
+          <button class="active" data-method="bnb">分支定界</button>
+          <button data-method="cut">割平面</button>
+        </div>
+        <span class="sep"></span>
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+      </div>
+      <div class="detail-box" id="detail02">问题 <code>max x+y</code>，<code>x+2y&le;7</code>，<code>2x+y&le;7</code>，<code>x,y&ge;0</code> 且整数。LP 松弛最优为分数 <code>(7/3,7/3)&asymp;4.67</code>。<strong>分支定界</strong>按分数变量分支剪枝；<strong>割平面</strong>添加 Gomory 割切除分数解。</div>
+      <div class="stats-row" id="stats02">
+        <div class="stat"><span class="stat-label">探索节点</span><span class="stat-value" data-stat="nodes">0</span></div>
+        <div class="stat"><span class="stat-label">最优整数</span><span class="stat-value accent" data-stat="best">&mdash;</span></div>
+        <div class="stat"><span class="stat-label">间隙</span><span class="stat-value" data-stat="gap">&mdash;</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 动态规划 -->
+  <section class="module fade" id="m03">
+    <header class="module-head">
+      <span class="kicker">03 / 08</span>
+      <h2>动态规划</h2>
+      <p class="desc">最优子结构 · 状态转移表格填充</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg03" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl03">
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+        <span class="sep"></span>
+        <span class="slider-wrap">速度
+          <input type="range" id="spd03" min="80" max="900" value="320" step="20">
+        </span>
+      </div>
+      <div class="detail-box" id="detail03">0/1 背包：物品 <code>(w,v)</code> = (2,3),(3,4),(4,5),(5,6)，容量 <code>W=8</code>。状态转移 <code>dp[i][w]=max(dp[i-1][w], dp[i-1][w-w_i]+v_i)</code> 体现<strong>最优子结构</strong>。逐格填充后回溯得到最优解。</div>
+      <div class="stats-row" id="stats03">
+        <div class="stat"><span class="stat-label">当前格</span><span class="stat-value" data-stat="cell">i=0,w=0</span></div>
+        <div class="stat"><span class="stat-label">格子值</span><span class="stat-value" data-stat="val">0</span></div>
+        <div class="stat"><span class="stat-label">最优值</span><span class="stat-value accent" data-stat="opt">0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 贪心算法 -->
+  <section class="module fade" id="m04">
+    <header class="module-head">
+      <span class="kicker">04 / 08</span>
+      <h2>贪心算法</h2>
+      <p class="desc">活动选择 · Huffman 编码贪心选择</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg04" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl04">
+        <div class="toggle-group">
+          <button class="active" data-method="activity">活动选择</button>
+          <button data-method="huffman">Huffman 编码</button>
+        </div>
+        <span class="sep"></span>
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+      </div>
+      <div class="detail-box" id="detail04"><strong>活动选择</strong>：按结束时间排序，每次选不与已选活动重叠的最早结束者。<strong>Huffman</strong>：每步合并频率最低的两棵子树，体现贪心选择性质。</div>
+      <div class="stats-row" id="stats04">
+        <div class="stat"><span class="stat-label">步数</span><span class="stat-value" data-stat="step">0</span></div>
+        <div class="stat"><span class="stat-label">结果</span><span class="stat-value accent" data-stat="result">&mdash;</span></div>
+        <div class="stat"><span class="stat-label">说明</span><span class="stat-value" data-stat="note" style="font-size:13px">就绪</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 网络流优化 -->
+  <section class="module fade" id="m05">
+    <header class="module-head">
+      <span class="kicker">05 / 08</span>
+      <h2>网络流优化</h2>
+      <p class="desc">最小费用流 · 运输问题</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg05" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl05">
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+        <span class="sep"></span>
+        <span class="slider-wrap">目标：发送 4 单位流，最小化总费用</span>
+      </div>
+      <div class="detail-box" id="detail05">边标注 <code>流量/容量(费用)</code>。每步沿<strong>最小费用增广路</strong>推送流：先走 <code>S&middot;A&middot;T</code>（费用 5/单位）送 3 单位，再走 <code>S&middot;B&middot;T</code> 送 1 单位，总费用 20。</div>
+      <div class="stats-row" id="stats05">
+        <div class="stat"><span class="stat-label">已发送流</span><span class="stat-value" data-stat="flow">0</span></div>
+        <div class="stat"><span class="stat-label">总费用</span><span class="stat-value accent" data-stat="cost">0</span></div>
+        <div class="stat"><span class="stat-label">当前路径</span><span class="stat-value" data-stat="path" style="font-size:13px">&mdash;</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 元启发式 -->
+  <section class="module fade" id="m06">
+    <header class="module-head">
+      <span class="kicker">06 / 08</span>
+      <h2>元启发式</h2>
+      <p class="desc">模拟退火 · 遗传算法 · 粒子群路径动画</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg06" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl06">
+        <div class="toggle-group">
+          <button class="active" data-method="sa">模拟退火</button>
+          <button data-method="ga">遗传算法</button>
+          <button data-method="pso">粒子群</button>
+        </div>
+        <span class="sep"></span>
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+      </div>
+      <div class="detail-box" id="detail06">目标函数为 <strong>Himmelblau</strong> 函数 <code>f=(x&sup2;+y-11)&sup2;+(x+y&sup2;-7)&sup2;</code>，含 4 个全局最小值（=0）。模拟退火以概率接受劣解以跳出局部最优；遗传算法通过选择/交叉/变异演化种群；粒子群跟踪个体与全局最优。</div>
+      <div class="stats-row" id="stats06">
+        <div class="stat"><span class="stat-label">迭代</span><span class="stat-value" data-stat="iter">0</span></div>
+        <div class="stat"><span class="stat-label">当前最优 f</span><span class="stat-value accent" data-stat="best">&infin;</span></div>
+        <div class="stat"><span class="stat-label">参数</span><span class="stat-value" data-stat="param" style="font-size:13px">T=10</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 拉格朗日松弛 -->
+  <section class="module fade" id="m07">
+    <header class="module-head">
+      <span class="kicker">07 / 08</span>
+      <h2>拉格朗日松弛</h2>
+      <p class="desc">对偶问题 · KKT 条件</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg07" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl07">
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+        <span class="sep"></span>
+        <span class="slider-wrap">原问题 min x&sup2; s.t. x&ge;1</span>
+      </div>
+      <div class="detail-box" id="detail07">约束 <code>1-x&le;0</code>，拉格朗日函数 <code>L=x&sup2;+&lambda;(1-x)</code>。对偶函数 <code>g(&lambda;)=&lambda;-&lambda;&sup2;/4</code>，在 <code>&lambda;=2</code> 取最大值 1，与原问题最优值相等（强对偶）。<strong>KKT</strong>：平稳性 <code>2x-&lambda;=0</code>、互补松弛 <code>&lambda;(1-x)=0</code> 在 <code>&lambda;=2,x=1</code> 成立。</div>
+      <div class="stats-row" id="stats07">
+        <div class="stat"><span class="stat-label">&lambda;</span><span class="stat-value" data-stat="lambda">0.00</span></div>
+        <div class="stat"><span class="stat-label">对偶 g(&lambda;)</span><span class="stat-value" data-stat="dual">0.00</span></div>
+        <div class="stat"><span class="stat-label">对偶间隙</span><span class="stat-value accent" data-stat="gap">1.00</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 凸优化 -->
+  <section class="module fade" id="m08">
+    <header class="module-head">
+      <span class="kicker">08 / 08</span>
+      <h2>凸优化</h2>
+      <p class="desc">牛顿法 / 拟牛顿法收敛轨迹</p>
+    </header>
+    <div class="card">
+      <div class="viz-box"><svg id="svg08" class="viz-svg" viewBox="0 0 640 420"></svg></div>
+      <div class="controls" id="ctrl08">
+        <div class="toggle-group">
+          <button class="active" data-method="gd">梯度下降</button>
+          <button data-method="newton">牛顿法</button>
+          <button data-method="bfgs">拟牛顿(BFGS)</button>
+        </div>
+        <span class="sep"></span>
+        <button class="btn primary" data-act="play">播放</button>
+        <button class="btn" data-act="step">单步</button>
+        <button class="btn ghost" data-act="reset">重置</button>
+      </div>
+      <div class="detail-box" id="detail08">目标 <code>f=&frac12;(x&sup2;+50y&sup2;)</code>（病态二次型，等值线为扁椭圆）。<strong>梯度下降</strong>以固定步长呈锯齿缓慢收敛（线性）；<strong>牛顿法</strong>用精确 Hessian 一步到达；<strong>BFGS</strong>逐步逼近逆 Hessian，在二次型上至多 n 步收敛。</div>
+      <div class="stats-row" id="stats08">
+        <div class="stat"><span class="stat-label">迭代</span><span class="stat-value" data-stat="iter">0</span></div>
+        <div class="stat"><span class="stat-label">f(x)</span><span class="stat-value accent" data-stat="fx">&mdash;</span></div>
+        <div class="stat"><span class="stat-label">梯度模</span><span class="stat-value" data-stat="gnorm">&mdash;</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Optimization Viz Lab &middot; 运筹优化可视化实验室</span>
+    <a href="https://github.com/wangzifan396-wzf/optimization-viz-lab" target="_blank" rel="noopener">github.com/wangzifan396-wzf/optimization-viz-lab &#8599;</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ 常量与工具 ============ */
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',accent2:'#7c5cff',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',
+  border:'rgba(255,255,255,.14)',borderSoft:'rgba(255,255,255,.07)',grid:'rgba(255,255,255,.045)',
+  ok:'#3fb950',warn:'#d29922',bad:'#f85149',
+  accentSoft:'rgba(94,106,210,.16)',accent2Soft:'rgba(124,92,255,.18)',surface3:'#1c1f24'};
+var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function E(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a){if(k==='$')e.textContent=a[k];else if(a[k]!==null&&a[k]!==undefined)e.setAttribute(k,a[k]);}return e;}
+function clr(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function $(s,r){return (r||document).querySelector(s);}
+function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function line(svg,x1,y1,x2,y2,stroke,sw,dash){svg.appendChild(E('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke||C.muted,'stroke-width':sw||1,'stroke-dasharray':dash||null,'stroke-linecap':'round'}));}
+function circle(svg,cx,cy,r,fill,stroke,sw){svg.appendChild(E('circle',{cx:cx,cy:cy,r:r==null?3:r,fill:fill||'none',stroke:stroke||'none','stroke-width':sw||1}));}
+function poly(svg,pts,fill,stroke,sw){svg.appendChild(E('polygon',{points:pts.map(function(p){return p[0]+','+p[1];}).join(' '),fill:fill||'none',stroke:stroke||'none','stroke-width':sw||1,'stroke-linejoin':'round'}));}
+function rect(svg,x,y,w,h,fill,stroke,sw,rx){svg.appendChild(E('rect',{x:x,y:y,width:w,height:h,fill:fill||'none',stroke:stroke||'none','stroke-width':sw||1,rx:rx||0}));}
+function txt(svg,x,y,s,fill,fs,anchor,weight){svg.appendChild(E('text',{x:x,y:y,fill:fill||C.muted,'font-size':fs||12,'text-anchor':anchor||'start','font-weight':weight||null,'$':String(s)}));}
+function path(svg,d,fill,stroke,sw,dash){svg.appendChild(E('path',{d:d,fill:fill||'none',stroke:stroke||'none','stroke-width':sw||1,'stroke-dasharray':dash||null,'stroke-linecap':'round','stroke-linejoin':'round'}));}
+
+function setStats(id,o){var c=document.getElementById('stats'+id);if(!c)return;for(var k in o){var el=c.querySelector('[data-stat="'+k+'"]');if(el)el.textContent=o[k];}}
+function setDetail(id,html){var d=document.getElementById('detail'+id);if(d)d.innerHTML=html;}
+
+/* 矩阵工具 (2x2) */
+function dot(a,b){return a[0]*b[0]+a[1]*b[1];}
+function vnorm(a){return Math.hypot(a[0],a[1]);}
+function matMul(A,B){return [[A[0][0]*B[0][0]+A[0][1]*B[1][0],A[0][0]*B[0][1]+A[0][1]*B[1][1]],[A[1][0]*B[0][0]+A[1][1]*B[1][0],A[1][0]*B[0][1]+A[1][1]*B[1][1]]];}
+function matSub(A,B){return [[A[0][0]-B[0][0],A[0][1]-B[0][1]],[A[1][0]-B[1][0],A[1][1]-B[1][1]]];}
+function matAdd(A,B){return [[A[0][0]+B[0][0],A[0][1]+B[0][1]],[A[1][0]+B[1][0],A[1][1]+B[1][1]]];}
+function matVec(A,v){return [A[0][0]*v[0]+A[0][1]*v[1],A[1][0]*v[0]+A[1][1]*v[1]];}
+function outerScale(a,b,s){return [[s*a[0]*b[0],s*a[0]*b[1]],[s*a[1]*b[0],s*a[1]*b[1]]];}
+
+/* 颜色插值 */
+function valColor(t){t=Math.max(0,Math.min(1,t));var stops=[[22,24,28],[42,48,96],[94,106,210],[124,92,255]];var seg=(stops.length-1)*t;var i=Math.min(stops.length-2,Math.floor(seg));var f=seg-i;var a=stops[i],b=stops[i+1];return 'rgb('+Math.round(a[0]+(b[0]-a[0])*f)+','+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+')';}
+
+/* 动画器 */
+function Animator(stepFn,delayFn,onStop){
+  var raf=null,last=0,running=false;
+  function tick(t){if(!running)return;if(t-last>=delayFn()){last=t;if(stepFn()===false){stop();if(onStop)onStop();return;}}raf=requestAnimationFrame(tick);}
+  function start(){if(running)return;running=true;last=0;raf=requestAnimationFrame(tick);}
+  function stop(){running=false;if(raf)cancelAnimationFrame(raf);raf=null;}
+  function stepOnce(){var r=stepFn();if(r===false){if(onStop)onStop();}return r;}
+  return {start:start,stop:stop,stepOnce:stepOnce,running:function(){return running;}};
+}
+
+/* tween (transform + rAF) */
+function tween(duration,onTick,onDone){
+  if(reduced)duration=1;
+  var start=performance.now(),raf;
+  function frame(t){var p=Math.min(1,(t-start)/duration);onTick(p);if(p<1)raf=requestAnimationFrame(frame);else if(onDone)onDone();}
+  raf=requestAnimationFrame(frame);
+  return function(){if(raf)cancelAnimationFrame(raf);};
+}
+
+/* 通用控件绑定 */
+function bindControls(id,anim,reset,custom){
+  var c=document.getElementById('ctrl'+id);if(!c)return;
+  var playBtn=c.querySelector('[data-act=play]');
+  function sync(){if(playBtn)playBtn.textContent=anim.running()?'暂停':'播放';}
+  c.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    var act=b.dataset.act,method=b.dataset.method;
+    if(act==='play'){anim.running()?anim.stop():anim.start();sync();}
+    else if(act==='step'){anim.stop();sync();anim.stepOnce();}
+    else if(act==='reset'){anim.stop();sync();reset();}
+    else if(method&&custom&&custom.method){
+      $all('.toggle-group button',c).forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');custom.method(method,b);
+    }
+  });
+  return sync;
+}
+
+/* ============ 顶部进度条 + 滚动联动 ============ */
+(function(){
+  var p=$('#progress');
+  function update(){var h=document.documentElement;var sc=(h.scrollTop||document.body.scrollTop);var max=h.scrollHeight-h.clientHeight;if(max<=0){p.style.width='100%';return;}p.style.width=(sc/max*100)+'%';}
+  window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update);update();
+})();
+
+/* ============ IntersectionObserver fade-in + 侧栏高亮 ============ */
+(function(){
+  var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');}});},{threshold:0.08});
+  $all('.fade').forEach(function(el){io.observe(el);});
+  var links=$all('.side a');
+  var secs=$all('.module');
+  var navIO=new IntersectionObserver(function(es){es.forEach(function(en){
+    if(en.isIntersecting){var id=en.target.id;links.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+id);});}
+  });},{rootMargin:'-30% 0px -60% 0px'});
+  secs.forEach(function(s){navIO.observe(s);});
+})();
+
+/* ============ 移动端菜单 ============ */
+(function(){
+  var btn=$('#menuBtn'),side=$('#side');
+  if(btn)btn.addEventListener('click',function(){side.classList.toggle('open');});
+  $all('.side a').forEach(function(a){a.addEventListener('click',function(){side.classList.remove('open');});});
+})();
+
+/* ============================================================
+   01 线性规划 — 可行域多边形 + 单纯形法顶点跳跃
+   ============================================================ */
+function init01(){
+  var svg=$('#svg01'),W=640,H=420,P=48;
+  var maxX=6,maxY=5;
+  var sx=function(x){return P+x/maxX*(W-2*P);};
+  var sy=function(y){return H-P-y/maxY*(H-2*P);};
+  var cons=[[1,1,6,C.accent],[2,1,10,C.accent2],[1,3,12,C.ok]];
+  var verts=[[0,0],[5,0],[4,2],[3,3],[0,4]];
+  var spath=[[0,0],[5,0],[4,2]];
+  var c=[3,2],z=function(v){return c[0]*v[0]+c[1]*v[1];};
+  var idx=0;
+
+  function draw(){
+    clr(svg);
+    for(var i=0;i<=maxX;i++)line(svg,sx(i),sy(0),sx(i),sy(maxY),C.grid,1);
+    for(var j=0;j<=maxY;j++)line(svg,sx(0),sy(j),sx(maxX),sy(j),C.grid,1);
+    line(svg,sx(0),sy(0),sx(maxX),sy(0),C.border,1.5);
+    line(svg,sx(0),sy(0),sx(0),sy(maxY),C.border,1.5);
+    for(i=0;i<=maxX;i++)txt(svg,sx(i),sy(0)+16,i,C.faint,11,'middle');
+    for(j=0;j<=maxY;j++)txt(svg,sx(0)-10,sy(j)+4,j,C.faint,11,'end');
+    txt(svg,sx(maxX)+4,sy(0)+4,'x',C.muted,12);txt(svg,sx(0)-4,sy(maxY)-6,'y',C.muted,12);
+    // 可行域
+    poly(svg,verts.map(function(v){return [sx(v[0]),sy(v[1])];}),C.accentSoft,C.accent,1.5);
+    // 约束线
+    cons.forEach(function(co){var a=co[0],b=co[1],cc=co[2],col=co[3];var pts=[];
+      if(b!==0){var y=cc/b;if(y>=0&&y<=maxY)pts.push([0,y]);}
+      if(a!==0){var x=cc/a;if(x>=0&&x<=maxX)pts.push([x,0]);}
+      if(b!==0){var x2=(cc-b*maxY)/a;if(x2>=0&&x2<=maxX)pts.push([x2,maxY]);}
+      if(a!==0){var y2=(cc-a*maxX)/b;if(y2>=0&&y2<=maxY)pts.push([maxX,y2]);}
+      if(pts.length>=2)line(svg,sx(pts[0][0]),sy(pts[0][1]),sx(pts[1][0]),sy(pts[1][1]),col,1.6,'5 4');
+    });
+    // 目标等值线
+    var cur=spath[idx],zc=z(cur),objPts=[];
+    [0,maxX].forEach(function(xx){var yy=(zc-c[0]*xx)/c[1];if(yy>=0&&yy<=maxY)objPts.push([xx,yy]);});
+    if(objPts.length===2)line(svg,sx(objPts[0][0]),sy(objPts[0][1]),sx(objPts[1][0]),sy(objPts[1][1]),C.ink,1.3,'6 4');
+    txt(svg,sx(5.2),sy(zc/c[1])+0,'z='+zc,C.ink,11,'start');
+    // 顶点
+    verts.forEach(function(v){
+      var onPath=false;for(var k=0;k<=idx;k++){if(spath[k][0]===v[0]&&spath[k][1]===v[1])onPath=true;}
+      circle(svg,sx(v[0]),sy(v[1]),onPath?5:3.5,onPath?C.accent2:C.surface3,onPath?C.accent2:C.border,1.5);
+    });
+    var cv=spath[idx];
+    circle(svg,sx(cv[0]),sy(cv[1]),10,'transparent',C.accent2,2);
+    txt(svg,sx(cv[0])+10,sy(cv[1])-10,'('+cv[0]+', '+cv[1]+')',C.ink,12,'start','600');
+  }
+  function step(){
+    if(idx<spath.length-1){idx++;draw();setStats('01',{iter:idx,vertex:'('+spath[idx].join(', ')+')',z:z(spath[idx])});}
+    if(idx>=spath.length-1){setDetail('01','已达最优顶点 <strong>('+spath[idx].join(', ')+')</strong>，目标值 <code>z = '+z(spath[idx])+'</code>。单纯形法沿可行域边界从一个顶点跳到相邻顶点，每次使目标函数严格增大，直至不存在改进方向。');return false;}
+    return true;
+  }
+  function reset(){idx=0;draw();setStats('01',{iter:0,vertex:'(0, 0)',z:0});setDetail('01','约束：<code>x+y&le;6</code>、<code>2x+y&le;10</code>、<code>x+3y&le;12</code>，<code>x,y&ge;0</code>。蓝色多边形为<strong>可行域</strong>，虚线为约束边界，白虚线为目标函数等值线。点击<strong>单步</strong>观察单纯形法沿可行域边界从一个顶点跳到相邻顶点，每次使目标值严格增大。');}
+  draw();setStats('01',{iter:0,vertex:'(0, 0)',z:0});
+  bindControls('01',Animator(step,function(){return 850;}),reset);
+}
+
+/* ============================================================
+   02 整数规划 — 分支定界树 + 割平面法
+   ============================================================ */
+function init02(){
+  var svg=$('#svg02'),W=640,H=420;
+  var mode='bnb';
+  // 分支定界树节点
+  var nodes=[
+    {id:0,x:320,y:40,label:'LP松弛',val:'(7/3, 7/3)',z:'4.67',state:'frac',parent:-1,edge:'root'},
+    {id:1,x:200,y:140,label:'x≤2',val:'(2, 2.5)',z:'4.5',state:'frac',parent:0,edge:'x≤2'},
+    {id:2,x:440,y:140,label:'x≥3',val:'(3, 1)',z:'4',state:'int',parent:0,edge:'x≥3'},
+    {id:3,x:120,y:250,label:'y≤2',val:'(2, 2)',z:'4',state:'int',parent:1,edge:'y≤2'},
+    {id:4,x:280,y:250,label:'y≥3',val:'不可行',z:'—',state:'infeas',parent:1,edge:'y≥3'}
+  ];
+  var order=[0,1,2,3,4];
+  var shown=0;
+
+  function drawBNB(){
+    clr(svg);
+    txt(svg,W/2,24,'分支定界树  max x+y  (LP 松弛 = 4.67)',C.ink,13,'middle','600');
+    // 连线
+    nodes.forEach(function(n){
+      if(n.parent<0||n.id>shown)return;
+      var p=nodes[n.parent];if(p.id>shown)return;
+      line(svg,p.x,p.y+18,n.x,n.y-18,C.borderSoft,1.5);
+      txt(svg,(p.x+n.x)/2+ (n.x>p.x?8:-8),(p.y+n.y)/2,n.edge,C.faint,10.5,'middle');
+    });
+    // 节点
+    nodes.forEach(function(n){
+      if(n.id>shown)return;
+      var col=C.surface3,stroke=C.border,tc=C.ink;
+      if(n.state==='frac'){stroke=C.warn;}
+      else if(n.state==='int'){stroke=C.ok;col='rgba(63,185,80,.12)';}
+      else if(n.state==='infeas'){stroke=C.bad;col='rgba(248,81,73,.1)';tc=C.faint;}
+      rect(svg,n.x-58,n.y-18,116,54,col,stroke,1.5,8);
+      txt(svg,n.x,n.y-3,n.label,tc,11.5,'middle','600');
+      txt(svg,n.x,n.y+13,n.val+'  z='+n.z,n.state==='infeas'?C.faint:C.muted,10.5,'middle');
+      if(n.id===shown){circle(svg,n.x,n.y+34,3,C.accent2,C.accent2,1);}
+    });
+    // 图例
+    var ly=H-26;
+    [['分数',C.warn],['整数解',C.ok],['不可行',C.bad]].forEach(function(g,i){var lx=120+i*150;rect(svg,lx,ly,12,12,'transparent',g[1],2,3);txt(svg,lx+18,ly+10,g[0],C.muted,11,'start');});
+  }
+
+  function drawCut(){
+    clr(svg);
+    var P=46,mx=5,my=5;
+    var sx=function(x){return P+x/mx*(W-2*P);};
+    var sy=function(y){return H-P-y/my*(H-2*P);};
+    txt(svg,W/2,22,'割平面法：Gomory 割切除分数 LP 解',C.ink,13,'middle','600');
+    for(var i=0;i<=mx;i++)line(svg,sx(i),sy(0),sx(i),sy(my),C.grid,1);
+    for(var j=0;j<=my;j++)line(svg,sx(0),sy(j),sx(mx),sy(j),C.grid,1);
+    line(svg,sx(0),sy(0),sx(mx),sy(0),C.border,1.5);line(svg,sx(0),sy(0),sx(0),sy(my),C.border,1.5);
+    // LP 可行域 (x+2y<=7, 2x+y<=7) 顶点
+    var lp=[[0,0],[3.5,0],[7/3,7/3],[0,3.5]];
+    poly(svg,lp.map(function(v){return [sx(v[0]),sy(v[1])];}),C.accentSoft,C.accent,1.5);
+    // 约束线
+    line(svg,sx(0),sy(3.5),sx(3.5),sy(1.75),C.accent,1.5,'5 4');
+    line(svg,sx(3.5),sy(0),sx(1.75),sy(3.5),C.accent2,1.5,'5 4');
+    // 整数格点
+    for(var xi=0;xi<=3;xi++)for(var yi=0;yi<=3;yi++){
+      if(xi+2*yi<=7&&2*xi+yi<=7)circle(svg,sx(xi),sy(yi),2.5,C.muted,C.surface3,1);
+    }
+    // 分数 LP 最优
+    circle(svg,sx(7/3),sy(7/3),5,C.warn,C.warn,1);
+    txt(svg,sx(7/3)+8,sy(7/3)-8,'LP (7/3,7/3)',C.warn,11,'start');
+    // Gomory 割: 来自 x 行 x+2y+s1=7 的分数 -> 割平面 x+y<=4 (示意, 切除分数点保留 (3,1),(2,2))
+    line(svg,sx(0),sy(4),sx(4),sy(0),C.bad,2,'2 3');
+    txt(svg,sx(3.4),sy(1.05),'割: x+y≤4',C.bad,11.5,'start','600');
+    // 整数最优
+    circle(svg,sx(3),sy(1),5,C.ok,C.ok,1);circle(svg,sx(2),sy(2),5,C.ok,C.ok,1);
+    txt(svg,sx(3)+8,sy(1)+4,'(3,1) z=4',C.ok,11,'start');
+    txt(svg,sx(2)-8,sy(2)-8,'(2,2) z=4',C.ok,11,'end');
+  }
+
+  function draw(){mode==='bnb'?drawBNB():drawCut();}
+
+  function step(){
+    if(mode==='cut'){setDetail('02','<strong>割平面法</strong>：添加 Gomory 割 <code>x+y&le;4</code>（红虚线）切除分数 LP 最优点，缩小可行域后整数最优为 <code>(3,1)</code> 或 <code>(2,2)</code>，z=4。');return false;}
+    if(shown<nodes.length-1){shown++;draw();
+      var n=nodes[shown];setStats('02',{nodes:shown+1,best: n.state==='int'?'z='+n.z:'—',gap: shown>=4?'0':'4.67-4'});
+      var det='探索节点 <strong>'+n.label+'</strong>：'+n.val+'，z='+n.z+'。';
+      if(n.state==='int')det+='得到整数可行解，更新下界。';
+      if(n.state==='infeas')det+='子问题不可行，剪枝。';
+      if(n.state==='frac'&&shown===4)det+='所有节点处理完毕，最优整数解 z=4。';
+      setDetail('02',det);
+      if(shown>=nodes.length-1){setStats('02',{nodes:5,best:'z=4',gap:'0'});return false;}
+      return true;
+    }
+    setStats('02',{nodes:5,best:'z=4',gap:'0'});
+    setDetail('02','分支定界完成。<strong>最优整数解 z=4</strong>（如 (3,1) 或 (2,2)）。上界 4.67 与下界 4 之间无未探索节点，间隙收敛。');
+    return false;
+  }
+  function reset(){shown=0;draw();setStats('02',{nodes:1,best:'—',gap:'4.67-4'});setDetail('02','问题 <code>max x+y</code>，<code>x+2y&le;7</code>，<code>2x+y&le;7</code>，<code>x,y&ge;0</code> 且整数。LP 松弛最优为分数 <code>(7/3,7/3)&asymp;4.67</code>。<strong>分支定界</strong>按分数变量分支剪枝；<strong>割平面</strong>添加 Gomory 割切除分数解。');}
+  draw();setStats('02',{nodes:1,best:'—',gap:'4.67-4'});
+  bindControls('02',Animator(step,function(){return 900;}),reset,{method:function(m){
+    mode=m;shown=0;draw();
+    if(m==='bnb'){setStats('02',{nodes:1,best:'—',gap:'4.67-4'});setDetail('02','问题 <code>max x+y</code>，<code>x+2y&le;7</code>，<code>2x+y&le;7</code>，<code>x,y&ge;0</code> 且整数。LP 松弛最优为分数 <code>(7/3,7/3)&asymp;4.67</code>。<strong>分支定界</strong>按分数变量分支剪枝；<strong>割平面</strong>添加 Gomory 割切除分数解。');}
+    else{setStats('02',{nodes:'—',best:'z=4',gap:'0'});setDetail('02','<strong>割平面法</strong>视图：红虚线为 Gomory 割，切除分数 LP 解后得到整数最优 z=4。点击单步查看说明。');}
+  }});
+}
+
+/* ============================================================
+   03 动态规划 — 0/1 背包状态转移表填充
+   ============================================================ */
+function init03(){
+  var svg=$('#svg03'),W=640,H=420;
+  var wt=[2,3,4,5],val=[3,4,5,6],Cap=8,n=wt.length;
+  var dp=[];for(var i=0;i<=n;i++){dp.push(new Array(Cap+1).fill(0));}
+  for(i=1;i<=n;i++)for(var w=0;w<=Cap;w++){dp[i][w]=dp[i-1][w];if(w>=wt[i-1])dp[i][w]=Math.max(dp[i][w],dp[i-1][w-wt[i-1]]+val[i-1]);}
+  var ci=1,cw=0,done=false,backtrack=[];
+  var cellW=(W-90)/(Cap+1),cellH=(H-90)/(n+1),ox=70,oy=50;
+
+  function cellXY(i,w){return [ox+w*cellW,oy+i*cellH];}
+  function draw(){
+    clr(svg);
+    txt(svg,W/2,22,'0/1 背包 DP 表  dp[i][w]',C.ink,13,'middle','600');
+    // 列头
+    txt(svg,ox-8,oy-10,'i\\w',C.faint,11,'end');
+    for(var w=0;w<=Cap;w++){var p=cellXY(0,w);txt(svg,p[0]+cellW/2,oy-8,w,C.faint,11,'middle');}
+    // 行头
+    for(var i=0;i<=n;i++){var p2=cellXY(i,0);var lab=i===0?'0':'('+wt[i-1]+','+val[i-1]+')';txt(svg,ox-8,p2[1]+cellH/2+4,lab,C.faint,10.5,'end');}
+    // 单元格
+    for(i=0;i<=n;i++)for(w=0;w<=Cap;w++){
+      var p=cellXY(i,w);
+      var fill=C.surface3,stroke=C.borderSoft,tc=C.muted;
+      var filled=done||(i<ci||(i===ci&&w<=cw));
+      if(filled){fill=C.surface;tc=C.ink;}
+      // 回溯高亮
+      if(backtrack.some(function(b){return b[0]===i&&b[1]===w;})){fill='rgba(63,185,80,.18)';stroke=C.ok;tc=C.ok;}
+      // 当前格
+      if(!done&&i===ci&&w===cw){fill='rgba(124,92,255,.2)';stroke=C.accent2;tc=C.ink;}
+      rect(svg,p[0],p[1],cellW-2,cellH-2,fill,stroke,1,4);
+      if(filled)txt(svg,p[0]+cellW/2,p[1]+cellH/2+4,dp[i][w],tc,12,'middle',filled&&!(i===ci&&w===cw&&!done)?'400':'600');
+    }
+    if(done){
+      txt(svg,W/2,H-14,'最优值 = '+dp[n][Cap]+'  回溯路径(绿)：所选物品见图',C.ok,12,'middle','600');
+    }
+  }
+  function doBacktrack(){
+    backtrack=[];var w=Cap;
+    for(var i=n;i>=1;i--){if(dp[i][w]!==dp[i-1][w]){backtrack.push([i,w]);w-=wt[i-1];}}
+    backtrack.push([0,w]);
+  }
+  function step(){
+    if(done)return false;
+    cw++;
+    if(cw>Cap){cw=0;ci++;}
+    if(ci>n){done=true;ci=n;cw=Cap;doBacktrack();draw();
+      setStats('03',{cell:'完成',val:dp[n][Cap],opt:dp[n][Cap]});
+      var chosen=[];var w=Cap;for(var i=n;i>=1;i--){if(dp[i][w]!==dp[i-1][w]){chosen.push(i);w-=wt[i-1];}}
+      setDetail('03','表格填充完成。<strong>最优值 = '+dp[n][Cap]+'</strong>。回溯所选物品编号：'+chosen.reverse().join(', ')+'（即对应 (w,v)）。绿色路径为最优解的回溯轨迹，体现最优子结构。');
+      return false;
+    }
+    draw();
+    var info=dp[ci][cw]===dp[ci-1][cw]?'不放物品'+ci+'（继承上值）':'放物品'+ci+'：dp['+(ci-1)+']['+(cw-wt[ci-1])+']+'+val[ci-1];
+    setStats('03',{cell:'i='+ci+', w='+cw,val:dp[ci][cw],opt:dp[Math.min(ci,n)][Cap]});
+    setDetail('03','填充 <code>dp['+ci+']['+cw+'] = '+dp[ci][cw]+'</code>。'+info+'。状态转移 <code>max(dp[i-1][w], dp[i-1][w-w_i]+v_i)</code>。');
+    return true;
+  }
+  function reset(){ci=1;cw=0;done=false;backtrack=[];draw();setStats('03',{cell:'i=1, w=0',val:0,opt:0});setDetail('03','0/1 背包：物品 <code>(w,v)</code> = (2,3),(3,4),(4,5),(5,6)，容量 <code>W=8</code>。状态转移 <code>dp[i][w]=max(dp[i-1][w], dp[i-1][w-w_i]+v_i)</code> 体现<strong>最优子结构</strong>。逐格填充后回溯得到最优解。');}
+  draw();setStats('03',{cell:'i=1, w=0',val:0,opt:0});
+  var speed=320;
+  var spd=$('#spd03');if(spd)spd.addEventListener('input',function(){speed=+spd.value;});
+  bindControls('03',Animator(step,function(){return speed;}),reset);
+}
+
+/* ============================================================
+   04 贪心算法 — 活动选择 / Huffman 编码
+   ============================================================ */
+function init04(){
+  var svg=$('#svg04'),W=640,H=420;
+  var mode='activity';
+  // 活动选择数据 (start,end)
+  var acts=[[1,4],[3,5],[0,6],[5,7],[3,8],[5,9],[6,10],[8,11],[8,12],[2,13],[12,14]];
+  var aIdx=0,selected=[],lastFinish=-1,aDone=false;
+  // Huffman 数据
+  var hfreq=[['A',5],['B',9],['C',12],['D',13],['E',16],['F',45]];
+  var hStep=0,hDone=false,hTree=null,hLayout=[];
+
+  function drawActivity(){
+    clr(svg);
+    txt(svg,W/2,22,'活动选择  (按结束时间贪心)',C.ink,13,'middle','600');
+    var top=46,bot=H-40,maxT=14,cw=(W-60)/maxT;
+    // 时间轴
+    line(svg,30,bot,W-30,bot,C.border,1.5);
+    for(var t=0;t<=maxT;t++){line(svg,30+t*cw,bot,30+t*cw,bot+5,C.faint,1);txt(svg,30+t*cw,bot+18,t,C.faint,10.5,'middle');}
+    var bh=(bot-top)/acts.length-2;
+    acts.forEach(function(a,i){
+      var y=top+i*(bh+2);var isSel=selected.indexOf(i)>=0;
+      var processed=aDone||(i<aIdx);
+      var fill=isSel?'rgba(63,185,80,.25)':(processed?C.surface3:'rgba(124,92,255,.1)');
+      var stroke=isSel?C.ok:(i===aIdx&&!aDone?C.accent2:C.borderSoft);
+      rect(svg,30+a[0]*cw,y,a[1]*cw-a[0]*cw,bh,fill,stroke,1.5,4);
+      txt(svg,30+a[0]*cw+4,y+bh/2+4,'a'+(i+1)+' ['+a[0]+','+a[1]+']',isSel?C.ok:(i===aIdx&&!aDone?C.ink:C.muted),10.5,'start');
+    });
+    txt(svg,W/2,H-12,'已选 '+selected.length+' 个活动',C.ok,12,'middle','600');
+  }
+
+  // Huffman 树构建
+  function buildHuffman(){
+    var nodes=hfreq.map(function(f){return {name:f[0],freq:f[1],left:null,right:null,leaf:true};});
+    var steps=[];
+    var pool=nodes.slice();
+    while(pool.length>1){
+      pool.sort(function(a,b){return a.freq-b.freq;});
+      var a=pool.shift(),b=pool.shift();
+      var p={name:'('+a.name+b.name+')',freq:a.freq+b.freq,left:a,right:b,leaf:false};
+      steps.push({merge:[a,b,p],pool:pool.concat([p])});
+      pool.unshift(p);
+    }
+    return {root:pool[0],steps:steps};
+  }
+  function layoutTree(root){
+    var arr=[];var pos=0;
+    function rec(node,depth){
+      if(!node)return;
+      if(node.leaf){node.x=pos++;node.depth=depth;arr.push(node);return;}
+      rec(node.left,depth+1);node.x=pos++;node.depth=depth;arr.push(node);rec(node.right,depth+1);
+    }
+    rec(root,0);
+    return arr;
+  }
+  function drawHuffman(){
+    clr(svg);
+    txt(svg,W/2,22,'Huffman 编码  (每步合并频率最低二者)',C.ink,13,'middle','600');
+    if(!hTree)hTree=buildHuffman();
+    var allNodes=layoutTree(hTree.root);
+    var maxX=allNodes[allNodes.length-1].x+1,maxD=0;
+    allNodes.forEach(function(n){if(n.depth>maxD)maxD=n.depth;});
+    var cw=(W-80)/maxX,ch=(H-70)/(maxD+1),ox=40,oy=44;
+    function np(n){return [ox+n.x*cw+cw/2,oy+n.depth*ch+ch/2];}
+    // 当前已合并的步数决定显示哪些节点
+    var visibleStep=hStep; // 0..steps.length
+    var mergedNames={};
+    hTree.steps.forEach(function(s,i){if(i<visibleStep)mergedNames[s.merge[2].name]=true;});
+    // 递归绘制
+    function drawNode(node){
+      if(!node)return;
+      var isInternalMerged=!node.leaf&&mergedNames[node.name];
+      var isLeaf=node.leaf;
+      var show=isLeaf||isInternalMerged;
+      if(!show){drawNode(node.left);drawNode(node.right);return;}
+      var p=np(node);
+      if(!node.leaf){
+        var pl=np(node.left),pr=np(node.right);
+        line(svg,p[0],p[1],pl[0],pl[1],C.border,1.3);line(svg,p[0],p[1],pr[0],pr[1],C.border,1.3);
+        txt(svg,(p[0]+pl[0])/2-6,(p[1]+pl[1])/2,'0',C.accent2,10,'end');
+        txt(svg,(p[0]+pr[0])/2+6,(p[1]+pr[1])/2,'1',C.ok,10,'start');
+        drawNode(node.left);drawNode(node.right);
+      }
+      var col=node.leaf?C.accent2Soft:'rgba(124,92,255,.1)';
+      var stk=node.leaf?C.accent2:C.border;
+      circle(svg,p[0],p[1],node.leaf?15:13,col,stk,1.5);
+      txt(svg,p[0],p[1]+1,node.leaf?node.name:node.freq,node.leaf?C.ink:C.muted,10.5,'middle','600');
+      if(node.leaf)txt(svg,p[0],p[1]+28,node.freq,C.faint,10,'middle');
+    }
+    drawNode(hTree.root);
+    // 当前合并高亮
+    if(visibleStep<hTree.steps.length){
+      var s=hTree.steps[visibleStep];
+      [['merge',0],['merge',1]].forEach(function(){});
+      var m=s.merge;
+      // 找到当前 pool 中两个最小的 (用叶子或已合并节点)
+      txt(svg,W/2,H-14,'第 '+(visibleStep+1)+' 步：合并频率最低的两个 (高亮)',C.accent2,12,'middle','600');
+    }else{
+      txt(svg,W/2,H-14,'构建完成！叶子节点编码见 0/1 路径',C.ok,12,'middle','600');
+    }
+  }
+
+  function draw(){mode==='activity'?drawActivity():drawHuffman();}
+
+  function step(){
+    if(mode==='activity'){
+      if(aDone)return false;
+      while(aIdx<acts.length&&acts[aIdx][0]<lastFinish)aIdx++;
+      if(aIdx>=acts.length){aDone=true;draw();setStats('04',{step:selected.length,result:selected.length+' 个',note:'完成'});setDetail('04','<strong>活动选择完成</strong>：共选出 '+selected.length+' 个互不重叠活动。贪心策略（最早结束时间优先）对此问题得到最优解。');return false;}
+      selected.push(aIdx);lastFinish=acts[aIdx][1];
+      draw();setStats('04',{step:selected.length,result:selected.length+' 个',note:'选 a'+(aIdx+1)});
+      setDetail('04','选中活动 <strong>a'+(aIdx+1)+'</strong> ['+acts[aIdx].join(',')+']，更新 lastFinish='+lastFinish+'。跳过所有 start&lt;lastFinish 的活动。');
+      aIdx++;
+      if(aIdx>=acts.length){aDone=true;setStats('04',{step:selected.length,result:selected.length+' 个',note:'完成'});}
+      return true;
+    }else{
+      if(!hTree)hTree=buildHuffman();
+      if(hStep>=hTree.steps.length){hDone=true;setStats('04',{step:hTree.steps.length,result:'编码树',note:'完成'});setDetail('04','<strong>Huffman 树构建完成</strong>。从根到叶子的 0/1 路径即为各字符编码，频率高者编码短，体现贪心选择性质。');return false;}
+      hStep++;draw();
+      var s=hTree.steps[hStep-1].merge;
+      setStats('04',{step:hStep,result:s[2].freq+'',note:'合并 '+s[0].freq+'+'+s[1].freq});
+      setDetail('04','第 '+hStep+' 步：合并频率最低的两个节点（'+s[0].freq+' 与 '+s[1].freq+'）→ 新节点 freq='+s[2].freq+'。');
+      return true;
+    }
+  }
+  function reset(){
+    if(mode==='activity'){aIdx=0;selected=[];lastFinish=-1;aDone=false;}
+    else{hStep=0;hDone=false;}
+    draw();setStats('04',{step:0,result:'—',note:'就绪'});
+    setDetail('04',mode==='activity'?'<strong>活动选择</strong>：按结束时间排序，每次选不与已选活动重叠的最早结束者。':'<strong>Huffman</strong>：每步合并频率最低的两棵子树，体现贪心选择性质。');
+  }
+  draw();setStats('04',{step:0,result:'—',note:'就绪'});
+  bindControls('04',Animator(step,function(){return 700;}),reset,{method:function(m){
+    mode=m;reset();
+  }});
+}
+
+/* ============================================================
+   05 网络流优化 — 最小费用流
+   ============================================================ */
+function init05(){
+  var svg=$('#svg05'),W=640,H=420;
+  function arr(svg,id,col){var d=E('defs');var m=E('marker',{id:id,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});m.appendChild(E('path',{d:'M0,0 L10,5 L0,10 z',fill:col}));d.appendChild(m);svg.appendChild(d);}
+  var nodes={S:[70,210],A:[280,100],B:[280,320],T:[570,210]};
+  var edges=[
+    {f:'S',t:'A',cap:4,cost:3,flow:0}, {f:'S',t:'B',cap:2,cost:1,flow:0},
+    {f:'A',t:'T',cap:3,cost:2,flow:0}, {f:'B',t:'T',cap:5,cost:4,flow:0},
+    {f:'A',t:'B',cap:1,cost:1,flow:0}
+  ];
+  var plan=[{path:['S','A','T'],units:3},{path:['S','B','T'],units:1}];
+  var pi=0,sent=0,pulsing=false;
+  var eMap={};edges.forEach(function(e){eMap[e.f+e.t]=e;});
+
+  function draw(pulse){
+    clr(svg);arr(svg,'ar',C.accent2);
+    txt(svg,W/2,22,'最小费用流网络  (边: 流量/容量 费用)',C.ink,13,'middle','600');
+    // 边
+    edges.forEach(function(e){
+      var a=nodes[e.f],b=nodes[e.t];
+      var dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);var ux=dx/len,uy=dy/len;
+      var x1=a[0]+ux*22,y1=a[1]+uy*22,x2=b[0]-ux*22,y2=b[1]-uy*22;
+      var sat=e.flow/e.cap;var col=sat>0?C.accent2:C.border;
+      var sw=1.5+sat*3.5;
+      var el=E('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,'stroke-width':sw,'marker-end':'url(#ar)','stroke-linecap':'round'});
+      svg.appendChild(el);
+      var mx=(x1+x2)/2,my=(y1+y2)/2;var nx=-uy,ny=ux;
+      txt(svg,mx+nx*10,my+ny*10-2,e.flow+'/'+e.cap,C.ink,11,'middle','600');
+      txt(svg,mx+nx*10,my+ny*10+10,'$'+e.cost,C.warn,10,'middle');
+    });
+    // 节点
+    Object.keys(nodes).forEach(function(k){
+      var p=nodes[k];var isST=(k==='S'||k==='T');
+      circle(svg,p[0],p[1],22,isST?C.accent:C.surface3,isST?C.accent2:C.border,2);
+      txt(svg,p[0],p[1]+4,k,isST?'#fff':C.ink,13,'middle','600');
+    });
+    txt(svg,nodes.S[0],nodes.S[1]+38,'源',C.faint,10,'middle');txt(svg,nodes.T[0],nodes.T[1]+38,'汇',C.faint,10,'middle');
+    // 脉冲
+    if(pulse){
+      var a=nodes[pulse.from],b=nodes[pulse.to];var t=pulse.t;
+      var x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
+      circle(svg,x,y,5,'rgba(124,92,255,.25)',C.accent2,2);
+      circle(svg,x,y,2.5,C.accent2,'none',0);
+    }
+  }
+  function totalCost(){var c=0;edges.forEach(function(e){c+=e.flow*e.cost;});return c;}
+  function totalFlow(){return eMap['AT'].flow+eMap['BT'].flow;}
+
+  var playing05=false;
+  var anim05={running:function(){return pulsing||playing05;},start:function(){playing05=true;if(!pulsing&&pi<plan.length)runPulse();},stop:function(){playing05=false;pulsing=false;},stepOnce:function(){playing05=false;if(pi<plan.length){runPulse();}else return false;}};
+  function runPulse(){
+    if(pi>=plan.length){playing05=false;setDetail('05','<strong>完成</strong>：共发送 '+totalFlow()+' 单位流，最小总费用 = '+totalCost()+'。两条增广路 S·A·T 与 S·B·T 已满载。');return false;}
+    var p=plan[pi];var units=p.units;
+    if(pulsing)return;
+    pulsing=true;var seg=0;
+    function nextSeg(){
+      if(!pulsing)return;
+      if(seg>=p.path.length-1){
+        for(var i=0;i<p.path.length-1;i++){eMap[p.path[i]+p.path[i+1]].flow+=units;}
+        pulsing=false;pi++;draw(null);
+        setStats('05',{flow:totalFlow(),cost:totalCost(),path:p.path.join('·')});
+        setDetail('05','沿 <code>'+p.path.join('·')+'</code> 推送 '+units+' 单位（费用 '+(p.path.reduce(function(s,n,i,arr){if(i>0)s+=eMap[arr[i-1]+n].cost;return s;},0))+'/单位）。累计流量 '+totalFlow()+'，费用 '+totalCost()+'。');
+        if(playing05&&pi<plan.length){runPulse();}
+        else if(pi>=plan.length){playing05=false;}
+        return;
+      }
+      var from=p.path[seg],to=p.path[seg+1];
+      setStats('05',{flow:totalFlow(),cost:totalCost(),path:from+'→'+to});
+      tween(reduced?1:480,function(t){draw({from:from,to:to,t:t});},function(){seg++;nextSeg();});
+    }
+    nextSeg();
+  }
+  function reset(){pi=0;sent=0;pulsing=false;edges.forEach(function(e){e.flow=0;});draw(null);setStats('05',{flow:0,cost:0,path:'—'});setDetail('05','边标注 <code>流量/容量(费用)</code>。每步沿<strong>最小费用增广路</strong>推送流：先走 <code>S&middot;A&middot;T</code>（费用 5/单位）送 3 单位，再走 <code>S&middot;B&middot;T</code> 送 1 单位，总费用 20。');}
+  draw(null);setStats('05',{flow:0,cost:0,path:'—'});
+  bindControls('05',anim05,reset);
+}
+
+/* ============================================================
+   06 元启发式 — 模拟退火 / 遗传算法 / 粒子群 (Himmelblau)
+   ============================================================ */
+function init06(){
+  var svg=$('#svg06'),W=640,H=420;
+  var xMin=-5,xMax=5,yMin=-5,yMax=5;
+  var nx=32,ny=21;
+  var cellW=W/nx,cellH=H/ny;
+  var landscape=null;
+  function himmel(x,y){var a=x*x+y-11,b=x+y*y-7;return a*a+b*b;}
+  function sx(x){return (x-xMin)/(xMax-xMin)*W;}
+  function sy(y){return H-(y-yMin)/(yMax-yMin)*H;}
+  function invX(px){return xMin+px/W*(xMax-xMin);}
+  function invY(py){return yMin+(H-py)/H*(yMax-yMin);}
+  function buildLandscape(){
+    landscape=[];
+    var vmax=0;
+    for(var j=0;j<ny;j++)for(var i=0;i<nx;i++){var x=xMin+(i+0.5)/nx*(xMax-xMin),y=yMin+(j+0.5)/ny*(yMax-yMin);var v=Math.log(himmel(x,y)+1);landscape.push(v);if(v>vmax)vmax=v;}
+    for(var k=0;k<landscape.length;k++)landscape[k]/=vmax;
+  }
+  function drawLandscape(){
+    for(var j=0;j<ny;j++)for(var i=0;i<nx;i++){rect(svg,i*cellW,j*cellH,cellW+1,cellH+1,valColor(landscape[j*nx+i]),'none',0);}
+    // 标注 4 个最小值
+    var mins=[[3,2],[-2.805,3.131],[3.584,-1.848],[-3.779,-3.283]];
+    mins.forEach(function(m){circle(svg,sx(m[0]),sy(m[1]),4,'rgba(63,185,80,.3)',C.ok,1.5);});
+  }
+  var mode='sa';
+  // SA
+  var sa={x:[-4,4],best:[-4,4],T:10,it:0};
+  // GA
+  var ga={pop:[],best:null,it:0};
+  // PSO
+  var pso={parts:[],gbest:null,it:0};
+
+  function initSA(){sa={x:[-4,4],best:[-4,4],T:10,it:0};}
+  function initGA(){ga={pop:[],best:null,it:0};for(var i=0;i<24;i++){ga.pop.push([xMin+Math.random()*(xMax-xMin),yMin+Math.random()*(yMax-yMin)]);}ga.best=ga.pop[0].slice();}
+  function initPSO(){pso={parts:[],gbest:null,it:0};for(var i=0;i<24;i++){var x=[xMin+Math.random()*(xMax-xMin),yMin+Math.random()*(yMax-yMin)];pso.parts.push({x:x,v:[(Math.random()-.5)*0.6,(Math.random()-.5)*0.6],pbest:x.slice()});}pso.gbest=pso.parts[0].x.slice();}
+
+  function draw(){
+    clr(svg);drawLandscape();
+    if(mode==='sa'){
+      circle(svg,sx(sa.x[0]),sx0(sa.x[1]),7,'rgba(124,92,255,.3)',C.accent2,2);
+      circle(svg,sx(sa.best[0]),sx0(sa.best[1]),6,'rgba(63,185,80,.25)',C.ok,2);
+      txt(svg,10,16,'SA: T='+sa.T.toFixed(2),C.ink,12,'start','600');
+    }else if(mode==='ga'){
+      ga.pop.forEach(function(p){circle(svg,sx(p[0]),sx0(p[1]),3,C.accent2,'none',0);});
+      circle(svg,sx(ga.best[0]),sx0(ga.best[1]),6,'rgba(63,185,80,.25)',C.ok,2);
+      txt(svg,10,16,'GA: 种群='+ga.pop.length,C.ink,12,'start','600');
+    }else{
+      pso.parts.forEach(function(p){
+        var nx2=p.x[0]+p.v[0],ny2=p.x[1]+p.v[1];
+        line(svg,sx(p.x[0]),sx0(p.x[1]),sx(nx2),sx0(ny2),C.accent,1);
+        circle(svg,sx(p.x[0]),sx0(p.x[1]),3,C.accent2,'none',0);
+      });
+      circle(svg,sx(pso.gbest[0]),sx0(pso.gbest[1]),6,'rgba(63,185,80,.25)',C.ok,2);
+      txt(svg,10,16,'PSO: 粒子='+pso.parts.length,C.ink,12,'start','600');
+    }
+  }
+  function sx0(y){return sy(y);} // 别名
+
+  function step(){
+    if(mode==='sa'){
+      var cand=[sa.x[0]+(Math.random()-.5)*1.6,sa.x[1]+(Math.random()-.5)*1.6];
+      cand[0]=Math.max(xMin,Math.min(xMax,cand[0]));cand[1]=Math.max(yMin,Math.min(yMax,cand[1]));
+      var df=himmel(cand[0],cand[1])-himmel(sa.x[0],sa.x[1]);
+      if(df<0||Math.random()<Math.exp(-df/Math.max(0.01,sa.T)))sa.x=cand;
+      if(himmel(cand[0],cand[1])<himmel(sa.best[0],sa.best[1]))sa.best=cand.slice();
+      sa.T*=0.96;sa.it++;
+      draw();var bv=himmel(sa.best[0],sa.best[1]);
+      setStats('06',{iter:sa.it,best:bv.toFixed(3),param:'T='+sa.T.toFixed(2)});
+      setDetail('06','<strong>模拟退火</strong>：候选点 f='+himmel(cand[0],cand[1]).toFixed(2)+'，Δ='+df.toFixed(2)+'。'+(df<0?'更优，接受':'以概率 exp(-Δ/T)='+Math.exp(-df/Math.max(0.01,sa.T)).toFixed(3)+(df<0||Math.random()<Math.exp(-df/Math.max(0.01,sa.T))?'接受':'拒绝'))+'。温度 T 降温至 '+sa.T.toFixed(2)+'。');
+      return true;
+    }else if(mode==='ga'){
+      ga.pop.sort(function(a,b){return himmel(a[0],a[1])-himmel(b[0],b[1]);});
+      var newpop=ga.pop.slice(0,8);
+      while(newpop.length<ga.pop.length){
+        var p1=ga.pop[Math.floor(Math.random()*12)],p2=ga.pop[Math.floor(Math.random()*12)];
+        var a=Math.random();var ch=[a*p1[0]+(1-a)*p2[0],a*p1[1]+(1-a)*p2[1]];
+        if(Math.random()<0.3){ch[0]+=(Math.random()-.5)*1.2;ch[1]+=(Math.random()-.5)*1.2;}
+        ch[0]=Math.max(xMin,Math.min(xMax,ch[0]));ch[1]=Math.max(yMin,Math.min(yMax,ch[1]));
+        newpop.push(ch);
+      }
+      ga.pop=newpop;
+      ga.pop.forEach(function(p){if(himmel(p[0],p[1])<himmel(ga.best[0],ga.best[1]))ga.best=p.slice();});
+      ga.it++;draw();var bv=himmel(ga.best[0],ga.best[1]);
+      setStats('06',{iter:ga.it,best:bv.toFixed(3),param:'pop=24'});
+      setDetail('06','<strong>遗传算法</strong>：按适应度排序，保留精英 8 个，其余通过算术交叉+变异生成。当前最优 f='+bv.toFixed(3)+'。');
+      return true;
+    }else{
+      var w=0.6,c1=1.2,c2=1.4;
+      pso.parts.forEach(function(p){
+        var r1=Math.random(),r2=Math.random();
+        p.v=[w*p.v[0]+c1*r1*(p.pbest[0]-p.x[0])+c2*r2*(pso.gbest[0]-p.x[0]),
+             w*p.v[1]+c1*r1*(p.pbest[1]-p.x[1])+c2*r2*(pso.gbest[1]-p.x[1])];
+        p.v[0]=Math.max(-1.5,Math.min(1.5,p.v[0]));p.v[1]=Math.max(-1.5,Math.min(1.5,p.v[1]));
+        p.x=[p.x[0]+p.v[0],p.x[1]+p.v[1]];
+        p.x[0]=Math.max(xMin,Math.min(xMax,p.x[0]));p.x[1]=Math.max(yMin,Math.min(yMax,p.x[1]));
+        if(himmel(p.x[0],p.x[1])<himmel(p.pbest[0],p.pbest[1]))p.pbest=p.x.slice();
+        if(himmel(p.x[0],p.x[1])<himmel(pso.gbest[0],pso.gbest[1]))pso.gbest=p.x.slice();
+      });
+      pso.it++;draw();var bv=himmel(pso.gbest[0],pso.gbest[1]);
+      setStats('06',{iter:pso.it,best:bv.toFixed(3),param:'w='+w});
+      setDetail('06','<strong>粒子群</strong>：每粒子受个体最优 pbest 与全局最优 gbest 吸引更新速度与位置。当前全局最优 f='+bv.toFixed(3)+'。');
+      return true;
+    }
+  }
+  function reset(){
+    if(mode==='sa')initSA();else if(mode==='ga')initGA();else initPSO();
+    draw();var bv=mode==='sa'?himmel(sa.best[0],sa.best[1]):mode==='ga'?himmel(ga.best[0],ga.best[1]):himmel(pso.gbest[0],pso.gbest[1]);
+    setStats('06',{iter:0,best:bv.toFixed(3),param:mode==='sa'?'T=10':mode==='ga'?'pop=24':'w=0.6'});
+    setDetail('06',mode==='sa'?'<strong>模拟退火</strong>：以概率 exp(-Δ/T) 接受劣解，T 随迭代降温，能跳出局部最优。':mode==='ga'?'<strong>遗传算法</strong>：种群通过选择、交叉、变异演化，保留精英。':'<strong>粒子群</strong>：粒子受个体最优与全局最优吸引移动。');
+  }
+  buildLandscape();initSA();draw();
+  setStats('06',{iter:0,best:himmel(sa.best[0],sa.best[1]).toFixed(3),param:'T=10'});
+  bindControls('06',Animator(step,function(){return 60;}),reset,{method:function(m){
+    mode=m;reset();
+  }});
+}
+
+/* ============================================================
+   07 拉格朗日松弛 — 对偶问题 + KKT 条件
+   ============================================================ */
+function init07(){
+  var svg=$('#svg07'),W=640,H=420,P=48;
+  var lamMax=4;
+  var sx=function(l){return P+l/lamMax*(W-2*P);};
+  var sy=function(g){return H-P-(g-0)/1.2*(H-2*P);}; // g 范围 0..1.2
+  var primal=1; // 最优值
+  function dual(l){return l-l*l/4;}
+  var lam=0,animLam=0;
+  function draw(){
+    clr(svg);
+    txt(svg,W/2,22,'对偶函数 g(λ)=λ−λ²/4  与原问题最优值 1',C.ink,13,'middle','600');
+    // 网格
+    for(var i=0;i<=lamMax;i++){line(svg,sx(i),sy(0),sx(i),sy(1.2),C.grid,1);txt(svg,sx(i),sy(0)+16,i,C.faint,11,'middle');}
+    for(var g=0;g<=1.2;g+=0.3){line(svg,sx(0),sy(g),sx(lamMax),sy(g),C.grid,1);txt(svg,sx(0)-8,sy(g)+4,g.toFixed(1),C.faint,11,'end');}
+    line(svg,sx(0),sy(0),sx(lamMax),sy(0),C.border,1.5);line(svg,sx(0),sy(0),sx(0),sy(1.2),C.border,1.5);
+    txt(svg,sx(lamMax)+6,sy(0)+4,'λ',C.muted,12);txt(svg,sx(0)-4,sy(1.2)-6,'g',C.muted,12);
+    // 原问题最优线
+    line(svg,sx(0),sy(primal),sx(lamMax),sy(primal),C.ok,1.5,'4 4');
+    txt(svg,sx(lamMax)-6,sy(primal)-6,'原问题最优=1',C.ok,11,'end');
+    // 对偶曲线
+    var d='';for(var l=0;l<=lamMax;l+=0.05){var p=sx(l)+','+sy(dual(l));d+=(d?' L':'M')+p;}
+    path(svg,d,'none',C.accent2,2);
+    txt(svg,sx(2.0)+8,sy(dual(2))+0,'g(2)=1',C.accent2,11,'start','600');
+    // 最优点
+    circle(svg,sx(2),sy(1),4,C.ok,C.ok,1);
+    // 当前 λ
+    var dg=dual(animLam);
+    line(svg,sx(animLam),sy(0),sx(animLam),sy(dg),C.accent,1.2,'3 3');
+    circle(svg,sx(animLam),sy(dg),6,'rgba(94,106,210,.25)',C.accent,2);
+    txt(svg,sx(animLam)+8,sy(dg)-8,'λ='+animLam.toFixed(2)+'  g='+dg.toFixed(3),C.ink,12,'start','600');
+    // 间隙
+    var gap=primal-dg;
+    line(svg,sx(animLam),sy(dg),sx(animLam),sy(primal),C.bad,1.5,'2 2');
+    txt(svg,sx(animLam)+8,sy((dg+primal)/2)+4,'间隙 '+gap.toFixed(3),C.bad,11,'start');
+  }
+  function step(){
+    if(animLam>=2-0.01){animLam=2;draw();setStats('07',{lambda:'2.00',dual:'1.000',gap:'0.000'});
+      setDetail('07','<strong>强对偶成立</strong>：对偶最优 λ=2，g(2)=1 等于原问题最优值，对偶间隙为 0。此时 KKT 条件全部满足：平稳性 <code>2x−λ=0→x=1</code>、原问题可行 <code>x≥1</code>、对偶可行 <code>λ≥0</code>、互补松弛 <code>λ(1−x)=0</code>。');
+      return false;}
+    animLam=Math.min(2,animLam+0.1);lam=animLam;draw();
+    var dg=dual(animLam);setStats('07',{lambda:animLam.toFixed(2),dual:dg.toFixed(3),gap:(primal-dg).toFixed(3)});
+    setDetail('07','λ 增大至 '+animLam.toFixed(2)+'，对偶值 g(λ)='+dg.toFixed(3)+'，对偶间隙 '+(primal-dg).toFixed(3)+' 逐渐缩小。对偶函数为凹函数，其最大值给出原问题的下界。');
+    return true;
+  }
+  function reset(){animLam=0;lam=0;draw();setStats('07',{lambda:'0.00',dual:'0.000',gap:'1.000'});setDetail('07','约束 <code>1-x&le;0</code>，拉格朗日函数 <code>L=x&sup2;+&lambda;(1-x)</code>。对偶函数 <code>g(&lambda;)=&lambda;-&lambda;&sup2;/4</code>，在 <code>&lambda;=2</code> 取最大值 1，与原问题最优值相等（强对偶）。<strong>KKT</strong>：平稳性 <code>2x-&lambda;=0</code>、互补松弛 <code>&lambda;(1-x)=0</code> 在 <code>&lambda;=2,x=1</code> 成立。');}
+  draw();setStats('07',{lambda:'0.00',dual:'0.000',gap:'1.000'});
+  bindControls('07',Animator(step,function(){return 220;}),reset);
+}
+
+/* ============================================================
+   08 凸优化 — 梯度下降 / 牛顿法 / BFGS 收敛轨迹
+   ============================================================ */
+function init08(){
+  var svg=$('#svg08'),W=640,H=420,P=44;
+  var xR=[-4,4],yR=[-2.5,2.5];
+  var sx=function(x){return P+(x-xR[0])/(xR[1]-xR[0])*(W-2*P);};
+  var sy=function(y){return H-P-(y-yR[0])/(yR[1]-yR[0])*(H-2*P);};
+  function f(x,y){return 0.5*(x*x+50*y*y);}
+  function grad(x,y){return [x,50*y];}
+  function gnorm(x,y){return Math.hypot(x,50*y);}
+  var mode='gd';
+  var traj=[],x0=[-3.5,2.2],Hm=[[1,0],[0,1]],it=0,done=false;
+
+  function draw(){
+    clr(svg);
+    txt(svg,W/2,22,'f=½(x²+50y²)  等值线与收敛轨迹',C.ink,13,'middle','600');
+    // 坐标轴
+    line(svg,sx(xR[0]),sy(0),sx(xR[1]),sy(0),C.grid,1);line(svg,sx(0),sy(yR[0]),sx(0),sy(yR[1]),C.grid,1);
+    txt(svg,sx(0)+6,sy(yR[0])+4,'min (0,0)',C.ok,11,'start');
+    // 等值线椭圆
+    for(var c=0.5;c<=8;c*=2){var rx=sx(Math.sqrt(2*c))-sx(0);var ry=sy(0)-sy(Math.sqrt(2*c/50));
+      svg.appendChild(E('ellipse',{cx:sx(0),cy:sy(0),rx:Math.abs(rx),ry:Math.abs(ry),fill:'none',stroke:C.border,'stroke-width':1.2,'stroke-dasharray':'2 4'}));}
+    // 轨迹
+    if(traj.length>0){
+      var d='M'+sx(traj[0][0])+','+sy(traj[0][1]);
+      for(var i=1;i<traj.length;i++)d+=' L'+sx(traj[i][0])+','+sy(traj[i][1]);
+      path(svg,d,'none',mode==='gd'?C.warn:(mode==='newton'?C.ok:C.accent2),2);
+      traj.forEach(function(p,i){circle(svg,sx(p[0]),sy(p[1]),i===traj.length-1?5:3,i===traj.length-1?C.accent2:C.surface3,i===traj.length-1?C.accent2:C.border,1.5);});
+      var last=traj[traj.length-1];
+      txt(svg,sx(last[0])+8,sy(last[1])-8,'('+last[0].toFixed(2)+','+last[1].toFixed(2)+')',C.ink,11,'start','600');
+    }
+    txt(svg,10,H-10,mode==='gd'?'梯度下降（锯齿·线性收敛）':mode==='newton'?'牛顿法（二阶·一步收敛）':'BFGS 拟牛顿（逐步逼近逆H）',mode==='gd'?C.warn:(mode==='newton'?C.ok:C.accent2),12,'start','600');
+  }
+  function resetState(){
+    traj=[x0.slice()];Hm=[[1,0],[0,1]];it=0;done=false;
+  }
+  function step(){
+    if(done)return false;
+    var cur=traj[traj.length-1];
+    var g=grad(cur[0],cur[1]);
+    if(vnorm(g)<1e-4){done=true;draw();setStats('08',{iter:it,fx:f(cur[0],cur[1]).toFixed(5),gnorm:vnorm(g).toFixed(5)});setDetail('08','<strong>收敛</strong>：迭代 '+it+' 步，f='+f(cur[0],cur[1]).toExponential(2)+'。'+(mode==='gd'?'梯度下降因条件数大(=50)呈锯齿缓慢收敛。':mode==='newton'?'牛顿法利用精确 Hessian 一步到达最优。':'BFGS 逐步构造逆 Hessian，二次型上至多 n 步收敛。'));return false;}
+    var nx2;
+    if(mode==='gd'){
+      var alpha=0.04;nx2=[cur[0]-alpha*g[0],cur[1]-alpha*g[1]];
+    }else if(mode==='newton'){
+      // H=diag(1,50), H^-1 g = (x, y)
+      nx2=[cur[0]-cur[0],cur[1]-cur[1]]; // 一步到 0
+      nx2=[0,0];
+    }else{
+      // BFGS
+      var p=matVec(Hm,g.map(function(v){return -v;}));
+      // 线搜索: alpha = -(g·p)/(p·A p), A=diag(1,50)
+      var Ap=[p[0],50*p[1]];var num=-dot(g,p),den=dot(p,Ap);
+      var alpha2=den!==0?num/den:0;
+      var s=[alpha2*p[0],alpha2*p[1]];
+      nx2=[cur[0]+s[0],cur[1]+s[1]];
+      var gnew=grad(nx2[0],nx2[1]);var y=[gnew[0]-g[0],gnew[1]-g[1]];
+      var ys=dot(y,s);
+      if(Math.abs(ys)>1e-10){
+        var rho=1/ys;var I=[[1,0],[0,1]];
+        var t1=matSub(I,outerScale(s,y,rho));
+        var t2=matMul(matMul(t1,Hm),matSub(I,outerScale(y,s,rho)));
+        Hm=matAdd(t2,outerScale(s,s,rho));
+      }
+    }
+    traj.push(nx2);it++;draw();
+    setStats('08',{iter:it,fx:f(nx2[0],nx2[1]).toFixed(5),gnorm:gnorm(nx2[0],nx2[1]).toFixed(5)});
+    setDetail('08','第 '+it+' 步：'+(mode==='gd'?'固定步长 α=0.04 沿负梯度，因 y 方向梯度大产生锯齿。':mode==='newton'?'x_{k+1}=x_k−H⁻¹∇f，二次型一步到最优。':'BFGS 用 H 近似逆 Hessian，沿搜索方向精确线搜索，逐步共轭。')+' 当前 f='+f(nx2[0],nx2[1]).toExponential(2)+'。');
+    if(mode==='newton'){done=true;setDetail('08','<strong>牛顿法</strong>：利用二阶导数信息（精确 Hessian），对二次型一次迭代即到达最优，体现二次收敛。');return false;}
+    if(vnorm(grad(nx2[0],nx2[1]))<1e-4){done=true;}
+    return true;
+  }
+  function reset(){resetState();draw();setStats('08',{iter:0,fx:f(x0[0],x0[1]).toFixed(3),gnorm:gnorm(x0[0],x0[1]).toFixed(3)});setDetail('08','目标 <code>f=&frac12;(x&sup2;+50y&sup2;)</code>（病态二次型，等值线为扁椭圆）。<strong>梯度下降</strong>以固定步长呈锯齿缓慢收敛（线性）；<strong>牛顿法</strong>用精确 Hessian 一步到达；<strong>BFGS</strong>逐步逼近逆 Hessian，在二次型上至多 n 步收敛。');}
+  reset();draw();setStats('08',{iter:0,fx:f(x0[0],x0[1]).toFixed(3),gnorm:gnorm(x0[0],x0[1]).toFixed(3)});
+  bindControls('08',Animator(step,function(){return 450;}),reset,{method:function(m){
+    mode=m;reset();
+  }});
+}
+
+/* ============ 初始化所有模块 ============ */
+[init01,init02,init03,init04,init05,init06,init07,init08].forEach(function(f){
+  try{f();}catch(e){console.error('Module init failed:',e);}
+});
+
+})();
+</script>
+</body>
+</html>

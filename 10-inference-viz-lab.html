@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推理优化可视化实验室 · LLM Inference Optimization Lab</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:260px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+.progress-track{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:1000}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--accent-2));transition:width .1s}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(8,9,10,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;z-index:100}
+.nav-toggle{display:none;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;margin-right:8px;align-items:center}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px rgba(45,212,255,.6)}
+.nav-title{letter-spacing:-.01em}
+.nav-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);margin-left:4px}
+.nav-links{margin-left:auto;display:flex;gap:18px;align-items:center}
+.nav-link{color:var(--muted);text-decoration:none;font-size:13px;transition:color .2s}
+.nav-link:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;z-index:90}
+.side-section{padding:0 12px;margin-bottom:6px}
+.side-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);padding:10px 12px 6px;font-weight:600}
+.side-link{display:flex;align-items:center;gap:10px;padding:7px 12px;color:var(--muted);text-decoration:none;border-radius:6px;font-size:13px;transition:all .15s;position:relative}
+.side-link:hover{background:var(--surface-2);color:var(--ink)}
+.side-link.active{background:var(--surface-3);color:var(--ink)}
+.side-link.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;background:var(--cyan);border-radius:0 2px 2px 0}
+.side-num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:18px;flex-shrink:0}
+.side-link.active .side-num{color:var(--cyan)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0 40px 80px;max-width:1120px}
+.hero{padding:60px 0 44px;border-bottom:1px solid var(--border);margin-bottom:48px}
+.hero-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--cyan);font-family:var(--font-mono);margin-bottom:20px}
+.hero-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-bottom:16px}
+.hero h1 .accent{background:linear-gradient(135deg,var(--cyan),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.hero-desc{color:var(--muted);font-size:15px;max-width:660px;margin-bottom:28px;line-height:1.7}
+.hero-meta{display:flex;gap:32px;flex-wrap:wrap}
+.hero-meta-item{display:flex;align-items:baseline;gap:8px;font-size:13px;color:var(--faint)}
+.hero-meta-item .num{font-family:var(--font-mono);font-size:20px;color:var(--ink);font-weight:600}
+.module{margin-bottom:64px;scroll-margin-top:72px;opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:22px}
+.module-num{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--cyan);background:var(--surface-2);border:1px solid var(--border);padding:4px 10px;border-radius:6px;flex-shrink:0;line-height:1.4}
+.module-title{font-size:21px;font-weight:600;letter-spacing:-.01em}
+.module-desc{color:var(--muted);font-size:13px;margin-top:3px}
+.module-body{display:grid;grid-template-columns:1fr 280px;gap:18px;margin-bottom:14px}
+.viz-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;overflow:hidden}
+.svg-wrap{width:100%}
+.svg-wrap svg{width:100%;height:auto;display:block}
+svg text{font-family:var(--font-mono)}
+.side-panel{display:flex;flex-direction:column;gap:14px}
+.controls-panel,.stats-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.panel-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);font-weight:600;margin-bottom:12px}
+.ctrl-list{display:flex;flex-direction:column;gap:14px}
+.slider-wrap{display:flex;flex-direction:column;gap:6px}
+.slider-wrap>span:first-child{font-size:12px;color:var(--muted)}
+.slider-wrap input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;background:var(--surface-3);border-radius:2px;outline:none}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+.slider-wrap input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+.slider-wrap .val{font-family:var(--font-mono);font-size:12px;color:var(--cyan);text-align:right}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);font-size:12px;font-family:var(--font-sans);cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--border-strong);color:var(--ink)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn.active{background:var(--surface-3);border-color:var(--cyan);color:var(--cyan)}
+.stats{display:flex;flex-direction:column;gap:9px}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.stat-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.stat-item span:last-child{color:var(--muted)}
+.code-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.code-panel .panel-label{padding:12px 16px;margin-bottom:0;border-bottom:1px solid var(--border)}
+.code-panel pre{padding:16px;overflow-x:auto}
+.code-panel code{font-family:var(--font-mono);font-size:12px;line-height:1.7;color:var(--muted);white-space:pre}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.compare-item{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px}
+.compare-item .ci-name{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:3px}
+.compare-item .ci-desc{font-size:10px;color:var(--faint);line-height:1.5}
+.footer{border-top:1px solid var(--border);padding-top:32px;margin-top:24px;color:var(--faint);font-size:12px;line-height:2}
+.footer a{color:var(--muted);text-decoration:none;transition:color .2s}
+.footer a:hover{color:var(--cyan)}
+@media(max-width:1024px){.module-body{grid-template-columns:1fr}}
+@media(max-width:768px){
+  :root{--side-w:0px}
+  .nav-toggle{display:flex}
+  .sidebar{transform:translateX(-100%);width:260px;transition:transform .3s}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:0 20px 60px}
+  .hero h1{font-size:28px}
+  .nav-sub{display:none}
+  .nav-links .nav-link:not(:last-child){display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+  .module{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="progress-track"><div class="progress-bar" id="progress"></div></div>
+<nav class="navbar">
+  <button class="nav-toggle" id="nav-toggle" aria-label="menu">
+    <svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 5h14M2 9h14M2 13h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+  </button>
+  <div class="nav-brand">
+    <span class="nav-dot"></span>
+    <span class="nav-title">推理优化可视化实验室</span>
+    <span class="nav-sub">Inference Opt Lab</span>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="#overview">概览</a>
+    <a class="nav-link" href="https://github.com/wangzifan396-wzf/inference-viz-lab" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+<aside class="sidebar" id="sidebar">
+  <div class="side-section">
+    <div class="side-title">导航</div>
+    <a class="side-link" href="#overview"><span class="side-num">00</span><span>概览</span></a>
+  </div>
+  <div class="side-section">
+    <div class="side-title">模块</div>
+    <a class="side-link" href="#m01"><span class="side-num">01</span><span>推理两阶段</span></a>
+    <a class="side-link" href="#m02"><span class="side-num">02</span><span>KV-Cache 深度</span></a>
+    <a class="side-link" href="#m03"><span class="side-num">03</span><span>PagedAttention</span></a>
+    <a class="side-link" href="#m04"><span class="side-num">04</span><span>连续批处理</span></a>
+    <a class="side-link" href="#m05"><span class="side-num">05</span><span>投机解码</span></a>
+    <a class="side-link" href="#m06"><span class="side-num">06</span><span>量化技术</span></a>
+    <a class="side-link" href="#m07"><span class="side-num">07</span><span>注意力优化</span></a>
+    <a class="side-link" href="#m08"><span class="side-num">08</span><span>模型并行</span></a>
+  </div>
+  <div class="side-section">
+    <div class="side-title">资源</div>
+    <a class="side-link" href="https://github.com/wangzifan396-wzf/inference-viz-lab" target="_blank" rel="noopener"><span class="side-num">↗</span><span>GitHub Repo</span></a>
+    <a class="side-link" href="https://wangzifan396-wzf.github.io/inference-viz-lab/" target="_blank" rel="noopener"><span class="side-num">↗</span><span>在线 Demo</span></a>
+  </div>
+</aside>
+<main class="main">
+<section class="hero" id="overview">
+  <div class="hero-tag"><span class="dot"></span>LLM Inference Optimization</div>
+  <h1>推理优化<span class="accent">可视化实验室</span></h1>
+  <p class="hero-desc">通过交互式可视化深入理解大语言模型推理优化的核心技术：从两阶段推理、KV-Cache 到 PagedAttention、连续批处理、投机解码、量化、Flash Attention 与模型并行策略。纯前端实现，零外部依赖。</p>
+  <div class="hero-meta">
+    <div class="hero-meta-item"><span class="num">8</span><span>可视化模块</span></div>
+    <div class="hero-meta-item"><span class="num">0</span><span>外部依赖</span></div>
+    <div class="hero-meta-item"><span class="num">100%</span><span>纯前端</span></div>
+    <div class="hero-meta-item"><span class="num">SVG</span><span>驱动可视化</span></div>
+  </div>
+</section>
+
+<!-- Module 01 -->
+<section class="module" id="m01">
+  <div class="module-header">
+    <span class="module-num">01</span>
+    <div>
+      <h2 class="module-title">推理两阶段</h2>
+      <p class="module-desc">Two-Phase Inference · Prefill 计算密集 vs Decode 内存密集</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg01" viewBox="0 0 640 340"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl01" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats01" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · prefill + decode loop</div>
+<pre><code>def generate(model, prompt_ids, max_new_tokens):
+    # Prefill: 整个 prompt 一次前向传播 (计算密集)
+    logits = model.forward(prompt_ids)
+    next_token = sample(logits[-1])
+    kv_cache = model.kv_cache  # prefill 阶段保存
+
+    # Decode: 逐 token 生成 (内存密集, KV-Cache 读取主导)
+    output = [next_token]
+    for _ in range(max_new_tokens - 1):
+        logits = model.forward([next_token], kv_cache=kv_cache)
+        next_token = sample(logits[-1])
+        output.append(next_token)
+    return output</code></pre>
+  </div>
+</section>
+
+<!-- Module 02 -->
+<section class="module" id="m02">
+  <div class="module-header">
+    <span class="module-num">02</span>
+    <div>
+      <h2 class="module-title">KV-Cache 深度</h2>
+      <p class="module-desc">KV-Cache Deep Dive · 缓存增长与内存带宽瓶颈</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg02" viewBox="0 0 640 380"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl02" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats02" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · KV-Cache update</div>
+<pre><code>class KVCache:
+    def __init__(self, n_layers, n_kv_heads, head_dim, max_seq):
+        self.cache_k = torch.zeros(n_layers, max_seq, n_kv_heads, head_dim)
+        self.cache_v = torch.zeros(n_layers, max_seq, n_kv_heads, head_dim)
+        self.pos = 0
+
+    def update(self, layer, new_k, new_v):
+        # 写入新 token 的 K, V 到当前位置
+        self.cache_k[layer, self.pos] = new_k
+        self.cache_v[layer, self.pos] = new_v
+
+    def get(self, layer):
+        # 读取到当前位置的全部缓存 (decode 瓶颈所在)
+        return self.cache_k[layer, :self.pos], self.cache_v[layer, :self.pos]</code></pre>
+  </div>
+</section>
+
+<!-- Module 03 -->
+<section class="module" id="m03">
+  <div class="module-header">
+    <span class="module-num">03</span>
+    <div>
+      <h2 class="module-title">PagedAttention</h2>
+      <p class="module-desc">PagedAttention (vLLM) · 分页 KV-Cache 消除碎片化</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg03" viewBox="0 0 640 360"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl03" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats03" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · PagedAttention block manager</div>
+<pre><code>class BlockManager:
+    def __init__(self, num_blocks, block_size=16):
+        self.block_size = block_size
+        self.free_blocks = list(range(num_blocks))
+        self.block_table = {}  # req_id -> [block_ids]
+
+    def allocate(self, req_id, num_tokens):
+        blocks = self.block_table.setdefault(req_id, [])
+        needed = (num_tokens + self.block_size - 1) // self.block_size
+        while len(blocks) &lt; needed and self.free_blocks:
+            blocks.append(self.free_blocks.pop())
+
+    def free(self, req_id):
+        for b in self.block_table.get(req_id, []):
+            self.free_blocks.append(b)
+        self.block_table[req_id] = []</code></pre>
+  </div>
+</section>
+
+<!-- Module 04 -->
+<section class="module" id="m04">
+  <div class="module-header">
+    <span class="module-num">04</span>
+    <div>
+      <h2 class="module-title">连续批处理</h2>
+      <p class="module-desc">Continuous Batching · 迭代级动态调度</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg04" viewBox="0 0 640 340"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl04" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats04" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · continuous batching scheduler</div>
+<pre><code>class ContinuousBatchScheduler:
+    def __init__(self, engine, max_batch_size):
+        self.engine = engine
+        self.max_batch = max_batch_size
+        self.running, self.waiting = [], []
+
+    def step(self):
+        # 移除已完成的请求
+        self.running = [r for r in self.running if not r.finished]
+        # 动态补充新请求到批次中
+        while self.waiting and len(self.running) &lt; self.max_batch:
+            self.running.append(self.waiting.pop(0))
+        # 对所有运行中的请求执行一次 decode 迭代
+        for req in self.running:
+            self.engine.decode_step(req)</code></pre>
+  </div>
+</section>
+
+<!-- Module 05 -->
+<section class="module" id="m05">
+  <div class="module-header">
+    <span class="module-num">05</span>
+    <div>
+      <h2 class="module-title">投机解码</h2>
+      <p class="module-desc">Speculative Decoding · 草稿-验证加速范式</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg05" viewBox="0 0 640 360"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl05" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats05" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · speculative decoding loop</div>
+<pre><code>def speculative_decode(target, draft, prompt, max_tokens, K=4):
+    tokens = list(prompt)
+    for _ in range(max_tokens):
+        # 1. 草稿模型快速生成 K 个候选 token
+        draft_tokens = draft.generate(tokens, n=K)
+        # 2. 目标模型一次前向验证全部 K 个 token
+        target_logits = target.forward(tokens + draft_tokens)
+        # 3. 接受匹配的 token, 拒绝第一个不匹配的
+        accepted = 0
+        for i, dt in enumerate(draft_tokens):
+            if argmax(target_logits[len(tokens)+i]) == dt:
+                accepted += 1
+            else:
+                break
+        # 4. 添加接受的 token + 1 个修正 token
+        tokens += draft_tokens[:accepted]
+        if accepted &lt; K:
+            tokens += [argmax(target_logits[len(tokens)+accepted])]
+    return tokens</code></pre>
+  </div>
+</section>
+
+<!-- Module 06 -->
+<section class="module" id="m06">
+  <div class="module-header">
+    <span class="module-num">06</span>
+    <div>
+      <h2 class="module-title">量化技术</h2>
+      <p class="module-desc">Quantization · FP16 → INT8 → INT4 权衡</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg06" viewBox="0 0 640 320"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl06" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats06" class="stats"></div></div>
+      <div class="controls-panel">
+        <div class="panel-label">方法对比</div>
+        <div class="compare-grid">
+          <div class="compare-item"><div class="ci-name">GPTQ</div><div class="ci-desc">二阶 Hessian, 高精度权重量化</div></div>
+          <div class="compare-item"><div class="ci-name">AWQ</div><div class="ci-desc">激活感知, 保护显著通道</div></div>
+          <div class="compare-item"><div class="ci-name">GGUF</div><div class="ci-desc">k-quant, CPU/GPU 混合推理</div></div>
+          <div class="compare-item"><div class="ci-name">SmoothQuant</div><div class="ci-desc">W8A8, 激活难度迁移</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · quantization function</div>
+<pre><code>def quantize_weights(w, n_bits=8):
+    """对称量化: FP16 -> INT8/INT4"""
+    scale = w.abs().max() / (2 ** (n_bits - 1) - 1)
+    q = torch.clamp((w / scale).round(),
+                    -(2 ** (n_bits - 1)), 2 ** (n_bits - 1) - 1)
+    return q.to(torch.int8), scale  # 存储量化值和缩放因子
+
+# GPTQ: 二阶 Hessian 信息, 逐列量化补偿
+# AWQ: 激活感知, 保护显著权重通道
+# GGUF: k-quant 格式, 支持 CPU/GPU 混合推理
+# SmoothQuant: 将激活难度迁移至权重, 适合 W8A8</code></pre>
+  </div>
+</section>
+
+<!-- Module 07 -->
+<section class="module" id="m07">
+  <div class="module-header">
+    <span class="module-num">07</span>
+    <div>
+      <h2 class="module-title">注意力优化</h2>
+      <p class="module-desc">Attention Optimization · Flash Attention 分块策略</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg07" viewBox="0 0 640 360"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl07" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats07" class="stats"></div></div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · Flash Attention kernel</div>
+<pre><code>def flash_attention(Q, K, V, block_size=64):
+    """Flash Attention: 分块 + 在线 softmax, IO 复杂度 O(N^2/sqrt(M))"""
+    N = Q.shape[0]
+    O = torch.zeros_like(Q)
+    for i in range(0, N, block_size):        # 遍历 Q 块
+        Qi = Q[i:i+block_size]
+        Oi, m, l = torch.zeros_like(Qi), torch.full((block_size,), -1e9), torch.zeros(block_size)
+        for j in range(0, N, block_size):    # 遍历 K/V 块 (在 SRAM 中)
+            S = Qi @ K[j:j+block_size].T / (Q.shape[-1] ** 0.5)
+            m_new = torch.max(m, S.max(dim=-1).values)
+            P = torch.exp(S - m_new.unsqueeze(-1))
+            l = l * torch.exp(m - m_new) + P.sum(dim=-1)
+            Oi = Oi * torch.exp(m - m_new).unsqueeze(-1) + P @ V[j:j+block_size]
+            m = m_new
+        O[i:i+block_size] = Oi / l.unsqueeze(-1)
+    return O</code></pre>
+  </div>
+</section>
+
+<!-- Module 08 -->
+<section class="module" id="m08">
+  <div class="module-header">
+    <span class="module-num">08</span>
+    <div>
+      <h2 class="module-title">模型并行策略</h2>
+      <p class="module-desc">Model Parallelism · TP / PP / DP 通信模式</p>
+    </div>
+  </div>
+  <div class="module-body">
+    <div class="viz-panel"><div class="svg-wrap"><svg id="svg08" viewBox="0 0 640 320"></svg></div></div>
+    <div class="side-panel">
+      <div class="controls-panel"><div class="panel-label">参数控制</div><div id="ctrl08" class="ctrl-list"></div></div>
+      <div class="stats-panel"><div class="panel-label">实时指标</div><div id="stats08" class="stats"></div></div>
+      <div class="controls-panel">
+        <div class="panel-label">策略对比</div>
+        <div class="compare-grid">
+          <div class="compare-item"><div class="ci-name">TP 张量并行</div><div class="ci-desc">切分注意力头, All-Reduce</div></div>
+          <div class="compare-item"><div class="ci-name">PP 流水线并行</div><div class="ci-desc">切分层, P2P 传递激活</div></div>
+          <div class="compare-item"><div class="ci-name">DP 数据并行</div><div class="ci-desc">复制模型, 梯度 All-Reduce</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="panel-label">代码 · tensor parallel linear layer</div>
+<pre><code>import torch.distributed as dist
+
+class TensorParallelLinear(nn.Module):
+    """张量并行: 按输出维度切分权重矩阵到各 GPU"""
+    def __init__(self, in_features, out_features, rank, world_size):
+        super().__init__()
+        self.local_out = out_features // world_size
+        self.weight = nn.Parameter(torch.randn(self.local_out, in_features))
+        self.rank, self.world_size = rank, world_size
+
+    def forward(self, x):
+        local_out = F.linear(x, self.weight)       # 各 GPU 计算自己的分片
+        gathered = [torch.zeros_like(local_out)
+                    for _ in range(self.world_size)]
+        dist.all_gather(gathered, local_out)        # All-Gather 合并
+        return torch.cat(gathered, dim=-1)
+
+# Pipeline Parallel: 按层切分, P2P 传递激活值
+# Data Parallel: 完整模型复制, 梯度 All-Reduce</code></pre>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>MIT License · Copyright 2026 wangzifan396-wzf</p>
+  <p>Built with pure HTML / CSS / JS + SVG · Zero external dependencies</p>
+  <p><a href="https://github.com/wangzifan396-wzf/inference-viz-lab">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/inference-viz-lab/">Online Demo</a></p>
+</footer>
+</main>
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',violet:'#a78bfa',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',accent2:'#7c5cff',s2:'#16181c',s3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+function txt(p,x,y,s,fill,sz){var t=svgEl(p,'text',{x:x,y:y,fill:fill||C.muted,'font-size':sz||12});t.textContent=s;return t;}
+function rrect(p,x,y,w,h,fill,op,r){return svgEl(p,'rect',{x:x,y:y,width:w,height:h,fill:fill,'fill-opacity':op===undefined?1:op,rx:r||3});}
+function barL(p,x,y,w,h,frac,color,label){if(label)txt(p,x,y-3,label,C.muted,10);svgEl(p,'rect',{x:x,y:y,width:w,height:h,fill:C.s3,rx:3});if(frac>0)svgEl(p,'rect',{x:x,y:y,width:Math.max(w*frac,2),height:h,fill:color,rx:3,'fill-opacity':0.85});txt(p,x+w+6,y+h-2,Math.round(frac*100)+'%',C.faint,10);}
+function defsArrow(svg,id,color){var d=svgEl(svg,'defs',{});var m=svgEl(d,'marker',{id:id,markerWidth:6,markerHeight:6,refX:5,refY:3,orient:'auto'});svgEl(m,'path',{d:'M0,0 L6,3 L0,6 Z',fill:color||C.faint});}
+var reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ===== Module 01: Two-Phase Inference ===== */
+function initM01(){
+  var svg=document.getElementById('svg01');
+  var ctrl=document.getElementById('ctrl01');
+  var stats=document.getElementById('stats01');
+  var S={promptLen:128,maxTokens:64};
+  ctrl.appendChild(makeSlider('Prompt 长度',16,512,16,S.promptLen,' tok',function(v){S.promptLen=v;render();}));
+  ctrl.appendChild(makeSlider('生成长度',1,256,1,S.maxTokens,' tok',function(v){S.maxTokens=v;render();}));
+  function render(){
+    clearSvg(svg);
+    defsArrow(svg,'a1',C.faint);
+    var p=S.promptLen,m=S.maxTokens;
+    /* Prefill section */
+    txt(svg,16,24,'Prefill · 计算密集 (并行)',C.cyan,13);
+    var n1=Math.min(Math.ceil(p/8),22);
+    var cw=18,ch=20,gap=3;
+    for(var i=0;i<n1;i++){
+      rrect(svg,16+i*(cw+gap),32,cw,ch,C.cyan,0.15+0.55*(1-i/n1));
+    }
+    txt(svg,16,70,p+' tokens 一次前向传播',C.faint,11);
+    barL(svg,16,80,300,9,0.92,C.cyan,'GPU 计算');
+    barL(svg,16,100,300,9,0.35,C.amber,'GPU 显存带宽');
+    /* Divider */
+    svgEl(svg,'line',{x1:16,y1:124,x2:624,y2:124,stroke:C.border,'stroke-width':1});
+    /* Decode section */
+    txt(svg,16,146,'Decode · 内存密集 (串行)',C.amber,13);
+    var n2=Math.min(m,12);
+    var cw2=18,ch2=20,gap2=8;
+    for(var j=0;j<n2;j++){
+      var cx=16+j*(cw2+gap2);
+      rrect(svg,cx,154,cw2,ch2,C.amber,0.2+0.5*(j/Math.max(n2,1)));
+      if(j<n2-1){
+        svgEl(svg,'line',{x1:cx+cw2+1,y1:164,x2:cx+cw2+gap2-1,y2:164,stroke:C.faint,'stroke-width':1,'marker-end':'url(#a1)'});
+      }
+    }
+    txt(svg,16,192,'逐 token 生成 · KV-Cache 读取是瓶颈',C.faint,11);
+    barL(svg,16,202,300,9,0.15,C.cyan,'GPU 计算');
+    barL(svg,16,222,300,9,0.90,C.amber,'GPU 显存带宽');
+    /* Timeline */
+    svgEl(svg,'line',{x1:16,y1:246,x2:624,y2:246,stroke:C.border,'stroke-width':1});
+    txt(svg,16,266,'时间线',C.muted,12);
+    var pt=p*0.012,dt=m*0.018,tot=pt+dt;
+    var tw=592,tx=24,ty=274;
+    var pw=tot>0?tw*(pt/tot):0;
+    var dw=tot>0?tw*(dt/tot):0;
+    rrect(svg,tx,ty,Math.max(pw,2),22,C.cyan,0.7);
+    rrect(svg,tx+pw,ty,Math.max(dw,2),22,C.amber,0.7);
+    if(pw>30)txt(svg,tx+6,ty+15,'Prefill '+pt.toFixed(0)+'ms',C.ink,10);
+    if(dw>30)txt(svg,tx+pw+6,ty+15,'Decode '+dt.toFixed(0)+'ms',C.ink,10);
+    txt(svg,16,ty+38,'计算/内存比: '+(pt/Math.max(dt,0.001)).toFixed(2),C.faint,10);
+    var tps=dt>0?m/(dt/1000):0;
+    setStats(stats,[
+      {color:C.cyan,label:'Prefill',val:pt.toFixed(1)+' ms'},
+      {color:C.amber,label:'Decode',val:dt.toFixed(1)+' ms'},
+      {color:C.emerald,label:'生成速度',val:tps.toFixed(0)+' tok/s'},
+      {color:C.violet,label:'总耗时',val:tot.toFixed(1)+' ms'}
+    ]);
+   }
+   render();
+}
+
+/* ===== Module 02: KV-Cache Deep Dive ===== */
+function initM02(){
+  var svg=document.getElementById('svg02');
+  var ctrl=document.getElementById('ctrl02');
+  var stats=document.getElementById('stats02');
+  var S={seqLen:512,layers:16};
+  ctrl.appendChild(makeSlider('序列长度',64,2048,64,S.seqLen,' tok',function(v){S.seqLen=v;render();}));
+  ctrl.appendChild(makeSlider('Transformer 层数',1,32,1,S.layers,' 层',function(v){S.layers=v;render();}));
+  function render(){
+    clearSvg(svg);
+    defsArrow(svg,'a2',C.rose);
+    var seq=S.seqLen,lay=S.layers;
+    var nLay=Math.min(lay,4);
+    var pal=[C.violet,C.cyan,C.emerald,C.amber];
+    var cellW=10,cellH=18,gap=2;
+    var nCells=Math.min(Math.ceil(seq/32),22);
+    var layerH=68;
+    txt(svg,16,18,'KV-Cache · 逐层 K/V 矩阵增长',C.muted,12);
+    for(var l=0;l<nLay;l++){
+      var ly=30+l*layerH;
+      var lc=pal[l%4];
+      var lLabel=l===nLay-1&&lay>nLay?'Layer '+(lay-nLay+1)+'-'+lay:'Layer '+(l+1);
+      if(lay<=nLay)lLabel='Layer '+(l+1);
+      txt(svg,16,ly+14,lLabel,C.faint,10);
+      txt(svg,70,ly+14,'K',lc,11);
+      for(var i=0;i<nCells;i++){
+        rrect(svg,86+i*(cellW+gap),ly,cellW,cellH,lc,i===nCells-1?0.95:0.15+0.4*(i/nCells));
+      }
+      var vx=86+nCells*(cellW+gap)+12;
+      txt(svg,vx,ly+14,'V',lc,11);
+      for(var j=0;j<nCells;j++){
+        rrect(svg,vx+16+j*(cellW+gap),ly,cellW,cellH,lc,j===nCells-1?0.95:0.15+0.4*(j/nCells));
+      }
+    }
+    var aY=30+nLay*layerH+10;
+    svgEl(svg,'line',{x1:16,y1:aY-6,x2:624,y2:aY-6,stroke:C.border,'stroke-width':1});
+    txt(svg,16,aY+8,'每步 decode 读取全部缓存 → 内存密集',C.rose,11);
+    svgEl(svg,'line',{x1:16,y1:aY+18,x2:560,y2:aY+18,stroke:C.rose,'stroke-width':1.5,'stroke-dasharray':'4 3','marker-end':'url(#a2)'});
+    var headDim=128,nKV=32;
+    var cb=2*lay*seq*nKV*headDim*2;
+    var cGB=cb/1e9;
+    var bw=cb/0.018/1e9;
+    var spd=8.5;
+    setStats(stats,[
+      {color:C.violet,label:'缓存大小',val:cGB.toFixed(2)+' GB'},
+      {color:C.cyan,label:'带宽需求',val:bw.toFixed(0)+' GB/s'},
+      {color:C.emerald,label:'加速比',val:spd.toFixed(1)+'x'},
+      {color:C.amber,label:'层数 × 序列',val:lay+' × '+seq}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 03: PagedAttention ===== */
+function initM03(){
+  var svg=document.getElementById('svg03');
+  var ctrl=document.getElementById('ctrl03');
+  var stats=document.getElementById('stats03');
+  var S={paging:true,numReqs:4};
+  var btnRow=document.createElement('div');btnRow.className='btn-row';
+  var bOn=makeBtn('分页 ON',true,function(){S.paging=true;bOn.className='btn btn-sm active';bOff.className='btn btn-sm';render();});
+  var bOff=makeBtn('分页 OFF',false,function(){S.paging=false;bOff.className='btn btn-sm active';bOn.className='btn btn-sm';render();});
+  btnRow.appendChild(bOn);btnRow.appendChild(bOff);
+  ctrl.appendChild(btnRow);
+  ctrl.appendChild(makeSlider('并发请求数',1,8,1,S.numReqs,' req',function(v){S.numReqs=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var nr=S.numReqs,pg=S.paging;
+    var pal=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent2,C.cyan,C.violet];
+    var cols=16,rows=4;
+    var bw=30,bh=20,bg=3;
+    txt(svg,16,18,pg?'分页模式 · 块按需分配 (无碎片)':'连续分配 · 预留最大长度 (碎片化)',pg?C.emerald:C.rose,12);
+    var reqLens=[];
+    for(var r=0;r<nr;r++)reqLens.push(2+Math.floor(Math.random()*0)+r%3+2);
+    var totalBlocks=0,wasteBlocks=0;
+    for(var r=0;r<nr;r++){
+      var ly=30+r*(bh+bg+4);
+      txt(svg,16,ly+14,'R'+r,pal[r%8],10);
+      if(pg){
+        var nb=reqLens[r];
+        totalBlocks+=nb;
+        for(var c=0;c<cols;c++){
+          var alloc=c<nb;
+          rrect(svg,44+c*(bw+bg),ly,bw,bh,alloc?pal[r%8]:C.s3,alloc?0.7:0.4);
+          if(alloc&&c===nb-1){
+            svgEl(svg,'text',{x:44+c*(bw+bg)+bw/2-6,y:ly+14,fill:C.ink,'font-size':8}).textContent='end';
+          }
+        }
+      }else{
+        var reserved=6;
+        var used=reqLens[r];
+        totalBlocks+=used;wasteBlocks+=(reserved-used);
+        for(var c=0;c<cols;c++){
+          if(c<used){rrect(svg,44+c*(bw+bg),ly,bw,bh,pal[r%8],0.7);}
+          else if(c<reserved){rrect(svg,44+c*(bw+bg),ly,bw,bh,C.rose,0.4);totalBlocks++;}
+          else{rrect(svg,44+c*(bw+bg),ly,bw,bh,C.s3,0.3);}
+        }
+      }
+    }
+    var legY=30+nr*(bh+bg+4)+8;
+    svgEl(svg,'line',{x1:16,y1:legY,x2:624,y2:legY,stroke:C.border,'stroke-width':1});
+    txt(svg,16,legY+18,pg?'块大小: 16 tokens · 非连续物理块, 逻辑连续':'预留空间 = max_seq · 产生碎片化浪费',C.faint,11);
+    if(!pg){
+      var wz=rrect(svg,16,legY+26,10,10,C.rose,0.4);
+      txt(svg,32,legY+35,'浪费块',C.rose,10);
+    }
+    var waste=pg?2:Math.round(wasteBlocks/Math.max(totalBlocks,1)*100);
+    var tput=pg?2.8:1.0;
+    setStats(stats,[
+      {color:pg?C.emerald:C.rose,label:'内存浪费',val:waste+'%'},
+      {color:C.cyan,label:'吞吐提升',val:tput.toFixed(1)+'x'},
+      {color:C.violet,label:'块大小',val:'16 tok/块'},
+      {color:C.amber,label:'并发请求',val:nr+' req'}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 04: Continuous Batching ===== */
+function initM04(){
+  var svg=document.getElementById('svg04');
+  var ctrl=document.getElementById('ctrl04');
+  var stats=document.getElementById('stats04');
+  var S={mode:'continuous',numReqs:4};
+  var btnRow=document.createElement('div');btnRow.className='btn-row';
+  var bStatic=makeBtn('静态批处理',false,function(){S.mode='static';bStatic.className='btn btn-sm active';bCont.className='btn btn-sm';render();});
+  var bCont=makeBtn('连续批处理',true,function(){S.mode='continuous';bCont.className='btn btn-sm active';bStatic.className='btn btn-sm';render();});
+  btnRow.appendChild(bStatic);btnRow.appendChild(bCont);
+  ctrl.appendChild(btnRow);
+  ctrl.appendChild(makeSlider('并发请求数',2,8,1,S.numReqs,' req',function(v){S.numReqs=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var nr=S.numReqs,mode=S.mode;
+    var pal=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent2,C.cyan,C.violet];
+    var iters=mode==='continuous'?10:14;
+    var colW=52,colH=20,colGap=4;
+    var startX=70,startY=30;
+    txt(svg,16,18,mode==='continuous'?'连续批处理 · 迭代级调度 (动态加入/退出)':'静态批处理 · 等待最慢请求 (空泡浪费)',mode==='continuous'?C.emerald:C.rose,12);
+    /* iteration header */
+    txt(svg,startX-6,startY-6,'iter',C.faint,9);
+    for(var it=0;it<iters;it++){
+      txt(svg,startX+it*(colW+colGap)+colW/2-6,startY-6,it+'',C.faint,9);
+    }
+    /* requests */
+    var totalActive=0,totalSlots=0;
+    for(var r=0;r<nr;r++){
+      var ry=startY+r*(colH+colGap+2);
+      txt(svg,16,ry+14,'R'+r,pal[r%8],10);
+      var reqLen=4+Math.floor((r*37+13)%6);
+      var startIt=mode==='continuous'?Math.floor(r/2):0;
+      for(var it=0;it<iters;it++){
+        var cx=startX+it*(colW+colGap);
+        var active=false,waste=false;
+        if(mode==='continuous'){
+          if(it>=startIt&&it<startIt+reqLen){active=true;totalActive++;}
+        }else{
+          if(it<reqLen){active=true;totalActive++;}
+          else{waste=true;}
+        }
+        totalSlots++;
+        if(active){
+          rrect(svg,cx,ry,colW,colH,pal[r%8],0.75);
+        }else if(waste){
+          rrect(svg,cx,ry,colW,colH,C.rose,0.25);
+          /* hatched effect via line */
+          svgEl(svg,'line',{x1:cx,y1:ry+colH,x2:cx+colW,y2:ry,stroke:C.rose,'stroke-width':0.5,'stroke-opacity':0.4});
+        }else{
+          rrect(svg,cx,ry,colW,colH,C.s3,0.3);
+        }
+      }
+    }
+    /* legend / summary */
+    var legY=startY+nr*(colH+colGap+2)+12;
+    svgEl(svg,'line',{x1:16,y1:legY,x2:624,y2:legY,stroke:C.border,'stroke-width':1});
+    var util=totalSlots>0?Math.round(totalActive/totalSlots*100):0;
+    var tput=mode==='continuous'?util/100*4.2:util/100*1.8;
+    var lat=mode==='continuous'?'~25 ms':'~60 ms';
+    barL(svg,16,legY+18,300,10,util/100,mode==='continuous'?C.emerald:C.rose,'GPU 利用率');
+    txt(svg,324,legY+27,lat+' 端到端延迟',C.faint,10);
+    setStats(stats,[
+      {color:mode==='continuous'?C.emerald:C.rose,label:'GPU 利用率',val:util+'%'},
+      {color:C.cyan,label:'吞吐量',val:tput.toFixed(1)+' req/s'},
+      {color:C.violet,label:'延迟',val:lat},
+      {color:C.amber,label:'迭代次数',val:iters+''}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 05: Speculative Decoding ===== */
+function initM05(){
+  var svg=document.getElementById('svg05');
+  var ctrl=document.getElementById('ctrl05');
+  var stats=document.getElementById('stats05');
+  var S={draftK:4,acceptRate:0.75};
+  ctrl.appendChild(makeSlider('草稿长度 K',1,8,1,S.draftK,' tok',function(v){S.draftK=v;render();}));
+  ctrl.appendChild(makeSlider('接受率',0.3,0.99,0.01,S.acceptRate,'',function(v){S.acceptRate=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var K=S.draftK,ar=S.acceptRate;
+    txt(svg,16,20,'投机解码 · 草稿模型生成 → 目标模型验证',C.muted,12);
+    /* Phase 1: draft model */
+    txt(svg,16,42,'1. 草稿模型 (快) 生成 K='+K+' 个候选',C.violet,11);
+    var dw=40,dh=22,dg=6;
+    for(var i=0;i<K;i++){
+      var dx=16+i*(dw+dg);
+      rrect(svg,dx,50,dw,dh,C.violet,0.5+0.1*i/K);
+      txt(svg,dx+dw/2-6,64,'d'+i,C.ink,9);
+      if(i<K-1)svgEl(svg,'line',{x1:dx+dw,y1:61,x2:dx+dw+dg,y2:61,stroke:C.faint,'stroke-width':1});
+    }
+    /* Phase 2: target model verify */
+    var vy=96;
+    txt(svg,16,vy,'2. 目标模型 (大) 一次前向验证全部',C.cyan,11);
+    var accepted=Math.round(K*ar);
+    for(var j=0;j<K;j++){
+      var vx=16+j*(dw+dg);
+      var isAccept=j<accepted;
+      rrect(svg,vx,vy+8,dw,dh,isAccept?C.emerald:C.rose,isAccept?0.7:0.35);
+      txt(svg,vx+dw/2-6,vy+22,isAccept?'✓':'✗',isAccept?C.emerald:C.rose,10);
+    }
+    /* Phase 3: result */
+    var ry=vy+44;
+    txt(svg,16,ry+10,'3. 接受 '+accepted+'/'+K+' · 添加 1 修正 token',C.emerald,11);
+    for(var k=0;k<accepted;k++){
+      var rx=16+k*(dw+dg);
+      rrect(svg,rx,ry+16,dw,dh,C.emerald,0.7);
+      txt(svg,rx+dw/2-6,ry+30,'d'+k,C.ink,9);
+    }
+    /* correction token */
+    var cxx=16+accepted*(dw+dg);
+    rrect(svg,cxx,ry+16,dw,dh,C.amber,0.7);
+    txt(svg,cxx+dw/2-8,ry+30,'corr',C.ink,8);
+    /* speedup analysis */
+    var spY=ry+52;
+    svgEl(svg,'line',{x1:16,y1:spY-6,x2:624,y2:spY-6,stroke:C.border,'stroke-width':1});
+    txt(svg,16,spY+8,'加速分析',C.muted,12);
+    /* naive: K+1 forward passes for K+1 tokens; spec: 2 passes for accepted+1 */
+    var naiveTokens=K+1;
+    var specTokens=accepted+1;
+    var naivePasses=naiveTokens;
+    var specPasses=2;
+    var speedup=specTokens/specPasses;
+    /* timeline comparison */
+    var tlY=spY+20;
+    txt(svg,16,tlY+10,'标准解码',C.faint,10);
+    var np=naivePasses;
+    for(var n=0;n<np&&n<10;n++){
+      rrect(svg,90+n*30,tlY,26,16,C.faint,0.4);
+    }
+    txt(svg,90+np*30+6,tlY+11,'×'+np+' 次前向',C.faint,9);
+    txt(svg,16,tlY+36,'投机解码',C.emerald,10);
+    rrect(svg,90,tlY+26,26,16,C.violet,0.6);
+    txt(svg,120,tlY+37,'草稿',C.violet,9);
+    rrect(svg,120,tlY+26,26,16,C.cyan,0.6);
+    txt(svg,150,tlY+37,'验证',C.cyan,9);
+    txt(svg,152,tlY+37,specTokens+' tok / 2 pass',C.emerald,9);
+    setStats(stats,[
+      {color:C.emerald,label:'加速比',val:speedup.toFixed(2)+'x'},
+      {color:C.violet,label:'接受率',val:Math.round(ar*100)+'%'},
+      {color:C.cyan,label:'接受 token',val:accepted+'/'+K},
+      {color:C.amber,label:'净增 token',val:specTokens+'/2 pass'}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 06: Quantization ===== */
+function initM06(){
+  var svg=document.getElementById('svg06');
+  var ctrl=document.getElementById('ctrl06');
+  var stats=document.getElementById('stats06');
+  var S={bits:8};
+  ctrl.appendChild(makeSlider('量化位数',2,16,2,S.bits,' bit',function(v){S.bits=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var bits=S.bits;
+    var levels=Math.pow(2,bits);
+    txt(svg,16,18,'权重分布 · FP16 → INT'+bits+' ('+levels+' 级)',C.muted,12);
+    /* original distribution (bell curve) */
+    var pal=bits<=4?C.rose:bits<=8?C.amber:C.emerald;
+    var bins=40;
+    var histW=580,histH=100;
+    var bx=16,by=30;
+    /* draw axis */
+    svgEl(svg,'line',{x1:bx,y1:by+histH,x2:bx+histW,y2:by+histH,stroke:C.border,'stroke-width':1});
+    svgEl(svg,'line',{x1:bx,y1:by,x2:bx,y2:by+histH,stroke:C.border,'stroke-width':1});
+    /* bell curve bars */
+    for(var i=0;i<bins;i++){
+      var cx=bx+i*(histW/bins);
+      var frac=Math.exp(-Math.pow((i-bins/2)/(bins/4),2));
+      var bh=frac*histH*0.9;
+      rrect(svg,cx+1,by+histH-bh,histW/bins-2,bh,C.faint,0.3);
+    }
+    /* quantization levels (horizontal lines) */
+    var nLevels=Math.min(levels,32);
+    for(var l=0;l<nLevels;l++){
+      var ly=by+histH-(l/(nLevels-1))*histH*0.9-histH*0.05;
+      svgEl(svg,'line',{x1:bx,y1:ly,x2:bx+histW,y2:ly,stroke:pal,'stroke-width':0.5,'stroke-opacity':0.5,'stroke-dasharray':'2 2'});
+    }
+    /* quantized bars overlaid */
+    for(var q=0;q<bins;q++){
+      var qx=bx+q*(histW/bins);
+      var qfrac=Math.exp(-Math.pow((q-bins/2)/(bins/4),2));
+      var qbh=Math.round(qfrac*(nLevels-1))/(nLevels-1)*histH*0.9;
+      rrect(svg,qx+1,by+histH-qbh,histW/bins-2,qbh,pal,0.6);
+    }
+    /* labels */
+    txt(svg,bx,by+histH+16,'-max',C.faint,9);
+    txt(svg,bx+histW-20,by+histH+16,'+max',C.faint,9);
+    txt(svg,bx+histW/2-20,by+histH+16,'weight value',C.faint,9);
+    /* size comparison */
+    var sY=by+histH+32;
+    txt(svg,16,sY,'模型大小对比',C.muted,11);
+    var sizes=[{l:'FP16',b:16,c:C.faint},{l:'BF16',b:16,c:C.faint},{l:'INT8',b:8,c:C.amber},{l:'INT4',b:4,c:C.rose}];
+    var sw=120,sh=20,sg=8;
+    for(var s=0;s<sizes.length;s++){
+      var sx=16+s*(sw+sg);
+      var ratio=sizes[s].b/16;
+      rrect(svg,sx,sY+10,sw,sh,C.s3,0.4);
+      rrect(svg,sx,sY+10,sw*ratio,sh,sizes[s].c,0.6);
+      txt(svg,sx+4,sY+24,sizes[s].l+' ('+sizes[s].b+'bit)',C.ink,10);
+      if(sizes[s].b===bits){
+        svgEl(svg,'rect',{x:sx-1,y:sY+9,width:sw+2,height:sh+2,fill:'none',stroke:C.cyan,'stroke-width':1.5,rx:3});
+      }
+    }
+    /* stats */
+    var modelSize=70*(bits/16);
+    var qualityLoss=bits<=4?15+(4-bits)*8:bits<=8?3+(8-bits)*1.5:0.5;
+    var speedup=16/bits*0.85;
+    setStats(stats,[
+      {color:pal,label:'量化级别',val:levels+''},
+      {color:C.cyan,label:'模型大小',val:modelSize.toFixed(1)+' GB'},
+      {color:C.amber,label:'质量损失',val:qualityLoss.toFixed(1)+'%'},
+      {color:C.emerald,label:'推理加速',val:speedup.toFixed(1)+'x'}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 07: Attention Optimization ===== */
+function initM07(){
+  var svg=document.getElementById('svg07');
+  var ctrl=document.getElementById('ctrl07');
+  var stats=document.getElementById('stats07');
+  var S={mode:'flash',seqLen:1024};
+  var btnRow=document.createElement('div');btnRow.className='btn-row';
+  var bStd=makeBtn('标准 Attention',false,function(){S.mode='standard';bStd.className='btn btn-sm active';bFlash.className='btn btn-sm';render();});
+  var bFlash=makeBtn('Flash Attention',true,function(){S.mode='flash';bFlash.className='btn btn-sm active';bStd.className='btn btn-sm';render();});
+  btnRow.appendChild(bStd);btnRow.appendChild(bFlash);
+  ctrl.appendChild(btnRow);
+  ctrl.appendChild(makeSlider('序列长度',128,8192,128,S.seqLen,' tok',function(v){S.seqLen=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var mode=S.mode,seq=S.seqLen;
+    txt(svg,16,18,mode==='flash'?'Flash Attention · 分块计算 + 在线 softmax':'标准 Attention · N×N 注意力矩阵 (HBM 密集读写)',mode==='flash'?C.emerald:C.rose,12);
+    /* draw N x N matrix grid */
+    var n=mode==='flash'?6:8;
+    var cellW=36,cellH=36,gap=2;
+    var mx=16,my=30;
+    /* labels */
+    txt(svg,mx-4,my-6,'Q',C.cyan,10);
+    txt(svg,mx+n*(cellW+gap)+8,my+14,'× K^T → S',C.faint,10);
+    for(var i=0;i<n;i++){
+      for(var j=0;j<n;j++){
+        var cx=mx+j*(cellW+gap);
+        var cy=my+i*(cellH+gap);
+        var intensity=0.15+0.6*Math.exp(-Math.pow(i-j,2)/8);
+        var fill=mode==='flash'?C.emerald:C.rose;
+        rrect(svg,cx,cy,cellW,cellH,fill,intensity);
+      }
+    }
+    /* flash: show block tiling */
+    if(mode==='flash'){
+      var bs=2;
+      for(var bi=0;bi<n;bi+=bs){
+        for(var bj=0;bj<n;bj+=bs){
+          svgEl(svg,'rect',{x:mx+bj*(cellW+gap)-1,y:my+bi*(cellH+gap)-1,width:bs*cellW+(bs-1)*gap+2,height:bs*cellH+(bs-1)*gap+2,fill:'none',stroke:C.cyan,'stroke-width':1.5,rx:4});
+        }
+      }
+    }
+    /* memory hierarchy */
+    var hY=my+n*(cellH+gap)+16;
+    svgEl(svg,'line',{x1:16,y1:hY,x2:624,y2:hY,stroke:C.border,'stroke-width':1});
+    txt(svg,16,hY+18,'内存层级',C.muted,11);
+    /* HBM bar */
+    var hbmW=400;
+    rrect(svg,16,hY+28,hbmW,16,C.rose,0.3);
+    txt(svg,20,hY+40,'HBM (显存) · 大但慢',C.rose,10);
+    /* SRAM bar */
+    var sramW=mode==='flash'?120:hbmW;
+    var sramColor=mode==='flash'?C.emerald:C.rose;
+    rrect(svg,16,hY+50,sramW,16,sramColor,0.5);
+    txt(svg,20,hY+62,mode==='flash'?'SRAM (片上) · 分块在 SRAM 计算, 减少读写':'SRAM 溢出 · 全量数据在 HBM 往返',sramColor,10);
+    /* IO complexity */
+    var ioY=hY+76;
+    svgEl(svg,'line',{x1:16,y1:ioY-4,x2:624,y2:ioY-4,stroke:C.border,'stroke-width':1});
+    txt(svg,16,ioY+10,mode==='flash'?'IO 复杂度: O(N²/√M) · M=SRAM 大小':'IO 复杂度: O(N²) · 全量 HBM 读写',C.faint,11);
+    /* IO comparison bars */
+    var N=seq;
+    var M=524288;
+    var stdIO=N*N;
+    var flashIO=N*N/Math.sqrt(M);
+    var ioReduction=stdIO/flashIO;
+    var maxIO=stdIO;
+    var barMaxW=400;
+    rrect(svg,16,ioY+20,barMaxW,12,C.rose,0.5);
+    txt(svg,16+barMaxW+6,ioY+30,'标准: '+stdIO.toExponential(1),C.rose,9);
+    var flashBarW=barMaxW*(flashIO/maxIO);
+    if(flashBarW<2)flashBarW=2;
+    rrect(svg,16,ioY+38,flashBarW,12,C.emerald,0.6);
+    txt(svg,16+flashBarW+6,ioY+48,'Flash: '+flashIO.toExponential(1),C.emerald,9);
+    var speedup=mode==='flash'?Math.min(ioReduction,8):1;
+    var memSaved=mode==='flash'?Math.round((1-N/seq)*0+92):0;
+    setStats(stats,[
+      {color:mode==='flash'?C.emerald:C.rose,label:'IO 复杂度',val:mode==='flash'?'O(N²/√M)':'O(N²)'},
+      {color:C.cyan,label:'IO 减少倍数',val:ioReduction.toFixed(0)+'x'},
+      {color:C.violet,label:'加速比',val:speedup.toFixed(1)+'x'},
+      {color:C.amber,label:'显存节省',val:mode==='flash'?'~92%':'0%'}
+    ]);
+  }
+  render();
+}
+
+/* ===== Module 08: Model Parallelism ===== */
+function initM08(){
+  var svg=document.getElementById('svg08');
+  var ctrl=document.getElementById('ctrl08');
+  var stats=document.getElementById('stats08');
+  var S={strategy:'tp',numGPU:4};
+  var btnRow=document.createElement('div');btnRow.className='btn-row';
+  var bTP=makeBtn('张量并行 TP',true,function(){S.strategy='tp';bTP.className='btn btn-sm active';bPP.className='btn btn-sm';bDP.className='btn btn-sm';render();});
+  var bPP=makeBtn('流水线 PP',false,function(){S.strategy='pp';bPP.className='btn btn-sm active';bTP.className='btn btn-sm';bDP.className='btn btn-sm';render();});
+  var bDP=makeBtn('数据并行 DP',false,function(){S.strategy='dp';bDP.className='btn btn-sm active';bTP.className='btn btn-sm';bPP.className='btn btn-sm';render();});
+  btnRow.appendChild(bTP);btnRow.appendChild(bPP);btnRow.appendChild(bDP);
+  ctrl.appendChild(btnRow);
+  ctrl.appendChild(makeSlider('GPU 数量',2,8,1,S.numGPU,' GPU',function(v){S.numGPU=v;render();}));
+  function render(){
+    clearSvg(svg);
+    var strat=S.strategy,ng=S.numGPU;
+    var pal=[C.cyan,C.violet,C.emerald,C.amber,C.rose,C.accent2,C.cyan,C.violet];
+    txt(svg,16,18,strat==='tp'?'张量并行 · 切分注意力头, All-Reduce 通信':strat==='pp'?'流水线并行 · 切分层, P2P 传递激活':'数据并行 · 复制模型, 梯度 All-Reduce',C.muted,12);
+    var gpuW=80,gpuH=70,gpuGap=12;
+    var startX=16,startY=36;
+    for(var g=0;g<ng;g++){
+      var gx=startX+g*(gpuW+gpuGap);
+      if(gx+gpuW>620)gx=startX+((g)%Math.floor((620-startX)/(gpuW+gpuGap)))*(gpuW+gpuGap);
+      var gy=startY+Math.floor(g/Math.floor((620-startX)/(gpuW+gpuGap)))*(gpuH+gpuGap+20);
+      /* GPU box */
+      rrect(svg,gx,gy,gpuW,gpuH,C.s3,0.5);
+      txt(svg,gx+8,gy+16,'GPU '+g,pal[g%8],11);
+      /* content depends on strategy */
+      if(strat==='tp'){
+        /* show split heads */
+        var heads=8,nh=Math.ceil(heads/ng);
+        var myHeads=g===ng-1?heads-(ng-1)*nh:nh;
+        txt(svg,gx+8,gy+32,'heads',C.faint,8);
+        for(var h=0;h<myHeads;h++){
+          rrect(svg,gx+8+h*10,gy+36,8,8,pal[g%8],0.6);
+        }
+        txt(svg,gx+8,gy+58,g*nh+'-'+(g*nh+myHeads-1),C.faint,8);
+      }else if(strat==='pp'){
+        /* show layers */
+        var layers=32,nl=Math.ceil(layers/ng);
+        var myLayers=g===ng-1?layers-(ng-1)*nl:nl;
+        txt(svg,gx+8,gy+32,'layers',C.faint,8);
+        txt(svg,gx+8,gy+50,g*nl+'-'+(g*nl+myLayers-1),C.ink,10);
+        txt(svg,gx+8,gy+62,myLayers+' 层',C.faint,8);
+      }else{
+        /* DP: full model copy */
+        txt(svg,gx+8,gy+32,'full',C.faint,8);
+        txt(svg,gx+8,gy+48,'model',C.emerald,10);
+        rrect(svg,gx+8,gy+54,gpuW-16,8,C.emerald,0.4);
+      }
+    }
+    /* communication pattern */
+    var nCols=Math.floor((620-startX)/(gpuW+gpuGap));
+    var commY=startY+Math.ceil(ng/nCols)*(gpuH+gpuGap+20)+8;
+    svgEl(svg,'line',{x1:16,y1:commY,x2:624,y2:commY,stroke:C.border,'stroke-width':1});
+    var commLabel=strat==='tp'?'All-Reduce (每层后同步)':strat==='pp'?'P2P Send/Recv (层间传递)':'All-Reduce (梯度同步)';
+    var commColor=strat==='tp'?C.cyan:strat==='pp'?C.amber:C.violet;
+    txt(svg,16,commY+18,'通信模式: '+commLabel,commColor,11);
+    /* draw communication arrows */
+    var arrY=commY+30;
+    for(var a=0;a<ng;a++){
+      var ax=startX+a*(gpuW+gpuGap);
+      if(ax+gpuW>620)ax=startX+(a%nCols)*(gpuW+gpuGap);
+      var ay=arrY+Math.floor(a/nCols)*4;
+      if(strat==='tp'){
+        /* all-reduce: bidirectional between all */
+        for(var b=a+1;b<ng;b++){
+          var bx2=startX+b*(gpuW+gpuW+gpuGap)/2;
+          svgEl(svg,'line',{x1:ax+gpuW/2,y1:ay,x2:bx2,y2:ay,stroke:commColor,'stroke-width':0.5,'stroke-opacity':0.3});
+        }
+      }else if(strat==='pp'){
+        /* P2P: sequential chain */
+        if(a<ng-1){
+          var nx2=startX+(a+1)*(gpuW+gpuGap);
+          if(nx2>620)nx2=startX;
+          svgEl(svg,'line',{x1:ax+gpuW,y1:ay,x2:nx2,y2:ay,stroke:commColor,'stroke-width':1,'marker-end':'url(#a8)'});
+        }
+      }else{
+        /* DP: all-reduce ring */
+        var ringNx=startX+((a+1)%ng)*(gpuW+gpuGap);
+        if(ringNx>620)ringNx=startX;
+        svgEl(svg,'line',{x1:ax+gpuW/2,y1:ay,x2:ringNx+gpuW/2,y2:ay,stroke:commColor,'stroke-width':0.5,'stroke-opacity':0.3});
+      }
+    }
+    defsArrow(svg,'a8',commColor);
+    /* stats */
+    var memPerGPU=strat==='tp'?70/ng:strat==='pp'?70/ng:70;
+    var throughput=strat==='tp'?2.5:strat==='pp'?2.0:3.5;
+    var commOverhead=strat==='tp'?15:strat==='pp'?8:20;
+    setStats(stats,[
+      {color:commColor,label:'通信',val:strat==='tp'?'All-Reduce':strat==='pp'?'P2P':'All-Reduce'},
+      {color:C.cyan,label:'单卡显存',val:memPerGPU.toFixed(1)+' GB'},
+      {color:C.emerald,label:'吞吐量',val:throughput.toFixed(1)+'x'},
+      {color:C.amber,label:'通信开销',val:commOverhead+'%'}
+    ]);
+  }
+  render();
+}
+
+/* ===== Init ===== */
+function init(){
+  initM01();initM02();initM03();initM04();initM05();initM06();initM07();initM08();
+  /* progress bar */
+  var bar=document.getElementById('progress');
+  function updateProgress(){
+    var h=document.documentElement;
+    var st=h.scrollTop||document.body.scrollTop;
+    var sh=h.scrollHeight-h.clientHeight;
+    bar.style.width=(sh>0?(st/sh*100):0)+'%';
+  }
+  window.addEventListener('scroll',updateProgress,{passive:true});
+  updateProgress();
+  /* IntersectionObserver for module reveal */
+  if('IntersectionObserver' in window&&!reducedMotion){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          e.target.classList.add('visible');
+          io.unobserve(e.target);
+        }
+      });
+    },{threshold:0.08,rootMargin:'0px 0px -40px 0px'});
+    document.querySelectorAll('.module').forEach(function(m){io.observe(m);});
+  }else{
+    document.querySelectorAll('.module').forEach(function(m){m.classList.add('visible');});
+  }
+  /* sidebar active link tracking */
+  var links=document.querySelectorAll('.side-link');
+  var sections=[];
+  links.forEach(function(l){
+    var href=l.getAttribute('href');
+    if(href&&href.charAt(0)==='#'&&href.length>1){
+      var sec=document.querySelector(href);
+      if(sec)sections.push({link:l,sec:sec});
+    }
+  });
+  if('IntersectionObserver' in window){
+    var sio=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(l){l.classList.remove('active');});
+          var match=sections.filter(function(s){return s.sec===e.target;});
+          if(match.length)match[0].link.classList.add('active');
+        }
+      });
+    },{threshold:0.15,rootMargin:'-60px 0px -50% 0px'});
+    sections.forEach(function(s){sio.observe(s.sec);});
+  }
+  /* mobile sidebar toggle */
+  var navToggle=document.getElementById('nav-toggle');
+  var sidebar=document.getElementById('sidebar');
+  if(navToggle){
+    navToggle.addEventListener('click',function(){
+      sidebar.classList.toggle('open');
+    });
+  }
+  /* close sidebar on link click (mobile) */
+  links.forEach(function(l){
+    l.addEventListener('click',function(){
+      if(window.innerWidth<=768)sidebar.classList.remove('open');
+    });
+  });
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init);
+}else{
+  init();
+}
+})();
+</script>
+</body>
+</html>

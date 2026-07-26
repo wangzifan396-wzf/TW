@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPC Viz Lab — 高性能计算可视化实验室</title>
+<meta name="description" content="高性能计算可视化实验室：MPI、CUDA、OpenMP、MapReduce、Amdahl定律、Cache优化、SIMD向量化、通信优化">
+<style>
+/* ========== CSS Variables ========== */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#2dd4ff;
+  --accent-2:#7c5cff;
+  --accent-dim:rgba(45,212,255,.14);
+  --accent-2-dim:rgba(124,92,255,.14);
+  --green:#4ade80;
+  --amber:#fbbf24;
+  --red:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --radius:10px;
+  --radius-sm:7px;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+/* ========== Reset & Base ========== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 20px)}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.6;
+  font-size:15px;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent-dim);color:var(--accent)}
+
+/* scrollbars */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:5px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--faint)}
+
+/* ========== Progress Bar ========== */
+#progress-bar{
+  position:fixed;top:0;left:0;right:0;
+  height:2px;background:transparent;z-index:1000;
+  pointer-events:none;
+}
+#progress-fill{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transform-origin:left;
+  transition:width .1s linear;
+}
+
+/* ========== Navbar ========== */
+#navbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
+  background:rgba(8,9,10,.88);
+  border-bottom:1px solid var(--border);
+  z-index:900;
+}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-logo{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:7px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#06070a;font-weight:800;font-size:15px;
+}
+.nav-title{font-weight:700;font-size:16px;letter-spacing:-.02em}
+.nav-title span{color:var(--accent)}
+.nav-meta{display:flex;align-items:center;gap:18px}
+.nav-link{
+  font-size:13px;color:var(--muted);font-family:var(--font-mono);
+  transition:color .2s var(--ease);
+}
+.nav-link:hover{color:var(--accent)}
+.nav-badge{
+  font-size:11px;color:var(--faint);font-family:var(--font-mono);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+
+/* ========== Sidebar ========== */
+#sidebar{
+  position:fixed;top:var(--nav-h);left:0;
+  width:var(--side-w);height:calc(100vh - var(--nav-h));
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  z-index:800;
+  padding:16px 0;
+}
+.side-header{
+  font-size:11px;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--faint);font-weight:600;
+  padding:0 20px 10px;margin-bottom:6px;
+  border-bottom:1px solid var(--border);
+}
+.side-nav{list-style:none}
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;font-size:13.5px;color:var(--muted);
+  border-left:2px solid transparent;
+  transition:all .18s var(--ease);
+}
+.side-link:hover{color:var(--ink);background:var(--surface-2)}
+.side-link.active{
+  color:var(--accent);
+  border-left-color:var(--accent);
+  background:var(--accent-dim);
+}
+.side-num{
+  font-family:var(--font-mono);font-size:11px;
+  color:var(--faint);min-width:18px;
+}
+.side-link.active .side-num{color:var(--accent)}
+
+/* sidebar toggle (mobile) */
+#side-toggle{
+  display:none;
+  position:fixed;top:14px;left:16px;z-index:950;
+  width:30px;height:30px;border-radius:7px;
+  background:var(--surface-2);border:1px solid var(--border);
+  font-size:16px;color:var(--ink);align-items:center;justify-content:center;
+}
+
+/* ========== Main Content ========== */
+#content{
+  margin-left:var(--side-w);
+  margin-top:var(--nav-h);
+  padding:0 40px 80px;
+  max-width:1200px;
+}
+
+/* Hero */
+.hero{
+  padding:64px 0 48px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:48px;
+}
+.hero-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:12px;
+  color:var(--accent);
+  padding:5px 12px;border:1px solid var(--accent-dim);
+  border-radius:20px;background:var(--accent-dim);
+  margin-bottom:20px;
+}
+.hero-tag::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--accent);
+}
+.hero h1{
+  font-size:42px;font-weight:800;line-height:1.15;letter-spacing:-.03em;
+  margin-bottom:18px;
+}
+.hero h1 .grad{
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.hero p{font-size:17px;color:var(--muted);max-width:620px;margin-bottom:28px}
+.hero-stats{display:flex;gap:36px;flex-wrap:wrap}
+.hero-stat .v{font-size:26px;font-weight:700;color:var(--ink);font-family:var(--font-mono)}
+.hero-stat .l{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+
+/* ========== Module ========== */
+.module{
+  margin-bottom:64px;
+  opacity:0;transform:translateY(28px);
+  transition:opacity .6s var(--ease),transform .6s var(--ease);
+}
+.module.in-view{opacity:1;transform:translateY(0)}
+.module-head{margin-bottom:20px}
+.kicker{
+  display:inline-block;
+  font-family:var(--font-mono);font-size:12px;font-weight:600;
+  color:var(--accent);
+  padding:3px 9px;border-radius:5px;
+  background:var(--accent-dim);
+  margin-bottom:12px;letter-spacing:.05em;
+}
+.module-head h2{
+  font-size:26px;font-weight:700;letter-spacing:-.02em;
+  margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.module-head h2 .icon{
+  width:34px;height:34px;border-radius:8px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:1px solid var(--border-strong);
+  color:var(--accent);font-size:17px;flex-shrink:0;
+}
+.module-head p{color:var(--muted);font-size:14.5px;max-width:720px}
+
+/* Card */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.card-grid{
+  display:grid;
+  grid-template-columns:1fr 280px;
+  gap:0;
+}
+.viz-wrap{padding:20px;border-right:1px solid var(--border)}
+.viz-box{
+  position:relative;
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+.viz-legend{
+  display:flex;gap:16px;flex-wrap:wrap;
+  margin-top:12px;font-size:12px;color:var(--muted);
+}
+.viz-legend span{display:inline-flex;align-items:center;gap:6px}
+.viz-legend .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+/* side panel */
+.side-panel{
+  padding:20px;display:flex;flex-direction:column;gap:18px;
+}
+.panel-label{
+  font-size:11px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--faint);font-weight:600;margin-bottom:8px;
+}
+
+/* Controls */
+.controls{display:flex;flex-direction:column;gap:14px}
+.ctrl-group{display:flex;flex-direction:column;gap:6px}
+.ctrl-label{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12.5px;color:var(--muted);
+}
+.ctrl-val{font-family:var(--font-mono);color:var(--accent);font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  padding:7px 14px;font-size:13px;font-weight:500;
+  border-radius:var(--radius-sm);
+  background:var(--surface-2);border:1px solid var(--border-strong);
+  color:var(--muted);
+  transition:all .15s var(--ease);
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{color:var(--ink);border-color:var(--accent)}
+.btn.active{
+  background:var(--accent-dim);color:var(--accent);
+  border-color:var(--accent);
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#06070a;font-weight:600;border:none;
+}
+.btn-primary:hover{opacity:.9;color:#06070a}
+select.ctrl{
+  width:100%;padding:7px 10px;font-size:13px;
+  background:var(--surface-2);border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm);color:var(--ink);
+  font-family:var(--font-sans);outline:none;
+}
+select.ctrl:focus{border-color:var(--accent)}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:4px;border-radius:2px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);transition:transform .12s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+
+/* detail-box */
+.detail-box{
+  margin:0 20px 16px;
+  padding:14px 16px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  font-size:13px;color:var(--muted);line-height:1.65;
+}
+.detail-box code{
+  font-family:var(--font-mono);font-size:12px;
+  color:var(--accent);background:var(--surface-3);
+  padding:1px 5px;border-radius:4px;
+}
+.detail-box strong{color:var(--ink);font-weight:600}
+
+/* stats-row */
+.stats-row{
+  display:flex;gap:0;
+  border-top:1px solid var(--border);
+}
+.stat-cell{
+  flex:1;padding:14px 20px;
+  border-right:1px solid var(--border);
+}
+.stat-cell:last-child{border-right:none}
+.stat-cell .v{
+  font-family:var(--font-mono);font-size:20px;font-weight:700;
+  color:var(--ink);line-height:1.2;
+}
+.stat-cell .v.accent{color:var(--accent)}
+.stat-cell .v.green{color:var(--green)}
+.stat-cell .v.amber{color:var(--amber)}
+.stat-cell .v.red{color:var(--red)}
+.stat-cell .l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+
+/* SVG shared */
+.node{transition:fill .25s var(--ease)}
+.link{transition:stroke .25s var(--ease),stroke-opacity .25s var(--ease)}
+.pkt{transition:transform .05s linear}
+
+/* full-width card (for charts) */
+.card.full .card-grid{grid-template-columns:1fr}
+.card.full .viz-wrap{border-right:none;border-bottom:1px solid var(--border)}
+
+/* footer */
+.footer{
+  margin-top:40px;padding:32px 0;
+  border-top:1px solid var(--border);
+  text-align:center;color:var(--faint);font-size:13px;
+}
+.footer a{color:var(--accent);font-family:var(--font-mono)}
+.footer .gh-link{display:inline-flex;align-items:center;gap:6px}
+
+/* ========== Responsive ========== */
+@media(max-width:980px){
+  .card-grid{grid-template-columns:1fr!important}
+  .viz-wrap{border-right:none!important;border-bottom:1px solid var(--border)}
+  .side-panel{border-top:1px solid var(--border)}
+}
+@media(max-width:760px){
+  #side-toggle{display:inline-flex}
+  #sidebar{
+    transform:translateX(-100%);
+    transition:transform .3s var(--ease);
+  }
+  #sidebar.open{transform:translateX(0)}
+  #content{margin-left:0;padding:0 18px 60px}
+  .hero h1{font-size:30px}
+  .nav-badge{display:none}
+  .stats-row{flex-wrap:wrap}
+  .stat-cell{flex:1 0 50%;border-bottom:1px solid var(--border)}
+}
+
+/* ========== Reduced Motion ========== */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .module{opacity:1;transform:none}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- Progress Bar -->
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<!-- Sidebar Toggle (mobile) -->
+<button id="side-toggle" aria-label="菜单">≡</button>
+
+<!-- Navbar -->
+<nav id="navbar">
+  <div class="nav-brand">
+    <span class="nav-logo">H</span>
+    <span class="nav-title">HPC<span>Viz</span>Lab</span>
+  </div>
+  <div class="nav-meta">
+    <span class="nav-badge">8 modules</span>
+    <a href="https://github.com/wangzifan396-wzf/hpc-viz-lab" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
+  </div>
+</nav>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="side-header">模块导航</div>
+  <ul class="side-nav">
+    <li><a href="#mod-mpi" class="side-link active"><span class="side-num">01</span><span>MPI 并行通信</span></a></li>
+    <li><a href="#mod-cuda" class="side-link"><span class="side-num">02</span><span>CUDA GPU 编程</span></a></li>
+    <li><a href="#mod-openmp" class="side-link"><span class="side-num">03</span><span>OpenMP</span></a></li>
+    <li><a href="#mod-mapreduce" class="side-link"><span class="side-num">04</span><span>MapReduce</span></a></li>
+    <li><a href="#mod-amdahl" class="side-link"><span class="side-num">05</span><span>Amdahl 定律</span></a></li>
+    <li><a href="#mod-cache" class="side-link"><span class="side-num">06</span><span>Cache 优化</span></a></li>
+    <li><a href="#mod-simd" class="side-link"><span class="side-num">07</span><span>向量化 SIMD</span></a></li>
+    <li><a href="#mod-comm" class="side-link"><span class="side-num">08</span><span>通信优化</span></a></li>
+  </ul>
+</aside>
+
+<!-- Main Content -->
+<main id="content">
+
+  <!-- Hero -->
+  <section class="hero">
+    <span class="hero-tag">高性能计算 · 交互式可视化</span>
+    <h1>探索 <span class="grad">并行与高性能计算</span> 的核心原理</h1>
+    <p>从 MPI 通信到 CUDA 线程层次，从 Amdahl 定律到 Cache 局部性——8 个交互模块，用动画拆解 HPC 的关键概念。</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="v">8</div><div class="l">可视化模块</div></div>
+      <div class="hero-stat"><div class="v">0</div><div class="l">外部依赖</div></div>
+      <div class="hero-stat"><div class="v">SVG</div><div class="l">矢量渲染</div></div>
+      <div class="hero-stat"><div class="v">RAF</div><div class="l">动画驱动</div></div>
+    </div>
+  </section>
+
+  <!-- ===== 01 MPI ===== -->
+  <section class="module" id="mod-mpi">
+    <div class="module-head">
+      <span class="kicker">01 / MPI</span>
+      <h2><span class="icon">⇄</span>MPI 并行通信</h2>
+      <p>消息传递接口（MPI）是分布式并行计算的核心编程模型。本模块可视化点对点通信 Send/Recv 与集合通信 Broadcast、Reduce、Scatter、Gather 的数据流。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="mpi-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="mpi-links"></g>
+              <g id="mpi-pkts"></g>
+              <g id="mpi-nodes"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>Root (Rank 0)</span>
+            <span><i class="dot" style="background:var(--surface-3);border:1px solid var(--border-strong)"></i>Worker Rank</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>消息包</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">通信模式</div>
+          <div class="controls">
+            <select class="ctrl" id="mpi-pattern">
+              <option value="p2p">Send / Recv（点对点）</option>
+              <option value="broadcast">Broadcast（广播）</option>
+              <option value="reduce">Reduce（归约）</option>
+              <option value="scatter">Scatter（散射）</option>
+              <option value="gather">Gather（聚集）</option>
+            </select>
+            <div class="ctrl-group">
+              <div class="ctrl-label">进程数 <span class="ctrl-val" id="mpi-n-val">8</span></div>
+              <input type="range" id="mpi-n" min="4" max="16" value="8" step="2">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">速度 <span class="ctrl-val" id="mpi-speed-val">1.0×</span></div>
+              <input type="range" id="mpi-speed" min="0.3" max="3" value="1" step="0.1">
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="mpi-run">▶ 运行</button>
+              <button class="btn" id="mpi-reset">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="mpi-detail">
+        <strong>点对点通信</strong>：Root 通过 <code>MPI_Send</code> 将数据发给目标进程，对方用 <code>MPI_Recv</code> 接收。<strong>集合通信</strong>：所有进程共同参与——<code>MPI_Bcast</code> 广播根节点数据，<code>MPI_Reduce</code> 将各进程数据归约到根节点。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="mpi-stat-msg">0</div><div class="l">消息数</div></div>
+        <div class="stat-cell"><div class="v accent" id="mpi-stat-bytes">0 B</div><div class="l">传输量</div></div>
+        <div class="stat-cell"><div class="v" id="mpi-stat-lat">0 µs</div><div class="l">延迟</div></div>
+        <div class="stat-cell"><div class="v green" id="mpi-stat-bw">0 MB/s</div><div class="l">带宽</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 CUDA ===== -->
+  <section class="module" id="mod-cuda">
+    <div class="module-head">
+      <span class="kicker">02 / CUDA</span>
+      <h2><span class="icon">▦</span>CUDA GPU 编程</h2>
+      <p>CUDA 采用 Grid → Block → Thread 三级线程层次。本模块展示线程层次结构与 Warp 分化现象——同一 Warp 内的线程因分支条件而部分执行。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="cuda-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="cuda-grid"></g>
+              <g id="cuda-labels"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>活跃线程</span>
+            <span><i class="dot" style="background:var(--surface-3);border:1px solid var(--border-strong)"></i>闲置（分化）</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>Warp 边界</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">线程配置</div>
+          <div class="controls">
+            <div class="ctrl-group">
+              <div class="ctrl-label">Grid 尺寸 <span class="ctrl-val" id="cuda-grid-val">4×3</span></div>
+              <input type="range" id="cuda-grid" min="2" max="6" value="4" step="1">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">Block 尺寸 <span class="ctrl-val" id="cuda-block-val">8×8</span></div>
+              <input type="range" id="cuda-block" min="4" max="16" value="8" step="2">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">分化阈值 <span class="ctrl-val" id="cuda-div-val">50%</span></div>
+              <input type="range" id="cuda-div" min="0" max="100" value="50" step="5">
+            </div>
+            <div class="btn-row">
+              <button class="btn active" id="cuda-warp">Warp 视图</button>
+              <button class="btn" id="cuda-reshuffle">重排</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="cuda-detail">
+        GPU 以 <strong>Warp</strong>（32 线程）为调度单位执行。当线程遇到 <code>if/else</code> 分支时，未命中分支的线程会被禁用（<strong>Warp 分化</strong>），导致 SIMT 利用率下降。Block 尺寸建议为 32 的倍数。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="cuda-stat-threads">0</div><div class="l">总线程</div></div>
+        <div class="stat-cell"><div class="v accent" id="cuda-stat-blocks">0</div><div class="l">Block 数</div></div>
+        <div class="stat-cell"><div class="v" id="cuda-stat-warps">0</div><div class="l">Warp 数</div></div>
+        <div class="stat-cell"><div class="v amber" id="cuda-stat-occ">0%</div><div class="l">SIMT 利用率</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 OpenMP ===== -->
+  <section class="module" id="mod-openmp">
+    <div class="module-head">
+      <span class="kicker">03 / OpenMP</span>
+      <h2><span class="icon">⑂</span>OpenMP Fork-Join</h2>
+      <p>OpenMP 基于 Fork-Join 模型：主线程在并行区域创建（fork）一组工作线程，结束后汇合（join）。本模块展示线程时序与数据作用域。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="omp-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="omp-axis"></g>
+              <g id="omp-threads"></g>
+              <g id="omp-data"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>主线程</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>工作线程</span>
+            <span><i class="dot" style="background:var(--green)"></i>shared 变量</span>
+            <span><i class="dot" style="background:var(--amber)"></i>private 变量</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">并行配置</div>
+          <div class="controls">
+            <div class="ctrl-group">
+              <div class="ctrl-label">线程数 <span class="ctrl-val" id="omp-n-val">4</span></div>
+              <input type="range" id="omp-n" min="2" max="8" value="4" step="1">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">并行比例 <span class="ctrl-val" id="omp-p-val">70%</span></div>
+              <input type="range" id="omp-p" min="20" max="95" value="70" step="5">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">速度 <span class="ctrl-val" id="omp-speed-val">1.0×</span></div>
+              <input type="range" id="omp-speed" min="0.3" max="3" value="1" step="0.1">
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="omp-run">▶ 运行</button>
+              <button class="btn" id="omp-reset">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="omp-detail">
+        <code>#pragma omp parallel</code> 创建并行区域，主线程 fork 出工作线程。变量可用 <code>shared</code>（所有线程共享）或 <code>private</code>（每线程独立副本）限定。<code>#pragma omp for</code> 将循环迭代分配给各线程。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="omp-stat-threads">0</div><div class="l">线程数</div></div>
+        <div class="stat-cell"><div class="v accent" id="omp-stat-time">0 ms</div><div class="l">并行耗时</div></div>
+        <div class="stat-cell"><div class="v" id="omp-stat-serial">0 ms</div><div class="l">串行耗时</div></div>
+        <div class="stat-cell"><div class="v green" id="omp-stat-speedup">1.0×</div><div class="l">加速比</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 MapReduce ===== -->
+  <section class="module" id="mod-mapreduce">
+    <div class="module-head">
+      <span class="kicker">04 / MapReduce</span>
+      <h2><span class="icon">≣</span>MapReduce 流水线</h2>
+      <p>MapReduce 将大数据处理拆分为 Map（映射）、Shuffle（洗牌）、Reduce（归约）三阶段。本模块动画演示键值对在各阶段间的流动与重组。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="mr-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="mr-stages"></g>
+              <g id="mr-flow"></g>
+              <g id="mr-pkts"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>Map 输出</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>Shuffle 传输</span>
+            <span><i class="dot" style="background:var(--green)"></i>Reduce 输出</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">作业配置</div>
+          <div class="controls">
+            <div class="ctrl-group">
+              <div class="ctrl-label">Mapper 数 <span class="ctrl-val" id="mr-map-val">4</span></div>
+              <input type="range" id="mr-map" min="2" max="6" value="4" step="1">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">Reducer 数 <span class="ctrl-val" id="mr-red-val">3</span></div>
+              <input type="range" id="mr-red" min="2" max="5" value="3" step="1">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">速度 <span class="ctrl-val" id="mr-speed-val">1.0×</span></div>
+              <input type="range" id="mr-speed" min="0.3" max="3" value="1" step="0.1">
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="mr-run">▶ 运行</button>
+              <button class="btn" id="mr-reset">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="mr-detail">
+        <strong>Map</strong>：每个 Mapper 处理输入分片，输出 &lt;key, value&gt; 对。<strong>Shuffle</strong>：按 key 分区并排序，将相同 key 发往同一 Reducer。<strong>Reduce</strong>：对每组 key 的 values 执行归约函数（如求和、计数），输出最终结果。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="mr-stat-keys">0</div><div class="l">键值对</div></div>
+        <div class="stat-cell"><div class="v accent" id="mr-stat-shuffle">0</div><div class="l">Shuffle 量</div></div>
+        <div class="stat-cell"><div class="v" id="mr-stat-time">0 ms</div><div class="l">作业耗时</div></div>
+        <div class="stat-cell"><div class="v green" id="mr-stat-thr">0 rec/s</div><div class="l">吞吐率</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 05 Amdahl ===== -->
+  <section class="module" id="mod-amdahl">
+    <div class="module-head">
+      <span class="kicker">05 / Amdahl</span>
+      <h2><span class="icon">↗</span>Amdahl 定律</h2>
+      <p>Amdahl 定律揭示了并行计算的加速上限：即使无限增加处理器，串行部分仍制约整体加速比。本模块可视化加速比曲线与并行比例 p 的影响。</p>
+    </div>
+    <div class="card full">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="amd-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="amd-grid"></g>
+              <g id="amd-curves"></g>
+              <g id="amd-point"></g>
+              <g id="amd-axis"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>当前 p 加速比</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>理论曲线族</span>
+            <span><i class="dot" style="background:var(--faint)"></i>理想线性</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">参数调节</div>
+          <div class="controls">
+            <div class="ctrl-group">
+              <div class="ctrl-label">并行比例 p <span class="ctrl-val" id="amd-p-val">0.80</span></div>
+              <input type="range" id="amd-p" min="0.3" max="0.99" value="0.8" step="0.01">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">处理器数 N <span class="ctrl-val" id="amd-n-val">16</span></div>
+              <input type="range" id="amd-n" min="1" max="64" value="16" step="1">
+            </div>
+            <div class="btn-row">
+              <button class="btn" data-amd="0.5">p=0.5</button>
+              <button class="btn" data-amd="0.9">p=0.9</button>
+              <button class="btn" data-amd="0.99">p=0.99</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="amd-detail">
+        加速比公式：<code>S = 1 / ((1-p) + p/N)</code>，其中 p 为可并行比例，N 为处理器数。当 N→∞ 时，最大加速比 <code>S_max = 1/(1-p)</code>——串行部分 1-p 是加速比的不可逾越上限。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v accent" id="amd-stat-s">1.0×</div><div class="l">当前加速比</div></div>
+        <div class="stat-cell"><div class="v" id="amd-stat-max">5.0×</div><div class="l">最大加速比</div></div>
+        <div class="stat-cell"><div class="v" id="amd-stat-eff">0%</div><div class="l">并行效率</div></div>
+        <div class="stat-cell"><div class="v red" id="amd-stat-serial">20%</div><div class="l">串行瓶颈</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 06 Cache ===== -->
+  <section class="module" id="mod-cache">
+    <div class="module-head">
+      <span class="kicker">06 / Cache</span>
+      <h2><span class="icon">▦</span>Cache 优化</h2>
+      <p>矩阵遍历的访问模式直接影响 Cache 命中率。本模块对比逐行遍历（空间局部性好）与逐列遍历（局部性差），并展示 Tiling/Blocking 分块如何提升复用。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="cache-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="cache-grid"></g>
+              <g id="cache-cursor"></g>
+              <g id="cache-tile"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>已访问</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>当前 Cache Line</span>
+            <span><i class="dot" style="background:var(--green)"></i>Tile 块</span>
+            <span><i class="dot" style="background:var(--red)"></i>Cache Miss</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">访问模式</div>
+          <div class="controls">
+            <select class="ctrl" id="cache-mode">
+              <option value="row">行主序遍历</option>
+              <option value="col">列主序遍历</option>
+              <option value="tile">分块遍历 (Tiling)</option>
+            </select>
+            <div class="ctrl-group">
+              <div class="ctrl-label">矩阵大小 <span class="ctrl-val" id="cache-size-val">8×8</span></div>
+              <input type="range" id="cache-size" min="6" max="16" value="8" step="2">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">Tile 大小 <span class="ctrl-val" id="cache-tile-val">4</span></div>
+              <input type="range" id="cache-tile" min="2" max="8" value="4" step="1">
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="cache-run">▶ 遍历</button>
+              <button class="btn" id="cache-reset">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="cache-detail">
+        CPU 按 <strong>Cache Line</strong>（通常 64B）加载内存。行主序遍历连续访问，命中率高；列遍历跨行跳跃，每次访问触发 Miss。<strong>Tiling</strong> 将矩阵分成小块，使每块完全驻留 Cache，大幅提升空间与时间局部性。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v green" id="cache-stat-hit">0</div><div class="l">Cache 命中</div></div>
+        <div class="stat-cell"><div class="v red" id="cache-stat-miss">0</div><div class="l">Cache Miss</div></div>
+        <div class="stat-cell"><div class="v accent" id="cache-stat-rate">0%</div><div class="l">命中率</div></div>
+        <div class="stat-cell"><div class="v" id="cache-stat-cycle">0</div><div class="l">访问周期</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 07 SIMD ===== -->
+  <section class="module" id="mod-simd">
+    <div class="module-head">
+      <span class="kicker">07 / SIMD</span>
+      <h2><span class="icon">⫼</span>向量化 SIMD</h2>
+      <p>单指令多数据（SIMD）用一条指令同时处理多个数据元素。本模块对比标量循环与 AVX/NEON 向量循环的吞吐差异，展示向量化循环展开。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="simd-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="simd-scalar"></g>
+              <g id="simd-vector"></g>
+              <g id="simd-cursor"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>已处理</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>当前向量</span>
+            <span><i class="dot" style="background:var(--amber)"></i>标量（逐元素）</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">向量化配置</div>
+          <div class="controls">
+            <div class="btn-row">
+              <button class="btn active" data-simd-w="4">SSE (4)</button>
+              <button class="btn" data-simd-w="8">AVX2 (8)</button>
+              <button class="btn" data-simd-w="16">AVX-512 (16)</button>
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">数组长度 <span class="ctrl-val" id="simd-len-val">32</span></div>
+              <input type="range" id="simd-len" min="16" max="64" value="32" step="8">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">速度 <span class="ctrl-val" id="simd-speed-val">1.0×</span></div>
+              <input type="range" id="simd-speed" min="0.3" max="3" value="1" step="0.1">
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="simd-run">▶ 运行</button>
+              <button class="btn" id="simd-reset">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="simd-detail">
+        <strong>SSE</strong>（128 位 / 4 单精度）、<strong>AVX2</strong>（256 位 / 8）、<strong>AVX-512</strong>（512 位 / 16）一条指令处理多个元素。<code>#pragma omp simd</code> 或编译器自动向量化可将标量循环展开为向量指令，吞吐成倍提升。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="simd-stat-insn">0</div><div class="l">标量指令</div></div>
+        <div class="stat-cell"><div class="v accent" id="simd-stat-vec">0</div><div class="l">向量指令</div></div>
+        <div class="stat-cell"><div class="v" id="simd-stat-cycle">0</div><div class="l">总周期</div></div>
+        <div class="stat-cell"><div class="v green" id="simd-stat-speedup">1.0×</div><div class="l">加速比</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 08 Comm Optimization ===== -->
+  <section class="module" id="mod-comm">
+    <div class="module-head">
+      <span class="kicker">08 / COMM</span>
+      <h2><span class="icon">⇆</span>通信优化</h2>
+      <p>并行程序的性能瓶颈常在通信。本模块展示延迟隐藏（计算与通信重叠）与不同集合通信拓扑（Ring / Tree / Mesh）对延迟与带宽的影响。</p>
+    </div>
+    <div class="card">
+      <div class="card-grid">
+        <div class="viz-wrap">
+          <div class="viz-box">
+            <svg id="comm-svg" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet">
+              <g id="comm-timeline"></g>
+              <g id="comm-topo"></g>
+            </svg>
+          </div>
+          <div class="viz-legend">
+            <span><i class="dot" style="background:var(--accent)"></i>计算</span>
+            <span><i class="dot" style="background:var(--accent-2)"></i>通信</span>
+            <span><i class="dot" style="background:var(--green)"></i>重叠区域</span>
+            <span><i class="dot" style="background:var(--faint)"></i>空闲</span>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-label">优化选项</div>
+          <div class="controls">
+            <select class="ctrl" id="comm-topo">
+              <option value="ring">Ring 拓扑</option>
+              <option value="tree">Tree 拓扑</option>
+              <option value="mesh">Mesh 拓扑</option>
+            </select>
+            <div class="ctrl-group">
+              <div class="ctrl-label">节点数 <span class="ctrl-val" id="comm-n-val">8</span></div>
+              <input type="range" id="comm-n" min="4" max="16" value="8" step="2">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">通信占比 <span class="ctrl-val" id="comm-ratio-val">40%</span></div>
+              <input type="range" id="comm-ratio" min="10" max="70" value="40" step="5">
+            </div>
+            <div class="btn-row">
+              <button class="btn active" id="comm-overlap">计算-通信重叠</button>
+              <button class="btn btn-primary" id="comm-run">▶ 运行</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-box" id="comm-detail">
+        <strong>延迟隐藏</strong>：用非阻塞通信（<code>MPI_Isend/Irecv</code>）将通信与计算重叠，掩盖网络延迟。<strong>Ring</strong> 拓扑带宽最优，<strong>Tree</strong> 延迟最优（O(log N)），<strong>Mesh</strong> 适合高维近邻通信。
+      </div>
+      <div class="stats-row">
+        <div class="stat-cell"><div class="v" id="comm-stat-lat">0 µs</div><div class="l">总延迟</div></div>
+        <div class="stat-cell"><div class="v accent" id="comm-stat-overlap">0%</div><div class="l">重叠率</div></div>
+        <div class="stat-cell"><div class="v" id="comm-stat-time">0 ms</div><div class="l">执行时间</div></div>
+        <div class="stat-cell"><div class="v green" id="comm-stat-speedup">1.0×</div><div class="l">重叠加速比</div></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div>
+    <span class="gh-link">◈ hpc-viz-lab — 高性能计算可视化实验室</span><br>
+    <a href="https://github.com/wangzifan396-wzf/hpc-viz-lab" target="_blank" rel="noopener">github.com/wangzifan396-wzf/hpc-viz-lab</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+/* ========== Shared Utilities ========== */
+var NS='http://www.w3.org/2000/svg';
+var C={
+  accent:'#2dd4ff',accent2:'#7c5cff',bg:'#08090a',
+  surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',
+  border:'rgba(255,255,255,.07)',borderStrong:'rgba(255,255,255,.14)',
+  ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',
+  green:'#4ade80',amber:'#fbbf24',red:'#f87171'
+};
+var $=function(s,c){return (c||document).querySelector(s);};
+var $$=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+var reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function svgEl(tag,attrs){
+  var el=document.createElementNS(NS,tag);
+  if(attrs)for(var k in attrs)el.setAttribute(k,attrs[k]);
+  return el;
+}
+function svgText(x,y,txt,attrs){
+  var a={x:x,y:y,'text-anchor':'middle','font-family':C.monoFont||'ui-monospace,monospace','font-size':11};
+  if(attrs)for(var k in attrs)a[k]=attrs[k];
+  var el=svgEl('text',a);
+  el.textContent=txt;
+  return el;
+}
+function setVal(id,v){var e=document.getElementById(id);if(e)e.textContent=v;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function fmtBytes(b){
+  if(b<1024)return Math.round(b)+' B';
+  if(b<1048576)return(b/1024).toFixed(1)+' KB';
+  return(b/1048576).toFixed(1)+' MB';
+}
+function svgClear(){for(var i=0;i<arguments.length;i++)if(arguments[i])arguments[i].innerHTML='';}
+
+/* ========== Progress Bar ========== */
+var pfill=document.getElementById('progress-fill');
+function updateProgress(){
+  var h=document.documentElement;
+  var s=h.scrollTop/((h.scrollHeight-h.clientHeight)||1);
+  pfill.style.width=clamp(s*100,0,100)+'%';
+}
+window.addEventListener('scroll',updateProgress,{passive:true});
+updateProgress();
+
+/* ========== Fade-in Observer ========== */
+var fadeIO=new IntersectionObserver(function(es){
+  es.forEach(function(e){if(e.isIntersecting)e.target.classList.add('in-view');});
+},{threshold:0.05,rootMargin:'0px 0px -40px 0px'});
+$$('.module').forEach(function(m){fadeIO.observe(m);});
+
+/* ========== Sidebar Active Tracking ========== */
+var sideLinks=$$('.side-link');
+var navIO=new IntersectionObserver(function(es){
+  es.forEach(function(e){
+    if(e.isIntersecting){
+      sideLinks.forEach(function(l){
+        l.classList.toggle('active',l.getAttribute('href')==='#'+e.target.id);
+      });
+    }
+  });
+},{rootMargin:'-25% 0px -60% 0px',threshold:0});
+$$('.module').forEach(function(m){navIO.observe(m);});
+
+/* ========== Sidebar Toggle (mobile) ========== */
+var sidebar=document.getElementById('sidebar');
+document.getElementById('side-toggle').addEventListener('click',function(){
+  sidebar.classList.toggle('open');
+});
+sideLinks.forEach(function(l){
+  l.addEventListener('click',function(){sidebar.classList.remove('open');});
+});
+
+/* ============================================================
+   MODULE 01 — MPI 并行通信
+   ============================================================ */
+(function(){
+  var gN=$('#mpi-nodes'),gL=$('#mpi-links'),gP=$('#mpi-pkts');
+  var btnRun=$('#mpi-run'),btnReset=$('#mpi-reset');
+  var st={n:8,pattern:'p2p',speed:1,raf:0,pkts:[],nodes:[],delivered:0};
+
+  function layout(n){
+    var cx=360,cy=170,r=120,arr=[];
+    for(var i=0;i<n;i++){
+      var a=-Math.PI/2+i*2*Math.PI/n;
+      arr.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),id:i});
+    }
+    return arr;
+  }
+  function draw(){
+    svgClear(gL,gN,gP);
+    st.nodes=layout(st.n);
+    var ns=st.nodes;
+    for(var i=1;i<ns.length;i++){
+      gL.appendChild(svgEl('line',{x1:ns[0].x,y1:ns[0].y,x2:ns[i].x,y2:ns[i].y,stroke:C.borderStrong,'stroke-width':1,'stroke-opacity':.4}));
+    }
+    ns.forEach(function(nd,i){
+      gN.appendChild(svgEl('circle',{cx:nd.x,cy:nd.y,r:15,fill:i===0?C.accent:C.surface2,stroke:i===0?C.accent:C.borderStrong,'stroke-width':1.5}));
+      gN.appendChild(svgText(nd.x,nd.y+4,String(i),{fill:i===0?'#06070a':C.muted}));
+    });
+    st.pkts=[];st.delivered=0;
+    updateStats();
+  }
+  function spawn(){
+    st.pkts=[];st.delivered=0;gP.innerHTML='';
+    var ns=st.nodes,pat=st.pattern;
+    function mk(from,to,delay){return {from:from,to:to,t:-delay,done:false,el:null};}
+    var stagger=0.08;
+    if(pat==='p2p'){stagger=0.2;for(var i=1;i<ns.length;i++)st.pkts.push(mk(0,i,(i-1)*stagger));}
+    else if(pat==='broadcast'){for(var i=1;i<ns.length;i++)st.pkts.push(mk(0,i,(i-1)*stagger));}
+    else if(pat==='reduce'){for(var i=1;i<ns.length;i++)st.pkts.push(mk(i,0,(i-1)*stagger));}
+    else if(pat==='scatter'){stagger=0.12;for(var i=1;i<ns.length;i++)st.pkts.push(mk(0,i,(i-1)*stagger));}
+    else if(pat==='gather'){stagger=0.12;for(var i=1;i<ns.length;i++)st.pkts.push(mk(i,0,(i-1)*stagger));}
+    st.pkts.forEach(function(p){
+      var g=svgEl('g',{});
+      g.appendChild(svgEl('circle',{cx:0,cy:0,r:9,fill:'none',stroke:C.accent2,'stroke-opacity':.25,'stroke-width':1}));
+      g.appendChild(svgEl('circle',{cx:0,cy:0,r:5,fill:C.accent2,'fill-opacity':.9}));
+      g.style.opacity=0;
+      gP.appendChild(g);
+      p.el=g;
+    });
+  }
+  function updateStats(){
+    var n=st.delivered,bytes=n*1024,lat;
+    if(st.pattern==='p2p')lat=10+n*2;
+    else if(st.pattern==='broadcast')lat=Math.ceil(Math.log2(st.n))*15;
+    else if(st.pattern==='reduce')lat=Math.ceil(Math.log2(st.n))*18;
+    else lat=20+n*3;
+    var bw=lat>0?bytes/lat:0;
+    setVal('mpi-stat-msg',n);
+    setVal('mpi-stat-bytes',fmtBytes(bytes));
+    setVal('mpi-stat-lat',lat+' µs');
+    setVal('mpi-stat-bw',bw.toFixed(0)+' MB/s');
+  }
+  function run(){
+    cancelAnimationFrame(st.raf);
+    spawn();
+    btnRun.textContent='运行中…';
+    var last=0;
+    function step(ts){
+      if(!last)last=ts;
+      var dt=Math.min((ts-last)/1000,0.05);last=ts;
+      var allDone=true,ns=st.nodes;
+      st.pkts.forEach(function(p){
+        if(p.done)return;
+        p.t+=dt*st.speed*0.65;
+        if(p.t<0){allDone=false;return;}
+        if(p.t>=1){p.t=1;p.done=true;st.delivered++;updateStats();}
+        else allDone=false;
+        var x=lerp(ns[p.from].x,ns[p.to].x,p.t);
+        var y=lerp(ns[p.from].y,ns[p.to].y,p.t);
+        p.el.setAttribute('transform','translate('+x.toFixed(1)+','+y.toFixed(1)+')');
+        p.el.style.opacity=1;
+      });
+      if(!allDone)st.raf=requestAnimationFrame(step);
+      else btnRun.textContent='▶ 运行';
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $('#mpi-pattern').addEventListener('change',function(e){st.pattern=e.target.value;draw();});
+  $('#mpi-n').addEventListener('input',function(e){st.n=+e.target.value;setVal('mpi-n-val',st.n);draw();});
+  $('#mpi-speed').addEventListener('input',function(e){st.speed=+e.target.value;setVal('mpi-speed-val',st.speed.toFixed(1)+'×');});
+  btnRun.addEventListener('click',run);
+  btnReset.addEventListener('click',function(){cancelAnimationFrame(st.raf);st.pkts=[];st.delivered=0;gP.innerHTML='';btnRun.textContent='▶ 运行';updateStats();});
+  draw();
+})();
+
+/* ============================================================
+   MODULE 02 — CUDA GPU 编程
+   ============================================================ */
+(function(){
+  var gG=$('#cuda-grid'),gL=$('#cuda-labels');
+  var W=720,H=340;
+  var st={grid:4,block:8,div:50,warpView:true,seed:0};
+
+  function hash(k){
+    var x=(k*374761393+st.seed*668265263)|0;
+    x=(x^(x>>13))*1274126177;
+    return ((x^(x>>16))>>>0)/4294967295;
+  }
+  function draw(){
+    gG.innerHTML='';gL.innerHTML='';
+    var gc=st.grid,gr=Math.max(2,Math.round(st.grid*0.75)),bs=st.block;
+    var pad=36,availW=W-pad*2,availH=H-pad*2-14,gap=6;
+    var cellW=(availW-gap*(gc-1))/(gc*bs);
+    var cellH=(availH-gap*(gr-1))/(gr*bs);
+    var cell=Math.min(cellW,cellH,13);
+    var blkW=cell*bs,blkH=cell*bs;
+    var totalW=gc*blkW+gap*(gc-1),totalH=gr*blkH+gap*(gr-1);
+    var ox=(W-totalW)/2,oy=(H-totalH)/2+8;
+
+    var active=0,total=0;
+    for(var br=0;br<gr;br++){
+      for(var bc=0;bc<gc;bc++){
+        var bx=ox+bc*(blkW+gap),by=oy+br*(blkH+gap);
+        gG.appendChild(svgEl('rect',{x:bx-3,y:by-3,width:blkW+6,height:blkH+6,rx:4,fill:'none',stroke:C.border,'stroke-width':1}));
+        for(var tr=0;tr<bs;tr++){
+          for(var tc=0;tc<bs;tc++){
+            var tx=bx+tc*cell,ty=by+tr*cell;
+            var linIdx=tr*bs+tc;
+            var warp=Math.floor(linIdx/32);
+            var posInWarp=linIdx%32;
+            var warpSize=Math.min(32,bs*bs-warp*32);
+            var activeRatio=(100-st.div)/100;
+            var split=Math.floor(warpSize*activeRatio*(0.8+0.4*hash(warp*7+st.seed)));
+            split=clamp(split,0,warpSize);
+            var isActive=posInWarp<split;
+            if(isActive)active++;
+            total++;
+            gG.appendChild(svgEl('rect',{x:tx+.5,y:ty+.5,width:cell-1,height:cell-1,rx:1,
+              fill:isActive?C.accent:C.surface3,'fill-opacity':isActive?.85:.55}));
+            if(st.warpView&&bs>=8&&posInWarp===31&&tc<bs-1){
+              gG.appendChild(svgEl('line',{x1:tx+cell,y1:by,x2:tx+cell,y2:by+blkH,
+                stroke:C.accent2,'stroke-opacity':.45,'stroke-width':1.2,'stroke-dasharray':'3,2'}));
+            }
+          }
+        }
+      }
+    }
+    var warps=gc*gr*Math.ceil(bs*bs/32);
+    gL.appendChild(svgText(W/2,18,'Grid ('+gc+'×'+gr+')  ·  Block ('+bs+'×'+bs+')  ·  Warp=32',{fill:C.muted,'font-size':10}));
+    setVal('cuda-stat-threads',total);
+    setVal('cuda-stat-blocks',gc*gr);
+    setVal('cuda-stat-warps',warps);
+    var util=total>0?Math.round(active/total*100):0;
+    setVal('cuda-stat-occ',util+'%');
+    var occEl=$('#cuda-stat-occ');
+    occEl.className='v '+(util>70?'green':util>40?'amber':'red');
+  }
+  $('#cuda-grid').addEventListener('input',function(e){
+    st.grid=+e.target.value;
+    setVal('cuda-grid-val',st.grid+'×'+Math.max(2,Math.round(st.grid*0.75)));
+    draw();
+  });
+  $('#cuda-block').addEventListener('input',function(e){
+    st.block=+e.target.value;
+    setVal('cuda-block-val',st.block+'×'+st.block);
+    draw();
+  });
+  $('#cuda-div').addEventListener('input',function(e){
+    st.div=+e.target.value;setVal('cuda-div-val',st.div+'%');draw();
+  });
+  $('#cuda-warp').addEventListener('click',function(){
+    st.warpView=!st.warpView;this.classList.toggle('active',st.warpView);draw();
+  });
+  $('#cuda-reshuffle').addEventListener('click',function(){st.seed++;draw();});
+  draw();
+})();
+
+/* ============================================================
+   MODULE 03 — OpenMP Fork-Join
+   ============================================================ */
+(function(){
+  var gA=$('#omp-axis'),gT=$('#omp-threads'),gD=$('#omp-data');
+  var W=720,H=340;
+  var st={n:4,p:70,speed:1,raf:0,cursor:0,running:false,cursorEl:null};
+  var padL=68,padR=20,padT=24;
+  var chartW=W-padL-padR,chartH=150;
+
+  function draw(){
+    svgClear(gA,gT,gD);
+    var n=st.n,barH=chartH/n*0.72,barGap=chartH/n*0.28;
+    var sFrac=(100-st.p)/100*2,pFrac=st.p/100;
+    var total=sFrac+pFrac;
+    var e1=sFrac/2/total,e2=e1+pFrac/total,e3=1;
+
+    for(var i=0;i<n;i++){
+      var y=padT+i*(barH+barGap);
+      gA.appendChild(svgText(padL-8,y+barH/2+3,i===0?'master':'T'+i,
+        {fill:i===0?C.accent:C.muted,'text-anchor':'end','font-size':10}));
+      if(i===0){
+        gT.appendChild(svgEl('rect',{x:padL,y:y,width:e1*chartW,height:barH,rx:3,fill:C.accent,'fill-opacity':.55}));
+        gT.appendChild(svgEl('rect',{x:padL+e2*chartW,y:y,width:(e3-e2)*chartW,height:barH,rx:3,fill:C.accent,'fill-opacity':.55}));
+      }
+      gT.appendChild(svgEl('rect',{x:padL+e1*chartW,y:y,width:(e2-e1)*chartW,height:barH,rx:3,
+        fill:i===0?C.accent:C.accent2,'fill-opacity':.45}));
+    }
+    gA.appendChild(svgEl('line',{x1:padL,y1:padT+chartH,x2:padL+chartW,y2:padT+chartH,stroke:C.border,'stroke-width':1}));
+    gA.appendChild(svgText(padL+e1*chartW/2,padT+chartH+14,'Serial',{fill:C.faint,'font-size':9}));
+    gA.appendChild(svgText(padL+(e1+e2)*chartW/2,padT+chartH+14,'Parallel Region',{fill:C.accent,'font-size':9}));
+    gA.appendChild(svgText(padL+(e2+1)*chartW/2,padT+chartH+14,'Serial',{fill:C.faint,'font-size':9}));
+    gT.appendChild(svgEl('line',{x1:padL+e1*chartW,y1:padT-4,x2:padL+e1*chartW,y2:padT+chartH+4,stroke:C.accent2,'stroke-width':1,'stroke-dasharray':'2,3','stroke-opacity':.4}));
+    gT.appendChild(svgEl('line',{x1:padL+e2*chartW,y1:padT-4,x2:padL+e2*chartW,y2:padT+chartH+4,stroke:C.accent2,'stroke-width':1,'stroke-dasharray':'2,3','stroke-opacity':.4}));
+    gT.appendChild(svgText(padL+e1*chartW,padT-8,'fork',{fill:C.accent2,'font-size':9}));
+    gT.appendChild(svgText(padL+e2*chartW,padT-8,'join',{fill:C.accent2,'font-size':9}));
+
+    var dy=padT+chartH+36;
+    gD.appendChild(svgText(padL,dy-8,'数据作用域 / Data Scope:',{fill:C.muted,'font-size':10,'text-anchor':'start'}));
+    gD.appendChild(svgEl('rect',{x:padL,y:dy,width:70,height:28,rx:4,fill:C.green,'fill-opacity':.14,stroke:C.green,'stroke-opacity':.5}));
+    gD.appendChild(svgText(padL+35,dy+18,'shared',{fill:C.green,'font-size':10}));
+    var px=padL+86;
+    for(var j=0;j<n;j++){
+      var bx=px+j*38;
+      gD.appendChild(svgEl('rect',{x:bx,y:dy,width:32,height:28,rx:4,fill:C.amber,'fill-opacity':.12,stroke:C.amber,'stroke-opacity':.4}));
+      gD.appendChild(svgText(bx+16,dy+18,'priv',{fill:C.amber,'font-size':9}));
+    }
+    st.cursorEl=svgEl('rect',{x:padL,y:padT,width:2,height:chartH,fill:C.ink,'fill-opacity':.7});
+    gT.appendChild(st.cursorEl);
+    st.cursorEl.style.opacity=0;
+
+    var wallTime=2*(100-st.p)/100+st.p/100;
+    var speedup=100/wallTime;
+    setVal('omp-stat-threads',n);
+    setVal('omp-stat-time',wallTime.toFixed(0)+' ms');
+    setVal('omp-stat-serial','100 ms');
+    setVal('omp-stat-speedup',speedup.toFixed(2)+'×');
+  }
+  function run(){
+    if(st.raf)cancelAnimationFrame(st.raf);
+    st.cursor=0;st.running=true;st.cursorEl.style.opacity=1;
+    $('#omp-run').textContent='运行中…';
+    var last=0,dur=2.6/st.speed;
+    function step(ts){
+      if(!last)last=ts;
+      var dt=(ts-last)/1000;last=ts;
+      st.cursor+=dt/dur;
+      if(st.cursor>=1)st.cursor=1;
+      st.cursorEl.setAttribute('x',padL+st.cursor*chartW);
+      if(st.cursor<1)st.raf=requestAnimationFrame(step);
+      else{st.running=false;st.cursorEl.style.opacity=.3;$('#omp-run').textContent='▶ 运行';}
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $('#omp-n').addEventListener('input',function(e){st.n=+e.target.value;setVal('omp-n-val',st.n);draw();});
+  $('#omp-p').addEventListener('input',function(e){st.p=+e.target.value;setVal('omp-p-val',st.p+'%');draw();});
+  $('#omp-speed').addEventListener('input',function(e){st.speed=+e.target.value;setVal('omp-speed-val',st.speed.toFixed(1)+'×');});
+  $('#omp-run').addEventListener('click',run);
+  $('#omp-reset').addEventListener('click',function(){cancelAnimationFrame(st.raf);st.cursor=0;if(st.cursorEl)st.cursorEl.style.opacity=0;$('#omp-run').textContent='▶ 运行';draw();});
+  draw();
+})();
+
+/* ============================================================
+   MODULE 04 — MapReduce
+   ============================================================ */
+(function(){
+  var gS=$('#mr-stages'),gF=$('#mr-flow'),gP=$('#mr-pkts');
+  var W=720,H=340;
+  var st={map:4,red:3,speed:1,raf:0,phase:0,running:false};
+  var keys=['a','b','c','d','e'];
+
+  function draw(){
+    svgClear(gS,gF,gP);
+    var nM=st.map,nR=st.red;
+    var cols=[{x:40,label:'Input'},{x:180,label:'Map'},{x:360,label:'Shuffle'},{x:540,label:'Reduce'},{x:660,label:'Output'}];
+    cols.forEach(function(c){
+      gS.appendChild(svgText(c.x,18,c.label,{fill:C.muted,'font-size':11}));
+      gS.appendChild(svgEl('line',{x1:c.x-4,y1:26,x2:c.x+4,y2:26,stroke:C.borderStrong,'stroke-width':1}));
+    });
+    var inpCount=Math.max(nM,nR)+2;
+    var inpY0=36,inpSp=Math.min(22,(H-60)/inpCount);
+    for(var i=0;i<inpCount;i++){
+      var y=inpY0+i*inpSp;
+      gS.appendChild(svgEl('rect',{x:cols[0].x-22,y:y,width:44,height:inpSp-3,rx:3,fill:C.surface2,stroke:C.border,'stroke-width':1}));
+      gS.appendChild(svgText(cols[0].x,y+inpSp/2+1,'k'+i,{fill:C.faint,'font-size':8}));
+    }
+    var mY0=40,mSp=Math.min(36,(H-70)/nM);
+    for(var m=0;m<nM;m++){
+      var my=mY0+m*mSp;
+      gS.appendChild(svgEl('rect',{x:cols[1].x-26,y:my,width:52,height:mSp-6,rx:4,fill:C.accent,'fill-opacity':.12,stroke:C.accent,'stroke-opacity':.4}));
+      gS.appendChild(svgText(cols[1].x,my+(mSp-6)/2+1,'M'+m,{fill:C.accent,'font-size':9}));
+    }
+    var rY0=40,rSp=Math.min(36,(H-70)/nR);
+    for(var r=0;r<nR;r++){
+      var ry=rY0+r*rSp;
+      gS.appendChild(svgEl('rect',{x:cols[3].x-26,y:ry,width:52,height:rSp-6,rx:4,fill:C.green,'fill-opacity':.12,stroke:C.green,'stroke-opacity':.4}));
+      gS.appendChild(svgText(cols[3].x,ry+(rSp-6)/2+1,'R'+r,{fill:C.green,'font-size':9}));
+    }
+    var outCount=nR;
+    for(var o=0;o<outCount;o++){
+      var oy=rY0+o*rSp;
+      gS.appendChild(svgEl('rect',{x:cols[4].x-22,y:oy,width:44,height:rSp-6,rx:3,fill:C.surface2,stroke:C.border,'stroke-width':1}));
+      gS.appendChild(svgText(cols[4].x,oy+(rSp-6)/2+1,'Σ',{fill:C.green,'font-size':9}));
+    }
+    for(var m2=0;m2<nM;m2++){
+      var my2=mY0+m2*mSp+(mSp-6)/2;
+      for(var r2=0;r2<nR;r2++){
+        var ry2=rY0+r2*rSp+(rSp-6)/2;
+        var mx=cols[1].x+26,rx=cols[3].x-26;
+        var cp=(mx+rx)/2;
+        gF.appendChild(svgEl('path',{d:'M'+mx+' '+my2+' C'+(cp)+' '+my2+' '+cp+' '+ry2+' '+rx+' '+ry2,
+          fill:'none',stroke:C.accent2,'stroke-opacity':.12,'stroke-width':1}));
+      }
+    }
+    st.cols=cols;st.mY0=mY0;st.mSp=mSp;st.rY0=rY0;st.rSp=rSp;st.nM=nM;st.nR=nR;st.inpCount=inpCount;st.inpY0=inpY0;st.inpSp=inpSp;
+  }
+  function pktColor(k){return [C.accent,C.accent2,C.green,C.amber,C.red][k%5];}
+  function run(){
+    if(st.raf)cancelAnimationFrame(st.raf);
+    gP.innerHTML='';st.running=true;
+    $('#mr-run').textContent='运行中…';
+    var pkts=[],col=st.cols;
+    // Phase 1: Input -> Map
+    for(var i=0;i<st.inpCount;i++){
+      var m=i%st.nM;
+      pkts.push({phase:0,t:-i*0.06,
+        x1:col[0].x,y1:st.inpY0+i*st.inpSp+st.inpSp/2,
+        x2:col[1].x,y2:st.mY0+m*st.mSp+(st.mSp-6)/2,
+        key:i%keys.length,color:C.faint});
+    }
+    // Phase 2: Map -> Reduce (shuffle)
+    for(var m=0;m<st.nM;m++){
+      for(var r=0;r<st.nR;r++){
+        if((m+r)%2===0){
+          pkts.push({phase:1,t:-0.5-m*0.08-r*0.1,
+            x1:col[1].x+26,y1:st.mY0+m*st.mSp+(st.mSp-6)/2,
+            x2:col[3].x-26,y2:st.rY0+r*st.rSp+(st.rSp-6)/2,
+            key:(m+r)%keys.length,color:pktColor((m+r)%keys.length),
+            cp:(col[1].x+26+col[3].x-26)/2,bezier:true});
+        }
+      }
+    }
+    // Phase 3: Reduce -> Output
+    for(var r=0;r<st.nR;r++){
+      pkts.push({phase:2,t:-1.0-r*0.08,
+        x1:col[3].x,y1:st.rY0+r*st.rSp+(st.rSp-6)/2,
+        x2:col[4].x,y2:st.rY0+r*st.rSp+(st.rSp-6)/2,
+        key:0,color:C.green});
+    }
+    pkts.forEach(function(p){
+      var g=svgEl('g',{});
+      g.appendChild(svgEl('circle',{cx:0,cy:0,r:4,fill:p.color,'fill-opacity':.9}));
+      g.style.opacity=0;
+      gP.appendChild(g);
+      p.el=g;p.startPhase=false;
+    });
+    var delivered=0;
+    var last=0;
+    function bezierPt(p,t){
+      if(!p.bezier)return{x:lerp(p.x1,p.x2,t),y:lerp(p.y1,p.y2,t)};
+      var cp=p.cp;
+      var x=(1-t)*(1-t)*p.x1+2*(1-t)*t*cp+t*t*p.x2;
+      var y=(1-t)*(1-t)*p.y1+2*(1-t)*t*p.y1+t*t*p.y2;
+      return{x:x,y:y};
+    }
+    function step(ts){
+      if(!last)last=ts;
+      var dt=Math.min((ts-last)/1000,0.05);last=ts;
+      var allDone=true;
+      pkts.forEach(function(p){
+        if(p.done)return;
+        p.t+=dt*st.speed*0.6;
+        if(p.t<0){allDone=false;return;}
+        var tt=clamp(p.t,0,1);
+        if(p.t>=1){p.done=true;delivered++;}
+        else allDone=false;
+        var pt=bezierPt(p,tt);
+        p.el.setAttribute('transform','translate('+pt.x.toFixed(1)+','+pt.y.toFixed(1)+')');
+        p.el.style.opacity=tt<0.05?tt/0.05:(tt>0.9?(1-tt)/0.1:1);
+      });
+      if(!allDone)st.raf=requestAnimationFrame(step);
+      else{
+        st.running=false;
+        $('#mr-run').textContent='▶ 运行';
+        var kvs=st.inpCount,shuf=Math.round(st.nM*st.nR*0.4),time=(kvs/st.map*2+shuf/st.nR).toFixed(0);
+        setVal('mr-stat-keys',kvs);
+        setVal('mr-stat-shuffle',shuf);
+        setVal('mr-stat-time',time+' ms');
+        setVal('mr-stat-thr',Math.round(kvs/(+time||1)*1000)+' rec/s');
+      }
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $('#mr-map').addEventListener('input',function(e){st.map=+e.target.value;setVal('mr-map-val',st.map);draw();});
+  $('#mr-red').addEventListener('input',function(e){st.red=+e.target.value;setVal('mr-red-val',st.red);draw();});
+  $('#mr-speed').addEventListener('input',function(e){st.speed=+e.target.value;setVal('mr-speed-val',st.speed.toFixed(1)+'×');});
+  $('#mr-run').addEventListener('click',run);
+  $('#mr-reset').addEventListener('click',function(){cancelAnimationFrame(st.raf);gP.innerHTML='';st.running=false;$('#mr-run').textContent='▶ 运行';draw();});
+  draw();
+})();
+
+/* ============================================================
+   MODULE 05 — Amdahl 定律
+   ============================================================ */
+(function(){
+  var gG=$('#amd-grid'),gC=$('#amd-curves'),gP=$('#amd-point'),gA=$('#amd-axis');
+  var x0=58,y0=18,x1=700,y1=288;
+  var w=x1-x0,h=y1-y0,maxN=64,maxS=64;
+  function sx(n){return x0+(n-1)/(maxN-1)*w;}
+  function sy(s){return y1-(Math.min(s,maxS)-1)/(maxS-1)*h;}
+  var st={p:0.8,n:16};
+
+  function draw(){
+    svgClear(gG,gC,gP,gA);
+    for(var i=0;i<=8;i++){
+      var gx=x0+i/8*w,gy=y1-i/8*h;
+      gG.appendChild(svgEl('line',{x1:gx,y1:y0,x2:gx,y2:y1,stroke:C.border,'stroke-width':1}));
+      gG.appendChild(svgEl('line',{x1:x0,y1:gy,x2:x1,y2:gy,stroke:C.border,'stroke-width':1}));
+    }
+    // ideal
+    var d='M'+sx(1)+' '+sy(1)+' L'+sx(maxN)+' '+sy(maxN);
+    gC.appendChild(svgEl('path',{d:d,fill:'none',stroke:C.faint,'stroke-width':1.5,'stroke-dasharray':'5,4','stroke-opacity':.5}));
+    // curve family
+    [0.5,0.75,0.9,0.95,0.99].forEach(function(pp){
+      if(Math.abs(pp-st.p)<0.005)return;
+      var path='';
+      for(var n=1;n<=maxN;n++){
+        var s=1/((1-pp)+pp/n);
+        path+=(n===1?'M':'L')+sx(n).toFixed(1)+' '+sy(s).toFixed(1)+' ';
+      }
+      gC.appendChild(svgEl('path',{d:path,fill:'none',stroke:C.accent2,'stroke-width':1.2,'stroke-opacity':.22}));
+    });
+    // current curve
+    var cur='';
+    for(var n2=1;n2<=maxN;n2++){
+      var s2=1/((1-st.p)+st.p/n2);
+      cur+=(n2===1?'M':'L')+sx(n2).toFixed(1)+' '+sy(s2).toFixed(1)+' ';
+    }
+    gC.appendChild(svgEl('path',{d:cur,fill:'none',stroke:C.accent,'stroke-width':2.5,'stroke-opacity':.9}));
+    // current point
+    var sN=1/((1-st.p)+st.p/st.n);
+    gP.appendChild(svgEl('circle',{cx:sx(st.n),cy:sy(sN),r:11,fill:'none',stroke:C.accent,'stroke-opacity':.3,'stroke-width':1}));
+    gP.appendChild(svgEl('circle',{cx:sx(st.n),cy:sy(sN),r:6,fill:C.accent,stroke:C.bg,'stroke-width':2}));
+    gP.appendChild(svgText(sx(st.n),sy(sN)-14,'N='+st.n+', S='+sN.toFixed(2),{fill:C.accent,'font-size':9}));
+    // axes
+    gA.appendChild(svgEl('line',{x1:x0,y1:y1,x2:x1,y2:y1,stroke:C.muted,'stroke-width':1}));
+    gA.appendChild(svgEl('line',{x1:x0,y1:y0,x2:x0,y2:y1,stroke:C.muted,'stroke-width':1}));
+    for(var a=0;a<=4;a++){
+      var ax=x0+a/4*w;
+      gA.appendChild(svgText(ax,y1+14,String(Math.round(a/4*maxN)),{fill:C.faint,'font-size':9}));
+      var ay=y1-a/4*h;
+      gA.appendChild(svgText(x0-6,ay+3,String(Math.round(a/4*maxS)),{fill:C.faint,'font-size':9,'text-anchor':'end'}));
+    }
+    gA.appendChild(svgText(x0+w/2,y1+30,'处理器数 N',{fill:C.muted,'font-size':10}));
+    var lbl=svgText(0,0,'加速比 S',{fill:C.muted,'font-size':10});
+    lbl.setAttribute('transform','rotate(-90 '+(x0-34)+' '+(y0+h/2)+')');
+    lbl.setAttribute('x',x0-34);lbl.setAttribute('y',y0+h/2);
+    gA.appendChild(lbl);
+    // stats
+    var sMax=1/(1-st.p),eff=st.n>0?(sN/st.n*100):0;
+    setVal('amd-stat-s',sN.toFixed(2)+'×');
+    setVal('amd-stat-max',sMax.toFixed(2)+'×');
+    setVal('amd-stat-eff',eff.toFixed(0)+'%');
+    setVal('amd-stat-serial',((1-st.p)*100).toFixed(0)+'%');
+  }
+  $('#amd-p').addEventListener('input',function(e){
+    st.p=+e.target.value;setVal('amd-p-val',st.p.toFixed(2));draw();
+  });
+  $('#amd-n').addEventListener('input',function(e){
+    st.n=+e.target.value;setVal('amd-n-val',st.n);draw();
+  });
+  $$('[data-amd]').forEach(function(b){
+    b.addEventListener('click',function(){
+      st.p=+b.getAttribute('data-amd');
+      $('#amd-p').value=st.p;setVal('amd-p-val',st.p.toFixed(2));draw();
+    });
+  });
+  draw();
+})();
+
+/* ============================================================
+   MODULE 06 — Cache 优化
+   ============================================================ */
+(function(){
+  var gG=$('#cache-grid'),gC=$('#cache-cursor'),gT=$('#cache-tile');
+  var W=720,H=340;
+  var st={mode:'row',size:8,tile:4,speed:1,raf:0,step:0,hits:0,misses:0,running:false,cursorEl:null};
+  var CAP=4,cache=[];
+  function cacheAccess(row){
+    var idx=cache.indexOf(row);
+    if(idx>=0){cache.splice(idx,1);cache.push(row);return true;}
+    if(cache.length>=CAP)cache.shift();
+    cache.push(row);return false;
+  }
+  function drawGrid(){
+    gG.innerHTML='';
+    var n=st.size,pad=40;
+    var avail=Math.min(W-pad*2,H-pad*2);
+    var cell=avail/n;
+    var ox=(W-cell*n)/2,oy=(H-cell*n)/2+8;
+    st.ox=ox;st.oy=oy;st.cell=cell;st.n=n;
+    for(var r=0;r<n;r++){
+      for(var c=0;c<n;c++){
+        var x=ox+c*cell,y=oy+r*cell;
+        var rect=svgEl('rect',{x:x+1,y:y+1,width:cell-2,height:cell-2,rx:2,fill:C.surface2,stroke:C.border,'stroke-width':1});
+        rect.setAttribute('data-idx',r*n+c);
+        gG.appendChild(rect);
+      }
+      gG.appendChild(svgText(ox-12,oy+r*cell+cell/2+3,'R'+r,{fill:C.faint,'font-size':8,'text-anchor':'end'}));
+    }
+  }
+  function drawTileOverlay(){
+    gT.innerHTML='';
+    if(st.mode!=='tile')return;
+    var n=st.n,t=st.tile,cell=st.cell,ox=st.ox,oy=st.oy;
+    for(var tr=0;tr<n;tr+=t){
+      for(var tc=0;tc<n;tc+=t){
+        var tw=Math.min(t,n-tc)*cell,th=Math.min(t,n-tr)*cell;
+        gT.appendChild(svgEl('rect',{x:ox+tc*cell,y:oy+tr*cell,width:tw,height:th,rx:3,fill:'none',stroke:C.green,'stroke-opacity':.45,'stroke-width':1.5,'stroke-dasharray':'4,3'}));
+      }
+    }
+  }
+  function order(){
+    var n=st.n,t=st.tile,mode=st.mode,seq=[];
+    if(mode==='row'){for(var r=0;r<n;r++)for(var c=0;c<n;c++)seq.push([r,c]);}
+    else if(mode==='col'){for(var c=0;c<n;c++)for(var r=0;r<n;r++)seq.push([r,c]);}
+    else{for(var tr=0;tr<n;tr+=t)for(var tc=0;tc<n;tc+=t)for(var r=tr;r<Math.min(tr+t,n);r++)for(var c=tc;c<Math.min(tc+t,n);c++)seq.push([r,c]);}
+    return seq;
+  }
+  function updateStats(){
+    var total=st.hits+st.misses;
+    var rate=total>0?Math.round(st.hits/total*100):0;
+    var cycles=st.misses*100+st.hits*4;
+    setVal('cache-stat-hit',st.hits);
+    setVal('cache-stat-miss',st.misses);
+    setVal('cache-stat-rate',rate+'%');
+    setVal('cache-stat-cycle',cycles);
+    var rateEl=$('#cache-stat-rate');
+    rateEl.className='v '+(rate>70?'green':rate>30?'amber':'red');
+  }
+  function run(){
+    if(st.raf)cancelAnimationFrame(st.raf);
+    st.step=0;st.hits=0;st.misses=0;cache=[];
+    drawGrid();drawTileOverlay();
+    var seq=order();
+    if(!st.cursorEl){
+      st.cursorEl=svgEl('rect',{x:0,y:0,width:0,height:0,rx:2,fill:'none',stroke:C.accent2,'stroke-width':2.5});
+      gC.appendChild(st.cursorEl);
+    }
+    var last=0,interval=0.16/st.speed,acc=0;
+    st.running=true;$('#cache-run').textContent='遍历中…';
+    function step(ts){
+      if(!last)last=ts;
+      var dt=(ts-last)/1000;last=ts;acc+=dt;
+      while(acc>=interval&&st.step<seq.length){
+        acc-=interval;
+        var rc=seq[st.step],r=rc[0],c=rc[1];
+        var cellEl=gG.children[r*st.n+c];
+        if(cellEl){cellEl.setAttribute('fill',C.accent);cellEl.setAttribute('fill-opacity',0.7);}
+        var hit=cacheAccess(r);
+        if(hit)st.hits++;else st.misses++;
+        st.cursorEl.setAttribute('x',st.ox+c*st.cell+1);
+        st.cursorEl.setAttribute('y',st.oy+r*st.cell+1);
+        st.cursorEl.setAttribute('width',st.cell-2);
+        st.cursorEl.setAttribute('height',st.cell-2);
+        st.cursorEl.style.opacity=1;
+        st.step++;updateStats();
+      }
+      if(st.step<seq.length)st.raf=requestAnimationFrame(step);
+      else{st.running=false;$('#cache-run').textContent='▶ 遍历';st.cursorEl.style.opacity=.4;}
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $('#cache-mode').addEventListener('change',function(e){st.mode=e.target.value;drawGrid();drawTileOverlay();st.hits=0;st.misses=0;updateStats();});
+  $('#cache-size').addEventListener('input',function(e){
+    st.size=+e.target.value;setVal('cache-size-val',st.size+'×'+st.size);drawGrid();drawTileOverlay();st.hits=0;st.misses=0;updateStats();
+  });
+  $('#cache-tile').addEventListener('input',function(e){
+    st.tile=+e.target.value;setVal('cache-tile-val',st.tile);drawTileOverlay();
+  });
+  $('#cache-run').addEventListener('click',run);
+  $('#cache-reset').addEventListener('click',function(){
+    cancelAnimationFrame(st.raf);st.step=0;st.hits=0;st.misses=0;cache=[];
+    if(st.cursorEl)st.cursorEl.style.opacity=0;
+    $('#cache-run').textContent='▶ 遍历';drawGrid();drawTileOverlay();updateStats();
+  });
+  drawGrid();drawTileOverlay();updateStats();
+})();
+
+/* ============================================================
+   MODULE 07 — 向量化 SIMD
+   ============================================================ */
+(function(){
+  var gS=$('#simd-scalar'),gV=$('#simd-vector'),gC=$('#simd-cursor');
+  var W=720,H=340;
+  var st={width:4,len:32,speed:1,raf:0,sIdx:0,vIdx:0,running:false};
+  function draw(){
+    svgClear(gS,gV,gC);
+    var len=st.len,wd=st.width,pad=30;
+    var cellW=Math.min(17,(W-pad*2)/len);
+    var totalW=len*cellW,ox=(W-totalW)/2;
+    var sy=70,vy=180,barH=22;
+    gS.appendChild(svgText(ox,sy-10,'标量循环  a[i] = a[i] + b[i]   (逐元素执行)',{fill:C.amber,'font-size':10,'text-anchor':'start'}));
+    gV.appendChild(svgText(ox,vy-10,'向量循环  a[i:i+'+wd+'] += b[i:i+'+wd+']   ('+wd+' 路并行)',{fill:C.accent,'font-size':10,'text-anchor':'start'}));
+    for(var i=0;i<len;i++){
+      var sr=svgEl('rect',{x:ox+i*cellW+1,y:sy,width:cellW-2,height:barH,rx:2,fill:C.surface2,stroke:C.border,'stroke-width':1});
+      sr.setAttribute('data-i',i);sr.setAttribute('data-row','s');
+      gS.appendChild(sr);
+      gS.appendChild(svgText(ox+i*cellW+cellW/2,sy+barH/2+3,String(i),{fill:C.faint,'font-size':7}));
+      var vr=svgEl('rect',{x:ox+i*cellW+1,y:vy,width:cellW-2,height:barH,rx:2,fill:C.surface2,stroke:C.border,'stroke-width':1});
+      vr.setAttribute('data-i',i);vr.setAttribute('data-row','v');
+      gV.appendChild(vr);
+    }
+    // group brackets for vector width
+    for(var g=0;g<len;g+=wd){
+      var gx=ox+g*cellW;
+      var gw=Math.min(wd,len-g)*cellW;
+      gV.appendChild(svgEl('path',{d:'M'+gx+' '+(vy+barH+4)+' L'+gx+' '+(vy+barH+8)+' L'+(gx+gw-2)+' '+(vy+barH+8)+' L'+(gx+gw-2)+' '+(vy+barH+4),fill:'none',stroke:C.accent2,'stroke-opacity':.4,'stroke-width':1}));
+    }
+    st.ox=ox;st.cellW=cellW;st.sy=sy;st.vy=vy;st.barH=barH;
+    setVal('simd-stat-insn',len);
+    setVal('simd-stat-vec',Math.ceil(len/wd));
+    setVal('simd-stat-cycle',Math.ceil(len/wd));
+    setVal('simd-stat-speedup',(len/Math.ceil(len/wd)).toFixed(1)+'×');
+  }
+  function run(){
+    if(st.raf)cancelAnimationFrame(st.raf);
+    draw();
+    st.sIdx=0;st.vIdx=0;st.running=true;
+    $('#simd-run').textContent='运行中…';
+    var last=0,sAcc=0,vAcc=0;
+    var sInt=0.09/st.speed,vInt=sInt;
+    function step(ts){
+      if(!last)last=ts;
+      var dt=(ts-last)/1000;last=ts;
+      sAcc+=dt;vAcc+=dt;
+      while(sAcc>=sInt&&st.sIdx<st.len){
+        sAcc-=sInt;
+        var sr=gS.querySelector('rect[data-row="s"][data-i="'+st.sIdx+'"]');
+        if(sr){sr.setAttribute('fill',C.amber);sr.setAttribute('fill-opacity',.7);}
+        st.sIdx++;
+      }
+      while(vAcc>=vInt&&st.vIdx<st.len){
+        vAcc-=vInt;
+        var end=Math.min(st.vIdx+st.width,st.len);
+        for(var i=st.vIdx;i<end;i++){
+          var vr=gV.querySelector('rect[data-row="v"][data-i="'+i+'"]');
+          if(vr){vr.setAttribute('fill',C.accent);vr.setAttribute('fill-opacity',.75);}
+        }
+        st.vIdx=end;
+      }
+      if(st.sIdx<st.len||st.vIdx<st.len)st.raf=requestAnimationFrame(step);
+      else{
+        st.running=false;$('#simd-run').textContent='▶ 运行';
+        var sInsn=st.len,vInsn=Math.ceil(st.len/st.width);
+        setVal('simd-stat-insn',sInsn);
+        setVal('simd-stat-vec',vInsn);
+        setVal('simd-stat-cycle',vInsn);
+        setVal('simd-stat-speedup',(sInsn/vInsn).toFixed(1)+'×');
+      }
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $$('[data-simd-w]').forEach(function(b){
+    b.addEventListener('click',function(){
+      st.width=+b.getAttribute('data-simd-w');
+      $$('[data-simd-w]').forEach(function(x){x.classList.toggle('active',x===b);});
+      draw();
+    });
+  });
+  $('#simd-len').addEventListener('input',function(e){st.len=+e.target.value;setVal('simd-len-val',st.len);draw();});
+  $('#simd-speed').addEventListener('input',function(e){st.speed=+e.target.value;setVal('simd-speed-val',st.speed.toFixed(1)+'×');});
+  $('#simd-run').addEventListener('click',run);
+  $('#simd-reset').addEventListener('click',function(){cancelAnimationFrame(st.raf);st.sIdx=0;st.vIdx=0;$('#simd-run').textContent='▶ 运行';draw();});
+  draw();
+})();
+
+/* ============================================================
+   MODULE 08 — 通信优化
+   ============================================================ */
+(function(){
+  var gT=$('#comm-timeline'),gP=$('#comm-topo');
+  var W=720,H=340;
+  var st={topo:'ring',n:8,ratio:40,overlap:true,speed:1,raf:0,cursor:0,running:false,cursorEl:null};
+  var padL=86,chartW=W-padL-20;
+
+  function drawTimeline(){
+    gT.innerHTML='';
+    var cFrac=st.ratio/100,compFrac=1-cFrac;
+    var rows=[
+      {y:30,label:'无重叠',overlap:false},
+      {y:80,label:'计算-通信重叠',overlap:st.overlap}
+    ];
+    rows.forEach(function(row){
+      gT.appendChild(svgText(padL-8,row.y+14,row.label,{fill:C.muted,'font-size':10,'text-anchor':'end'}));
+      if(!row.overlap){
+        var x=padL,nSeg=4;
+        for(var i=0;i<nSeg;i++){
+          var isComm=i%2===1;
+          var frac=isComm?cFrac/2:compFrac/2;
+          var bw=frac*chartW;
+          gT.appendChild(svgEl('rect',{x:x,y:row.y,width:bw,height:26,rx:3,fill:isComm?C.accent2:C.accent,'fill-opacity':.55}));
+          gT.appendChild(svgText(x+bw/2,row.y+16,isComm?'comm':'comp',{fill:'#06070a','font-size':8,'font-weight':600}));
+          x+=bw;
+        }
+        gT.appendChild(svgText(padL+chartW+4,row.y+16,'T=1.00',{fill:C.faint,'font-size':9,'text-anchor':'start'}));
+      }else{
+        var oTime=compFrac+cFrac*0.2;
+        var cw=compFrac/oTime*chartW;
+        gT.appendChild(svgEl('rect',{x:padL,y:row.y,width:cw,height:26,rx:3,fill:C.accent,'fill-opacity':.5}));
+        // comm bars overlapping
+        var nComm=3;
+        for(var j=0;j<nComm;j++){
+          var cx=padL+j*(cw/nComm*0.8);
+          var cmw=Math.min(cFrac/nComm*oTime*chartW*1.2,cw-cx+padL);
+          gT.appendChild(svgEl('rect',{x:cx,y:row.y+5,width:Math.min(cmw,cw-(cx-padL)-4),height:16,rx:2,fill:C.accent2,'fill-opacity':.7}));
+        }
+        // overlap highlight border
+        gT.appendChild(svgEl('rect',{x:padL,y:row.y,width:cw,height:26,rx:3,fill:'none',stroke:C.green,'stroke-opacity':.45,'stroke-width':1.2,'stroke-dasharray':'3,2'}));
+        gT.appendChild(svgText(padL+cw+4,row.y+16,'T='+oTime.toFixed(2),{fill:C.green,'font-size':9,'text-anchor':'start'}));
+      }
+    });
+    // axis
+    gT.appendChild(svgEl('line',{x1:padL,y1:128,x2:padL+chartW,y2:128,stroke:C.border,'stroke-width':1}));
+    gT.appendChild(svgText(padL,142,'0',{fill:C.faint,'font-size':8,'text-anchor':'start'}));
+    gT.appendChild(svgText(padL+chartW,142,'1.0',{fill:C.faint,'font-size':8,'text-anchor':'end'}));
+    st.oTime=st.overlap?(compFrac+cFrac*0.2):1.0;
+  }
+  function drawTopo(){
+    gP.innerHTML='';
+    var n=st.n,cy=225,cx=W/2,r=70;
+    var nodes=[];
+    if(st.topo==='ring'){
+      for(var i=0;i<n;i++){
+        var a=-Math.PI/2+i*2*Math.PI/n;
+        nodes.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)*0.7});
+      }
+      for(var k=0;k<n;k++){
+        var n1=nodes[k],n2=nodes[(k+1)%n];
+        gP.appendChild(svgEl('line',{x1:n1.x,y1:n1.y,x2:n2.x,y2:n2.y,stroke:C.accent2,'stroke-opacity':.3,'stroke-width':1}));
+      }
+    }else if(st.topo==='tree'){
+      var levels=Math.ceil(Math.log2(n))+1;
+      var perLevel=[];
+      var idx=0;
+      for(var l=0;l<levels&&idx<n;l++){
+        var count=Math.min(Math.pow(2,l),n-idx);
+        var lw=count>0?chartW/count:chartW;
+        var rowNodes=[];
+        for(var c=0;c<count&&idx<n;c++,idx++){
+          var nx=padL+lw*(c+0.5);
+          var ny=170+l*30;
+          rowNodes.push({x:nx,y:ny,id:idx});
+          nodes.push({x:nx,y:ny});
+        }
+        perLevel.push(rowNodes);
+      }
+      for(var lv=0;lv<perLevel.length-1;lv++){
+        perLevel[lv].forEach(function(p,i){
+          var children=perLevel[lv+1];
+          if(children){var lc=children[i*2],rc=children[i*2+1];
+            if(lc)gP.appendChild(svgEl('line',{x1:p.x,y1:p.y,x2:lc.x,y2:lc.y,stroke:C.accent2,'stroke-opacity':.3,'stroke-width':1}));
+            if(rc)gP.appendChild(svgEl('line',{x1:p.x,y1:p.y,x2:rc.x,y2:rc.y,stroke:C.accent2,'stroke-opacity':.3,'stroke-width':1}));
+          }
+        });
+      }
+    }else{ // mesh
+      var side=Math.ceil(Math.sqrt(n));
+      var mw=chartW/side,mh=90/side,my0=180;
+      for(var r2=0;r2<side;r2++){
+        for(var c2=0;c2<side&&r2*side+c2<n;c2++){
+          var mx=padL+c2*mw+mw/2,mty=my0+r2*mh+mh/2;
+          nodes.push({x:mx,y:mty});
+          if(c2>0&&r2*side+c2-1<n){
+            var pl=nodes[nodes.length-2];
+            gP.appendChild(svgEl('line',{x1:pl.x,y1:pl.y,x2:mx,y2:mty,stroke:C.accent2,'stroke-opacity':.3,'stroke-width':1}));
+          }
+          if(r2>0&&(r2-1)*side+c2<n){
+            var pu=nodes[(r2-1)*side+c2];
+            if(pu)gP.appendChild(svgEl('line',{x1:pu.x,y1:pu.y,x2:mx,y2:mty,stroke:C.accent2,'stroke-opacity':.3,'stroke-width':1}));
+          }
+        }
+      }
+    }
+    nodes.forEach(function(nd,i){
+      gP.appendChild(svgEl('circle',{cx:nd.x,cy:nd.y,r:10,fill:i===0?C.accent:C.surface2,stroke:i===0?C.accent:C.borderStrong,'stroke-width':1.5}));
+      gP.appendChild(svgText(nd.x,nd.y+3,String(i),{fill:i===0?'#06070a':C.muted,'font-size':8}));
+    });
+    gP.appendChild(svgText(padL,162,'拓扑: '+st.topo.toUpperCase(),{fill:C.muted,'font-size':10,'text-anchor':'start'}));
+    st.nodes=nodes;
+  }
+  function updateStats(){
+    var lat;
+    if(st.topo==='ring')lat=st.n*5;
+    else if(st.topo==='tree')lat=Math.ceil(Math.log2(st.n))*8;
+    else lat=Math.ceil(Math.sqrt(st.n))*6;
+    var overlapPct=st.overlap?Math.round((1-st.oTime)*100):0;
+    var speedup=st.overlap?(1/st.oTime):1;
+    setVal('comm-stat-lat',lat+' µs');
+    setVal('comm-stat-overlap',overlapPct+'%');
+    setVal('comm-stat-time',st.oTime.toFixed(2)+' ms');
+    setVal('comm-stat-speedup',speedup.toFixed(2)+'×');
+  }
+  function draw(){drawTimeline();drawTopo();updateStats();}
+  function run(){
+    if(st.raf)cancelAnimationFrame(st.raf);
+    if(!st.cursorEl){
+      st.cursorEl=svgEl('rect',{x:padL,y:30,width:2,height:76,fill:C.ink,'fill-opacity':.6});
+      gT.appendChild(st.cursorEl);
+    }
+    st.cursor=0;st.cursorEl.style.opacity=1;st.running=true;
+    $('#comm-run').textContent='运行中…';
+    var last=0,dur=2.2/st.speed;
+    function step(ts){
+      if(!last)last=ts;
+      var dt=(ts-last)/1000;last=ts;
+      st.cursor+=dt/dur;
+      if(st.cursor>=1)st.cursor=1;
+      st.cursorEl.setAttribute('x',padL+st.cursor*chartW);
+      if(st.cursor<1)st.raf=requestAnimationFrame(step);
+      else{st.running=false;st.cursorEl.style.opacity=.3;$('#comm-run').textContent='▶ 运行';}
+    }
+    st.raf=requestAnimationFrame(step);
+  }
+  $('#comm-topo').addEventListener('change',function(e){st.topo=e.target.value;draw();});
+  $('#comm-n').addEventListener('input',function(e){st.n=+e.target.value;setVal('comm-n-val',st.n);draw();});
+  $('#comm-ratio').addEventListener('input',function(e){st.ratio=+e.target.value;setVal('comm-ratio-val',st.ratio+'%');draw();});
+  $('#comm-overlap').addEventListener('click',function(){st.overlap=!st.overlap;this.classList.toggle('active',st.overlap);draw();});
+  $('#comm-run').addEventListener('click',run);
+  draw();
+})();
+
+})();
+</script>
+</body>
+</html>

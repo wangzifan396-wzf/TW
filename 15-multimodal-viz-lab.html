@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多模态融合可视化实验室 · Multimodal Fusion Visualization Lab</title>
+<meta name="description" content="交互式多模态融合可视化实验室：CLIP 对比学习、视觉编码器、跨模态注意力、图像描述、VQA、统一嵌入空间、图文检索、音频融合。">
+<style>
+:root{
+--bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+--border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+--ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+--accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+--font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+--font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+--nav-h:56px;--side-w:240px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;}
+a{color:inherit;text-decoration:none;}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:5px;}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35;}
+
+/* progress bar (scroll-following) */
+.progress-bar{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:200;}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--rose),var(--violet) 50%,var(--cyan));transition:width .1s linear;}
+
+/* nav */
+.nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 18px 0 14px;z-index:150;}
+.menu-btn{display:none;background:none;border:1px solid var(--border);color:var(--ink);width:34px;height:34px;border-radius:8px;align-items:center;justify-content:center;cursor:pointer;}
+.nav-dot{width:9px;height:9px;border-radius:50%;background:var(--rose);box-shadow:0 0 12px var(--rose);flex-shrink:0;}
+.nav-title{font-weight:600;font-size:15px;letter-spacing:.2px;}
+.nav-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);}
+.nav-spacer{flex:1;}
+.nav-link-ext{font-size:12px;color:var(--muted);font-family:var(--font-mono);padding:6px 10px;border:1px solid var(--border);border-radius:7px;transition:.15s;}
+.nav-link-ext:hover{color:var(--rose);border-color:var(--rose);}
+
+/* sidebar */
+.sidebar{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);height:calc(100vh - var(--nav-h));background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:120;padding:18px 12px 40px;}
+.side-title{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1.2px;padding:0 10px 10px;font-family:var(--font-mono);}
+.side-nav{list-style:none;}
+.side-nav li a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--muted);font-size:13px;border-left:2px solid transparent;transition:.14s;cursor:pointer;line-height:1.4;}
+.side-nav li a .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px;flex-shrink:0;}
+.side-nav li a:hover{color:var(--ink);background:var(--surface-2);}
+.side-nav li a.active{color:var(--rose);background:rgba(251,113,133,.07);border-left-color:var(--rose);}
+.side-nav li a.active .num{color:var(--rose);}
+
+/* main */
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);}
+.hero{padding:44px 40px 40px;border-bottom:1px solid var(--border);}
+.hero h1{font-size:30px;font-weight:700;letter-spacing:-.4px;line-height:1.2;}
+.hero h1 .en{color:var(--muted);font-weight:500;font-size:17px;display:block;margin-top:6px;letter-spacing:0;}
+.hero p{color:var(--muted);margin-top:14px;max-width:680px;font-size:14px;}
+.hero .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.tag{font-size:11px;font-family:var(--font-mono);color:var(--muted);padding:4px 9px;border:1px solid var(--border);border-radius:20px;background:var(--surface);}
+.tag b{color:var(--rose);font-weight:600;}
+
+/* module */
+.module{padding:46px 40px 34px;border-bottom:1px solid var(--border);opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
+.module.visible{opacity:1;transform:none;}
+.module-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:8px;}
+.module-num{font-family:var(--font-mono);font-size:13px;color:var(--rose);border:1px solid var(--rose);border-radius:7px;padding:3px 8px;flex-shrink:0;margin-top:2px;background:rgba(251,113,133,.06);}
+.module-title{font-size:21px;font-weight:650;letter-spacing:-.2px;}
+.module-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);margin-top:2px;}
+.module-desc{color:var(--muted);font-size:13.5px;max-width:780px;margin-bottom:22px;}
+.module-body{display:grid;grid-template-columns:1fr 248px;gap:20px;align-items:start;}
+.canvas-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;min-height:360px;display:flex;align-items:center;justify-content:center;}
+.viz{width:100%;height:auto;display:block;}
+.side-col{display:flex;flex-direction:column;gap:14px;}
+.controls{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.controls .ctl-title{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1px;font-family:var(--font-mono);margin-bottom:4px;}
+.slider-wrap{display:flex;flex-direction:column;gap:6px;}
+.slider-wrap>span:first-child{color:var(--muted);font-size:12px;}
+.slider-wrap .val{font-family:var(--font-mono);color:var(--ink);font-size:11px;align-self:flex-end;}
+.slider-wrap input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:3px;background:var(--surface-3);border-radius:3px;outline:none;}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--rose);cursor:pointer;border:2px solid var(--bg);box-shadow:0 0 0 1px var(--rose);}
+.slider-wrap input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--rose);cursor:pointer;border:2px solid var(--bg);}
+.btn-row{display:flex;flex-wrap:wrap;gap:6px;}
+.btn{font-family:var(--font-sans);font-size:12px;color:var(--muted);background:var(--surface-3);border:1px solid var(--border);border-radius:7px;padding:7px 11px;cursor:pointer;transition:.14s;line-height:1.3;text-align:left;}
+.btn:hover{color:var(--ink);border-color:var(--border-strong);}
+.btn-sm{padding:6px 10px;font-size:11.5px;}
+.btn.active{color:var(--rose);border-color:var(--rose);background:rgba(251,113,133,.1);}
+.stats{display:flex;flex-direction:column;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);}
+.stat-item:last-child{border-bottom:none;}
+.stat-item .dot{width:7px;height:7px;border-radius:2px;flex-shrink:0;}
+.module-note{color:var(--muted);font-size:12.5px;margin-top:16px;line-height:1.7;max-width:880px;}
+.module-note b{color:var(--ink);font-weight:600;}
+.footer{padding:36px 40px;color:var(--faint);font-size:12px;font-family:var(--font-mono);text-align:center;}
+.footer a{color:var(--muted);}
+.footer a:hover{color:var(--rose);}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important;}
+  .module{opacity:1!important;transform:none!important;}
+  html{scroll-behavior:auto;}
+}
+@media (max-width:880px){
+  .menu-btn{display:flex;}
+  .nav-sub{display:none;}
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;width:240px;}
+  .sidebar.open{transform:translateX(0);box-shadow:0 0 40px rgba(0,0,0,.6);}
+  .main{margin-left:0;}
+  .hero,.module,.footer{padding-left:18px;padding-right:18px;}
+  .module-body{grid-template-columns:1fr;}
+  .hero h1{font-size:24px;}
+  .hero h1 .en{font-size:15px;}
+}
+</style>
+</head>
+<body>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <span class="nav-dot"></span>
+  <span class="nav-title">多模态融合可视化实验室</span>
+  <span class="nav-sub">/ Multimodal Fusion Viz Lab</span>
+  <span class="nav-spacer"></span>
+  <a class="nav-link-ext" href="https://github.com/wangzifan396-wzf/multimodal-viz-lab" target="_blank" rel="noopener">GitHub</a>
+</nav>
+<aside class="sidebar" id="sidebar">
+  <div class="side-title">模块导航</div>
+  <ul class="side-nav">
+    <li><a href="#m1"><span class="num">01</span> CLIP 对比学习</a></li>
+    <li><a href="#m2"><span class="num">02</span> 视觉编码器 ViT</a></li>
+    <li><a href="#m3"><span class="num">03</span> 跨模态注意力</a></li>
+    <li><a href="#m4"><span class="num">04</span> 图像描述生成</a></li>
+    <li><a href="#m5"><span class="num">05</span> VQA 视觉问答</a></li>
+    <li><a href="#m6"><span class="num">06</span> 统一嵌入空间</a></li>
+    <li><a href="#m7"><span class="num">07</span> 图文检索</a></li>
+    <li><a href="#m8"><span class="num">08</span> 音频融合</a></li>
+  </ul>
+</aside>
+<main class="main">
+  <header class="hero">
+    <h1>多模态融合可视化实验室<span class="en">Multimodal Fusion Visualization Lab</span></h1>
+    <p>通过 8 个交互式模块，从零理解多模态模型的融合机制：CLIP 对比学习、视觉编码器 ViT、跨模态注意力、图像描述、视觉问答、统一嵌入空间、图文检索与音频融合。所有可视化均由纯 SVG 实时绘制，零外部依赖，单文件运行。</p>
+    <div class="tags">
+      <span class="tag">纯 <b>HTML/CSS/JS</b></span>
+      <span class="tag">零依赖 · 单文件</span>
+      <span class="tag"><b>8</b> 个交互模块</span>
+      <span class="tag">实时 <b>SVG</b> 可视化</span>
+      <span class="tag">Linear 暗色工程主题</span>
+    </div>
+  </header>
+
+  <!-- 01 CLIP -->
+  <section class="module" id="m1">
+    <div class="module-head"><span class="module-num">01</span><div><div class="module-title">CLIP 对比学习</div><div class="module-sub">Contrastive Language-Image Pretraining</div></div></div>
+    <p class="module-desc">图像编码器与文本编码器将两种模态映射到共享嵌入空间，通过对比损失拉近正样本对、推远负样本对，温度参数 τ 控制分布的锐度。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg1"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl1"><div class="ctl-title">控制台</div></div><div class="stats" id="stats1"></div></div>
+    </div>
+    <p class="module-note">CLIP 在 <b>4 亿</b>图文对上训练，正样本对（匹配的图像-文本）在嵌入空间中相互靠近，负样本对（批次内不匹配项）被推开。温度 <b>τ</b> 越小，softmax 分布越尖锐，模型对困难负样本更敏感；τ 越大则分布越平缓、聚类越松散。点击"播放"可观察嵌入点的动态演化。</p>
+  </section>
+
+  <!-- 02 ViT -->
+  <section class="module" id="m2">
+    <div class="module-head"><span class="module-num">02</span><div><div class="module-title">视觉编码器 ViT</div><div class="module-sub">Vision Transformer · Patch Embedding</div></div></div>
+    <p class="module-desc">图像被切分为 patch 网格，每个 patch 展平为向量并加上位置编码，作为 Transformer 的输入序列进行编码。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg2"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl2"><div class="ctl-title">控制台</div></div><div class="stats" id="stats2"></div></div>
+    </div>
+    <p class="module-note">ViT 把图像当作 <b>NLP 中的 token 序列</b>处理：224×224 图像用 patch=16 切分得到 196 个 patch，每个 patch 线性投影为 768 维向量，前置一个可学习的 [CLS] token 用于汇聚全局信息。patch 越小→序列越长→精度更高但计算量平方增长；patch 越大→序列越短→更快但细节丢失。</p>
+  </section>
+
+  <!-- 03 Cross-Modal Attention -->
+  <section class="module" id="m3">
+    <div class="module-head"><span class="module-num">03</span><div><div class="module-title">跨模态注意力</div><div class="module-sub">Cross-Modal Attention Alignment</div></div></div>
+    <p class="module-desc">文本 token 与图像 patch 之间通过注意力连线建立跨模态对齐。点击文本 token 查看其关注的图像区域。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg3"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl3"><div class="ctl-title">控制台</div></div><div class="stats" id="stats3"></div></div>
+    </div>
+    <p class="module-note">跨模态注意力是融合的关键：文本 token 作为 Query，图像 patch 作为 Key/Value（或反之），注意力权重揭示<b>哪个词关注图像哪块区域</b>。多头注意力从不同子空间捕捉多种对齐模式。计算量随 heads × tokens × patches 线性增长。</p>
+  </section>
+
+  <!-- 04 Image Captioning -->
+  <section class="module" id="m4">
+    <div class="module-head"><span class="module-num">04</span><div><div class="module-title">图像描述生成</div><div class="module-sub">Image Captioning · Encoder-Decoder · Beam Search</div></div></div>
+    <p class="module-desc">图像经编码器提取特征，解码器逐词生成描述，Beam Search 在多条候选路径中保留最优序列。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg4"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl4"><div class="ctl-title">控制台</div></div><div class="stats" id="stats4"></div></div>
+    </div>
+    <p class="module-note">图像描述是典型的<b>编码器-解码器</b>结构：视觉编码器输出图像特征向量，解码器以自回归方式逐词生成，每步把已生成词 + 图像特征作为输入。<b>Beam Search</b> 同时维护 beam 条候选路径，按累计对数概率排序，宽度越大越可能找到全局最优但计算开销也越大。</p>
+  </section>
+
+  <!-- 05 VQA -->
+  <section class="module" id="m5">
+    <div class="module-head"><span class="module-num">05</span><div><div class="module-title">VQA 视觉问答</div><div class="module-sub">Visual Question Answering</div></div></div>
+    <p class="module-desc">图像与问题联合编码，经注意力推理定位相关区域并生成答案。切换问题类型观察不同推理路径。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg5"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl5"><div class="ctl-title">控制台</div></div><div class="stats" id="stats5"></div></div>
+    </div>
+    <p class="module-note">VQA 需要模型同时"看懂图"和"读懂题"：<b>计数</b>类问题需要定位并数目标；<b>颜色</b>类关注属性；<b>位置</b>类需要空间关系推理；<b>是否</b>类是二分类。联合注意力让模型把问题语义对齐到图像区域，再从候选答案中分类或生成。</p>
+  </section>
+
+  <!-- 06 Unified Embedding -->
+  <section class="module" id="m6">
+    <div class="module-head"><span class="module-num">06</span><div><div class="module-title">统一嵌入空间</div><div class="module-sub">Unified Embedding Space · Retrieval</div></div></div>
+    <p class="module-desc">图像与文本被投影到共享的统一嵌入空间，可按距离度量进行跨模态检索。调整投影维度与度量观察分布变化。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg6"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl6"><div class="ctl-title">控制台</div></div><div class="stats" id="stats6"></div></div>
+    </div>
+    <p class="module-note">统一嵌入空间是多模态检索的基础：语义相近的图像和文本在空间中距离也相近。<b>余弦距离</b>关注方向相似性（对幅度不敏感），<b>欧氏距离</b>同时考虑幅度。投影维度越高表达能力越强但更难训练、更易过拟合。检索时用 Top-K 最近邻返回结果，mAP 衡量整体排序质量。</p>
+  </section>
+
+  <!-- 07 Retrieval -->
+  <section class="module" id="m7">
+    <div class="module-head"><span class="module-num">07</span><div><div class="module-title">图文检索</div><div class="module-sub">Image-Text Retrieval · Bidirectional</div></div></div>
+    <p class="module-desc">双向检索：文本查图像与图像查文本。播放检索流程观察相似度计算、排序与 Top-K 返回。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg7"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl7"><div class="ctl-title">控制台</div></div><div class="stats" id="stats7"></div></div>
+    </div>
+    <p class="module-note">图文检索是统一嵌入空间的直接应用：<b>文本→图像</b>检索用文本向量在图像库中找最近邻，<b>图像→文本</b>则相反。流程为：查询编码 → 与库向量计算相似度 → 排序 → 返回 Top-K。<b>召回率</b>衡量 Top-K 中包含正确结果的比例，K 越大召回越高但精确度可能下降。</p>
+  </section>
+
+  <!-- 08 Audio Fusion -->
+  <section class="module" id="m8">
+    <div class="module-head"><span class="module-num">08</span><div><div class="module-title">音频融合</div><div class="module-sub">Audio Fusion · Early / Late / Cross-Attention</div></div></div>
+    <p class="module-desc">音频波形转频谱图后编码，与文本/图像特征按不同融合策略结合。切换融合方式对比三种范式。</p>
+    <div class="module-body">
+      <div class="canvas-wrap"><svg class="viz" id="svg8"></svg></div>
+      <div class="side-col"><div class="controls" id="ctrl8"><div class="ctl-title">控制台</div></div><div class="stats" id="stats8"></div></div>
+    </div>
+    <p class="module-note">音频融合把语音/声音纳入多模态体系：波形经 STFT 得到 Mel 频谱图，再由音频编码器提取特征。<b>早期融合</b>在特征层拼接后统一编码，信息交互最充分；<b>晚期融合</b>各模态独立编码后于决策层加权组合，模块化最强；<b>交叉注意力</b>让模态互为 Q/K/V 进行细粒度交互，效果通常最佳。</p>
+  </section>
+
+  <div class="footer">
+    多模态融合可视化实验室 · Multimodal Fusion Visualization Lab &nbsp;|&nbsp;
+    <a href="https://wangzifan396-wzf.github.io/multimodal-viz-lab/" target="_blank" rel="noopener">Live Demo</a> &nbsp;|&nbsp;
+    MIT License · 纯 SVG · 零依赖
+  </div>
+</main>
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* shared helpers */
+function T(p,x,y,s,o){var a={x:x,y:y,fill:C.muted,'font-size':11,'font-family':'ui-monospace,monospace'};if(o)for(var k in o)a[k]=o[k];var e=svgEl(p,'text',a);e.textContent=s;return e;}
+function rng(seed){var s=(seed>>>0)||1;return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function drawArrow(p,x1,y1,x2,y2,col,w){svgEl(p,'line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,'stroke-width':w||1.5,'stroke-linecap':'round'});var a=Math.atan2(y2-y1,x2-x1),h=6;svgEl(p,'polygon',{points:x2+','+y2+' '+(x2-h*Math.cos(a-.42))+','+(y2-h*Math.sin(a-.42))+' '+(x2-h*Math.cos(a+.42))+','+(y2-h*Math.sin(a+.42)),fill:col});}
+
+/* nav / scroll / progress / observer */
+var modules=document.querySelectorAll('.module');
+var links=document.querySelectorAll('.side-nav li a');
+var progressFill=document.getElementById('progressFill');
+var sidebar=document.getElementById('sidebar');
+document.getElementById('menuBtn').addEventListener('click',function(){sidebar.classList.toggle('open');});
+links.forEach(function(l){l.addEventListener('click',function(){if(window.innerWidth<=880)sidebar.classList.remove('open');});});
+var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.06});
+modules.forEach(function(m){io.observe(m);});
+function onScroll(){var st=window.scrollY||document.documentElement.scrollTop;var dh=document.documentElement.scrollHeight-window.innerHeight;progressFill.style.width=(dh>0?(st/dh*100):0)+'%';var cur=0;modules.forEach(function(m,i){if(m.offsetTop-140<=st)cur=i;});links.forEach(function(l,i){l.classList.toggle('active',i===cur);});}
+window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+/* ============================================================
+   01 · CLIP CONTRASTIVE LEARNING
+   ============================================================ */
+function initM1(){
+  var svg=document.getElementById('svg1'),ctrl=document.getElementById('ctrl1'),stat=document.getElementById('stats1');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var temp=0.07,timer=null,playing=false;
+  var pairs=[{l:'一只猫',c:C.rose},{l:'一只狗',c:C.cyan},{l:'日落',c:C.amber},{l:'城市',c:C.violet},{l:'花朵',c:C.emerald}];
+  var nodes=[];
+  function reset(){nodes=[];var r=rng(11);for(var i=0;i<pairs.length;i++){nodes.push({x:250+r()*220,y:70+r()*200,i:i,t:'img'});nodes.push({x:250+r()*220,y:70+r()*200,i:i,t:'txt'});}}
+  reset();
+  function centers(){var cs=[];for(var i=0;i<pairs.length;i++){var a=i/pairs.length*6.283;var rad=28+temp*430;cs.push({x:370+Math.cos(a)*rad,y:175+Math.sin(a)*rad*0.65});}return cs;}
+  function render(){
+    clearSvg(svg);
+    svgEl(svg,'rect',{x:18,y:54,width:140,height:250,rx:12,fill:C.surface2,stroke:C.border});
+    T(svg,88,44,'图像编码器 ViT',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    for(var i=0;i<pairs.length;i++){svgEl(svg,'rect',{x:30,y:70+i*44,width:116,height:34,rx:6,fill:pairs[i].c,opacity:.7});}
+    svgEl(svg,'rect',{x:562,y:54,width:140,height:250,rx:12,fill:C.surface2,stroke:C.border});
+    T(svg,632,44,'文本编码器 Transformer',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    for(var i=0;i<pairs.length;i++){svgEl(svg,'rect',{x:574,y:70+i*44,width:116,height:34,rx:6,fill:C.surface3,stroke:C.border});T(svg,632,91+i*44,'"'+pairs[i].l+'"',{'text-anchor':'middle','font-size':10,fill:C.ink});}
+    svgEl(svg,'rect',{x:180,y:54,width:360,height:250,rx:12,fill:C.surface,stroke:C.border,'stroke-dasharray':'5 5'});
+    T(svg,360,44,'共享嵌入空间',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    for(var i=0;i<pairs.length;i++){svgEl(svg,'line',{x1:158,y1:87+i*44,x2:nodes[i*2].x,y2:nodes[i*2].y,stroke:C.border,'stroke-width':1,opacity:.6});svgEl(svg,'line',{x1:562,y1:87+i*44,x2:nodes[i*2+1].x,y2:nodes[i*2+1].y,stroke:C.border,'stroke-width':1,opacity:.6});}
+    for(var i=0;i<pairs.length;i++){var a=nodes[i*2],b=nodes[i*2+1];svgEl(svg,'line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:pairs[i].c,'stroke-width':1.4,opacity:.45});}
+    for(var j=0;j<nodes.length;j++){var n=nodes[j],c=pairs[n.i].c;if(n.t==='img'){svgEl(svg,'rect',{x:n.x-6,y:n.y-6,width:12,height:12,rx:2,fill:c,stroke:C.ink,'stroke-width':.5});}else{svgEl(svg,'circle',{cx:n.x,cy:n.y,r:6,fill:'none',stroke:c,'stroke-width':2});}}
+    T(svg,360,322,'■ 图像嵌入    ○ 文本嵌入    正样本对相互拉近 · τ='+temp.toFixed(2),{'text-anchor':'middle','font-size':10,fill:C.faint});
+  }
+  function step(){var cs=centers();for(var j=0;j<nodes.length;j++){var n=nodes[j],c=cs[n.i];n.x+=(c.x-n.x)*0.06;n.y+=(c.y-n.y)*0.06;}render();}
+  function play(b){if(playing){playing=false;if(timer)clearInterval(timer);b.textContent='播放对比学习';return;}playing=true;b.textContent='停止';reset();render();timer=setInterval(step,70);}
+  ctrl.appendChild(makeBtn('播放对比学习',false,play));
+  ctrl.appendChild(makeSlider('温度 τ',0.01,0.2,0.01,0.07,'',function(v){temp=v;}));
+  setStats(stat,[{color:C.rose,label:'图像嵌入维度',val:'512'},{color:C.cyan,label:'文本嵌入维度',val:'512'},{color:C.emerald,label:'批次大小',val:'32'},{color:C.violet,label:'正负样本对',val:'992'}]);
+  render();
+}
+
+/* ============================================================
+   02 · VISUAL ENCODER (ViT)
+   ============================================================ */
+function initM2(){
+  var svg=document.getElementById('svg2'),ctrl=document.getElementById('ctrl2'),stat=document.getElementById('stats2');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var patch=16,timer=null;
+  var cols=[C.rose,C.cyan,C.emerald,C.amber,C.violet,C.accent];
+  function gn(){return 96/patch;}
+  function pc(){var n=224/patch;return Math.round(n*n);}
+  function update(){setStats(stat,[{color:C.rose,label:'图像尺寸',val:'224×224'},{color:C.cyan,label:'Patch 数',val:String(pc())},{color:C.emerald,label:'嵌入维度',val:'768'},{color:C.violet,label:'序列长度',val:String(pc()+1)}]);}
+  function render(hl){
+    clearSvg(svg);
+    var g=gn(),cell=patch,ox=26,oy=80;
+    T(svg,ox+48,68,'输入图像 224×224',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    for(var r=0;r<g;r++)for(var c=0;c<g;c++){var idx=r*g+c;var f=C.surface3;if(hl&&hl[idx])f=hl[idx];svgEl(svg,'rect',{x:ox+c*cell,y:oy+r*cell,width:cell-0.5,height:cell-0.5,fill:f,stroke:C.border,'stroke-width':.4});}
+    svgEl(svg,'rect',{x:ox,y:oy,width:g*cell,height:g*cell,fill:'none',stroke:C.borderStrong});
+    T(svg,ox+48,oy+g*cell+16,'patch='+patch+'  →  '+(g*g)+' patches',{'text-anchor':'middle','font-size':10,fill:C.muted});
+    drawArrow(svg,ox+g*cell+8,oy+g*cell/2,158,oy+g*cell/2,C.faint,1.5);
+    var vx=162,vy=86;T(svg,vx+50,74,'展平 + 线性嵌入',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    var vn=Math.min(g*g,14);
+    for(var i=0;i<vn;i++){svgEl(svg,'rect',{x:vx+i*7,y:vy,width:5,height:72,fill:cols[i%6],opacity:.85});}
+    T(svg,vx+50,vy+86,'向量序列',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    T(svg,vx+50,vy+102,'+ 位置编码',{'text-anchor':'middle','font-size':9,fill:C.violet});
+    drawArrow(svg,vx+vn*7+4,vy+36,322,vy+36,C.faint,1.5);
+    var tx=322;T(svg,tx+60,74,'Transformer 编码器',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'rect',{x:tx,y:86,width:150,height:150,rx:10,fill:C.surface2,stroke:C.borderStrong});
+    for(var l=0;l<4;l++){svgEl(svg,'rect',{x:tx+14,y:100+l*30,width:122,height:22,rx:5,fill:C.surface3,stroke:C.border});T(svg,tx+75,115+l*30,'Block '+(l+1),{'text-anchor':'middle','font-size':9,fill:C.muted});}
+    drawArrow(svg,tx+150,161,500,161,C.faint,1.5);
+    var ox2=506;T(svg,ox2+54,74,'输出嵌入',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'circle',{cx:ox2+22,cy:100,r:7,fill:C.rose});T(svg,ox2+38,104,'[CLS]',{'text-anchor':'start','font-size':9,fill:C.rose});
+    for(var i=0;i<8;i++){svgEl(svg,'rect',{x:ox2+i*12,y:120,width:8,height:90,fill:cols[i%6],opacity:.7});}
+    T(svg,360,310,'动画演示 patch 切分 → 展平 → 位置编码 → Transformer 编码流程',{'text-anchor':'middle','font-size':10,fill:C.faint});
+  }
+  function play(b){if(timer){clearInterval(timer);timer=null;b.textContent='播放编码流程';render(null);return;}b.textContent='停止';var idx=0,g=gn(),total=g*g,hl={};timer=setInterval(function(){if(idx>=total){clearInterval(timer);timer=null;b.textContent='播放编码流程';var all={};for(var k=0;k<total;k++)all[k]=C.rose;render(all);return;}hl[idx]=C.rose;render(hl);idx++;},90);}
+  ctrl.appendChild(makeBtn('播放编码流程',false,play));
+  var psW=document.createElement('div');psW.className='slider-wrap';
+  var psL=document.createElement('span');psL.textContent='Patch 大小';
+  var psI=document.createElement('input');psI.type='range';psI.min=0;psI.max=2;psI.step=1;psI.value=1;
+  var psV=document.createElement('span');psV.className='val';psV.textContent='16px';
+  var psv=[8,16,32];
+  psI.oninput=function(){patch=psv[parseInt(psI.value)];psV.textContent=patch+'px';update();render(null);};
+  psW.appendChild(psL);psW.appendChild(psI);psW.appendChild(psV);
+  ctrl.appendChild(psW);
+  update();render(null);
+}
+
+/* ============================================================
+   03 · CROSS-MODAL ATTENTION
+   ============================================================ */
+function initM3(){
+  var svg=document.getElementById('svg3'),ctrl=document.getElementById('ctrl3'),stat=document.getElementById('stats3');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var heads=8,sel=-1;
+  var tokens=['一只','金色的','小狗','在','草地上','奔跑'];
+  var rr=rng(42);var weights=[];
+  for(var i=0;i<tokens.length;i++){var w=[];for(var j=0;j<16;j++)w.push(rr());weights.push(w);}
+  function render(){
+    clearSvg(svg);
+    T(svg,30,40,'文本 Tokens',{'text-anchor':'start','font-size':11,fill:C.faint});
+    var ty=54;
+    for(var i=0;i<tokens.length;i++){
+      var act=(i===sel);var g=svgEl(svg,'g');g.style.cursor='pointer';
+      svgEl(g,'rect',{x:24,y:ty+i*36,width:110,height:28,rx:6,fill:act?C.rose:C.surface3,stroke:act?C.rose:C.border});
+      T(g,79,ty+i*36+18,tokens[i],{'text-anchor':'middle','font-size':11,fill:act?'#08090a':C.ink});
+      g.onclick=(function(idx){return function(){sel=(sel===idx?-1:idx);render();};})(i);
+    }
+    var gx=240,gy=54,cell=34;
+    T(svg,gx+2*cell,40,'图像 Patch 网格 (4×4)',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    var centers=[];
+    for(var r2=0;r2<4;r2++)for(var c2=0;c2<4;c2++)centers.push({x:gx+c2*cell+cell/2,y:gy+r2*cell+cell/2});
+    if(sel>=0){var w=weights[sel];for(var j=0;j<16;j++){var op=0.12+w[j]*0.8;svgEl(svg,'line',{x1:134,y1:ty+sel*36+14,x2:centers[j].x,y2:centers[j].y,stroke:C.cyan,'stroke-width':0.5+w[j]*4,opacity:op});}}
+    for(var j=0;j<16;j++){var intense=sel>=0?weights[sel][j]:0;var fill=C.surface3;if(sel>=0){fill='rgba(45,212,255,'+(0.08+intense*0.6)+')';}svgEl(svg,'rect',{x:gx+(j%4)*cell,y:gy+Math.floor(j/4)*cell,width:cell-2,height:cell-2,rx:4,fill:fill,stroke:sel>=0&&intense>0.5?C.cyan:C.border,'stroke-width':1});}
+    svgEl(svg,'rect',{x:gx-2,y:gy-2,width:4*cell+4,height:4*cell+4,fill:'none',stroke:C.borderStrong,rx:6});
+    var hx=420;T(svg,hx+130,40,'注意力头 (×'+heads+')',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    var hcols=[C.rose,C.cyan,C.emerald,C.amber,C.violet,C.accent];
+    for(var h=0;h<heads;h++){svgEl(svg,'circle',{cx:hx+20+(h%8)*30,cy:74+Math.floor(h/8)*32,r:8,fill:'none',stroke:hcols[h%6],'stroke-width':1.5});}
+    T(svg,hx,130,sel>=0?('已选中: "'+tokens[sel]+'"  →  跨模态对齐图像区域'):'点击左侧文本 Token 查看跨模态注意力',{'text-anchor':'start','font-size':11,fill:sel>=0?C.cyan:C.muted});
+    var flops=heads*tokens.length*16;
+    T(svg,hx,154,'计算量 ≈ heads × tokens × patches = '+flops,{'text-anchor':'start','font-size':10,fill:C.faint});
+    T(svg,hx,178,'连线越粗 / 区域越亮 = 注意力权重越高',{'text-anchor':'start','font-size':10,fill:C.faint});
+    setStats(stat,[{color:C.rose,label:'文本长度',val:String(tokens.length)},{color:C.cyan,label:'图像 Patch',val:'16'},{color:C.violet,label:'注意力头数',val:String(heads)},{color:C.emerald,label:'计算量',val:String(flops)}]);
+  }
+  ctrl.appendChild(makeSlider('注意力头数',1,16,1,8,'',function(v){heads=v;render();}));
+  var row=document.createElement('div');row.className='btn-row';row.appendChild(makeBtn('清除选择',false,function(){sel=-1;render();}));ctrl.appendChild(row);
+  render();
+}
+
+/* ============================================================
+   04 · IMAGE CAPTIONING
+   ============================================================ */
+function initM4(){
+  var svg=document.getElementById('svg4'),ctrl=document.getElementById('ctrl4'),stat=document.getElementById('stats4');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var caption=['一只','金色的','小狗','在','绿色','草地上','欢快','奔跑'];
+  var timer=null,shown=0,beam=3;
+  function render(){
+    clearSvg(svg);
+    var ys=58;
+    T(svg,60,44,'输入图像',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    var ic=[C.rose,C.amber,C.emerald];
+    for(var i=0;i<9;i++){svgEl(svg,'rect',{x:24+(i%3)*26,y:ys+Math.floor(i/3)*26,width:24,height:24,rx:3,fill:ic[i%3],opacity:.7});}
+    drawArrow(svg,114,ys+40,150,ys+40,C.faint,1.5);
+    svgEl(svg,'rect',{x:150,y:ys+8,width:90,height:70,rx:8,fill:C.surface2,stroke:C.borderStrong});T(svg,195,ys+48,'视觉编码器',{'text-anchor':'middle','font-size':10,fill:C.cyan});
+    drawArrow(svg,240,ys+43,276,ys+43,C.faint,1.5);
+    svgEl(svg,'rect',{x:276,y:ys+8,width:90,height:70,rx:8,fill:C.surface2,stroke:C.borderStrong});T(svg,321,ys+40,'解码器',{'text-anchor':'middle','font-size':10,fill:C.violet});T(svg,321,ys+58,'(自回归)',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    drawArrow(svg,366,ys+43,400,ys+43,C.faint,1.5);
+    T(svg,400,44,'Beam Search 候选路径',{'text-anchor':'start','font-size':10,fill:C.faint});
+    var beams=[{score:-0.42,col:C.emerald},{score:-0.91,col:C.cyan},{score:-1.37,col:C.amber},{score:-1.85,col:C.violet},{score:-2.20,col:C.accent}];
+    for(var b=0;b<beam;b++){var by=ys+16+b*20;svgEl(svg,'rect',{x:400,y:by,width:230,height:16,rx:4,fill:C.surface3,stroke:C.border});var bw=230*(1-beams[b].score/-2.5);svgEl(svg,'rect',{x:400,y:by,width:Math.min(230,bw),height:16,rx:4,fill:beams[b].col,opacity:.25});T(svg,408,by+12,'beam '+(b+1)+'  logp='+beams[b].score.toFixed(2),{'text-anchor':'start','font-size':9,fill:C.muted});}
+    T(svg,30,212,'生成描述',{'text-anchor':'start','font-size':11,fill:C.faint});
+    var x=30,yy=224;
+    for(var i=0;i<caption.length;i++){
+      var vis=i<shown;var w=caption[i].length*15+18;
+      if(x+w>680){x=30;yy+=38;}
+      svgEl(svg,'rect',{x:x,y:yy,width:w,height:30,rx:6,fill:vis?C.rose:C.surface3,stroke:vis?C.rose:C.border});
+      T(svg,x+w/2,yy+20,caption[i],{'text-anchor':'middle','font-size':11,fill:vis?'#08090a':C.faint});
+      x+=w+6;
+    }
+    if(shown>=caption.length){T(svg,360,300,'✓ 生成完成',{'text-anchor':'middle','font-size':13,fill:C.emerald});}
+    setStats(stat,[{color:C.rose,label:'生成词数',val:String(shown)},{color:C.cyan,label:'Beam 宽度',val:String(beam)},{color:C.violet,label:'词汇表',val:'30k'},{color:C.emerald,label:'耗时(模拟)',val:'1.2s'}]);
+  }
+  function play(b){if(timer){clearInterval(timer);timer=null;b.textContent='逐词生成';shown=0;render();return;}b.textContent='停止';shown=0;render();var i=0;timer=setInterval(function(){i++;shown=i;render();if(i>=caption.length){clearInterval(timer);timer=null;b.textContent='逐词生成';}},420);}
+  ctrl.appendChild(makeBtn('逐词生成',false,play));
+  ctrl.appendChild(makeSlider('Beam 宽度',1,5,1,3,'',function(v){beam=v;render();}));
+  render();
+}
+
+/* ============================================================
+   05 · VQA
+   ============================================================ */
+function initM5(){
+  var svg=document.getElementById('svg5'),ctrl=document.getElementById('ctrl5'),stat=document.getElementById('stats5');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var types=[{key:'count',q:'图中有几只狗？',a:'3 只',col:C.rose},{key:'color',q:'汽车是什么颜色？',a:'红色',col:C.cyan},{key:'pos',q:'猫在哪里？',a:'沙发上',col:C.emerald},{key:'yn',q:'是否在下雨？',a:'是',col:C.amber}];
+  var cur=0,timer=null,phase=0;
+  var typeBtns=[];
+  function render(){
+    clearSvg(svg);
+    var t=types[cur];
+    T(svg,100,44,'图像 + 区域提议',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    for(var i=0;i<16;i++){var lit=phase>=2&&(i%4===1||i%4===2||i===5||i===6);svgEl(svg,'rect',{x:24+(i%4)*40,y:60+Math.floor(i/4)*40,width:36,height:36,rx:4,fill:lit?t.col:C.surface3,opacity:lit?0.5:1,stroke:lit?t.col:C.border});}
+    svgEl(svg,'rect',{x:22,y:58,width:160,height:160,fill:'none',stroke:C.borderStrong,rx:6});
+    drawArrow(svg,184,138,220,138,C.faint,1.5);
+    T(svg,300,44,'问题编码',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'rect',{x:220,y:58,width:160,height:50,rx:8,fill:C.surface2,stroke:C.border});T(svg,300,78,t.q,{'text-anchor':'middle','font-size':11,fill:C.ink});T(svg,300,97,'(LSTM / Transformer)',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    drawArrow(svg,300,108,300,134,C.faint,1.5);
+    svgEl(svg,'rect',{x:220,y:134,width:160,height:58,rx:8,fill:C.surface2,stroke:t.col,'stroke-dasharray':'4 4'});T(svg,300,162,'联合注意力推理',{'text-anchor':'middle','font-size':11,fill:t.col});T(svg,300,180,'跨模态对齐',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    drawArrow(svg,380,163,420,163,C.faint,1.5);
+    T(svg,560,44,'答案',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'rect',{x:430,y:133,width:220,height:62,rx:10,fill:phase>=3?t.col:C.surface3,stroke:t.col});
+    T(svg,540,172,phase>=3?t.a:'...',{'text-anchor':'middle','font-size':22,fill:phase>=3?'#08090a':C.faint});
+    if(phase>=3){T(svg,540,212,'置信度 0.92',{'text-anchor':'middle','font-size':10,fill:C.emerald});}
+    T(svg,360,236,'阶段: '+(phase===0?'等待推理':phase===1?'问题编码':phase===2?'图像区域关注':'答案生成'),{'text-anchor':'middle','font-size':10,fill:C.muted});
+    setStats(stat,[{color:t.col,label:'问题类型',val:t.key},{color:C.cyan,label:'图像区域',val:'16'},{color:C.violet,label:'答案候选',val:'5'},{color:C.emerald,label:'置信度',val:phase>=3?'0.92':'—'}]);
+  }
+  function setType(i){cur=i;phase=0;typeBtns.forEach(function(bb,idx){bb.classList.toggle('active',idx===i);});render();}
+  types.forEach(function(t,i){var b=makeBtn(t.q,false,function(){setType(i);});typeBtns.push(b);ctrl.appendChild(b);});
+  ctrl.appendChild(makeBtn('播放推理',false,function(b){if(timer){clearInterval(timer);timer=null;b.textContent='播放推理';phase=0;render();return;}b.textContent='停止';phase=0;render();timer=setInterval(function(){phase++;if(phase>3){clearInterval(timer);timer=null;b.textContent='播放推理';}render();},700);}));
+  typeBtns[0].classList.add('active');
+  render();
+}
+
+/* ============================================================
+   06 · UNIFIED EMBEDDING SPACE
+   ============================================================ */
+function initM6(){
+  var svg=document.getElementById('svg6'),ctrl=document.getElementById('ctrl6'),stat=document.getElementById('stats6');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var dim=32,metric='cosine',timer=null,query=-1;
+  var clusterCols=[C.rose,C.cyan,C.emerald,C.amber];
+  var pts=[],textIdx=[];
+  function build(){
+    pts=[];textIdx=[];var r=rng(dim*7+1);
+    for(var i=0;i<28;i++){var ci=i%4;var fv=[];fv[0]=ci*0.25+0.08+r()*0.14;fv[1]=((ci%2)*0.5)+r()*0.22;fv[2]=r();fv[3]=r();
+      var x=50+fv[0]*580,y=70+fv[1]*200+r()*18;
+      var type=i%2===0?'img':'txt';
+      pts.push({x:x,y:y,fv:fv,ci:ci,type:type,idx:i});
+      if(type==='txt')textIdx.push(i);
+    }
+  }
+  build();
+  function dist(a,b){if(metric==='cosine'){var dot=0,na=0,nb=0;for(var d=0;d<a.fv.length;d++){dot+=a.fv[d]*b.fv[d];na+=a.fv[d]*a.fv[d];nb+=b.fv[d]*b.fv[d];}return 1-dot/(Math.sqrt(na*nb)+1e-9);}var s=0;for(var d=0;d<a.fv.length;d++){var dd=a.fv[d]-b.fv[d];s+=dd*dd;}return Math.sqrt(s);}
+  function render(highlight){
+    clearSvg(svg);
+    T(svg,360,36,'统一嵌入空间 (2D 投影 · '+metric+')',{'text-anchor':'middle','font-size':11,fill:C.faint});
+    svgEl(svg,'rect',{x:30,y:50,width:660,height:230,rx:10,fill:C.surface,stroke:C.border});
+    for(var i=0;i<=4;i++){svgEl(svg,'line',{x1:30+i*132,y1:50,x2:30+i*132,y2:280,stroke:C.border,opacity:.5});svgEl(svg,'line',{x1:30,y1:50+i*57.5,x2:690,y2:50+i*57.5,stroke:C.border,opacity:.5});}
+    if(highlight!=null&&highlight>=0){
+      var q=pts[highlight];var imgs=pts.filter(function(p){return p.type==='img'&&p.idx!==q.idx;}).map(function(p){return {p:p,d:dist(q,p)};}).sort(function(a,b){return a.d-b.d;}).slice(0,5);
+      imgs.forEach(function(it){svgEl(svg,'line',{x1:q.x,y1:q.y,x2:it.p.x,y2:it.p.y,stroke:clusterCols[q.ci],'stroke-width':1.5,opacity:.6,'stroke-dasharray':'4 3'});});
+    }
+    for(var i=0;i<pts.length;i++){var p=pts[i],c=clusterCols[p.ci];var isQ=(highlight===p.idx);
+      if(p.type==='img'){svgEl(svg,'rect',{x:p.x-5,y:p.y-5,width:10,height:10,rx:2,fill:isQ?'#08090a':c,stroke:c,'stroke-width':isQ?3:1});}
+      else{svgEl(svg,'circle',{cx:p.x,cy:p.y,r:5,fill:isQ?'#08090a':'none',stroke:c,'stroke-width':isQ?3:1.5});}
+    }
+    T(svg,360,302,'■ 图像    ○ 文本    虚线 = 检索 Top-5 最近图像',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    setStats(stat,[{color:C.rose,label:'嵌入维度',val:String(dim)},{color:C.cyan,label:'样本数',val:'28'},{color:C.emerald,label:'Top-K',val:'5'},{color:C.violet,label:'mAP(模拟)',val:'0.87'}]);
+  }
+  ctrl.appendChild(makeSlider('投影维度',2,64,2,32,'',function(v){dim=v;build();render(-1);}));
+  ctrl.appendChild(makeBtn('切换距离: 余弦',false,function(b){metric=metric==='cosine'?'euclidean':'cosine';b.textContent='切换距离: '+(metric==='cosine'?'余弦':'欧氏');render(query);}));
+  ctrl.appendChild(makeBtn('检索最近图像',false,function(b){
+    if(timer){clearInterval(timer);timer=null;b.textContent='检索最近图像';render(-1);return;}
+    b.textContent='停止';var ti=0;
+    timer=setInterval(function(){query=textIdx[ti%textIdx.length];render(query);ti++;if(ti>=textIdx.length){clearInterval(timer);timer=null;b.textContent='检索最近图像';}},900);
+  }));
+  render(-1);
+}
+
+/* ============================================================
+   07 · IMAGE-TEXT RETRIEVAL
+   ============================================================ */
+function initM7(){
+  var svg=document.getElementById('svg7'),ctrl=document.getElementById('ctrl7'),stat=document.getElementById('stats7');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var dir='t2i',topk=5,timer=null;
+  function dirLabel(){return dir==='t2i'?'文本 → 图像':'图像 → 文本';}
+  function genSims(seed){var r=rng(seed);var s=[];for(var i=0;i<8;i++)s.push(0.2+r()*0.78);return s;}
+  function render(cur,sorted){
+    clearSvg(svg);
+    T(svg,360,36,'图文双向检索  ·  '+dirLabel(),{'text-anchor':'middle','font-size':11,fill:C.faint});
+    svgEl(svg,'rect',{x:24,y:58,width:150,height:64,rx:8,fill:C.surface2,stroke:C.rose});T(svg,99,80,'查询 '+(dir==='t2i'?'文本':'图像'),{'text-anchor':'middle','font-size':11,fill:C.rose});T(svg,99,102,dir==='t2i'?'「夕阳海滩」':'[img_07]',{'text-anchor':'middle','font-size':10,fill:C.muted});
+    drawArrow(svg,176,90,212,90,C.faint,1.5);
+    svgEl(svg,'rect',{x:212,y:58,width:120,height:64,rx:8,fill:C.surface2,stroke:C.border});T(svg,272,84,'相似度计算',{'text-anchor':'middle','font-size':10,fill:C.cyan});T(svg,272,104,'cosine sim',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    drawArrow(svg,332,90,368,90,C.faint,1.5);
+    T(svg,520,50,'排序结果 (Top-'+topk+')',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    var baseX=368,baseY=58;
+    if(!cur){var s=genSims(5);cur=s;sorted=s.map(function(sv,i){return {s:sv,i:i};}).sort(function(a,b){return b.s-a.s;});}
+    for(var i=0;i<8;i++){
+      var it=sorted[i];var by=baseY+i*30;var isTop=i<topk;
+      svgEl(svg,'rect',{x:baseX,y:by,width:312,height:24,rx:5,fill:isTop?C.surface3:C.surface,stroke:isTop?C.rose:C.border,opacity:isTop?1:0.5});
+      svgEl(svg,'rect',{x:baseX,y:by,width:312*it.s,height:24,rx:5,fill:isTop?C.rose:C.faint,opacity:0.22});
+      T(svg,baseX+8,by+16,(isTop?'★ ':'  ')+(dir==='t2i'?'img_':'txt_')+it.i,{'text-anchor':'start','font-size':10,fill:isTop?C.ink:C.muted});
+      T(svg,baseX+304,by+16,it.s.toFixed(3),{'text-anchor':'end','font-size':10,fill:isTop?C.rose:C.faint});
+    }
+    T(svg,360,316,'★ = Top-K 命中    柱长 = 相似度    点击"播放检索"观看排序动画',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    setStats(stat,[{color:C.rose,label:'检索方向',val:dirLabel()},{color:C.cyan,label:'数据库',val:'1.0k'},{color:C.emerald,label:'Top-K',val:String(topk)},{color:C.violet,label:'召回率',val:'0.81'}]);
+  }
+  ctrl.appendChild(makeBtn('切换方向: 文本→图像',false,function(b){dir=dir==='t2i'?'i2t':'t2i';b.textContent='切换方向: '+(dir==='t2i'?'文本→图像':'图像→文本');render();}));
+  ctrl.appendChild(makeSlider('Top-K',1,8,1,5,'',function(v){topk=v;render();}));
+  ctrl.appendChild(makeBtn('播放检索',false,function(b){
+    if(timer){clearInterval(timer);timer=null;b.textContent='播放检索';render();return;}
+    b.textContent='停止';var stp=0;var target=genSims(9);
+    timer=setInterval(function(){stp++;var c=[];for(var i=0;i<8;i++)c.push(Math.min(target[i],target[i]*stp/10));var srt=c.map(function(sv,i){return {s:sv,i:i};}).sort(function(a,b){return b.s-a.s;});render(c,srt);if(stp>=10){clearInterval(timer);timer=null;b.textContent='播放检索';}},120);
+  }));
+  render();
+}
+
+/* ============================================================
+   08 · AUDIO FUSION
+   ============================================================ */
+function initM8(){
+  var svg=document.getElementById('svg8'),ctrl=document.getElementById('ctrl8'),stat=document.getElementById('stats8');
+  svg.setAttribute('viewBox','0 0 720 340');
+  var method='cross',timer=null,phase=0;
+  var methods={early:'早期融合',late:'晚期融合',cross:'交叉注意力'};
+  var mkeys=['early','late','cross'];
+  function render(){
+    clearSvg(svg);
+    T(svg,80,40,'音频波形',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    var d='';for(var x=0;x<=160;x+=4){var y=72+Math.sin(x*0.2+phase)*12*Math.sin(x*0.05+1);d+=(x===0?'M':'L')+x+','+y+' ';}
+    svgEl(svg,'path',{d:d,fill:'none',stroke:C.cyan,'stroke-width':1.5});
+    svgEl(svg,'rect',{x:0,y:52,width:164,height:42,fill:'none',stroke:C.border,rx:6});
+    drawArrow(svg,166,73,196,73,C.faint,1.5);
+    T(svg,270,40,'频谱图 Mel',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    var sgx=200,sgy=52,sc=10,srh=6;var rr=rng(Math.round(phase*10)+1);
+    for(var f=0;f<6;f++)for(var tt=0;tt<14;tt++){var v=rr();var op=0.1+v*0.7;var col=v>0.66?C.rose:(v>0.33?C.amber:C.violet);svgEl(svg,'rect',{x:sgx+tt*sc,y:sgy+f*srh,width:sc-1,height:srh-1,fill:col,opacity:op});}
+    svgEl(svg,'rect',{x:sgx-2,y:sgy-2,width:14*sc+4,height:6*srh+4,fill:'none',stroke:C.borderStrong,rx:4});
+    drawArrow(svg,sgx+14*sc+4,73,sgx+14*sc+30,73,C.faint,1.5);
+    T(svg,420,40,'音频编码器',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'rect',{x:376,y:52,width:92,height:50,rx:8,fill:C.surface2,stroke:C.border});T(svg,422,82,'Audio Enc',{'text-anchor':'middle','font-size':10,fill:C.cyan});
+    T(svg,600,40,'文本 / 图像模态',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    svgEl(svg,'rect',{x:548,y:52,width:120,height:22,rx:6,fill:C.surface3,stroke:C.border});T(svg,608,67,'"语音描述"',{'text-anchor':'middle','font-size':9,fill:C.ink});
+    svgEl(svg,'rect',{x:548,y:78,width:120,height:22,rx:6,fill:C.surface3,stroke:C.border});T(svg,608,93,'[image]',{'text-anchor':'middle','font-size':9,fill:C.muted});
+    T(svg,360,128,'融合方式: '+methods[method],{'text-anchor':'middle','font-size':12,fill:C.rose});
+    var fy=150;
+    if(method==='early'){
+      svgEl(svg,'rect',{x:70,y:fy,width:130,height:30,rx:6,fill:C.surface2,stroke:C.cyan});T(svg,135,fy+20,'音频特征',{'text-anchor':'middle','font-size':9,fill:C.cyan});
+      svgEl(svg,'rect',{x:70,y:fy+40,width:130,height:30,rx:6,fill:C.surface2,stroke:C.violet});T(svg,135,fy+60,'文本/图像特征',{'text-anchor':'middle','font-size':9,fill:C.violet});
+      drawArrow(svg,200,fy+50,300,fy+50,C.faint,1.5);
+      svgEl(svg,'rect',{x:300,y:fy+20,width:140,height:60,rx:8,fill:C.surface3,stroke:C.rose});T(svg,370,fy+44,'拼接 → 融合',{'text-anchor':'middle','font-size':10,fill:C.rose});T(svg,370,fy+62,'编码器',{'text-anchor':'middle','font-size':9,fill:C.muted});
+      drawArrow(svg,440,fy+50,500,fy+50,C.faint,1.5);T(svg,590,fy+54,'→ 统一表示',{'text-anchor':'middle','font-size':10,fill:C.emerald});
+    }else if(method==='late'){
+      svgEl(svg,'rect',{x:70,y:fy,width:130,height:30,rx:6,fill:C.surface2,stroke:C.cyan});T(svg,135,fy+20,'音频→独立编码',{'text-anchor':'middle','font-size':9,fill:C.cyan});
+      svgEl(svg,'rect',{x:70,y:fy+40,width:130,height:30,rx:6,fill:C.surface2,stroke:C.violet});T(svg,135,fy+60,'文本/图像→独立编码',{'text-anchor':'middle','font-size':9,fill:C.violet});
+      drawArrow(svg,200,fy+15,300,fy+35,C.faint,1.2);drawArrow(svg,200,fy+55,300,fy+50,C.faint,1.2);
+      svgEl(svg,'rect',{x:300,y:fy+20,width:140,height:60,rx:8,fill:C.surface3,stroke:C.rose});T(svg,370,fy+44,'决策层融合',{'text-anchor':'middle','font-size':10,fill:C.rose});T(svg,370,fy+62,'(加权组合)',{'text-anchor':'middle','font-size':9,fill:C.muted});
+      drawArrow(svg,440,fy+50,500,fy+50,C.faint,1.5);T(svg,590,fy+54,'→ 统一表示',{'text-anchor':'middle','font-size':10,fill:C.emerald});
+    }else{
+      svgEl(svg,'rect',{x:70,y:fy+8,width:130,height:30,rx:6,fill:C.surface2,stroke:C.cyan});T(svg,135,fy+28,'音频特征 (Q)',{'text-anchor':'middle','font-size':9,fill:C.cyan});
+      svgEl(svg,'rect',{x:70,y:fy+44,width:130,height:30,rx:6,fill:C.surface2,stroke:C.violet});T(svg,135,fy+64,'文本/图像 (K,V)',{'text-anchor':'middle','font-size':9,fill:C.violet});
+      svgEl(svg,'line',{x1:200,y1:fy+23,x2:300,y2:fy+40,stroke:C.rose,'stroke-width':1.5,opacity:.7});
+      svgEl(svg,'line',{x1:200,y1:fy+59,x2:300,y2:fy+50,stroke:C.rose,'stroke-width':1.5,opacity:.7});
+      svgEl(svg,'rect',{x:300,y:fy+20,width:140,height:60,rx:8,fill:C.surface3,stroke:C.rose});T(svg,370,fy+44,'Cross-Attention',{'text-anchor':'middle','font-size':10,fill:C.rose});T(svg,370,fy+62,'Q<->K,V 交互',{'text-anchor':'middle','font-size':9,fill:C.muted});
+      drawArrow(svg,440,fy+50,500,fy+50,C.faint,1.5);T(svg,590,fy+54,'→ 统一表示',{'text-anchor':'middle','font-size':10,fill:C.emerald});
+    }
+    T(svg,360,300,'波形 → 频谱 → 编码 → 融合  ·  点击"播放融合流程"查看动画',{'text-anchor':'middle','font-size':10,fill:C.faint});
+    setStats(stat,[{color:C.cyan,label:'采样率',val:'16kHz'},{color:C.amber,label:'频谱维度',val:'128'},{color:C.rose,label:'融合方式',val:methods[method]},{color:C.emerald,label:'输出模态',val:'三模态'}]);
+  }
+  ctrl.appendChild(makeBtn('融合: 交叉注意力',false,function(b){var idx=mkeys.indexOf(method);method=mkeys[(idx+1)%3];b.textContent='融合: '+methods[method];render();}));
+  ctrl.appendChild(makeBtn('播放融合流程',false,function(b){if(timer){clearInterval(timer);timer=null;b.textContent='播放融合流程';phase=0;render();return;}b.textContent='停止';phase=0;timer=setInterval(function(){phase+=0.3;render();},80);}));
+  render();
+}
+
+/* init all modules */
+initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();
+})();
+</script>
+</body>
+</html>

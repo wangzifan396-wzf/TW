@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lakehouse-viz-lab · 数据湖与湖仓一体可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#22c55e;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(52,211,153,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(52,211,153,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#04140d;border-color:transparent}
+.btn.primary:hover{background:#6ee7b7}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>lakehouse</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">data lakehouse</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/lakehouse-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>数据湖架构</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>湖仓一体</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>Iceberg 表格式</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>Delta Lake</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>数据分层</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>Schema 演化</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>数据跳过</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>查询引擎</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/lakehouse-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>数据湖与湖仓一体 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现数据湖架构、Iceberg/Delta Lake 表格式、数据分层、查询引擎等湖仓一体核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 数据湖架构 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>数据湖架构与对象存储</h2>
+      <p>HDFS / S3 对象存储承载海量原始数据。缺乏治理的数据湖退化为“数据沼泽”；加上目录、Schema 与访问控制才是真正的数据湖。切换观察差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">data-lake.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>已编目</span>
+          <span><i style="background:#f87171"></i>未治理</span>
+          <span><i style="background:#2dd4ff"></i>结构化</span>
+          <span><i style="background:#7c5cff"></i>非结构化</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">数据湖 vs 数据沼泽</h4>
+          <p id="p01detail">数据沼泽：数据随意堆放、无 Schema、无目录、无人能找到。数据湖：通过 Catalog（如 Hive Metastore / Glue）登记、打标、设权限，数据可被发现与信任。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">对象数</div><div class="v amber" id="st01obj">24</div></div>
+          <div class="stat"><div class="k">已编目</div><div class="v" style="color:#34d399" id="st01cat">—</div></div>
+          <div class="stat"><div class="k">沼泽比例</div><div class="v" style="color:#f87171" id="st01swp">—</div></div>
+          <div class="stat"><div class="k">存储</div><div class="v purple" id="st01sz">S3</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 湖仓一体 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>湖仓一体：统一数据架构</h2>
+      <p>Lakehouse 在对象存储之上叠加开放表格式，实现 ACID 事务、Schema 治理与 BI/ML 统一访问，兼具数据湖的低成本与仓库的管理能力。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">lakehouse.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>已启用</span>
+          <span><i style="background:#62666d"></i>未启用</span>
+          <span><i style="background:#2dd4ff"></i>表格式层</span>
+          <span><i style="background:#7c5cff"></i>访问层</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">Lakehouse 能力</h4>
+          <p id="p02detail">逐项开启能力：开放表格式（Iceberg/Delta/Hudi）提供 ACID 与 Schema；元数据层支撑时间旅行；统一访问让 BI 与 ML 读同一份数据，避免搬迁与孤岛。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">能力数</div><div class="v amber" id="st02cap">0/6</div></div>
+          <div class="stat"><div class="k">ACID</div><div class="v" id="st02acid">off</div></div>
+          <div class="stat"><div class="k">统一访问</div><div class="v purple" id="st02uni">off</div></div>
+          <div class="stat"><div class="k">架构</div><div class="v" style="color:#34d399" id="st02arch">Lake</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 Iceberg 表格式 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>Iceberg 表格式与时间旅行</h2>
+      <p>Iceberg 用 metadata.json → manifest list → manifest → data file 的分层元数据管理表。每个快照对应一次表状态，支持时间旅行与回滚。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">iceberg-manifest.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>metadata</span>
+          <span><i style="background:#2dd4ff"></i>manifest list</span>
+          <span><i style="background:#7c5cff"></i>manifest</span>
+          <span><i style="background:#fbbf24"></i>data file</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">快照与时间旅行</h4>
+          <p id="p03detail">选择不同快照查看表在该时间点的数据文件组成。manifest 记录每个 data file 的分区与统计信息，查询计划时只读取相关 manifest，无需列举全部文件。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">快照数</div><div class="v amber" id="st03snap">4</div></div>
+          <div class="stat"><div class="k">manifest</div><div class="v purple" id="st03man">—</div></div>
+          <div class="stat"><div class="k">data files</div><div class="v" id="st03data">—</div></div>
+          <div class="stat"><div class="k">当前快照</div><div class="v" style="color:#34d399" id="st03cur">s3</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 Delta Lake ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>Delta Lake 事务日志</h2>
+      <p>_delta_log 中每个 JSON 是一次原子提交，记录增删文件。OPTIMIZE 合并小文件，Z-ORDER 按列聚簇以加速查询裁剪。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">delta-log.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>提交</span>
+          <span><i style="background:#fbbf24"></i>data file</span>
+          <span><i style="background:#7c5cff"></i>OPTIMIZE</span>
+          <span><i style="background:#2dd4ff"></i>Z-ORDER</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">事务日志演进</h4>
+          <p id="p04detail">点击“写入”追加提交与小文件；点击“OPTIMIZE”把小文件合并为大文件；点击“Z-ORDER”按选定列重排聚簇。观察 data file 数量与布局变化。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">提交数</div><div class="v amber" id="st04commit">0</div></div>
+          <div class="stat"><div class="k">data files</div><div class="v purple" id="st04files">0</div></div>
+          <div class="stat"><div class="k">小文件</div><div class="v" style="color:#f87171" id="st04small">0</div></div>
+          <div class="stat"><div class="k">OPTIMIZE</div><div class="v" style="color:#34d399" id="st04opt">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 数据分层 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>数据分层：Medallion 架构</h2>
+      <p>Bronze（原始）→ Silver（清洗）→ Gold（聚合）逐层提纯。越往上层质量越高、越贴近业务，记录数可能减少但价值密度提升。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">medallion.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#a16207"></i>Bronze 原始</span>
+          <span><i style="background:#9ca3af"></i>Silver 清洗</span>
+          <span><i style="background:#fbbf24"></i>Gold 聚合</span>
+          <span><i style="background:#34d399"></i>质量</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">Medallion 分层</h4>
+          <p id="p05detail">Bronze 落地原始数据（含脏数据/重复）；Silver 去重、类型校正、关联；Gold 按业务域聚合，供 BI 直接消费。点击各层查看其处理动作与质量。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前层</div><div class="v amber" id="st05layer">Gold</div></div>
+          <div class="stat"><div class="k">记录数</div><div class="v purple" id="st05rec">—</div></div>
+          <div class="stat"><div class="k">质量</div><div class="v" style="color:#34d399" id="st05qual">—</div></div>
+          <div class="stat"><div class="k">延迟</div><div class="v" id="st05lat">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 Schema 演化 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>Schema 演化与合并</h2>
+      <p>开放表格式支持 Schema Evolution：新增列对旧文件读为 NULL；Schema Merge 合并不同版本分区。无需重写历史数据即可演进。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">schema-evolution.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>新增列</span>
+          <span><i style="background:#f87171"></i>删除列</span>
+          <span><i style="background:#fbbf24"></i>改名列</span>
+          <span><i style="background:#7c5cff"></i>NULL 填充</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">Schema 版本</h4>
+          <p id="p06detail">点击“新增列/删除列/改名”演进 Schema。新列对旧文件读出 NULL，旧列对新文件保留兼容。MERGE SCHEMA 自动合并写入门禁。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">版本</div><div class="v amber" id="st06ver">v1</div></div>
+          <div class="stat"><div class="k">列数</div><div class="v purple" id="st06col">3</div></div>
+          <div class="stat"><div class="k">变更</div><div class="v" id="st06chg">0</div></div>
+          <div class="stat"><div class="k">向后兼容</div><div class="v" style="color:#34d399" id="st06compat">是</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 数据跳过 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>数据跳过与文件裁剪</h2>
+      <p>每个 data file 记录各列 Min/Max 统计。查询时按谓词跳过不在区间的文件；Z-ORDER 把高频过滤列聚簇，使跳过更高效。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">data-skipping.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>需读取</span>
+          <span><i style="background:#62666d"></i>已跳过</span>
+          <span><i style="background:#2dd4ff"></i>谓词区间</span>
+          <span><i style="background:#7c5cff"></i>Z-ORDER</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">文件裁剪</h4>
+          <p id="p07detail">拖动谓词区间，文件按 Min/Max 与区间相交判定是否读取。开启 Z-ORDER 后同列值聚拢，相交文件减少，跳过率显著提升。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">总文件</div><div class="v amber" id="st07tot">16</div></div>
+          <div class="stat"><div class="k">需读取</div><div class="v" style="color:#34d399" id="st07read">—</div></div>
+          <div class="stat"><div class="k">已跳过</div><div class="v" style="color:#f87171" id="st07skip">—</div></div>
+          <div class="stat"><div class="k">跳过率</div><div class="v purple" id="st07rate">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 查询引擎 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>查询引擎与向量化执行</h2>
+      <p>Spark 适合大规模批处理与 ETL；Trino/Presto 专注交互式即席查询，向量化执行按列批量处理，提升 CPU 缓存命中率。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">query-engine.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>解析</span>
+          <span><i style="background:#2dd4ff"></i>逻辑计划</span>
+          <span><i style="background:#fbbf24"></i>物理计划</span>
+          <span><i style="background:#7c5cff"></i>向量化执行</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">查询执行流水线</h4>
+          <p id="p08detail">选择引擎并运行查询，观察 SQL → 逻辑计划 → 优化 → 物理计划 → 向量化执行的阶段耗时。Trino 向量化执行让即席查询达到亚秒级。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">引擎</div><div class="v amber" id="st08eng">Trino</div></div>
+          <div class="stat"><div class="k">延迟</div><div class="v purple" id="st08lat">—</div></div>
+          <div class="stat"><div class="k">扫描行</div><div class="v" id="st08rows">—</div></div>
+          <div class="stat"><div class="k">向量化</div><div class="v" style="color:#34d399" id="st08vec">on</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>lakehouse-viz-lab · 数据湖与湖仓一体可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/lakehouse-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 数据湖架构
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  let mode="lake"; // swamp / lake
+  // 24 个对象，每个有 format 与 cataloged
+  const objs=[];
+  const formats=[["parquet","#2dd4ff"],["json","#7c5cff"],["csv","#fbbf24"],["img","#34d399"],["log","#9ca3af"]];
+  for(let i=0;i<24;i++){
+    const f=formats[i%formats.length];
+    objs.push({fmt:f[0],c:f[1],cat:true});
+  }
+  // swamp 模式：前 14 个未编目
+  function isCat(i){return mode==="lake"?true:i>=14;}
+
+  function draw(){
+    clearNode(svg);
+    // 存储桶
+    const bx=80,by=40,bw=560,bh=300;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:12,fill:"#101114",stroke:"rgba(255,255,255,.1)"}));
+    const th=el("text",{x:bx+16,y:by+24,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});th.textContent="s3://data-lake/";svg.appendChild(th);
+    const st=el("text",{x:bx+bw-16,y:by+24,"text-anchor":"end","font-size":11,"font-family":MONO(),fill:mode==="lake"?"#34d399":"#f87171"});st.textContent=mode==="lake"?"cataloged ✓":"uncatalogured ✗";svg.appendChild(st);
+    // 对象网格
+    const cols=8,sz=52,gap=10;
+    objs.forEach((o,i)=>{
+      const col=i%cols,row=Math.floor(i/cols);
+      const x=bx+18+col*(sz+gap),y=by+44+row*(sz+gap);
+      const cat=isCat(i);
+      const fill=cat?("rgba("+hexRgb(o.c)+",.16)"):"rgba(248,113,113,.1)";
+      const stroke=cat?o.c:"#f87171";
+      svg.appendChild(el("rect",{x:x,y:y,width:sz,height:sz,rx:6,fill:fill,stroke:stroke,"stroke-width":1.2,opacity:cat?1:.6}));
+      const t=el("text",{x:x+sz/2,y:y+sz/2-2,"text-anchor":"middle","font-size":9,"font-family":MONO(),fill:cat?o.c:"#f87171"});t.textContent=o.fmt;svg.appendChild(t);
+      const t2=el("text",{x:x+sz/2,y:y+sz/2+10,"text-anchor":"middle","font-size":8,"font-family":MONO(),fill:"#62666d"});t2.textContent=cat?"✓":"?";svg.appendChild(t2);
+    });
+    // 治理层（lake 模式显示 catalog）
+    if(mode==="lake"){
+      const cx=bx,cy=by+bh+8;
+      svg.appendChild(el("rect",{x:cx,y:cy,width:bw,height:34,rx:8,fill:"rgba(52,211,153,.1)",stroke:"#34d399"}));
+      const t=el("text",{x:cx+14,y:cy+22,"font-size":11,"font-family":MONO(),fill:"#34d399"});t.textContent="Catalog / Metastore · Schema · 权限 · 血缘";svg.appendChild(t);
+    }
+    // 统计
+    const catCount=mode==="lake"?24:10;
+    $("st01cat").textContent=catCount;
+    $("st01swp").textContent=Math.round((24-catCount)/24*100)+"%";
+    $("p01title").textContent=mode==="lake"?"数据湖（已治理）":"数据沼泽（未治理）";
+    $("p01detail").innerHTML=mode==="lake"?"24 个对象全部经 Catalog 登记、打 Schema、设权限，BI/ML 可发现并信任。":"仅 10 个对象被偶然编目，其余 14 个无 Schema、无所有者，逐步退化为<b style='color:#f87171'>数据沼泽</b>——数据在但无人能用。";
+  }
+  function hexRgb(h){h=h.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return r+","+g+","+b;}
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  const swap=mk("btn primary","切换 沼泽/湖");
+  swap.addEventListener("click",()=>{mode=mode==="lake"?"swamp":"lake";draw();});
+  ctl.appendChild(swap);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   02 湖仓一体
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const caps=[
+    {n:"开放表格式",d:"Iceberg/Delta/Hudi"},
+    {n:"ACID 事务",d:"原子提交/隔离"},
+    {n:"Schema 治理",d:"演化/强制"},
+    {n:"时间旅行",d:"快照/回滚"},
+    {n:"统一访问",d:"BI + ML 同源"},
+    {n:"数据治理",d:"权限/血缘/审计"}
+  ];
+  let on=Array(caps.length).fill(false);
+
+  function draw(){
+    clearNode(svg);
+    // 三层架构：存储 / 表格式 / 访问
+    const layers=[
+      {y:80,h:70,n:"对象存储层",c:"#62666d",sub:"S3 / HDFS / ADLS"},
+      {y:170,h:90,n:"表格式 / 元数据层",c:"#2dd4ff",sub:"Iceberg · Delta · Hudi"},
+      {y:280,h:70,n:"统一访问层",c:"#7c5cff",sub:"Spark / Trino / BI / ML"}
+    ];
+    layers.forEach(l=>{
+      const lit=l.n==="表格式 / 元数据层"?(on.slice(0,4).some(Boolean)||on[5]):l.n==="统一访问层"?on[4]:true;
+      const op=lit?1:.4;
+      svg.appendChild(el("rect",{x:80,y:l.y,width:360,height:l.h,rx:10,fill:"rgba("+hexRgb(l.c)+",.08)",stroke:l.c,"stroke-width":1.3,opacity:op}));
+      const t=el("text",{x:96,y:l.y+24,"font-size":13,"font-family":MONO(),fill:l.c,opacity:op});t.textContent=l.n;svg.appendChild(t);
+      const s=el("text",{x:96,y:l.y+44,"font-size":10,"font-family":MONO(),fill:"#9b9fa8",opacity:op});s.textContent=l.sub;svg.appendChild(s);
+    });
+    // 连接线
+    svg.appendChild(el("line",{x1:260,y1:150,x2:260,y2:170,stroke:"rgba(255,255,255,.15)","stroke-width":1.3}));
+    svg.appendChild(el("line",{x1:260,y1:260,x2:260,y2:280,stroke:"rgba(255,255,255,.15)","stroke-width":1.3}));
+    // 右侧能力开关
+    const rx=480;
+    const rh=el("text",{x:rx,y:64,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});rh.textContent="lakehouse 能力";svg.appendChild(rh);
+    caps.forEach((c,i)=>{
+      const y=80+i*44;
+      const en=on[i];
+      svg.appendChild(el("rect",{x:rx,y:y,width:200,height:34,rx:7,fill:en?"rgba(52,211,153,.14)":"#16181c",stroke:en?"#34d399":"rgba(255,255,255,.1)"}));
+      const t=el("text",{x:rx+12,y:y+15,"font-size":11,"font-family":MONO(),fill:en?"#34d399":"#9b9fa8"});t.textContent=c.n;svg.appendChild(t);
+      const t2=el("text",{x:rx+12,y:y+27,"font-size":9,"font-family":MONO(),fill:"#62666d"});t2.textContent=c.d;svg.appendChild(t2);
+      // 开关点
+      svg.appendChild(el("circle",{cx:rx+184,cy:y+17,r:6,fill:en?"#34d399":"#2c2f33"}));
+      const g=el("g");g.style.cursor="pointer";g.appendChild(el("rect",{x:rx,y:y,width:200,height:34,rx:7,fill:"transparent"}));
+      g.addEventListener("click",()=>{on[i]=!on[i];draw();});svg.appendChild(g);
+    });
+    // 统计
+    const count=on.filter(Boolean).length;
+    $("st02cap").textContent=count+"/6";
+    $("st02acid").textContent=on[1]?"on":"off";
+    $("st02acid").style.color=on[1]?"#34d399":"#62666d";
+    $("st02uni").textContent=on[4]?"on":"off";
+    $("st02uni").style.color=on[4]?"#34d399":"#62666d";
+    $("st02arch").textContent=count>=4?"Lakehouse":count>=1?"Lake":"Silos";
+    $("p02title").textContent="已启用 "+count+" 项能力";
+    $("p02detail").innerHTML=count===0?"未启用任何能力，退化为传统数据湖。":("已启用 "+caps.filter((c,i)=>on[i]).map(c=>c.n).join("、")+"。"+(count>=4?"<b style='color:#34d399'>已是完整 Lakehouse</b>，BI 与 ML 共享同一份托管数据。":"继续开启更多能力以迈向 Lakehouse。"));
+  }
+  function hexRgb(h){h=h.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return r+","+g+","+b;}
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  const all=mk("btn primary","全部启用");
+  all.addEventListener("click",()=>{on=Array(caps.length).fill(true);draw();});
+  const none=mk("btn ghost small","全部关闭");
+  none.addEventListener("click",()=>{on=Array(caps.length).fill(false);draw();});
+  ctl.appendChild(all);ctl.appendChild(none);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   03 Iceberg 表格式
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  // 4 个快照，每个含若干 manifest/data file
+  const snaps=[
+    {id:"s1",t:"10:00",add:["f1","f2","f3"]},
+    {id:"s2",t:"10:15",add:["f4","f5"]},
+    {id:"s3",t:"10:30",add:["f6"],del:["f1"]},
+    {id:"s4",t:"10:45",add:["f7","f8"]}
+  ];
+  let cur=3; // 当前快照索引
+  let expandAll=false;
+
+  function draw(){
+    clearNode(svg);
+    // 左：快照时间线
+    const tx=40,ty=40;
+    const th=el("text",{x:tx,y:ty-8,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});th.textContent="snapshots";svg.appendChild(th);
+    svg.appendChild(el("line",{x1:tx+50,y1:ty+10,x2:tx+50,y2:ty+snaps.length*52+10,stroke:"rgba(255,255,255,.15)","stroke-width":1.4}));
+    snaps.forEach((s,i)=>{
+      const y=ty+20+i*52;
+      const isCur=i===cur;
+      svg.appendChild(el("circle",{cx:tx+50,cy:y,r:7,fill:isCur?"#34d399":"#16181c",stroke:isCur?"#34d399":"#7c5cff","stroke-width":1.6}));
+      const t=el("text",{x:tx+66,y:y+4,"font-size":12,"font-family":MONO(),fill:isCur?"#34d399":"#f7f8f8"});t.textContent=s.id;svg.appendChild(t);
+      const t2=el("text",{x:tx+96,y:y+4,"font-size":10,"font-family":MONO(),fill:"#62666d"});t2.textContent=s.t;svg.appendChild(t2);
+      if(s.del){const dl=el("text",{x:tx+140,y:y+4,"font-size":9,"font-family":MONO(),fill:"#f87171"});dl.textContent="-"+s.del.join(",");svg.appendChild(dl);}
+      const g=el("g");g.style.cursor="pointer";g.appendChild(el("rect",{x:tx+34,y:y-14,width:200,height:28,rx:6,fill:"transparent"}));
+      g.addEventListener("click",()=>{cur=i;draw();});svg.appendChild(g);
+    });
+    // 右：manifest 树（基于当前快照累积状态）
+    const mx=300,my=40;
+    const curState=computeState(cur);
+    // metadata.json
+    svg.appendChild(el("rect",{x:mx,y:my,width:160,height:36,rx:7,fill:"rgba(52,211,153,.16)",stroke:"#34d399"}));
+    const mt=el("text",{x:mx+10,y:my+23,"font-size":11,"font-family":MONO(),fill:"#34d399"});mt.textContent="metadata.json";svg.appendChild(mt);
+    const mt2=el("text",{x:mx+150,y:my+23,"text-anchor":"end","font-size":9,"font-family":MONO(),fill:"#62666d"});mt2.textContent="v"+(cur+1);svg.appendChild(mt2);
+    // manifest list
+    const mly=my+70;
+    svg.appendChild(el("rect",{x:mx,y:mly,width:160,height:36,rx:7,fill:"rgba(45,212,255,.14)",stroke:"#2dd4ff"}));
+    const mlt=el("text",{x:mx+10,y:mly+23,"font-size":11,"font-family":MONO(),fill:"#2dd4ff"});mlt.textContent="snap-"+snaps[cur].id+".avro";svg.appendChild(mlt);
+    const mlt2=el("text",{x:mx+150,y:mly+23,"text-anchor":"end","font-size":9,"font-family":MONO(),fill:"#62666d"});mlt2.textContent="manifest list";svg.appendChild(mlt2);
+    svg.appendChild(el("line",{x1:mx+80,y1:my+36,x2:mx+80,y2:mly,stroke:"#34d399","stroke-width":1.2}));
+    // manifests (按分区)
+    const parts=2;
+    const partFiles=[[],[]];
+    curState.forEach(f=>{
+      const pi=(f.charCodeAt(1)-49)%2; // 简单分区
+      partFiles[pi].push(f);
+    });
+    const manY=mly+70;
+    partFiles.forEach((files,pi)=>{
+      const px=mx+pi*200;
+      svg.appendChild(el("rect",{x:px,y:manY,width:160,height:34,rx:7,fill:"rgba(124,92,255,.14)",stroke:"#7c5cff"}));
+      const t=el("text",{x:px+10,y:manY+22,"font-size":10.5,"font-family":MONO(),fill:"#7c5cff"});t.textContent="manifest-p"+pi;svg.appendChild(t);
+      svg.appendChild(el("line",{x1:mx+80,y1:mly+36,x2:px+80,y2:manY,stroke:"#2dd4ff","stroke-width":1.2,opacity:.6}));
+      // data files
+      if(expandAll||pi===0||true){
+        files.forEach((f,fi)=>{
+          const fy=manY+48+fi*26;
+          const isDel=snaps.slice(0,cur+1).some(s=>s.del&&s.del.indexOf(f)>=0)&&false;
+          svg.appendChild(el("rect",{x:px+12,y:fy,width:140,height:20,rx:5,fill:"rgba(251,191,36,.12)",stroke:"#fbbf24"}));
+          const t=el("text",{x:px+22,y:fy+14,"font-size":9.5,"font-family":MONO(),fill:"#fbbf24"});t.textContent=f+".parquet";svg.appendChild(t);
+          svg.appendChild(el("line",{x1:px+80,y1:manY+34,x2:px+80,y2:fy,stroke:"#7c5cff","stroke-width":1,opacity:.5}));
+        });
+      }
+    });
+    // 时间旅行标注
+    const ttY=320;
+    svg.appendChild(el("rect",{x:mx,y:ttY,width:380,height:60,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.08)"}));
+    const tth=el("text",{x:mx+12,y:ttY+20,"font-size":11,"font-family":MONO(),fill:"#9b9fa8"});tth.textContent="time travel → "+snaps[cur].id+" @ "+snaps[cur].t;svg.appendChild(tth);
+    const ttd=el("text",{x:mx+12,y:ttY+40,"font-size":10,"font-family":MONO(),fill:"#62666d"});ttd.textContent="可见 "+curState.length+" 个 data file · "+(cur<snaps.length-1?"(历史快照，只读)":"(当前快照)");svg.appendChild(ttd);
+
+    // 统计
+    $("st03snap").textContent=snaps.length;
+    $("st03man").textContent=parts;
+    $("st03data").textContent=curState.length;
+    $("st03cur").textContent=snaps[cur].id;
+    $("p03title").textContent="快照 "+snaps[cur].id+" @ "+snaps[cur].t;
+    $("p03detail").innerHTML="当前查看 <code>"+snaps[cur].id+"</code>。该快照可见 "+curState.length+" 个 data file，分布到 "+parts+" 个 manifest（按分区）。"+(cur<snaps.length-1?" 这是历史快照，可读不可写——即时间旅行。":" 最新快照，支持读写。");
+  }
+  function computeState(idx){
+    const set=new Set();
+    for(let i=0;i<=idx;i++){
+      snaps[i].add.forEach(f=>set.add(f));
+      if(snaps[i].del)snaps[i].del.forEach(f=>set.delete(f));
+    }
+    return Array.from(set);
+  }
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  const prev=mk("btn small","← 上一快照");
+  prev.addEventListener("click",()=>{cur=Math.max(0,cur-1);draw();});
+  const next=mk("btn small","下一快照 →");
+  next.addEventListener("click",()=>{cur=Math.min(snaps.length-1,cur+1);draw();});
+  const latest=mk("btn primary","回到最新");
+  latest.addEventListener("click",()=>{cur=snaps.length-1;draw();});
+  ctl.appendChild(prev);ctl.appendChild(next);ctl.appendChild(latest);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   04 Delta Lake
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  let commits=[]; // {type:"add"/"opt"/"zord", files:[{n,sz,col}]}
+  let files=[]; // 当前文件 {n,sz,col,zord}
+  let commitSeq=0,optCount=0;
+  let zordCol="user_id";
+
+  function draw(){
+    clearNode(svg);
+    // 左：事务日志
+    const lx=40,ly=40;
+    const lh=el("text",{x:lx,y:ly-8,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});lh.textContent="_delta_log/";svg.appendChild(lh);
+    svg.appendChild(el("rect",{x:lx,y:ly,width:200,height:320,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.08)"}));
+    if(commits.length===0){
+      const e=el("text",{x:lx+100,y:ly+170,"text-anchor":"middle","font-size":11,"font-family":MONO(),fill:"#62666d"});e.textContent="(empty) 点击写入";svg.appendChild(e);
+    }
+    commits.slice().reverse().forEach((c,i)=>{
+      const y=ly+16+i*30;
+      if(y>ly+300)return;
+      const col=c.type==="opt"?"#7c5cff":c.type==="zord"?"#2dd4ff":"#34d399";
+      svg.appendChild(el("rect",{x:lx+10,y:y,width:180,height:24,rx:5,fill:"rgba("+hexRgb(col)+",.1)",stroke:col}));
+      const t=el("text",{x:lx+18,y:y+16,"font-size":9.5,"font-family":MONO(),fill:col});t.textContent=c.name;svg.appendChild(t);
+      const t2=el("text",{x:lx+186,y:y+16,"text-anchor":"end","font-size":9,"font-family":MONO(),fill:"#62666d"});t2.textContent=c.tag;svg.appendChild(t2);
+    });
+    // 右：文件布局
+    const fx=290,fy=40;
+    const fh=el("text",{x:fx,y:fy-8,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});fh.textContent="data files ("+files.length+")";svg.appendChild(fh);
+    svg.appendChild(el("rect",{x:fx,y:fy,width:390,height:320,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.08)"}));
+    // 文件按 zord 排序绘制为方块
+    files.forEach((f,i)=>{
+      const col=i%8,row=Math.floor(i/8);
+      const sz=20+f.sz*8;
+      const x=fx+16+col*46,y=fy+16+row*46;
+      let color="#fbbf24";
+      if(f.zord)color="#2dd4ff";
+      else if(f.sz>=2)color="#34d399";
+      svg.appendChild(el("rect",{x:x,y:y,width:Math.min(42,sz),height:Math.min(42,sz),rx:4,fill:"rgba("+hexRgb(color)+",.2)",stroke:color,"stroke-width":1}));
+    });
+    // Z-ORDER 标注
+    const zy=fy+280;
+    svg.appendChild(el("rect",{x:fx+10,y:zy,width:370,height:30,rx:6,fill:"rgba(45,212,255,.08)",stroke:"#2dd4ff"}));
+    const zt=el("text",{x:fx+20,y:zy+19,"font-size":10.5,"font-family":MONO(),fill:"#2dd4ff"});zt.textContent="Z-ORDER by: "+zordCol+"  ·  同色聚簇的文件相邻";svg.appendChild(zt);
+
+    // 统计
+    const small=files.filter(f=>f.sz<2&&!f.zord).length;
+    $("st04commit").textContent=commits.length;
+    $("st04files").textContent=files.length;
+    $("st04small").textContent=small;
+    $("st04opt").textContent=optCount;
+    $("p04title").textContent="提交 "+commits.length+" 次 · 文件 "+files.length;
+    $("p04detail").innerHTML="当前 "+files.length+" 个文件，其中小文件 <b style='color:#f87171'>"+small+"</b> 个。OPTIMIZE 合并小文件减少元数据开销；Z-ORDER 按 <code>"+zordCol+"</code> 聚簇使数据跳过更高效。";
+  }
+  function hexRgb(h){h=h.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return r+","+g+","+b;}
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  function writeAdd(){
+    commitSeq++;
+    const addFiles=[];
+    for(let i=0;i<3;i++){
+      addFiles.push({n:"f"+Date.now().toString().slice(-4)+i,sz:Math.random()<0.5?1:2,col:"p0",zord:false});
+    }
+    files=files.concat(addFiles);
+    const name=String(commitSeq).padStart(20,"0")+".json";
+    commits.push({type:"add",name:name,tag:"+3 add",files:addFiles});
+    draw();
+  }
+  function runOptimize(){
+    const small=files.filter(f=>!f.zord&&f.sz<2);
+    if(small.length<2){return;}
+    // 合并：每 3 个小文件合并成 1 个大文件
+    const merged=[];
+    const remain=files.filter(f=>!(f.sz<2&&!f.zord));
+    for(let i=0;i<small.length;i+=3){
+      merged.push({n:"opt"+i,sz:3,col:"p0",zord:false});
+    }
+    files=remain.concat(merged);
+    commitSeq++;
+    optCount++;
+    commits.push({type:"opt",name:String(commitSeq).padStart(20,"0")+".json",tag:"OPTIMIZE",files:[]});
+    draw();
+  }
+  function runZorder(){
+    files=files.map(f=>({n:f.n,sz:Math.max(2,f.sz),col:f.col,zord:true}));
+    // 排序使 zord 相邻
+    files.sort((a,b)=>a.n.localeCompare(b.n));
+    commitSeq++;
+    optCount++;
+    commits.push({type:"zord",name:String(commitSeq).padStart(20,"0")+".json",tag:"Z-ORDER "+zordCol,files:[]});
+    draw();
+  }
+
+  draw();
+  const w=mk("btn primary","写入提交");
+  w.addEventListener("click",writeAdd);
+  const opt=mk("btn","OPTIMIZE");
+  opt.addEventListener("click",runOptimize);
+  const zo=mk("btn","Z-ORDER");
+  zo.addEventListener("click",runZorder);
+  const sel=document.createElement("select");sel.className="select";
+  [["user_id","user_id"],["event_date","event_date"],["country","country"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{zordCol=sel.value;draw();});
+  const rst=mk("btn ghost small","重置");
+  rst.addEventListener("click",()=>{commits=[];files=[];commitSeq=0;optCount=0;draw();});
+  ctl.appendChild(w);ctl.appendChild(opt);ctl.appendChild(zo);ctl.appendChild(sel);ctl.appendChild(rst);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   05 数据分层 Medallion
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const layers=[
+    {n:"Bronze",c:"#a16207",rec:1000000,qual:60,lat:"~1 min",act:"落地原始数据 · 保留脏数据/重复 · 增量追加"},
+    {n:"Silver",c:"#9ca3af",rec:920000,qual:85,lat:"~10 min",act:"去重 · 类型校正 · 关联维度 · 过滤异常"},
+    {n:"Gold",c:"#fbbf24",rec:48000,qual:98,lat:"~1 hr",act:"按业务域聚合 · 星型模型 · 供 BI 消费"}
+  ];
+  let sel=2;
+
+  function draw(){
+    clearNode(svg);
+    // 三个 medal 圆 + 流
+    const xs=[140,360,580];
+    const cy=160;
+    layers.forEach((l,i)=>{
+      const isSel=i===sel;
+      const r=isSel?62:52;
+      svg.appendChild(el("circle",{cx:xs[i],cy:cy,r:r,fill:"rgba("+hexRgb(l.c)+",.14)",stroke:l.c,"stroke-width":isSel?2.4:1.4}));
+      const t=el("text",{x:xs[i],y:cy-4,"text-anchor":"middle","font-size":15,"font-family":MONO(),fill:l.c});t.textContent=l.n;svg.appendChild(t);
+      const t2=el("text",{x:xs[i],y:cy+14,"text-anchor":"middle","font-size":10,"font-family":MONO(),fill:"#9b9fa8"});t2.textContent=fmt(l.rec)+" 行";svg.appendChild(t2);
+      // 质量环
+      const circ=2*Math.PI*(r-8);
+      svg.appendChild(el("circle",{cx:xs[i],cy:cy,r:r-8,fill:"none",stroke:"#1c1f24","stroke-width":3}));
+      svg.appendChild(el("circle",{cx:xs[i],cy:cy,r:r-8,fill:"none",stroke:l.c,"stroke-width":3,"stroke-dasharray":circ*l.qual/100+" "+circ,transform:"rotate(-90 "+xs[i]+" "+cy+")","stroke-linecap":"round",opacity:.8}));
+      const q=el("text",{x:xs[i],y:cy+30,"text-anchor":"middle","font-size":9,"font-family":MONO(),fill:"#62666d"});q.textContent=l.qual+"% 质量";svg.appendChild(q);
+      // 流箭头
+      if(i<2){
+        svg.appendChild(el("path",{d:"M"+(xs[i]+r+4)+","+cy+" L"+(xs[i+1]-r-8)+","+cy,stroke:"rgba(255,255,255,.2)","stroke-width":1.6,fill:"none","marker-end":"url(#ar05)"}));
+      }
+      // 点击选择
+      const g=el("g");g.style.cursor="pointer";g.appendChild(el("circle",{cx:xs[i],cy:cy,r:r,fill:"transparent"}));
+      g.addEventListener("click",()=>{sel=i;draw();});svg.appendChild(g);
+    });
+    const defs=el("defs");const m=el("marker",{id:"ar05",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // 标题流
+    const fl=el("text",{x:360,y:80,"text-anchor":"middle","font-size":13,"font-family":MONO(),fill:"#9b9fa8"});fl.textContent="raw  →  cleansed  →  curated";svg.appendChild(fl);
+    // 选中层详情
+    const l=layers[sel];
+    const dy=270;
+    svg.appendChild(el("rect",{x:80,y:dy,width:560,height:110,rx:10,fill:"rgba("+hexRgb(l.c)+",.08)",stroke:l.c}));
+    const t=el("text",{x:100,y:dy+26,"font-size":14,"font-family":MONO(),fill:l.c});t.textContent=l.n+" layer";svg.appendChild(t);
+    const a=el("text",{x:100,y:dy+50,"font-size":12,"font-family":MONO(),fill:"#f7f8f8"});a.textContent="处理: "+l.act;svg.appendChild(a);
+    const s1=el("text",{x:100,y:dy+74,"font-size":11,"font-family":MONO(),fill:"#9b9fa8"});s1.textContent="记录数 "+fmt(l.rec)+"   ·   质量 "+l.qual+"%   ·   延迟 "+l.lat;svg.appendChild(s1);
+    const s2=el("text",{x:100,y:dy+94,"font-size":10,"font-family":MONO(),fill:"#62666d"});s2.textContent=sel===0?"append-only，保留全部历史":sel===1?"消除脏数据，建立可信中间层":"业务就绪，BI/ML 直接消费";svg.appendChild(s2);
+
+    // 统计
+    $("st05layer").textContent=l.n;
+    $("st05rec").textContent=fmt(l.rec);
+    $("st05qual").textContent=l.qual+"%";
+    $("st05lat").textContent=l.lat;
+    $("p05title").textContent=l.n+" 层";
+    $("p05detail").innerHTML=l.n+"："+l.act+"。记录数从 Bronze 的 "+fmt(layers[0].rec)+" 经清洗降至 "+fmt(l.rec)+"，质量从 "+layers[0].qual+"% 提升至 "+l.qual+"%。";
+  }
+  function fmt(n){if(n>=1e6)return (n/1e6).toFixed(2)+"M";if(n>=1e3)return (n/1e3).toFixed(0)+"K";return n;}
+  function hexRgb(h){h=h.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return r+","+g+","+b;}
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  layers.forEach((l,i)=>{
+    const b=mk("btn small"+(i===sel?" on":""),l.n);
+    b.addEventListener("click",()=>{sel=i;draw();document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const flow=mk("btn primary","播放数据流");
+  flow.addEventListener("click",()=>{
+    sel=0;draw();
+    setTimeout(()=>{sel=1;draw();},reduceMotion?0:700);
+    setTimeout(()=>{sel=2;draw();},reduceMotion?0:1400);
+  });
+  ctl.appendChild(flow);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   06 Schema 演化
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  let columns=[
+    {n:"id",t:"long",v:1},
+    {n:"event",t:"string",v:1},
+    {n:"ts",t:"timestamp",v:1}
+  ];
+  let version=1,changes=0;
+  let log=[]; // {v, action, desc}
+
+  function draw(){
+    clearNode(svg);
+    // 表头
+    const tx=60,ty=50,tw=400;
+    svg.appendChild(el("rect",{x:tx,y:ty,width:tw,height:36,rx:7,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    ["column","type","since v"].forEach((h,i)=>{
+      const t=el("text",{x:tx+20+i*150,y:ty+23,"font-size":11,"font-family":MONO(),fill:"#62666d"});t.textContent=h;svg.appendChild(t);
+    });
+    // 列
+    columns.forEach((c,i)=>{
+      const y=ty+44+i*34;
+      const isNew=c.v===version&&version>1;
+      const fill=isNew?"rgba(52,211,153,.14)":"#101114";
+      const stroke=isNew?"#34d399":"rgba(255,255,255,.08)";
+      svg.appendChild(el("rect",{x:tx,y:y,width:tw,height:30,rx:6,fill:fill,stroke:stroke}));
+      const cn=el("text",{x:tx+20,y:y+20,"font-size":12,"font-family":MONO(),fill:isNew?"#34d399":"#f7f8f8"});cn.textContent=c.n;svg.appendChild(cn);
+      const ct=el("text",{x:tx+170,y:y+20,"font-size":12,"font-family":MONO(),fill:"#9b9fa8"});ct.textContent=c.t;svg.appendChild(ct);
+      const cv=el("text",{x:tx+320,y:y+20,"font-size":11,"font-family":MONO(),fill:"#62666d"});cv.textContent="v"+c.v;svg.appendChild(cv);
+      // NULL 标注（新列对旧文件）
+      if(isNew){
+        const nl=el("text",{x:tx+tw-50,y:y+20,"font-size":9,"font-family":MONO(),fill:"#7c5cff"});nl.textContent="old→NULL";svg.appendChild(nl);
+      }
+    });
+    // 右侧变更日志
+    const lx=500,ly=50;
+    svg.appendChild(el("rect",{x:lx,y:ly,width:170,height:300,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.08)"}));
+    const lh=el("text",{x:lx+12,y:ly+22,"font-size":11,"font-family":MONO(),fill:"#62666d"});lh.textContent="schema log";svg.appendChild(lh);
+    log.slice().reverse().forEach((e,i)=>{
+      const y=ly+42+i*30;
+      if(y>ly+280)return;
+      const col=e.color;
+      svg.appendChild(el("circle",{cx:lx+18,cy:y+8,r:4,fill:col}));
+      const t=el("text",{x:lx+28,y:y+12,"font-size":9.5,"font-family":MONO(),fill:"#9b9fa8"});t.textContent=e.desc;svg.appendChild(t);
+    });
+    // 底部兼容性
+    const cy=360;
+    svg.appendChild(el("rect",{x:60,y:cy,width:610,height:30,rx:6,fill:"rgba(52,211,153,.08)",stroke:"#34d399"}));
+    const ct=el("text",{x:74,y:cy+19,"font-size":11,"font-family":MONO(),fill:"#34d399"});ct.textContent="向后兼容: 旧 reader 读新文件时忽略未知列; 新 reader 读旧文件时新增列返回 NULL";svg.appendChild(ct);
+
+    // 统计
+    $("st06ver").textContent="v"+version;
+    $("st06col").textContent=columns.length;
+    $("st06chg").textContent=changes;
+    $("p06title").textContent="Schema v"+version+" · "+columns.length+" 列";
+    $("p06detail").innerHTML="当前 Schema v"+version+"，共 "+columns.length+" 列。新增列对旧文件读为 NULL（向后兼容）；删除列对新文件无影响（向前兼容）。共执行 "+changes+" 次变更。";
+  }
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  function bump(desc,color){version++;changes++;log.push({v:version,desc:"v"+version+": "+desc,color:color});}
+  function addCol(){
+    const cand=[["user_id","long"],["amount","double"],["country","string"],["device","string"],["is_paid","boolean"]];
+    const used=columns.map(c=>c.n);
+    const avail=cand.filter(c=>used.indexOf(c[0])<0);
+    if(avail.length===0)return;
+    const c=avail[Math.floor(Math.random()*avail.length)];
+    columns.push({n:c[0],t:c[1],v:version+1});
+    bump("ADD COLUMN "+c[0],"#34d399");
+    draw();
+  }
+  function dropCol(){
+    // 保留前 3 个基础列
+    if(columns.length<=3)return;
+    const c=columns.pop();
+    bump("DROP COLUMN "+c.n,"#f87171");
+    draw();
+  }
+  function renameCol(){
+    const c=columns[columns.length-1];
+    if(!c||c.n.startsWith("renamed_"))return;
+    const old=c.n;
+    c.n="renamed_"+c.n;
+    c.v=version+1;
+    bump("RENAME "+old+" → "+c.n,"#fbbf24");
+    draw();
+  }
+
+  draw();
+  const add=mk("btn primary","ADD COLUMN");
+  add.addEventListener("click",addCol);
+  const drop=mk("btn","DROP COLUMN");
+  drop.addEventListener("click",dropCol);
+  const rn=mk("btn","RENAME COLUMN");
+  rn.addEventListener("click",renameCol);
+  const rst=mk("btn ghost small","重置");
+  rst.addEventListener("click",()=>{columns=[{n:"id",t:"long",v:1},{n:"event",t:"string",v:1},{n:"ts",t:"timestamp",v:1}];version=1;changes=0;log=[];draw();});
+  ctl.appendChild(add);ctl.appendChild(drop);ctl.appendChild(rn);ctl.appendChild(rst);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   07 数据跳过
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const N=16; // 文件数
+  let files=[]; // {min,max,col}
+  let zord=false;
+  let pred=[30,70]; // 谓词区间 [low,high]
+  const colX=60,colW=600;
+  function gen(){
+    files=[];
+    for(let i=0;i<N;i++){
+      const lo=Math.random()*100;
+      const hi=lo+Math.random()*40+5;
+      files.push({min:lo,max:hi});
+    }
+  }
+  gen();
+
+  function draw(){
+    clearNode(svg);
+    // 排序：zord 时按 min 聚拢
+    const sorted=zord?files.slice().sort((a,b)=>a.min-b.min):files;
+    // 谓词区间条
+    const py=50;
+    svg.appendChild(el("rect",{x:colX,y:py,width:colW,height:20,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    svg.appendChild(el("rect",{x:colX+pred[0]/100*colW,y:py,width:(pred[1]-pred[0])/100*colW,height:20,rx:5,fill:"rgba(45,212,255,.3)",stroke:"#2dd4ff"}));
+    const pl=el("text",{x:colX+colW/2,y:py+14,"text-anchor":"middle","font-size":10,"font-family":MONO(),fill:"#2dd4ff"});pl.textContent="谓词: WHERE x BETWEEN "+Math.round(pred[0])+" AND "+Math.round(pred[1]);svg.appendChild(pl);
+    // 刻度
+    for(let i=0;i<=10;i++){
+      const x=colX+i/10*colW;
+      svg.appendChild(el("line",{x1:x,y1:py+22,x2:x,y2:py+28,stroke:"#62666d","stroke-width":1}));
+      if(i%2===0){const t=el("text",{x:x,y:py+40,"text-anchor":"middle","font-size":9,"font-family":MONO(),fill:"#62666d"});t.textContent=i*10;svg.appendChild(t);}
+    }
+    // 文件 min-max 条
+    sorted.forEach((f,i)=>{
+      const y=110+i*16;
+      const overlap=!(f.max<pred[0]||f.min>pred[1]);
+      const color=overlap?"#34d399":"#62666d";
+      const op=overlap?1:.5;
+      // 文件 min-max 区间
+      const x1=colX+f.min/100*colW,x2=colX+f.max/100*colW;
+      svg.appendChild(el("rect",{x:x1,y:y,width:Math.max(4,x2-x1),height:10,rx:3,fill:overlap?"rgba(52,211,153,.5)":"#2c2f33",stroke:color,"stroke-width":1,opacity:op}));
+      // 文件标签
+      const t=el("text",{x:colX-8,y:y+9,"text-anchor":"end","font-size":9,"font-family":MONO(),fill:overlap?"#34d399":"#62666d"});t.textContent="f"+(i+1);svg.appendChild(t);
+    });
+    // 统计
+    const read=sorted.filter(f=>!(f.max<pred[0]||f.min>pred[1])).length;
+    const skip=N-read;
+    $("st07tot").textContent=N;
+    $("st07read").textContent=read;
+    $("st07skip").textContent=skip;
+    $("st07rate").textContent=Math.round(skip/N*100)+"%";
+    $("p07title").textContent=zord?"Z-ORDER 已启用":"未启用 Z-ORDER";
+    $("p07detail").innerHTML="谓词区间与文件 Min/Max 相交则需读取（绿）。当前读取 <b style='color:#34d399'>"+read+"</b> 个，跳过 <b style='color:#f87171'>"+skip+"</b> 个，跳过率 "+Math.round(skip/N*100)+"%。"+(zord?"<b style='color:#2dd4ff'>Z-ORDER</b> 已按该列聚簇，文件区间更集中，跳过更高效。":"开启 Z-ORDER 让同列值聚拢，可显著提升跳过率。");
+  }
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";
+  const slL=document.createElement("input");slL.type="range";slL.min=0;slL.max=100;slL.value=pred[0];
+  const slR=document.createElement("input");slR.type="range";slR.min=0;slR.max=100;slR.value=pred[1];
+  const val=document.createElement("span");val.className="val";val.textContent=Math.round(pred[0])+"-"+Math.round(pred[1]);
+  function upd(){const a=+slL.value,b=+slR.value;pred=[Math.min(a,b),Math.max(a,b)];val.textContent=Math.round(pred[0])+"-"+Math.round(pred[1]);draw();}
+  slL.addEventListener("input",upd);slR.addEventListener("input",upd);
+  sg.appendChild(slL);sg.appendChild(slR);sg.appendChild(val);ctl.appendChild(sg);
+  const zb=mk("btn small","Z-ORDER");
+  zb.addEventListener("click",()=>{zord=!zord;zb.classList.toggle("on",zord);draw();});
+  const regen=mk("btn primary","重新生成文件");
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(zb);ctl.appendChild(regen);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+/* ============================================================
+   08 查询引擎
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  let engine="Trino"; // Spark / Trino / Presto
+  let running=false;
+  const stages=[
+    {n:"Parse SQL",c:"#34d399",base:5},
+    {n:"Logical Plan",c:"#2dd4ff",base:8},
+    {n:"Optimize (CBO)",c:"#fbbf24",base:12},
+    {n:"Physical Plan",c:"#a78bfa",base:6},
+    {n:"Vectorized Exec",c:"#7c5cff",base:30}
+  ];
+  let prog=0; // 0..1
+
+  function draw(){
+    clearNode(svg);
+    const sx=60,sw=600;
+    const startY=70,stageH=46;
+    // 引擎对比参数
+    const factor={Spark:2.4,Trino:1,Presto:1.2}[engine];
+    const vec=engine!=="Spark";
+    stages.forEach((s,i)=>{
+      const y=startY+i*stageH;
+      const dur=s.base*factor;
+      const on=prog>0&&prog*stages.length>i;
+      const done=prog*stages.length>=i+1;
+      const fill=done?"rgba("+hexRgb(s.c)+",.22)":(on?"rgba("+hexRgb(s.c)+",.14)":"#101114");
+      const stroke=done||on?s.c:"rgba(255,255,255,.12)";
+      svg.appendChild(el("rect",{x:sx,y:y,width:sw,height:stageH-8,rx:8,fill:fill,stroke:stroke,"stroke-width":done||on?1.6:1.2}));
+      const t=el("text",{x:sx+16,y:y+20,"font-size":12,"font-family":MONO(),fill:done||on?s.c:"#9b9fa8"});t.textContent=(i+1)+". "+s.n;svg.appendChild(t);
+      const t2=el("text",{x:sx+16,y:y+34,"font-size":9.5,"font-family":MONO(),fill:"#62666d"});t2.textContent=dur.toFixed(0)+" ms";svg.appendChild(t2);
+      // 进度填充
+      if(on){
+        const localP=Math.min(1,prog*stages.length-i);
+        svg.appendChild(el("rect",{x:sx,y:y,width:sw*localP,height:stageH-8,rx:8,fill:"rgba("+hexRgb(s.c)+",.1)"}));
+      }
+      // 阶段间箭头
+      if(i<stages.length-1){
+        svg.appendChild(el("line",{x1:sx+sw/2,y1:y+stageH-8,x2:sx+sw/2,y2:y+stageH,stroke:"rgba(255,255,255,.15)","stroke-width":1.2}));
+      }
+    });
+    // SQL 输入框
+    const qy=startY+stages.length*stageH+8;
+    svg.appendChild(el("rect",{x:sx,y:qy,width:sw,height:34,rx:7,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const q=el("text",{x:sx+14,y:qy+22,"font-size":11,"font-family":MONO(),fill:"#34d399"});q.textContent="SELECT region, SUM(amount) FROM sales GROUP BY region";svg.appendChild(q);
+    // 引擎徽标
+    const ex=sx+sw-110,ey=40;
+    svg.appendChild(el("rect",{x:ex,y:ey,width:100,height:28,rx:7,fill:"rgba(124,92,255,.16)",stroke:"#7c5cff"}));
+    const et=el("text",{x:ex+50,y:ey+19,"text-anchor":"middle","font-size":12,"font-family":MONO(),fill:"#7c5cff"});et.textContent=engine;svg.appendChild(et);
+
+    // 统计
+    const total=stages.reduce((s,st)=>s+st.base*factor,0);
+    const rows=engine==="Spark"?2800000:engine==="Trino"?1500000:1700000;
+    $("st08eng").textContent=engine;
+    $("st08lat").textContent=prog>=1?Math.round(total)+" ms":"—";
+    $("st08rows").textContent=prog>=1?fmt(rows):"—";
+    $("st08vec").textContent=vec?"on":"off";
+    $("st08vec").style.color=vec?"#34d399":"#62666d";
+    $("p08title").textContent=engine+" 执行流水线";
+    $("p08detail").innerHTML=engine+" 总延迟约 <b>"+Math.round(total)+" ms</b>。"+(engine==="Spark"?"Spark 适合大规模 ETL，但非向量化、启动开销大。":"Trino/Presto 向量化执行按列批量处理，缓存友好，适合交互式即席查询。")+(prog>0&&prog<1?" 正在执行阶段 "+Math.ceil(prog*stages.length)+"...":"");
+  }
+  function fmt(n){if(n>=1e6)return (n/1e6).toFixed(2)+"M";if(n>=1e3)return (n/1e3).toFixed(0)+"K";return n;}
+  function hexRgb(h){h=h.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return r+","+g+","+b;}
+  function MONO(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+  draw();
+  [["Spark","Spark"],["Trino","Trino"],["Presto","Presto"]].forEach(e=>{
+    const b=mk("btn small"+(e[0]===engine?" on":""),e[1]);
+    b.addEventListener("click",()=>{engine=e[0];prog=0;draw();document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const run=mk("btn primary","运行查询");
+  run.addEventListener("click",()=>{
+    if(running)return;running=true;run.textContent="执行中…";prog=0;
+    const factor={Spark:2.4,Trino:1,Presto:1.2}[engine];
+    animate(1500*factor,p=>{prog=p;draw();},()=>{running=false;run.textContent="重新运行";});
+  });
+  ctl.appendChild(run);
+  function mk(c,t){const b=document.createElement("button");b.className=c;b.textContent=t;return b;}
+})();
+
+</script>
+</body>
+</html>

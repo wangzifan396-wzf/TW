@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>adversarial-ml-viz-lab · AI 安全对抗可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fb7185;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,113,133,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,113,133,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,113,133,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a0309;border-color:transparent}
+.btn.primary:hover{background:#fc8da0}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>adversarial-ml</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">adversarial machine learning</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/adversarial-ml-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>FGSM/PGD 攻击</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>对抗训练</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>后门攻击</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>模型窃取</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>数据投毒</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>认证鲁棒性</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>防御策略</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>攻击成功率</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/adversarial-ml-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>AI 安全对抗 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 FGSM/PGD 攻击、对抗训练、后门攻击、模型窃取等 AI 安全攻防核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 FGSM/PGD 攻击 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>FGSM / PGD 攻击</h2>
+      <p>FGSM 沿损失梯度符号单步扰动：x'=x+ε·sign(∇L)。PGD 迭代多步并投影回 ε-球。在 2D 决策空间观察对抗样本穿越边界的过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">fgsm-pgd-attack.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>对抗样本轨迹</span>
+          <span><i style="background:#7c5cff"></i>ε-球（扰动预算）</span>
+          <span><i style="background:#34d399"></i>原始样本 (类 A)</span>
+          <span><i style="background:#f87171"></i>决策边界</span>
+        </div>
+        <div class="detail-box">
+          <h4>梯度符号攻击</h4>
+          <span class="formula">FGSM: x' = x + ε · sign(∇_x L(θ, x, y))</span>
+          <p id="p01detail">FGSM 单步最大化损失，快速但扰动较大。PGD（投影梯度下降）多步迭代：x_{t+1}=Π_{ε}(x_t+α·sign(∇L))，更强但更慢。点击“执行攻击”观察样本如何穿越决策边界。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">扰动 ε</div><div class="v amber" id="st01eps">0.5</div></div>
+          <div class="stat"><div class="k">步长 α</div><div class="v purple" id="st01alpha">0.10</div></div>
+          <div class="stat"><div class="k">迭代数</div><div class="v" id="st01iter">0</div></div>
+          <div class="stat"><div class="k">攻击状态</div><div class="v" style="color:#34d399" id="st01status">未攻击</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 对抗训练 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>对抗训练 Adversarial Training</h2>
+      <p>Min-max 博弈：min_θ max_δ L(θ,x+δ,y)。标准训练的边界窄，对抗训练通过在最坏扰动下优化获得更平滑、更大间隔的鲁棒边界。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">adversarial-training.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>标准边界</span>
+          <span><i style="background:#7c5cff"></i>鲁棒边界</span>
+          <span><i style="background:#34d399"></i>类 A 样本</span>
+          <span><i style="background:#f87171"></i>类 B 样本</span>
+        </div>
+        <div class="detail-box">
+          <h4>鞍点优化</h4>
+          <span class="formula">min_θ E_(x,y) [ max_{‖δ‖≤ε} L(θ, x+δ, y) ]</span>
+          <p id="p02detail">内层 max 寻找最强对抗扰动，外层 min 更新参数使其鲁棒。对抗训练以一定标准精度损失换取鲁棒性。切换训练模式对比边界形态与间隔大小。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">训练模式</div><div class="v amber" id="st02mode">标准</div></div>
+          <div class="stat"><div class="k">标准精度</div><div class="v purple" id="st02std">98%</div></div>
+          <div class="stat"><div class="k">鲁棒精度</div><div class="v" style="color:#34d399" id="st02rob">—</div></div>
+          <div class="stat"><div class="k">边界间隔</div><div class="v" id="st02margin">窄</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 后门攻击 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>后门攻击 BadNet / Trojan</h2>
+      <p>在训练集注入带触发器的样本并关联目标标签。模型对干净输入正常分类，但触发器出现时被劫持到目标类。切换触发器观察攻击效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">backdoor-attack.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>触发器</span>
+          <span><i style="background:#34d399"></i>干净样本</span>
+          <span><i style="background:#7c5cff"></i>目标类</span>
+          <span><i style="background:#f87171"></i>被劫持样本</span>
+        </div>
+        <div class="detail-box">
+          <h4>触发器注入</h4>
+          <span class="formula">训练集: {(x+trigger, y_target)} ∪ {(x, y)}</span>
+          <p id="p03detail">BadNet 用小尺寸 patch（如 3×3 方块）作为触发器，脏标签版本直接改标签，干净标签版本不改标签但靠优化嵌入。攻击成功率随注入比例上升，但干净精度略降。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">注入比例</div><div class="v amber" id="st03rate">10%</div></div>
+          <div class="stat"><div class="k">触发器</div><div class="v purple" id="st03trigger">开启</div></div>
+          <div class="stat"><div class="k">攻击成功率</div><div class="v" style="color:#f87171" id="st03asr">—</div></div>
+          <div class="stat"><div class="k">干净精度</div><div class="v" style="color:#34d399" id="st03clean">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 模型窃取 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>模型窃取 Model Extraction</h2>
+      <p>通过查询受害者模型（黑盒）获取输入-输出对，训练克隆模型逼近其决策函数。Distillation 攻击用软标签传递暗知识。查询越多克隆越准。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">model-stealing.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>受害者模型</span>
+          <span><i style="background:#7c5cff"></i>克隆模型</span>
+          <span><i style="background:#34d399"></i>查询点</span>
+          <span><i style="background:#f87171"></i>决策差异</span>
+        </div>
+        <div class="detail-box">
+          <h4>知识抽取</h4>
+          <span class="formula">clone = argmin_θ Σ L(θ, x_i, f_victim(x_i))</span>
+          <p id="p04detail">攻击者用合成或真实查询数据询问受害者，记录软标签（概率向量），训练克隆。软标签含暗知识，比硬标签收敛更快。点击“追加查询”观察克隆精度逼近受害者。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">查询数</div><div class="v amber" id="st04q">0</div></div>
+          <div class="stat"><div class="k">查询预算</div><div class="v purple" id="st04budget">10K</div></div>
+          <div class="stat"><div class="k">克隆精度</div><div class="v" style="color:#7c5cff" id="st04clone">—</div></div>
+          <div class="stat"><div class="k">一致率</div><div class="v" style="color:#34d399" id="st04agree">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 数据投毒 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>数据投毒 Data Poisoning</h2>
+      <p>注入恶意样本或翻转标签，使模型在训练时学到错误决策边界。标签翻转简单有效，特征操纵更隐蔽。调节投毒比例观察边界偏移。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">data-poisoning.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>类 A 干净</span>
+          <span><i style="background:#f87171"></i>类 B 干净</span>
+          <span><i style="background:#fb7185"></i>投毒样本</span>
+          <span><i style="background:#7c5cff"></i>决策边界</span>
+        </div>
+        <div class="detail-box">
+          <h4>投毒策略</h4>
+          <span class="formula">D' = D ∪ {(x_poison, y_target)} 或 flip(y_i → y_target)</span>
+          <p id="p05detail">标签翻转攻击随机翻转部分样本标签；特征操纵（如优化-based）精心构造靠近决策边界的毒点。投毒比例越高，边界偏移越大，干净精度受损越严重。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">投毒比例</div><div class="v amber" id="st05rate">10%</div></div>
+          <div class="stat"><div class="k">投毒方式</div><div class="v purple" id="st05mode">标签翻转</div></div>
+          <div class="stat"><div class="k">边界偏移</div><div class="v" id="st05shift">—</div></div>
+          <div class="stat"><div class="k">精度损失</div><div class="v" style="color:#f87171" id="st05loss">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 认证鲁棒性 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>认证鲁棒性 Randomized Smoothing</h2>
+      <p>Cohen 等提出：对输入加高斯噪声后分类，对平滑分类器可给出 L2 球内的可认证鲁棒半径。半径内任意扰动不改变预测，给出严格保证。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">certified-robustness.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>原始输入</span>
+          <span><i style="background:#7c5cff"></i>认证 L2 球</span>
+          <span><i style="background:#34d399"></i>噪声采样</span>
+          <span><i style="background:#f87171"></i>认证半径 R</span>
+        </div>
+        <div class="detail-box">
+          <h4>平滑分类器</h4>
+          <span class="formula">g(x) = argmax_c Pr[f(x+η)=c],  η~N(0,σ²I)</span>
+          <p id="p06detail">若平滑分类器 g 在 x 处对类 c 的置信概率 pA，且次类概率 pB，则认证半径 R = σ/2·(Φ⁻¹(pA)−Φ⁻¹(pB))。R 球内 L2 扰动保证预测不变。σ 越大半径越大但基础精度下降。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">噪声 σ</div><div class="v amber" id="st06sigma">0.5</div></div>
+          <div class="stat"><div class="k">置信 pA</div><div class="v purple" id="st06pa">—</div></div>
+          <div class="stat"><div class="k">认证半径 R</div><div class="v" style="color:#f87171" id="st06r">—</div></div>
+          <div class="stat"><div class="k">认证精度</div><div class="v" style="color:#34d399" id="st06acc">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 防御策略 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>防御策略 Defenses</h2>
+      <p>输入变换（JPEG/量化/位深度缩减）去除高频扰动；检测器识别对抗样本；对抗训练从源头提升鲁棒性。切换防御观察对攻击成功率的影响。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">defense-strategies.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>无防御</span>
+          <span><i style="background:#7c5cff"></i>输入变换</span>
+          <span><i style="background:#34d399"></i>检测器</span>
+          <span><i style="background:#f87171"></i>对抗训练</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">防御对比</h4>
+          <p id="p07detail">输入变换（如 JPEG 压缩）破坏精细扰动但损失信息；检测器训练二分类识别对抗样本，可被自适应攻击绕过；对抗训练目前最有效但成本高。点击各防御策略查看效果。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前防御</div><div class="v amber" id="st07def">无</div></div>
+          <div class="stat"><div class="k">攻击成功率</div><div class="v" style="color:#f87171" id="st07asr">95%</div></div>
+          <div class="stat"><div class="k">干净精度</div><div class="v" style="color:#34d399" id="st07clean">98%</div></div>
+          <div class="stat"><div class="k">鲁棒提升</div><div class="v purple" id="st07gain">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 攻击成功率 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>攻击成功率 vs 扰动预算</h2>
+      <p>不同攻击（FGSM/PGD/C&W）在扰动预算 ε 下的准确率曲线。ε 越大模型越脆弱，PGD 与 C&W 比 FGSM 更强。拖动 ε 对比各攻击强度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">attack-success-rate.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>FGSM</span>
+          <span><i style="background:#7c5cff"></i>PGD</span>
+          <span><i style="background:#34d399"></i>C&amp;W</span>
+          <span><i style="background:#f87171"></i>当前 ε</span>
+        </div>
+        <div class="detail-box">
+          <h4>鲁棒性评估</h4>
+          <span class="formula">Robust Acc(ε) = Acc on {x' : ‖x'−x‖≤ε}</span>
+          <p id="p08detail">模型鲁棒性用“在 ε 扰动下的准确率”衡量。FGSM 单步最快但易欠优化；PGD 多步迭代是事实标准；C&W 用优化框架、连续化损失，常作为最强白盒基准。ε 增大时所有攻击成功率上升。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">扰动 ε</div><div class="v amber" id="st08eps">0.3</div></div>
+          <div class="stat"><div class="k">FGSM 准确率</div><div class="v" style="color:#fb7185" id="st08fgsm">—</div></div>
+          <div class="stat"><div class="k">PGD 准确率</div><div class="v purple" id="st08pgd">—</div></div>
+          <div class="stat"><div class="k">C&amp;W 准确率</div><div class="v" style="color:#34d399" id="st08cw">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>adversarial-ml-viz-lab · AI 安全对抗可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/adversarial-ml-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MFONT="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 FGSM/PGD 攻击
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let eps=0.5,alpha=0.10,iter=0,attacking=false;
+  // 决策边界: 非线性曲线 y = f(x)，类A在下方，类B在上方
+  function boundary(x){return 210+60*Math.sin(x*0.012)+40*Math.cos(x*0.02);}
+  // 原始样本（类A区域）
+  const start={x:160,y:300};
+  let path=[{x:start.x,y:start.y}];
+
+  function cls(x,y){return y<boundary(x)?"A":"B";}
+
+  function draw(){
+    clearNode(svg);
+    // 类区域背景
+    const pad=40;
+    // 类B（上）
+    let dA="M"+pad+","+pad;
+    for(let x=pad;x<=W-pad;x+=8){dA+=" L"+x+","+boundary(x);}
+    dA+=" L"+(W-pad)+","+pad+" z";
+    svg.appendChild(el("path",{d:dA,fill:"rgba(248,113,113,.06)"}));
+    // 类A（下）
+    let dB="M"+pad+","+boundary(pad);
+    for(let x=pad;x<=W-pad;x+=8){dB+=" L"+x+","+boundary(x);}
+    dB+=" L"+(W-pad)+","+(H-pad)+" L"+pad+","+(H-pad)+" z";
+    svg.appendChild(el("path",{d:dB,fill:"rgba(52,211,153,.06)"}));
+    // 边界
+    let db="M"+pad+","+boundary(pad);
+    for(let x=pad;x<=W-pad;x+=4){db+=" L"+x+","+boundary(x);}
+    svg.appendChild(el("path",{d:db,fill:"none",stroke:"#f87171","stroke-width":2}));
+    const bl=el("text",{x:W-pad-10,y:boundary(W-pad-10)-10,"text-anchor":"end","font-size":11,"font-family":MFONT,fill:"#f87171"});
+    bl.textContent="决策边界";svg.appendChild(bl);
+    // 类标签
+    const al=el("text",{x:80,y:H-50,"font-size":13,"font-family":MFONT,fill:"#34d399"});al.textContent="类 A";svg.appendChild(al);
+    const ol=el("text",{x:80,y:80,"font-size":13,"font-family":MFONT,fill:"#f87171"});ol.textContent="类 B";svg.appendChild(ol);
+
+    // ε-球（围绕原始点）
+    svg.appendChild(el("circle",{cx:start.x,cy:start.y,r:eps*100,fill:"rgba(124,92,255,.08)",stroke:"#7c5cff","stroke-width":1.3,"stroke-dasharray":"4 3"}));
+    const el2=el("text",{x:start.x,y:start.y+eps*100+14,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#7c5cff"});
+    el2.textContent="ε-球 r="+eps.toFixed(1);svg.appendChild(el2);
+
+    // 对抗轨迹
+    if(path.length>1){
+      let dp="M"+path[0].x+","+path[0].y;
+      for(let i=1;i<path.length;i++)dp+=" L"+path[i].x+","+path[i].y;
+      svg.appendChild(el("path",{d:dp,fill:"none",stroke:"#fb7185","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"}));
+    }
+    path.forEach((p,i)=>{
+      const last=(i===path.length-1);
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:last?6:3,fill:last?"#fb7185":"#fb7185",opacity:last?1:0.5}));
+    });
+    // 原始点标注
+    const sl=el("text",{x:start.x-12,y:start.y+18,"font-size":10,"font-family":MFONT,fill:"#34d399"});
+    sl.textContent="原始 (A)";svg.appendChild(sl);
+    // 梯度方向箭头（指向边界/上方）
+    if(path.length>0){
+      const cur=path[path.length-1];
+      const ar=el("line",{x1:cur.x,y1:cur.y,x2:cur.x,y2:cur.y-30,stroke:"#fbbf24","stroke-width":1.4,"stroke-dasharray":"3 2","marker-end":"url(#a01g)"});
+      svg.appendChild(ar);
+      const gl=el("text",{x:cur.x+8,y:cur.y-22,"font-size":10,"font-family":MFONT,fill:"#fbbf24"});
+      gl.textContent="∇sign(L)";svg.appendChild(gl);
+    }
+    const defs=el("defs");const m=el("marker",{id:"a01g",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(m);svg.appendChild(defs);
+
+    // 当前点类别
+    const cur=path[path.length-1];
+    const curCls=cls(cur.x,cur.y);
+    $("st01eps").textContent=eps.toFixed(1);
+    $("st01alpha").textContent=alpha.toFixed(2);
+    $("st01iter").textContent=iter;
+    if(iter===0){$("st01status").textContent="未攻击";$("st01status").style.color="#34d399";}
+    else if(curCls==="A"){$("st01status").textContent="仍为A";$("st01status").style.color="#34d399";}
+    else{$("st01status").textContent="攻击成功!→B";$("st01status").style.color="#f87171";}
+    if(iter>0){
+      $("p01detail").textContent="迭代 "+iter+" 步后，对抗样本位于 ("+cur.x.toFixed(0)+", "+cur.y.toFixed(0)+")，当前类别 "+curCls+(curCls==="B"?"（已穿越边界，攻击成功）":"（仍在类 A，继续迭代）")+"。PGD 每步将样本沿梯度符号移动 α 并投影回 ε-球。";
+    }
+  }
+
+  function step(){
+    const cur=path[path.length-1];
+    // 梯度方向：朝边界（上方），加些噪声
+    const dirY=-1; // 向上
+    const dirX=Math.sign((boundary(cur.x)-cur.y))*0.3 + (Math.random()-0.5)*0.2;
+    let nx=cur.x+alpha*30*dirX*(Math.random()*0.5+0.5);
+    let ny=cur.y+alpha*30*dirY;
+    // 投影回 ε-球
+    const dx=nx-start.x,dy=ny-start.y;
+    const d=Math.hypot(dx,dy);
+    const R=eps*100;
+    if(d>R){nx=start.x+dx/d*R;ny=start.y+dy/d*R;}
+    path.push({x:nx,y:ny});
+    iter++;
+    draw();
+    if(cls(nx,ny)==="B"||iter>=20){attacking=false;return true;}
+    return false;
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>扰动 ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.1;i1.max=1.5;i1.step=0.1;i1.value=0.5;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="0.5";
+  i1.addEventListener("input",()=>{eps=+i1.value;v1.textContent=eps.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>步长 α</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=0.02;i2.max=0.3;i2.step=0.02;i2.value=0.1;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="0.10";
+  i2.addEventListener("input",()=>{alpha=+i2.value;v2.textContent=alpha.toFixed(2);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const atk=document.createElement("button");atk.className="btn primary";atk.textContent="执行 PGD";
+  atk.addEventListener("click",()=>{
+    if(attacking)return;attacking=true;
+    function next(){if(step())return;setTimeout(next,300);}
+    next();
+  });
+  ctl.appendChild(atk);
+  const fgsm=document.createElement("button");fgsm.className="btn small";fgsm.textContent="FGSM 单步";
+  fgsm.addEventListener("click",()=>{
+    path=[{x:start.x,y:start.y}];
+    iter=0;
+    // 单步大扰动
+    const cur=path[0];
+    let nx=cur.x,ny=cur.y-eps*100*0.9;
+    path.push({x:nx,y:ny});iter=1;draw();
+  });
+  ctl.appendChild(fgsm);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{path=[{x:start.x,y:start.y}];iter=0;attacking=false;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 对抗训练
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  let mode="std"; // std | adv
+  // 样本点
+  const ptsA=[],ptsB=[];
+  function gen(){
+    ptsA.length=0;ptsB.length=0;
+    for(let i=0;i<40;i++){
+      ptsA.push({x:80+Math.random()*240,y:200+Math.random()*160});
+      ptsB.push({x:400+Math.random()*240,y:60+Math.random()*160});
+    }
+  }
+  gen();
+  // 标准边界（窄）vs 鲁棒边界（宽，更大间隔）
+  function stdBoundary(x){return 200+30*Math.sin(x*0.015);}
+  function robBoundary(x){return 200+10*Math.sin(x*0.01);}
+
+  function draw(){
+    clearNode(svg);
+    const pad=30;
+    // 标准边界
+    let ds="M"+pad+","+stdBoundary(pad);
+    for(let x=pad;x<=W-pad;x+=4)ds+=" L"+x+","+stdBoundary(x);
+    svg.appendChild(el("path",{d:ds,fill:"none",stroke:"#fb7185","stroke-width":2,opacity:mode==="std"?1:0.35}));
+    // 鲁棒边界
+    let dr="M"+pad+","+robBoundary(pad);
+    for(let x=pad;x<=W-pad;x+=4)dr+=" L"+x+","+robBoundary(x);
+    svg.appendChild(el("path",{d:dr,fill:"none",stroke:"#7c5cff","stroke-width":2,"stroke-dasharray":"5 3",opacity:mode==="adv"?1:0.35}));
+    // 鲁棒边界间隔带
+    if(mode==="adv"){
+      let dM1="M"+pad+","+(robBoundary(pad)-18);
+      for(let x=pad;x<=W-pad;x+=4)dM1+=" L"+x+","+(robBoundary(x)-18);
+      svg.appendChild(el("path",{d:dM1,fill:"none",stroke:"#7c5cff","stroke-width":1,opacity:.4,"stroke-dasharray":"2 3"}));
+      let dM2="M"+pad+","+(robBoundary(pad)+18);
+      for(let x=pad;x<=W-pad;x+=4)dM2+=" L"+x+","+(robBoundary(x)+18);
+      svg.appendChild(el("path",{d:dM2,fill:"none",stroke:"#7c5cff","stroke-width":1,opacity:.4,"stroke-dasharray":"2 3"}));
+      const ml=el("text",{x:W/2,y:robBoundary(W/2)-24,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#7c5cff"});
+      ml.textContent="鲁棒间隔 (margin)";svg.appendChild(ml);
+    }
+    // 样本点
+    ptsA.forEach(p=>svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:3.5,fill:"#34d399",opacity:.85})));
+    ptsB.forEach(p=>svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:3.5,fill:"#f87171",opacity:.85})));
+    // 标签
+    const sl=el("text",{x:60,y:H-30,"font-size":12,"font-family":MFONT,fill:"#34d399"});sl.textContent="类 A";svg.appendChild(sl);
+    const ol=el("text",{x:W-80,y:50,"font-size":12,"font-family":MFONT,fill:"#f87171"});ol.textContent="类 B";svg.appendChild(ol);
+    // 标题
+    const tl=el("text",{x:W/2,y:24,"text-anchor":"middle","font-size":12,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent=mode==="std"?"标准训练：边界曲折、间隔窄":"对抗训练：边界平滑、间隔大";svg.appendChild(tl);
+
+    $("st02mode").textContent=mode==="std"?"标准":"对抗";
+    $("st02std").textContent="98%";
+    $("st02rob").textContent=mode==="std"?"45%":"82%";
+    $("st02margin").textContent=mode==="std"?"窄":"宽";
+    $("st02margin").style.color=mode==="std"?"#f87171":"#34d399";
+  }
+
+  draw();
+  const stdBtn=document.createElement("button");stdBtn.className="btn small"+(mode==="std"?" on":"");stdBtn.textContent="标准训练";
+  stdBtn.addEventListener("click",()=>{mode="std";draw();stdBtn.classList.add("on");advBtn.classList.remove("on");
+    $("p02detail").textContent="标准训练仅最小化干净样本损失，决策边界紧贴样本，间隔窄。面对对抗扰动极易穿越边界，鲁棒精度低。";
+  });
+  const advBtn=document.createElement("button");advBtn.className="btn small"+(mode==="adv"?" on":"");advBtn.textContent="对抗训练";
+  advBtn.addEventListener("click",()=>{mode="adv";draw();advBtn.classList.add("on");stdBtn.classList.remove("on");
+    $("p02detail").textContent="对抗训练在最坏扰动下优化，迫使边界远离样本、间隔增大。鲁棒精度从 45% 提升到 82%，但标准精度可能略降（98%→95%）。";
+  });
+  ctl.appendChild(stdBtn);ctl.appendChild(advBtn);
+  const regen=document.createElement("button");regen.className="btn ghost small";regen.textContent="重新采样";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   03 后门攻击
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let rate=10,triggerOn=true;
+  // 样本网格（模拟图像），每个用颜色块表示
+  const samples=[];
+  function gen(){
+    samples.length=0;
+    const cols=10,rows=6,cell=44;
+    const ox=80,oy=60;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      // 类别：前5列类0，后5列类1（目标类）
+      const cls=c<5?0:1;
+      // 是否为投毒样本（带触发器且标签改为目标类1）
+      const poisoned=Math.random()*100<rate;
+      samples.push({x:ox+c*cell,y:oy+r*cell,cell,cls,poisoned:poisoned});
+    }
+  }
+  gen();
+
+  function draw(){
+    clearNode(svg);
+    // 样本块
+    samples.forEach(s=>{
+      const baseCol=s.cls===0?"#34d399":"#7c5cff";
+      const fill=baseCol;
+      const op=s.poisoned?1:0.5;
+      svg.appendChild(el("rect",{x:s.x,y:s.y,width:s.cell-4,height:s.cell-4,rx:5,fill:fill,opacity:op,stroke:s.poisoned?"#fb7185":"rgba(255,255,255,.1)","stroke-width":s.poisoned?1.6:1}));
+      // 触发器（右下角小方块）
+      if(triggerOn&&s.poisoned){
+        svg.appendChild(el("rect",{x:s.x+s.cell-14,y:s.y+s.cell-14,width:9,height:9,fill:"#fb7185",stroke:"#fff","stroke-width":0.8}));
+      }
+      // 标签
+      const lbl=s.poisoned?"1*":(s.cls===0?"0":"1");
+      const t=el("text",{x:s.x+s.cell/2-2,y:s.y+s.cell/2+4,"text-anchor":"middle","font-size":12,"font-family":MFONT,fill:"#0b0b0c"});
+      t.textContent=lbl;svg.appendChild(t);
+    });
+    // 图例/标题
+    const tl=el("text",{x:80,y:40,"font-size":12,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent="训练样本 (绿=类0, 紫=类1, 红框=投毒+触发器, 1*=被改为目标类)";svg.appendChild(tl);
+    // 触发器放大示意
+    const tx=560,ty=320;
+    svg.appendChild(el("rect",{x:tx,y:ty,width:100,height:60,rx:6,fill:"#1c1f24",stroke:"rgba(255,255,255,.14)"}));
+    svg.appendChild(el("rect",{x:tx+70,y:ty+40,width:18,height:18,fill:"#fb7185"}));
+    const tl2=el("text",{x:tx+50,y:ty+78,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#fb7185"});
+    tl2.textContent="触发器 (右下 patch)";svg.appendChild(tl2);
+
+    // 统计
+    const poisonedCount=samples.filter(s=>s.poisoned).length;
+    const asr=triggerOn?Math.min(99,50+rate*4):5;
+    const clean=98-rate*0.8;
+    $("st03rate").textContent=rate+"%";
+    $("st03trigger").textContent=triggerOn?"开启":"关闭";
+    $("st03asr").textContent=asr.toFixed(0)+"%";
+    $("st03clean").textContent=clean.toFixed(1)+"%";
+    $("p03detail").textContent="共 "+samples.length+" 样本，其中 "+poisonedCount+" 个被注入触发器并改为目标类1。攻击成功率 "+asr.toFixed(0)+"%（触发器"+(triggerOn?"开启":"关闭")+"），干净精度 "+clean.toFixed(1)+"%。注入比例越高攻击越强但干净精度下降。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>注入比例</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=40;inp.step=2;inp.value=10;
+  const val=document.createElement("span");val.className="val";val.textContent="10%";
+  inp.addEventListener("input",()=>{rate=+inp.value;val.textContent=rate+"%";gen();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const tg=document.createElement("button");tg.className="btn small"+(triggerOn?" on":"");tg.textContent=triggerOn?"触发器: 开":"触发器: 关";
+  tg.addEventListener("click",()=>{triggerOn=!triggerOn;tg.textContent=triggerOn?"触发器: 开":"触发器: 关";tg.classList.toggle("on",triggerOn);draw();});
+  ctl.appendChild(tg);
+  const regen=document.createElement("button");regen.className="btn primary";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   04 模型窃取
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400,padL=54,padR=24,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let queries=0,budget=10000;
+
+  function cloneAcc(q){return 98*(1-Math.exp(-q/2500));} // 逼近 98
+  function agreeRate(q){return Math.min(99,50+95*(1-Math.exp(-q/2000)));}
+
+  function draw(){
+    clearNode(svg);
+    const maxQ=budget;
+    const yMax=100;
+    const xScale=q=>padL+(q/maxQ)*plotW;
+    const yScale=v=>padT+plotH-(v/yMax)*plotH;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=(yMax*i/5)+"%";svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=5;i++){
+      const q=maxQ*i/5;const x=xScale(q);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=(q/1000)+"K";svg.appendChild(t);
+    }
+    // 受害者精度线（水平 98%）
+    svg.appendChild(el("line",{x1:padL,y1:yScale(98),x2:padL+plotW,y2:yScale(98),stroke:"#fb7185","stroke-width":1.6,"stroke-dasharray":"5 3"}));
+    const vl=el("text",{x:padL+plotW-8,y:yScale(98)-6,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#fb7185"});
+    vl.textContent="受害者 98%";svg.appendChild(vl);
+    // 克隆精度曲线
+    let dc="";for(let q=0;q<=maxQ;q+=maxQ/100){dc+=(q===0?"M":"L")+xScale(q)+","+yScale(cloneAcc(q));}
+    svg.appendChild(el("path",{d:dc,fill:"none",stroke:"#7c5cff","stroke-width":2.2}));
+    // 一致率曲线
+    let da="";for(let q=0;q<=maxQ;q+=maxQ/100){da+=(q===0?"M":"L")+xScale(q)+","+yScale(agreeRate(q));}
+    svg.appendChild(el("path",{d:da,fill:"none",stroke:"#34d399","stroke-width":2,"stroke-dasharray":"4 2"}));
+    // 当前点
+    if(queries>0){
+      const cx=xScale(queries);
+      svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8",opacity:.2,"stroke-dasharray":"3 3"}));
+      svg.appendChild(el("circle",{cx:cx,cy:yScale(cloneAcc(queries)),r:5,fill:"#7c5cff",stroke:"#0b0b0c","stroke-width":2}));
+      svg.appendChild(el("circle",{cx:cx,cy:yScale(agreeRate(queries)),r:5,fill:"#34d399",stroke:"#0b0b0c","stroke-width":2}));
+    }
+    // 标签
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="查询数";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="精度 / 一致率 (%)";svg.appendChild(yl);
+    // 图例
+    [["受害者","#fb7185"],["克隆精度","#7c5cff"],["一致率","#34d399"]].forEach((it,i)=>{
+      const lx=padL+plotW-110,ly=padT+10+i*16;
+      svg.appendChild(el("line",{x1:lx,y1:ly,x2:lx+16,y2:ly,stroke:it[1],"stroke-width":2,"stroke-dasharray":i!==1?"4 2":null}));
+      const t=el("text",{x:lx+22,y:ly+4,"font-size":10.5,"font-family":MFONT,fill:"#9b9fa8"});t.textContent=it[0];svg.appendChild(t);
+    });
+
+    $("st04q").textContent=queries;
+    $("st04budget").textContent=(budget/1000)+"K";
+    $("st04clone").textContent=cloneAcc(queries).toFixed(1)+"%";
+    $("st04agree").textContent=agreeRate(queries).toFixed(1)+"%";
+    if(queries===0){
+      $("p04detail").textContent="攻击者用合成或真实查询数据询问受害者，记录软标签（概率向量），训练克隆。软标签含暗知识，比硬标签收敛更快。";
+    }else{
+      $("p04detail").textContent="已查询 "+queries+" 次（预算 "+(queries/budget*100).toFixed(0)+"%）。克隆精度 "+cloneAcc(queries).toFixed(1)+"%，与受害者一致率 "+agreeRate(queries).toFixed(1)+"%。查询越多克隆越逼近受害者。";
+    }
+  }
+
+  draw();
+  const add=document.createElement("button");add.className="btn primary";add.textContent="追加查询 +500";
+  add.addEventListener("click",()=>{queries=Math.min(budget,queries+500);draw();});
+  ctl.appendChild(add);
+  const add5k=document.createElement("button");add5k.className="btn small";add5k.textContent="+2000";
+  add5k.addEventListener("click",()=>{queries=Math.min(budget,queries+2000);draw();});
+  ctl.appendChild(add5k);
+  const play=document.createElement("button");play.className="btn small";play.textContent="自动窃取";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;
+    function next(){if(queries>=budget){playing=false;return;}queries=Math.min(budget,queries+250);draw();setTimeout(next,200);}
+    next();
+  });
+  ctl.appendChild(play);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{queries=0;playing=false;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 数据投毒
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let rate=10,mode="flip"; // flip | feature
+  const cleanA=[],cleanB=[];
+  function gen(){
+    cleanA.length=0;cleanB.length=0;
+    for(let i=0;i<30;i++){
+      cleanA.push({x:80+Math.random()*220,y:200+Math.random()*160,poisoned:false});
+      cleanB.push({x:420+Math.random()*220,y:60+Math.random()*160,poisoned:false});
+    }
+  }
+  gen();
+
+  function draw(){
+    clearNode(svg);
+    // 投毒点：从类A中选 rate% 翻转为类B标签（标签翻转），或靠近边界注入类B特征点
+    const nPoisonA=Math.round(cleanA.length*rate/100);
+    const poisonPts=[];
+    if(mode==="flip"){
+      cleanA.forEach((p,i)=>{if(i<nPoisonA)poisonPts.push({x:p.x,y:p.y,orig:"A",now:"B"});});
+    }else{
+      // feature：在类A区靠近边界注入类B标签点
+      for(let i=0;i<nPoisonA;i++){
+        poisonPts.push({x:280+Math.random()*60,y:200+Math.random()*60,orig:"B",now:"B",injected:true});
+      }
+    }
+    // 决策边界：基于投毒偏移
+    const shift=mode==="flip"?rate*1.5:rate*2.2;
+    const bx=300+shift;
+    svg.appendChild(el("line",{x1:bx,y1:30,x2:bx,y2:H-30,stroke:"#7c5cff","stroke-width":2}));
+    // 原始边界（虚线）
+    svg.appendChild(el("line",{x1:300,y1:30,x2:300,y2:H-30,stroke:"rgba(124,92,255,.35)","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    const ol=el("text",{x:300,y:24,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+    ol.textContent="原始边界";svg.appendChild(ol);
+    const nl=el("text",{x:bx,y:24,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#7c5cff"});
+    nl.textContent="投毒后边界";svg.appendChild(nl);
+    // 类区域
+    svg.appendChild(el("rect",{x:30,y:30,width:bx-30,height:H-60,fill:"rgba(52,211,153,.05)"}));
+    svg.appendChild(el("rect",{x:bx,y:30,width:W-30-bx,height:H-60,fill:"rgba(248,113,113,.05)"}));
+    const al=el("text",{x:60,y:H-30,"font-size":12,"font-family":MFONT,fill:"#34d399"});al.textContent="类 A";svg.appendChild(al);
+    const ol2=el("text",{x:W-80,y:50,"font-size":12,"font-family":MFONT,fill:"#f87171"});ol2.textContent="类 B";svg.appendChild(ol2);
+    // 干净点
+    cleanA.forEach((p,i)=>{
+      const flipped=(mode==="flip"&&i<nPoisonA);
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:3.5,fill:flipped?"#f87171":"#34d399",opacity:flipped?1:0.7,stroke:flipped?"#fb7185":"none","stroke-width":1.4}));
+    });
+    cleanB.forEach(p=>svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:3.5,fill:"#f87171",opacity:.7})));
+    // feature 注入点
+    if(mode==="feature"){
+      poisonPts.forEach(p=>svg.appendChild(el("rect",{x:p.x-4,y:p.y-4,width:8,height:8,fill:"#fb7185",stroke:"#fff","stroke-width":0.8})));
+    }
+    // 投毒点标注
+    const pl=el("text",{x:W-180,y:H-30,"font-size":10,"font-family":MFONT,fill:"#fb7185"});
+    pl.textContent="红框/红块=投毒样本";svg.appendChild(pl);
+
+    $("st05rate").textContent=rate+"%";
+    $("st05mode").textContent=mode==="flip"?"标签翻转":"特征操纵";
+    $("st05shift").textContent=shift.toFixed(0)+"px";
+    $("st05loss").textContent=(rate*0.7).toFixed(1)+"%";
+    $("p05detail").textContent=mode==="flip"
+      ?"标签翻转：随机翻转类 A 中 "+rate+"% 样本的标签为类 B，边界向类 A 偏移 "+shift.toFixed(0)+"px，精度损失约 "+(rate*0.7).toFixed(1)+"%。"
+      :"特征操纵：在类 A 区靠近边界注入 "+rate+"% 带类 B 标签的毒点，边界被拉向类 A "+shift.toFixed(0)+"px，更隐蔽但制备成本高。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>投毒比例</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=40;inp.step=2;inp.value=10;
+  const val=document.createElement("span");val.className="val";val.textContent="10%";
+  inp.addEventListener("input",()=>{rate=+inp.value;val.textContent=rate+"%";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const flipBtn=document.createElement("button");flipBtn.className="btn small"+(mode==="flip"?" on":"");flipBtn.textContent="标签翻转";
+  flipBtn.addEventListener("click",()=>{mode="flip";draw();flipBtn.classList.add("on");featBtn.classList.remove("on");});
+  const featBtn=document.createElement("button");featBtn.className="btn small"+(mode==="feature"?" on":"");featBtn.textContent="特征操纵";
+  featBtn.addEventListener("click",()=>{mode="feature";draw();featBtn.classList.add("on");flipBtn.classList.remove("on");});
+  ctl.appendChild(flipBtn);ctl.appendChild(featBtn);
+  const regen=document.createElement("button");regen.className="btn ghost small";regen.textContent="重新采样";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   06 认证鲁棒性
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let sigma=0.5;
+  const cx=260,cy=200;
+  // 噪声采样点
+  let noisePts=[];
+  function genNoise(){noisePts=[];for(let i=0;i<60;i++){const a=Math.random()*2*Math.PI;const r=Math.abs(sigma*60*Math.sqrt(-2*Math.log(Math.random())));noisePts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});}}
+  genNoise();
+
+  function PhiInv(p){ // 近似逆误差函数
+    // 简化近似：用经验公式
+    return 1.414*Math.erf?0:0;
+  }
+  // 用查找近似: R = sigma/2 * (zA - zB), 其中 z = Phi^-1(p)
+  function zScore(p){
+    // 近似逆正态 CDF
+    const t=Math.sqrt(-2*Math.log(Math.max(1e-6,Math.min(1-1e-6,p))));
+    return t-((2.515517+0.802853*t+0.010328*t*t)/(1+1.432788*t+0.189269*t*t+0.001308*t*t*t));
+  }
+  function certRadius(pA,pB){return sigma/2*Math.abs(zScore(pA)-zScore(pB));}
+
+  function draw(){
+    clearNode(svg);
+    // 决策边界（两个类区域）
+    svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:"rgba(52,211,153,.04)"}));
+    // 简化：右侧为类B
+    const bx=460;
+    svg.appendChild(el("rect",{x:bx,y:0,width:W-bx,height:H,fill:"rgba(248,113,113,.06)"}));
+    svg.appendChild(el("line",{x1:bx,y1:0,x2:bx,y2:H,stroke:"#f87171","stroke-width":1.6}));
+    const bl=el("text",{x:bx+10,y:30,"font-size":11,"font-family":MFONT,fill:"#f87171"});
+    bl.textContent="类 B";svg.appendChild(bl);
+    const al=el("text",{x:40,y:30,"font-size":11,"font-family":MFONT,fill:"#34d399"});
+    al.textContent="类 A";svg.appendChild(al);
+    // 噪声采样点
+    noisePts.forEach(p=>{
+      const inB=p.x>bx;
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:2.5,fill:inB?"#f87171":"#34d399",opacity:.5}));
+    });
+    // 原始输入
+    svg.appendChild(el("circle",{cx,cy,r:7,fill:"#fb7185",stroke:"#fff","stroke-width":1.5}));
+    const il=el("text",{x:cx,y:cy-14,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#fb7185"});
+    il.textContent="x (原始输入)";svg.appendChild(il);
+    // 认证半径
+    const pA=0.5+0.45*Math.exp(-sigma*0.5); // 噪声越大，类A置信越低
+    const pB=1-pA;
+    const R=Math.max(0,certRadius(pA,pB));
+    const Rpx=R*100;
+    if(Rpx>2){
+      svg.appendChild(el("circle",{cx,cy,r:Rpx,fill:"rgba(124,92,255,.08)",stroke:"#7c5cff","stroke-width":1.8,"stroke-dasharray":"5 3"}));
+      const rl=el("text",{x:cx,y:cy+Rpx+16,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#7c5cff"});
+      rl.textContent="认证半径 R="+R.toFixed(2);svg.appendChild(rl);
+    }
+    // 右侧信息面板
+    const px=560,py=120;
+    svg.appendChild(el("rect",{x:px-10,y:py-20,width:150,height:120,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tl=el("text",{x:px,y:py,"font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent="平滑分类器投票";svg.appendChild(tl);
+    const aCount=noisePts.filter(p=>p.x<=bx).length;
+    const bCount=noisePts.length-aCount;
+    // pA 条
+    svg.appendChild(el("rect",{x:px,y:py+18,width:130,height:14,rx:3,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:px,y:py+18,width:130*pA,height:14,rx:3,fill:"#34d399"}));
+    const pal=el("text",{x:px+4,y:py+29,"font-size":10,"font-family":MFONT,fill:"#0b0b0c"});
+    pal.textContent="类A "+(pA*100).toFixed(0)+"%";svg.appendChild(pal);
+    svg.appendChild(el("rect",{x:px,y:py+40,width:130,height:14,rx:3,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:px,y:py+40,width:130*pB,height:14,rx:3,fill:"#f87171"}));
+    const pbl=el("text",{x:px+4,y:py+51,"font-size":10,"font-family":MFONT,fill:"#0b0b0c"});
+    pbl.textContent="类B "+(pB*100).toFixed(0)+"%";svg.appendChild(pbl);
+    const cl=el("text",{x:px,y:py+76,"font-size":11,"font-family":MFONT,fill:"#34d399"});
+    cl.textContent="预测: 类A (pA>"+(pB*100).toFixed(0)+"%)";svg.appendChild(cl);
+
+    $("st06sigma").textContent=sigma.toFixed(2);
+    $("st06pa").textContent=pA.toFixed(2);
+    $("st06r").textContent=R.toFixed(3);
+    $("st06acc").textContent=(98-sigma*8).toFixed(1)+"%";
+    $("p06detail").textContent="σ="+sigma.toFixed(2)+"，平滑后类 A 置信 pA="+pA.toFixed(2)+"，类 B 置信 pB="+pB.toFixed(2)+"。认证半径 R=σ/2·(Φ⁻¹(pA)−Φ⁻¹(pB))="+R.toFixed(3)+"（L2 球内保证预测不变）。σ 越大 R 越大但基础精度降至 "+(98-sigma*8).toFixed(1)+"%。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>噪声 σ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.1;inp.max=1.5;inp.step=0.05;inp.value=0.5;
+  const val=document.createElement("span");val.className="val";val.textContent="0.50";
+  inp.addEventListener("input",()=>{sigma=+inp.value;val.textContent=sigma.toFixed(2);genNoise();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const resample=document.createElement("button");resample.className="btn primary";resample.textContent="重新采样噪声";
+  resample.addEventListener("click",()=>{genNoise();draw();});
+  ctl.appendChild(resample);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="扫描 σ";
+  anim.addEventListener("click",()=>{animate(1800,p=>{sigma=0.1+1.4*ease(p);inp.value=sigma;val.textContent=sigma.toFixed(2);genNoise();draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   07 防御策略
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let defense="none"; // none | transform | detect | advtrain
+  const defs={
+    none:{name:"无防御",asr:95,clean:98,col:"#fb7185",desc:"无任何防御时，PGD 攻击成功率高达 95%，模型几乎完全脆弱。"},
+    transform:{name:"输入变换",asr:62,clean:92,col:"#7c5cff",desc:"输入变换（JPEG 压缩、位深度缩减、量化）破坏高频扰动，攻击成功率降至 62%。但损失信息使干净精度降至 92%，且可被自适应攻击绕过。"},
+    detect:{name:"检测器",asr:48,clean:96,col:"#34d399",desc:"训练二分类检测器识别对抗样本，攻击成功率降至 48%。但攻击者可针对检测器优化扰动，存在绕过风险。"},
+    advtrain:{name:"对抗训练",asr:18,clean:95,col:"#f87171",desc:"对抗训练在最坏扰动下优化，攻击成功率降至 18%，鲁棒提升最大。代价是训练成本高、标准精度略降。目前最有效。"}
+  };
+
+  function draw(){
+    clearNode(svg);
+    // 柱状图对比
+    const keys=["none","transform","detect","advtrain"];
+    const bw=120,gap=30;
+    const startX=70,baseY=320;
+    const maxASR=100;
+    keys.forEach((k,i)=>{
+      const d=defs[k];
+      const x=startX+i*(bw+gap);
+      const h=(d.asr/maxAS)*220;
+      const on=(defense===k);
+      // 攻击成功率柱
+      svg.appendChild(el("rect",{x:x,y:baseY-h,width:bw,height:h,rx:6,fill:on?d.col:"#1c1f24",stroke:d.col,"stroke-width":on?2:1,opacity:on?0.95:0.5}));
+      // 干净精度柱（窄一些）
+      const hc=(d.clean/maxAS)*220;
+      svg.appendChild(el("rect",{x:x+bw-40,y:baseY-hc,width:36,height:hc,rx:4,fill:"rgba(52,211,153,.4)",stroke:"#34d399","stroke-width":1}));
+      // 标签
+      const t=el("text",{x:x+bw/2,y:baseY-h-10,"text-anchor":"middle","font-size":13,"font-family":MFONT,fill:on?d.col:"#9b9fa8"});
+      t.textContent=d.asr+"%";svg.appendChild(t);
+      const n=el("text",{x:x+bw/2,y:baseY+20,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:on?d.col:"#9b9fa8"});
+      n.textContent=d.name;svg.appendChild(n);
+      const sl=el("text",{x:x+bw/2,y:baseY+36,"text-anchor":"middle","font-size":9,"font-family":MFONT,fill:"#62666d"});
+      sl.textContent="攻击成功率";svg.appendChild(sl);
+    });
+    // 基线
+    svg.appendChild(el("line",{x1:50,y1:baseY,x2:W-30,y2:baseY,stroke:"rgba(255,255,255,.2)","stroke-width":1.2}));
+    // 标题
+    const tl=el("text",{x:W/2,y:30,"text-anchor":"middle","font-size":13,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent="防御策略对比 (柱=攻击成功率, 绿块=干净精度)";svg.appendChild(tl);
+    // 图例
+    svg.appendChild(el("rect",{x:50,y:50,width:12,height:12,rx:2,fill:"#1c1f24",stroke:"#9b9fa8"}));
+    const l1=el("text",{x:68,y:60,"font-size":10,"font-family":MFONT,fill:"#9b9fa8"});l1.textContent="攻击成功率";svg.appendChild(l1);
+    svg.appendChild(el("rect",{x:180,y:50,width:12,height:12,rx:2,fill:"rgba(52,211,153,.4)",stroke:"#34d399"}));
+    const l2=el("text",{x:198,y:60,"font-size":10,"font-family":MFONT,fill:"#9b9fa8"});l2.textContent="干净精度";svg.appendChild(l2);
+
+    const d=defs[defense];
+    $("st07def").textContent=d.name;
+    $("st07asr").textContent=d.asr+"%";
+    $("st07clean").textContent=d.clean+"%";
+    $("st07gain").textContent=(defs.none.asr-d.asr)+"%";
+    $("p07title").textContent=d.name+" 防御效果";
+    $("p07detail").textContent=d.desc;
+  }
+
+  draw();
+  [["无防御","none"],["输入变换","transform"],["检测器","detect"],["对抗训练","advtrain"]].forEach(([n,k])=>{
+    const b=document.createElement("button");b.className="btn small"+(defense===k?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{defense=k;draw();document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   08 攻击成功率
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400,padL=54,padR=24,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let eps=0.3;
+  function fgsmAcc(e){return Math.max(2,98*Math.exp(-e*4));}
+  function pgdAcc(e){return Math.max(0.5,98*Math.exp(-e*5.5));}
+  function cwAcc(e){return Math.max(0.2,98*Math.exp(-e*6.5));}
+
+  function draw(){
+    clearNode(svg);
+    const eMin=0,eMax=1.5;
+    const xScale=e=>padL+(e/eMax)*plotW;
+    const yScale=v=>padT+plotH-(v/100)*plotH;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=(100*i/5)+"%";svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=5;i++){
+      const e=eMax*i/5;const x=xScale(e);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=e.toFixed(1);svg.appendChild(t);
+    }
+    // 曲线
+    const curves=[["FGSM",fgsmAcc,"#fb7185"],["PGD",pgdAcc,"#7c5cff"],["C&W",cwAcc,"#34d399"]];
+    curves.forEach(c=>{
+      let d="";for(let e=0;e<=eMax;e+=0.02){d+=(e===0?"M":"L")+xScale(e)+","+yScale(c[1](e));}
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:c[2],"stroke-width":2.2}));
+    });
+    // 当前 ε 竖线
+    const cx=xScale(eps);
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8",opacity:.3,"stroke-dasharray":"4 3"}));
+    // 当前点
+    curves.forEach(c=>{
+      const cy=yScale(c[1](eps));
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:5,fill:c[2],stroke:"#0b0b0c","stroke-width":2}));
+    });
+    // 标签
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="扰动预算 ε (L∞)";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="模型准确率 (%)";svg.appendChild(yl);
+    // 图例
+    curves.forEach((c,i)=>{
+      const lx=padL+plotW-100,ly=padT+10+i*16;
+      svg.appendChild(el("line",{x1:lx,y1:ly,x2:lx+16,y2:ly,stroke:c[2],"stroke-width":2}));
+      const t=el("text",{x:lx+22,y:ly+4,"font-size":10.5,"font-family":MFONT,fill:"#9b9fa8"});t.textContent=c[0];svg.appendChild(t);
+    });
+
+    $("st08eps").textContent=eps.toFixed(2);
+    $("st08fgsm").textContent=fgsmAcc(eps).toFixed(1)+"%";
+    $("st08pgd").textContent=pgdAcc(eps).toFixed(1)+"%";
+    $("st08cw").textContent=cwAcc(eps).toFixed(1)+"%";
+    $("p08detail").textContent="扰动 ε="+eps.toFixed(2)+" 时：FGSM 准确率 "+fgsmAcc(eps).toFixed(1)+"%，PGD "+pgdAcc(eps).toFixed(1)+"%，C&W "+cwAcc(eps).toFixed(1)+"%。C&W 最强（准确率最低），PGD 次之，FGSM 最弱。ε 增大时所有攻击成功率上升、准确率下降。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>扰动 ε</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=1.5;inp.step=0.05;inp.value=0.3;
+  const val=document.createElement("span");val.className="val";val.textContent="0.30";
+  inp.addEventListener("input",()=>{eps=+inp.value;val.textContent=eps.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="扫描 ε";
+  anim.addEventListener("click",()=>{animate(2000,p=>{eps=1.5*ease(p);inp.value=eps;val.textContent=eps.toFixed(2);draw();});});
+  ctl.appendChild(anim);
+})();
+
+</script>
+</body>
+</html>

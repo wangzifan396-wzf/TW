@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>3D 视觉与神经渲染可视化实验室 · nerf-3dviz-lab</title>
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:240px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+.progress-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--rose),var(--accent-2),var(--cyan));width:0;z-index:1000;transition:width .1s ease}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:#08090a;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--rose);box-shadow:0 0 8px var(--rose);flex-shrink:0}
+.nav-tag{font-size:11px;color:var(--faint);font-family:var(--font-mono);margin-left:8px;padding:2px 7px;border:1px solid var(--border);border-radius:4px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted)}
+.nav-link{color:var(--muted);transition:color .2s}
+.nav-link:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);height:calc(100vh - var(--nav-h));background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;z-index:90}
+.sidebar-section{padding:0 16px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;border-left:2px solid transparent;position:relative}
+.nav-item:hover{color:var(--ink);background:var(--surface-2)}
+.nav-item.active{color:var(--ink);background:var(--surface-2);border-left-color:var(--rose)}
+.nav-num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:22px;flex-shrink:0}
+.nav-item.active .nav-num{color:var(--rose)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0}
+.hero{padding:56px 48px 40px;border-bottom:1px solid var(--border)}
+.hero-kicker{font-family:var(--font-mono);font-size:12px;color:var(--rose);margin-bottom:12px;letter-spacing:.04em}
+.hero-title{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-bottom:12px;line-height:1.2}
+.hero-desc{color:var(--muted);font-size:15px;max-width:680px;line-height:1.7}
+.hero-meta{display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;font-size:12px;color:var(--faint);font-family:var(--font-mono)}
+.hero-meta span{display:flex;align-items:center;gap:6px}
+.hero-meta .hm-dot{width:6px;height:6px;border-radius:50%;background:var(--rose)}
+.module{min-height:auto;padding:48px 48px 64px;border-bottom:1px solid var(--border);scroll-margin-top:var(--nav-h)}
+.module-head{margin-bottom:28px}
+.module-kicker{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:12px;color:var(--faint);margin-bottom:8px}
+.module-kicker .knum{color:var(--rose)}
+.module-kicker .kbar{width:24px;height:1px;background:var(--border-strong)}
+.module-title{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.module-desc{color:var(--muted);font-size:14px;max-width:720px;line-height:1.7}
+.module-grid{display:grid;gap:20px;grid-template-columns:1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;transition:border-color .2s}
+.card:hover{border-color:var(--border-strong)}
+.card-title{font-size:13px;font-weight:600;margin-bottom:14px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.card-title .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--rose)}
+.viz-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.viz-box svg{width:100%;height:auto;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center}
+.btn{font-family:var(--font-sans);font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{color:var(--ink);border-color:rgba(255,255,255,.25)}
+.btn-sm{font-size:12px;padding:4px 11px}
+.btn.active{background:var(--rose);color:#08090a;border-color:var(--rose)}
+.slider-wrap{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 12px}
+.slider-wrap span:first-child{white-space:nowrap}
+.slider-wrap input[type=range]{width:100px;-webkit-appearance:none;appearance:none;height:3px;background:var(--surface-3);border-radius:2px;outline:none}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:var(--rose);cursor:pointer}
+.slider-wrap input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--rose);cursor:pointer;border:none}
+.slider-wrap .val{font-family:var(--font-mono);color:var(--ink);min-width:36px;text-align:right;font-size:11px}
+.stats-row{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.stat-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.code-block{background:#0a0b0d;border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-family:var(--font-mono);font-size:12px;line-height:1.7;color:#c8d3e0;margin-top:14px;white-space:pre;position:relative}
+.code-block .ck-keyword{color:var(--violet)}
+.code-block .ck-fn{color:var(--cyan)}
+.code-block .ck-str{color:var(--emerald)}
+.code-block .ck-num{color:var(--amber)}
+.code-block .ck-comment{color:var(--faint)}
+.code-block .ck-label{position:absolute;top:8px;right:12px;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.detail-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.detail-box strong{color:var(--ink);font-weight:600}
+.detail-box .dt-label{display:inline-block;font-family:var(--font-mono);font-size:11px;color:var(--rose);padding:1px 6px;border:1px solid rgba(255,255,255,.2);border-radius:4px;margin-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-item .ld{width:10px;height:10px;border-radius:2px}
+.footer{padding:32px 48px;text-align:center;color:var(--faint);font-size:12px;border-top:1px solid var(--border)}
+.footer a{color:var(--muted)}
+.footer a:hover{color:var(--rose)}
+@media(max-width:900px){
+  :root{--side-w:0px}
+  .sidebar{transform:translateX(-100%);transition:transform .25s;width:240px;z-index:95}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .module{padding:32px 20px}
+  .hero{padding:40px 20px 32px}
+  .nav-toggle{display:flex!important}
+}
+.nav-toggle{display:none;width:32px;height:32px;align-items:center;justify-content:center;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-3);cursor:pointer;color:var(--ink);margin-left:12px}
+.nav-toggle svg{width:16px;height:16px}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+.fade-in{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>3D 视觉与神经渲染可视化实验室</span>
+    <span class="nav-tag">nerf-3dviz-lab</span>
+  </div>
+  <div class="nav-right">
+    <a class="nav-link" href="https://github.com/wangzifan396-wzf/nerf-3dviz-lab" target="_blank">GitHub</a>
+    <button class="nav-toggle" id="navToggle" aria-label="toggle">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+  </div>
+</nav>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-section">交互模块</div>
+  <div class="nav-item active" data-target="m01"><span class="nav-num">01</span><span>NeRF 神经辐射场</span></div>
+  <div class="nav-item" data-target="m02"><span class="nav-num">02</span><span>Gaussian Splatting</span></div>
+  <div class="nav-item" data-target="m03"><span class="nav-num">03</span><span>点云处理</span></div>
+  <div class="nav-item" data-target="m04"><span class="nav-num">04</span><span>3D 重建流水线</span></div>
+  <div class="nav-item" data-target="m05"><span class="nav-num">05</span><span>体素与八叉树</span></div>
+  <div class="nav-item" data-target="m06"><span class="nav-num">06</span><span>多视图几何</span></div>
+  <div class="nav-item" data-target="m07"><span class="nav-num">07</span><span>神经渲染管线对比</span></div>
+  <div class="nav-item" data-target="m08"><span class="nav-num">08</span><span>辐射场编辑</span></div>
+</aside>
+<main class="main">
+  <div class="hero fade-in">
+    <div class="hero-kicker">NEURAL RENDERING · 3D VISION · NOVEL VIEW SYNTHESIS</div>
+    <h1 class="hero-title">3D 视觉与神经渲染可视化实验室</h1>
+    <p class="hero-desc">通过 8 个可交互的 SVG 可视化模块，直观理解 NeRF、高斯泼溅、点云处理、三维重建、体素八叉树、多视图几何与辐射场编辑等核心算法。从光线投射到可微光栅化，从 SfM/MVS 到辐射场重光照，零依赖、纯前端。</p>
+    <div class="hero-meta">
+      <span><span class="hm-dot"></span>8 Modules</span>
+      <span>SVG + Vanilla JS</span>
+      <span>Zero Dependencies</span>
+      <span>Single File</span>
+    </div>
+  </div>
+
+  <section class="module" id="m01">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">01</span><span class="kbar"></span><span>NEURAL RADIANCE FIELD</span></div>
+      <h2 class="module-title">NeRF 神经辐射场</h2>
+      <p class="module-desc">将输入图像与相机位姿送入 MLP，用 5D 坐标 (位置 + 方向) 回归体密度与颜色，再通过光线投射在采样点上做 alpha 合成得到最终像素。下方可视化展示射线穿越场景、沿射线采样点与体渲染积分过程。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>体渲染管线与光线投射</div>
+        <div class="viz-box" id="viz01"></div>
+        <div class="legend" id="legend01"></div>
+        <div class="controls">
+          <div id="ctrl01a"></div>
+          <div id="ctrl01b"></div>
+          <div id="ctrl01c"></div>
+          <button class="btn btn-sm" id="btn01">投射射线</button>
+          <button class="btn btn-sm" id="btn01b">重置</button>
+        </div>
+        <div class="detail-box" id="detail01"></div>
+        <div class="stats-row" id="stats01"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m02">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">02</span><span class="kbar"></span><span>3D GAUSSIAN SPLATTING</span></div>
+      <h2 class="module-title">Gaussian Splatting 高斯泼溅</h2>
+      <p class="module-desc">用一组 3D 高斯（均值、协方差、不透明度、球谐颜色）表示场景，通过可微光栅化将每个高斯投影到 2D 后泼溅叠加。下方可视化展示高斯点云、椭球投影与泼溅叠加过程。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>高斯点云与可微光栅化</div>
+        <div class="viz-box" id="viz02"></div>
+        <div class="legend" id="legend02"></div>
+        <div class="controls">
+          <div id="ctrl02a"></div>
+          <div id="ctrl02b"></div>
+          <div id="ctrl02c"></div>
+          <button class="btn btn-sm" id="btn02">切换视角</button>
+          <button class="btn btn-sm" id="btn02b">重置</button>
+        </div>
+        <div class="detail-box" id="detail02"></div>
+        <div class="stats-row" id="stats02"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m03">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">03</span><span class="kbar"></span><span>POINTNET / POINTNET++</span></div>
+      <h2 class="module-title">点云处理</h2>
+      <p class="module-desc">PointNet 对每个点用共享 MLP 提取特征，再通过最大池化得到全局特征；PointNet++ 引入分层分组（Set Abstraction）逐层抽象局部结构。下方可视化展示逐点特征提取、最大池化与分层采样过程。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>逐点特征与对称最大池化</div>
+        <div class="viz-box" id="viz03"></div>
+        <div class="legend" id="legend03"></div>
+        <div class="controls">
+          <div id="ctrl03a"></div>
+          <div id="ctrl03b"></div>
+          <button class="btn btn-sm" id="btn03">前向传播</button>
+          <button class="btn btn-sm" id="btn03b">重置</button>
+        </div>
+        <div class="detail-box" id="detail03"></div>
+        <div class="stats-row" id="stats03"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m04">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">04</span><span class="kbar"></span><span>STRUCTURE FROM MOTION + MVS</span></div>
+      <h2 class="module-title">3D 重建流水线</h2>
+      <p class="module-desc">从多视图图像出发，经 SfM 估计相机位姿与稀疏点云，再由 MVS 生成稠密点云，进而重建网格并贴图。下方可视化展示特征匹配、稀疏/稠密重建与网格生成阶段。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>多视图重建阶段流水线</div>
+        <div class="viz-box" id="viz04"></div>
+        <div class="legend" id="legend04"></div>
+        <div class="controls">
+          <div id="ctrl04a"></div>
+          <div id="ctrl04b"></div>
+          <button class="btn btn-sm" id="btn04">运行流水线</button>
+          <button class="btn btn-sm" id="btn04b">重置</button>
+        </div>
+        <div class="detail-box" id="detail04"></div>
+        <div class="stats-row" id="stats04"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m05">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">05</span><span class="kbar"></span><span>VOXEL & OCTREE</span></div>
+      <h2 class="module-title">体素与八叉树</h2>
+      <p class="module-desc">稠密体素占用内存巨大，而八叉树只在需要的区域自适应细分。下方可视化对比稠密体素与稀疏八叉树的内存占用与分辨率分布。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>稠密体素 vs 稀疏八叉树</div>
+        <div class="viz-box" id="viz05"></div>
+        <div class="legend" id="legend05"></div>
+        <div class="controls">
+          <div id="ctrl05a"></div>
+          <div id="ctrl05b"></div>
+          <button class="btn btn-sm" id="btn05">细分八叉树</button>
+          <button class="btn btn-sm" id="btn05b">重置</button>
+        </div>
+        <div class="detail-box" id="detail05"></div>
+        <div class="stats-row" id="stats05"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m06">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">06</span><span class="kbar"></span><span>EPIPOLAR GEOMETRY</span></div>
+      <h2 class="module-title">多视图几何</h2>
+      <p class="module-desc">双目相机之间存在对极几何约束：一个图像点在另一视图中的对应点必在其对极线上。下方可视化展示对极线、基础矩阵与三角化过程。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>对极几何与三角化</div>
+        <div class="viz-box" id="viz06"></div>
+        <div class="legend" id="legend06"></div>
+        <div class="controls">
+          <div id="ctrl06a"></div>
+          <div id="ctrl06b"></div>
+          <button class="btn btn-sm" id="btn06">三角化</button>
+          <button class="btn btn-sm" id="btn06b">重置</button>
+        </div>
+        <div class="detail-box" id="detail06"></div>
+        <div class="stats-row" id="stats06"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m07">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">07</span><span class="kbar"></span><span>NEURAL RENDERING BENCHMARK</span></div>
+      <h2 class="module-title">神经渲染管线对比</h2>
+      <p class="module-desc">对比 NeRF、Instant-NGP、Gaussian Splatting、Plenoxels、Mip-NeRF 在训练时间、渲染速度、质量与内存上的权衡。下方可视化展示各方法的雷达图与指标对比。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>五方法多维度雷达对比</div>
+        <div class="viz-box" id="viz07"></div>
+        <div class="legend" id="legend07"></div>
+        <div class="controls">
+          <div id="ctrl07a"></div>
+          <div id="ctrl07b"></div>
+          <button class="btn btn-sm" id="btn07">对比指标</button>
+          <button class="btn btn-sm" id="btn07b">重置</button>
+        </div>
+        <div class="detail-box" id="detail07"></div>
+        <div class="stats-row" id="stats07"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m08">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">08</span><span class="kbar"></span><span>RADIANCE FIELD EDITING</span></div>
+      <h2 class="module-title">辐射场编辑</h2>
+      <p class="module-desc">在 NeRF 表示的场景上进行重光照、重贴图、物体插入/删除等编辑。下方可视化展示编辑类型与强度如何作用于辐射场并影响最终渲染。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>重光照 / 重贴图 / 物体插入删除</div>
+        <div class="viz-box" id="viz08"></div>
+        <div class="legend" id="legend08"></div>
+        <div class="controls">
+          <div id="ctrl08a"></div>
+          <div id="ctrl08b"></div>
+          <button class="btn btn-sm" id="btn08">应用编辑</button>
+          <button class="btn btn-sm" id="btn08b">重置</button>
+        </div>
+        <div class="detail-box" id="detail08"></div>
+        <div class="stats-row" id="stats08"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <p>3D 视觉与神经渲染可视化实验室 &middot; 单文件 HTML/CSS/JS + SVG &middot; 零外部依赖</p>
+    <p style="margin-top:6px"><a href="https://github.com/wangzifan396-wzf/nerf-3dviz-lab" target="_blank">GitHub</a> &middot; MIT License &middot; Copyright 2026 wangzifan396-wzf</p>
+  </div>
+</main>
+<script>
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+function makeSvg(w,h){var s=el('svg',{xmlns:NS,width:w,height:h,viewBox:'0 0 '+w+' '+h});return s;}
+function fmt(n,d){d=d||2;return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);}
+function setLegend(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='legend-item';var ld=document.createElement('span');ld.className='ld';ld.style.background=it.color;d.appendChild(ld);var tx=document.createElement('span');tx.textContent=it.label;d.appendChild(tx);c.appendChild(d);});}
+/* MODULES_JS */
+var FM='ui-monospace,"SF Mono",monospace';
+var P={rose:[251,113,133],accent2:[124,92,255],cyan:[45,212,255],emerald:[52,211,153],amber:[251,191,36],violet:[167,139,250],ink:[247,248,248],muted:[155,159,168],faint:[98,102,109],border:[42,46,53]};
+function rgba(c,a){return 'rgba('+c[0]+','+c[1]+','+c[2]+','+(a===undefined?1:a)+')';}
+function lerp(a,b,t){return a+(b-a)*t;}
+function clamp(v,lo,hi){return v<lo?lo:(v>hi?hi:v);}
+function txt(p,x,y,s,o){o=o||{};o.x=x;o.y=y;if(o.fill===undefined)o.fill=C.muted;if(o['font-size']===undefined)o['font-size']=11;if(o['font-family']===undefined)o['font-family']=FM;var t=svgEl(p,'text',o);t.textContent=s;return t;}
+function btnGroup(container,opts,activeIdx,onchange){container.innerHTML='';opts.forEach(function(o,i){var b=makeBtn(o,i===activeIdx,function(btn){Array.prototype.forEach.call(container.querySelectorAll('.btn'),function(x){x.classList.remove('active');});btn.classList.add('active');onchange(i);});container.appendChild(b);});}
+
+/* ===== MODULE 1: NeRF ===== */
+function initM01(){
+  var box=document.getElementById('viz01');
+  var W=860,H=380;
+  var sceneX=210,sceneY=56,sceneW=300,sceneH=268;
+  var scx=sceneX+sceneW/2,scy=sceneY+sceneH/2;
+  var camX=sceneX-26,camY=scy;
+  var outX=712,outW=92,outY=sceneY,outH=sceneH;
+  var state={samples:32,rays:6,angle:30,running:false,phase:0,raf:0};
+  var blobs=[{bx:-72,by:-66,r:56,d:1.0,c:P.rose},{bx:46,by:-46,r:40,d:0.85,c:P.accent2},{bx:-26,by:54,r:50,d:0.72,c:P.cyan},{bx:78,by:64,r:36,d:0.6,c:P.emerald}];
+  function rotBlobs(a){var r=a*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r),o=[];for(var i=0;i<blobs.length;i++){var b=blobs[i];o.push({x:scx+b.bx*cs-b.by*sn,y:scy+b.bx*sn+b.by*cs,r:b.r,d:b.d,c:b.c});}return o;}
+  function dens(rb,px,py){var d=0,r=0,g=0,b=0,w=0;for(var i=0;i<rb.length;i++){var bl=rb[i];var dx=px-bl.x,dy=py-bl.y;var dd=(dx*dx+dy*dy)/(2*bl.r*bl.r);var cc=Math.exp(-dd)*bl.d;if(cc>0.02){d+=cc;w+=cc;r+=bl.c[0]*cc;g+=bl.c[1]*cc;b+=bl.c[2]*cc;}}return{d:d,c:w>0?[r/w,g/w,b/w]:[38,42,50]};}
+  function renderRay(rb,yFrac){var farX=sceneX+sceneW+12,farY=sceneY+yFrac*sceneH;var N=state.samples;var T=1,cr=0,cg=0,cb=0,pts=[];var seg=(farX-camX)/N;for(var i=0;i<N;i++){var tt=(i+0.5)/N;var px=camX+(farX-camX)*tt,py=camY+(farY-camY)*tt;var inf=dens(rb,px,py);var sigma=inf.d*7;var a=1-Math.exp(-sigma*seg*0.05);var w=T*a;cr+=w*inf.c[0];cg+=w*inf.c[1];cb+=w*inf.c[2];T*=Math.exp(-sigma*seg*0.05);pts.push({x:px,y:py,d:inf.d,c:inf.c});if(T<0.02)break;}return{pts:pts,c:[clamp(cr,0,255),clamp(cg,0,255),clamp(cb,0,255)]};}
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lscene=svgEl(svg,'g',{}),Lrays=svgEl(svg,'g',{}),Lpts=svgEl(svg,'g',{}),Lcam=svgEl(svg,'g',{}),Lmlp=svgEl(svg,'g',{}),Lout=svgEl(svg,'g',{});
+  txt(Lbg,20,24,'INPUT VIEWS + POSES',{fill:C.faint});
+  txt(Lbg,sceneX,40,'SCENE VOLUME  ·  NeRF',{fill:C.faint});
+  txt(Lbg,546,40,'MLP  γ(x)→256→256→4',{fill:C.faint});
+  txt(Lbg,outX,40,'RENDERED',{fill:C.faint});
+  var views=[{x:20,y:46,c:P.rose},{x:20,y:140,c:P.cyan},{x:20,y:234,c:P.emerald}];
+  views.forEach(function(v,i){svgEl(Lbg,'rect',{x:v.x,y:v.y,width:120,height:74,rx:6,fill:C.surface2,stroke:C.border});for(var k=0;k<6;k++)svgEl(Lbg,'circle',{cx:v.x+14+k*18,cy:v.y+37,r:7,fill:rgba(v.c,0.14+0.06*k)});svgEl(Lbg,'rect',{x:v.x,y:v.y,width:120,height:74,rx:6,fill:'none',stroke:C.borderStrong});svgEl(Lbg,'path',{d:'M'+(v.x+8)+' '+(v.y+82)+' L'+(v.x+112)+' '+(v.y+82),stroke:rgba(v.c,0.6),'stroke-width':1.2,fill:'none'});});
+  svgEl(Lbg,'path',{d:'M150 90 Q175 80 198 120',stroke:rgba(P.faint,0.5),'stroke-width':1,fill:'none'});
+  svgEl(Lbg,'path',{d:'M150 178 L198 190',stroke:rgba(P.faint,0.5),'stroke-width':1,fill:'none'});
+  svgEl(Lbg,'path',{d:'M150 270 Q175 278 198 250',stroke:rgba(P.faint,0.5),'stroke-width':1,fill:'none'});
+  svgEl(Lbg,'rect',{x:sceneX,y:sceneY,width:sceneW,height:sceneH,rx:8,fill:'none',stroke:C.borderStrong,'stroke-dasharray':'5 5'});
+  svgEl(Lcam,'path',{d:'M'+(camX-8)+' '+(camY-11)+' L'+(camX-8)+' '+(camY+11)+' L'+(camX+11)+' '+(camY+15)+' L'+(camX+11)+' '+(camY-15)+' Z',fill:C.surface3,stroke:C.muted});
+  svgEl(Lcam,'circle',{cx:camX+2,cy:camY,r:5,fill:'none',stroke:rgba(P.rose,0.9),'stroke-width':1.4});
+  txt(Lcam,camX-14,camY+34,'camera',{fill:C.faint,'font-size':10});
+  var mlpX=552,inLabels=['x','y','z','θ','φ'];
+  for(var i=0;i<5;i++){var yy=120+i*30;svgEl(Lmlp,'circle',{cx:mlpX,cy:yy,r:6,fill:C.surface3,stroke:rgba(P.cyan,0.8)});txt(Lmlp,mlpX-22,yy+4,inLabels[i],{fill:C.faint,'font-size':10});}
+  var hl=[612,648];
+  for(var h=0;h<hl.length;h++){var hx=hl[h];for(var j=0;j<5;j++){var yy2=120+j*30;svgEl(Lmlp,'circle',{cx:hx,cy:yy2,r:4,fill:rgba(P.accent2,0.5)});var px2=hl[h-1]||mlpX;for(var i2=0;i2<5;i2++){if((i2+j+h)%2===0)svgEl(Lmlp,'line',{x1:px2,y1:120+i2*30,x2:hx,y2:yy2,stroke:rgba(P.faint,0.13),'stroke-width':0.6});}}}
+  svgEl(Lmlp,'circle',{cx:694,cy:138,r:6,fill:rgba(P.amber,0.85)});txt(Lmlp,706,142,'σ',{fill:C.faint,'font-size':10});
+  svgEl(Lmlp,'circle',{cx:694,cy:184,r:6,fill:rgba(P.rose,0.85)});txt(Lmlp,706,188,'rgb',{fill:C.faint,'font-size':10});
+  for(var i3=0;i3<5;i3++){var yy3=120+i3*30;svgEl(Lmlp,'line',{x1:hl[1],y1:yy3,x2:694,y2:138,stroke:rgba(P.faint,0.16),'stroke-width':0.6});svgEl(Lmlp,'line',{x1:hl[1],y1:yy3,x2:694,y2:184,stroke:rgba(P.faint,0.12),'stroke-width':0.6});}
+  svgEl(Lbg,'rect',{x:outX,y:outY,width:outW,height:outH,rx:4,fill:'#0a0b0d',stroke:C.borderStrong});
+  function draw(){
+    var rb=rotBlobs(state.angle);
+    clearSvg(Lscene);clearSvg(Lrays);clearSvg(Lpts);clearSvg(Lout);
+    rb.forEach(function(b){svgEl(Lscene,'circle',{cx:b.x,cy:b.y,r:b.r,fill:rgba(b.c,0.13)});svgEl(Lscene,'circle',{cx:b.x,cy:b.y,r:b.r*0.6,fill:rgba(b.c,0.2)});svgEl(Lscene,'circle',{cx:b.x,cy:b.y,r:b.r*0.32,fill:rgba(b.c,0.38)});});
+    var castCount=state.running?Math.max(1,Math.floor(state.phase*state.rays)):state.rays;
+    for(var r=0;r<state.rays;r++){
+      var yFrac=(r+0.5)/state.rays;
+      var farY=sceneY+yFrac*sceneH,farX=sceneX+sceneW+12;
+      if(r<castCount){
+        svgEl(Lrays,'line',{x1:camX+11,y1:camY,x2:farX,y2:farY,stroke:rgba(P.rose,0.22),'stroke-width':0.8});
+        var res=renderRay(rb,yFrac);
+        res.pts.forEach(function(pt){var op=clamp(pt.d*0.95,0.08,0.95);svgEl(Lpts,'circle',{cx:pt.x,cy:pt.y,r:2.3,fill:rgba(pt.c,op)});});
+        var bandH=outH/state.rays;
+        svgEl(Lout,'rect',{x:outX,y:outY+r*bandH,width:outW,height:bandH+0.7,fill:rgba(res.c,1)});
+      }else{
+        svgEl(Lrays,'line',{x1:camX+11,y1:camY,x2:farX,y2:farY,stroke:rgba(P.faint,0.1),'stroke-width':0.6,'stroke-dasharray':'2 4'});
+      }
+    }
+    if(state.running){var cur=clamp(state.phase*state.rays,0,state.rays);var ci=Math.floor(cur);if(ci<state.rays){var yF=(ci+0.5)/state.rays,fy=sceneY+yF*sceneH,fx=sceneX+sceneW+12;svgEl(Lrays,'line',{x1:camX+11,y1:camY,x2:fx,y2:fy,stroke:rgba(P.rose,0.95),'stroke-width':1.7});}}
+  }
+  function loop(){if(!state.running)return;state.phase+=0.013;if(state.phase>=1)state.phase=0;draw();state.raf=requestAnimationFrame(loop);}
+  function setStatsF(){
+    var psnr=clamp(24+state.samples*0.16,20,36);
+    var rt=state.samples*state.rays*0.018+4;
+    setStats(document.getElementById('stats01'),[
+      {label:'PSNR',val:fmt(psnr,1)+' dB',color:'#fb7185'},
+      {label:'参数量',val:'1.24M',color:'#7c5cff'},
+      {label:'渲染耗时',val:fmt(rt,1)+' ms',color:'#2dd4ff'},
+      {label:'射线数',val:''+state.rays,color:'#34d399'}
+    ]);
+  }
+  document.getElementById('ctrl01a').appendChild(makeSlider('采样点',8,64,1,32,'',function(v){state.samples=v;draw();setStatsF();}));
+  document.getElementById('ctrl01b').appendChild(makeSlider('射线密度',2,12,1,6,'',function(v){state.rays=v;draw();setStatsF();}));
+  document.getElementById('ctrl01c').appendChild(makeSlider('视角',0,360,1,30,'°',function(v){state.angle=v;draw();}));
+  document.getElementById('btn01').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn01b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.samples=32;state.rays=6;state.angle=30;state.phase=0;draw();setStatsF();};
+  setLegend(document.getElementById('legend01'),[{label:'密度场',color:'#fb7185'},{label:'采样点',color:'#2dd4ff'},{label:'体渲染像素',color:'#34d399'},{label:'相机射线',color:'#7c5cff'}]);
+  document.getElementById('detail01').innerHTML='<span class="dt-label">C(r)</span> NeRF 用 <strong>5D 坐标 (x,y,z,θ,φ)</strong> 查询 MLP 得到 <strong>σ (密度)</strong> 与 <strong>c (颜色)</strong>，沿射线做 α 合成：<strong>C=Σ T·(1−e<sup>−σδ</sup>)·c</strong>，T 累乘衰减。采样点越多积分越精确，PSNR 越高。';
+  draw();setStatsF();
+}
+
+/* ===== MODULE 2: Gaussian Splatting ===== */
+function initM02(){
+  var box=document.getElementById('viz02');
+  var W=860,H=380;
+  var state={count:60,size:1,angle:35,running:false,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),L3d=svgEl(svg,'g',{}),Lproj=svgEl(svg,'g',{}),Limg=svgEl(svg,'g',{}),Lcam=svgEl(svg,'g',{});
+  var vpX=40,vpY=50,vpW=300,vpH=290;
+  var imgX=560,imgY=50,imgW=260,imgH=290;
+  var cenX=vpX+vpW/2,cenY=vpY+vpH/2,sc=78;
+  var camX=425,camY=195;
+  var cols5=[P.rose,P.accent2,P.cyan,P.emerald,P.amber];
+  var gauss=[];
+  function gen(){gauss=[];for(var i=0;i<state.count;i++){gauss.push({x:(Math.random()-0.5)*1.7,y:(Math.random()-0.5)*1.7,z:(Math.random()-0.5)*1.7,sx:0.1+Math.random()*0.09,op:0.45+Math.random()*0.4,c:cols5[i%5]});}}
+  gen();
+  txt(Lbg,40,30,'3D GAUSSIAN CLOUD',{fill:C.faint});
+  txt(Lbg,imgX,30,'2D SPLAT IMAGE',{fill:C.faint});
+  svgEl(Lbg,'rect',{x:vpX,y:vpY,width:vpW,height:vpH,rx:8,fill:'none',stroke:C.border,'stroke-dasharray':'5 5'});
+  svgEl(Lbg,'rect',{x:imgX,y:imgY,width:imgW,height:imgH,rx:8,fill:'#0a0b0d',stroke:C.borderStrong});
+  svgEl(Lbg,'line',{x1:vpX+vpW/2,y1:vpY,x2:vpX+vpW/2,y2:vpY+vpH,stroke:C.border,'stroke-width':0.5});
+  svgEl(Lbg,'line',{x1:vpX,y1:vpY+vpH/2,x2:vpX+vpW,y2:vpY+vpH/2,stroke:C.border,'stroke-width':0.5});
+  svgEl(Lcam,'path',{d:'M'+(camX-10)+' '+(camY-12)+' L'+(camX-10)+' '+(camY+12)+' L'+(camX+9)+' '+(camY+16)+' L'+(camX+9)+' '+(camY-16)+' Z',fill:C.surface3,stroke:C.muted});
+  svgEl(Lcam,'circle',{cx:camX,cy:camY,r:5,fill:'none',stroke:rgba(P.rose,0.9)});
+  txt(Lcam,camX-16,camY+34,'view',{fill:C.faint,'font-size':10});
+  function project(g,ang){var r=ang*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r);return{x:g.x*cs-g.z*sn,y:g.y,z:g.x*sn+g.z*cs};}
+  function draw(){
+    clearSvg(L3d);clearSvg(Lproj);clearSvg(Limg);
+    var proj=[];
+    gauss.forEach(function(g){var p=project(g,state.angle);var sx=cenX+p.x*sc,sy=cenY-p.y*sc;var sz=Math.max(4,state.size*(g.sx*sc)*(1+p.z*0.35));proj.push({sx:sx,sy:sy,sz:sz,depth:p.z,op:g.op,c:g.c});});
+    proj.sort(function(a,b){return a.depth-b.depth;});
+    proj.forEach(function(p){svgEl(L3d,'ellipse',{cx:p.sx,cy:p.sy,rx:p.sz,ry:p.sz*0.72,fill:rgba(p.c,0.1),stroke:rgba(p.c,0.5),'stroke-width':0.7});});
+    var nLines=state.running?8:4;
+    for(var i=0;i<nLines;i++){var idx=Math.floor(i*gauss.length/Math.max(1,nLines));if(proj[idx]){var p=proj[idx];svgEl(Lproj,'line',{x1:p.sx,y1:p.sy,x2:camX-9,y2:camY,stroke:rgba(P.rose,0.16),'stroke-width':0.5});svgEl(Lproj,'line',{x1:camX+9,y1:camY,x2:imgX,y2:p.sy,stroke:rgba(P.cyan,0.16),'stroke-width':0.5});}}
+    var imgCx=imgX+imgW/2,imgCy=imgY+imgH/2,sx2=(imgW/vpW)*0.92,sy2=(imgH/vpH)*0.92;
+    proj.forEach(function(p){var ix=imgCx+(p.sx-cenX)*sx2,iy=imgCy+(p.sy-cenY)*sy2;var r=p.sz*(imgW/vpW)*1.15;svgEl(Limg,'ellipse',{cx:ix,cy:iy,rx:r,ry:r*0.82,fill:rgba(p.c,clamp(p.op*0.5,0.05,0.55))});});
+  }
+  function loop(){if(!state.running)return;state.angle=(state.angle+1.3)%360;draw();state.raf=requestAnimationFrame(loop);}
+  function setStatsF(){
+    var fps=clamp(160-state.count*0.7+state.size*8,28,160);
+    var train=clamp(state.count*0.55+2,2,80);
+    setStats(document.getElementById('stats02'),[
+      {label:'高斯数',val:state.count+'k',color:'#fb7185'},
+      {label:'FPS',val:fmt(fps,0),color:'#7c5cff'},
+      {label:'训练时间',val:fmt(train,1)+' min',color:'#2dd4ff'},
+      {label:'显存',val:fmt(state.count*8.2,0)+' MB',color:'#34d399'}
+    ]);
+  }
+  document.getElementById('ctrl02a').appendChild(makeSlider('高斯数',20,120,1,60,'k',function(v){state.count=v;gen();draw();setStatsF();}));
+  document.getElementById('ctrl02b').appendChild(makeSlider('泼溅大小',0.5,2,0.1,1,'x',function(v){state.size=v;draw();}));
+  document.getElementById('ctrl02c').appendChild(makeSlider('视角',0,360,1,35,'°',function(v){state.angle=v;draw();}));
+  document.getElementById('btn02').onclick=function(){state.running=!state.running;if(state.running)loop();else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn02b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.count=60;state.size=1;state.angle=35;gen();draw();setStatsF();};
+  setLegend(document.getElementById('legend02'),[{label:'3D 高斯椭球',color:'#fb7185'},{label:'投影射线',color:'#2dd4ff'},{label:'泼溅像素',color:'#34d399'}]);
+  document.getElementById('detail02').innerHTML='<span class="dt-label">G(x)</span> 每个高斯由 <strong>均值 μ、协方差 Σ、不透明度 α、球谐颜色 SH</strong> 描述。可微光栅化把 3D 高斯 <strong>投影到 2D</strong>，按深度排序后 α 混合叠加得到图像，支持实时渲染与梯度反传。';
+  draw();setStatsF();
+}
+
+/* ===== MODULE 3: PointNet / PointNet++ ===== */
+function initM03(){
+  var box=document.getElementById('viz03');
+  var W=860,H=380;
+  var state={count:128,model:'pnet',running:false,phase:0,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lpc=svgEl(svg,'g',{}),Lfeat=svgEl(svg,'g',{}),Lpool=svgEl(svg,'g',{}),Lglob=svgEl(svg,'g',{}),Lcls=svgEl(svg,'g',{});
+  var pcX=24,pcY=46,pcW=232,pcH=300;
+  var featX=280,featY=46,featW=128,featH=300;
+  var poolX=420;
+  var globX=470,globY=46,globW=110,globH=300;
+  var clsX=620;
+  var pcCx=pcX+pcW/2,pcCy=pcY+pcH/2,pcSc=72;
+  var classCols=[P.rose,P.cyan,P.emerald];
+  var classNames=['plane','car','chair'];
+  var pts=[];
+  function gen(){pts=[];for(var i=0;i<state.count;i++){var cls=i%3;var cx=[-0.55,0.25,0.6][cls],cy=[-0.35,0.45,-0.25][cls],cz=[0.25,-0.45,0.5][cls];pts.push({x:cx+(Math.random()-0.5)*0.55,y:cy+(Math.random()-0.5)*0.55,z:cz+(Math.random()-0.5)*0.55,c:classCols[cls],cls:cls});}}
+  gen();
+  svgEl(Lbg,'rect',{x:pcX,y:pcY,width:pcW,height:pcH,rx:8,fill:'none',stroke:C.border,'stroke-dasharray':'5 5'});
+  svgEl(Lbg,'rect',{x:featX,y:featY,width:featW,height:featH,rx:8,fill:'none',stroke:C.border});
+  svgEl(Lbg,'rect',{x:globX,y:globY,width:globW,height:globH,rx:8,fill:'none',stroke:C.border});
+  txt(Lbg,pcX,36,'POINT CLOUD',{fill:C.faint});
+  txt(Lbg,featX,36,'PER-POINT MLP',{fill:C.faint});
+  txt(Lbg,poolX-8,36,'MAX POOL',{fill:C.faint});
+  txt(Lbg,globX,36,'GLOBAL FEATURE',{fill:C.faint});
+  txt(Lbg,clsX,36,'CLASSIFY',{fill:C.faint});
+  var featBars=16,rows=12;
+  function featVal(p,k){return Math.abs(Math.sin(p.x*4+k*0.7)+p.cls*0.8+Math.cos(p.z*3))*0.5+0.1;}
+  function draw(){
+    clearSvg(Lpc);clearSvg(Lfeat);clearSvg(Lpool);clearSvg(Lglob);clearSvg(Lcls);
+    var ang=state.running?(25+state.phase*70):25;
+    var r=ang*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r);
+    var projPts=[];
+    pts.forEach(function(p){var x=p.x*cs-p.z*sn,z=p.x*sn+p.z*cs;projPts.push({x:pcCx+x*pcSc,y:pcCy-p.y*pcSc,z:z,c:p.c,cls:p.cls});});
+    projPts.sort(function(a,b){return a.z-b.z;});
+    projPts.forEach(function(p){svgEl(Lpc,'circle',{cx:p.x,cy:p.y,r:2.4,fill:rgba(p.c,0.85)});});
+    if(state.model==='pnetpp'){for(var s=0;s<6;s++){var idx=Math.floor(s*projPts.length/6);var c=projPts[idx];if(c)svgEl(Lpc,'circle',{cx:c.x,cy:c.y,r:24,fill:'none',stroke:rgba(P.amber,0.5),'stroke-dasharray':'3 3'});}txt(Lpc,pcX+8,pcY+pcH-10,'PointNet++ · 分层 Set Abstraction',{fill:rgba(P.amber,0.8),'font-size':10});}else{txt(Lpc,pcX+8,pcY+pcH-10,'PointNet · 共享 MLP + max',{fill:rgba(P.cyan,0.8),'font-size':10});}
+    var matX=featX+6,matY=featY+10,cellW=(featW-12)/featBars,cellH=(featH-20)/rows;
+    var selPts=pts.slice(0,rows);
+    var globMax=new Array(featBars).fill(0);
+    var filled=state.running?Math.floor(state.phase*rows)+1:rows;
+    for(var i=0;i<rows;i++){var p=selPts[i%selPts.length];for(var k=0;k<featBars;k++){var mag=featVal(p,k);if(i<filled)svgEl(Lfeat,'rect',{x:matX+k*cellW,y:matY+i*cellH,width:cellW-0.6,height:cellH-0.6,fill:rgba(p.c,clamp(mag,0.06,0.95))});if(mag>globMax[k]&&i<filled)globMax[k]=mag;}}
+    svgEl(Lpool,'path',{d:'M'+(featX+featW+4)+' '+(featY+featH/2)+' L'+(globX-4)+' '+(globY+globH/2),stroke:rgba(P.rose,0.5),'stroke-width':1.4,fill:'none'});
+    txt(Lpool,poolX-12,featY+featH/2-8,'max',{fill:rgba(P.rose,0.9),'font-size':10});
+    var gbX=globX+6,gbW=(globW-12)/featBars,gbBase=globY+globH-12,gbH=globH-24;
+    for(var k=0;k<featBars;k++){var h=clamp(globMax[k],0.05,1)*gbH;var fc=globMax[k]>0.55?P.rose:(globMax[k]>0.3?P.amber:P.faint);svgEl(Lglob,'rect',{x:gbX+k*gbW,y:gbBase-h,width:gbW-1.4,height:h,fill:rgba(fc,0.85)});}
+    var scores=[0,0,0];for(var i2=0;i2<rows;i2++){scores[selPts[i2%selPts.length].cls]++;}var sum=scores[0]+scores[1]+scores[2];var best=0;for(var i3=1;i3<3;i3++)if(scores[i3]>scores[best])best=i3;
+    for(var i4=0;i4<3;i4++){var prob=scores[i4]/sum;var bw=92*prob;var yy=clsY?0:0;var py=90+i4*44;svgEl(Lcls,'rect',{x:clsX,y:py,width:96,height:26,rx:5,fill:C.surface3,stroke:C.border});svgEl(Lcls,'rect',{x:clsX,y:py,width:bw,height:26,rx:5,fill:rgba(classCols[i4],i4===best?0.9:0.3)});txt(Lcls,clsX+6,py+17,classNames[i4]+' '+fmt(prob*100,0)+'%',{fill:i4===best?C.ink:C.muted,'font-size':11});}
+    txt(Lcls,clsX,86,'softmax',{fill:C.faint,'font-size':10});
+  }
+  function loop(){if(!state.running)return;state.phase+=0.012;if(state.phase>=1)state.phase=0;draw();state.raf=requestAnimationFrame(loop);}
+  function setStatsF(){
+    var params=state.model==='pnet'?3.5:1.48;
+    var acc=state.model==='pnet'?89.2:92.5+(state.count-128)*0.004;
+    setStats(document.getElementById('stats03'),[
+      {label:'参数量',val:fmt(params,2)+'M',color:'#fb7185'},
+      {label:'分类精度',val:fmt(acc,1)+'%',color:'#7c5cff'},
+      {label:'点数',val:''+state.count,color:'#2dd4ff'},
+      {label:'模型',val:state.model==='pnet'?'PointNet':'PointNet++',color:'#34d399'}
+    ]);
+  }
+  document.getElementById('ctrl03a').appendChild(makeSlider('点数',64,512,1,128,'',function(v){state.count=v;gen();draw();setStatsF();}));
+  btnGroup(document.getElementById('ctrl03b'),['PointNet','PointNet++'],0,function(i){state.model=i===0?'pnet':'pnetpp';draw();setStatsF();});
+  document.getElementById('btn03').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn03b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.count=128;state.model='pnet';state.phase=0;gen();draw();setStatsF();};
+  setLegend(document.getElementById('legend03'),[{label:'点 (plane)',color:'#fb7185'},{label:'点 (car)',color:'#2dd4ff'},{label:'点 (chair)',color:'#34d399'},{label:'最大池化',color:'#fbbf24'}]);
+  document.getElementById('detail03').innerHTML='<span class="dt-label">max</span> PointNet 用 <strong>共享 MLP</strong> 逐点提特征，再用 <strong>对称 max 池化</strong> 得到与顺序无关的全局向量。PointNet++ 通过 <strong>Set Abstraction</strong> 分层采样、分组、抽象，捕获局部几何结构。';
+  draw();setStatsF();
+}
+
+/* ===== MODULE 4: 3D Reconstruction Pipeline ===== */
+function initM04(){
+  var box=document.getElementById('viz04');
+  var W=860,H=380;
+  var state={views:5,method:'colmap',running:false,phase:0,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lstg=svgEl(svg,'g',{}),Lbar=svgEl(svg,'g',{});
+  var stages=['Multi-view','SfM 稀疏','MVS 稠密','Mesh 网格','Texture 贴图'];
+  var stageW=150,gap=14,startX=20,startY=44;
+  txt(Lbg,20,26,'3D RECONSTRUCTION PIPELINE',{fill:C.faint});
+  for(var i=0;i<5;i++){var x=startX+i*(stageW+gap);svgEl(Lbg,'rect',{x:x,y:startY,width:stageW,height:246,rx:8,fill:'none',stroke:C.border});svgEl(Lbg,'rect',{x:x,y:startY,width:stageW,height:22,rx:8,fill:C.surface3});txt(Lbg,x+8,startY+15,stages[i],{fill:C.ink,'font-size':11});}
+  for(var i2=0;i2<4;i2++){var ax=startX+(i2+1)*stageW+i2*gap+gap/2;svgEl(Lbg,'path',{d:'M'+(ax-gap/2-2)+' '+(startY+123)+' L'+(ax+gap/2+2)+' '+(startY+123),stroke:C.faint,'stroke-width':1,fill:'none'});svgEl(Lbg,'path',{d:'M'+(ax+gap/2+2)+' '+(startY+123)+' l-4 -3 l0 6 Z',fill:C.faint});}
+  var sparse=[],dense=[],gridPts=[],tris=[];
+  function genSets(){
+    sparse=[];for(var i=0;i<55;i++){var a=Math.random()*Math.PI*2,r=0.1+Math.random()*0.62;sparse.push({u:0.5+Math.cos(a)*r,v:0.5+Math.sin(a)*r*0.85});}
+    dense=[];for(var i=0;i<260;i++){var a=Math.random()*Math.PI*2,r=Math.sqrt(Math.random())*0.66;dense.push({u:0.5+Math.cos(a)*r,v:0.5+Math.sin(a)*r*0.85});}
+    gridPts=[];for(var gy=0;gy<8;gy++)for(var gx=0;gx<8;gx++){var u=gx/7,v=gy/7;var du=u-0.5,dv=v-0.5;if(du*du+dv*dv*1.2<0.16)gridPts.push({u:u,v:v,gx:gx,gy:gy});}
+    tris=[];for(var gy=0;gy<7;gy++)for(var gx=0;gx<7;gx++){var p00=gp(gx,gy),p10=gp(gx+1,gy),p01=gp(gx,gy+1),p11=gp(gx+1,gy+1);if(p00&&p10&&p01)tris.push({a:p00,b:p10,c:p01});if(p11&&p10&&p01)tris.push({a:p10,b:p11,c:p01});}
+  }
+  function gp(gx,gy){for(var i=0;i<gridPts.length;i++){var p=gridPts[i];if(p.gx===gx&&p.gy===gy)return p;}return null;}
+  genSets();
+  function sxy(x,off){var inX=startX+x*(stageW+gap);return{box_x:inX+12,box_y:startY+30,box_w:stageW-24,box_h:198,cx:inX+stageW/2};}
+  function draw(){
+    clearSvg(Lstg);clearSvg(Lbar);
+    var cur=state.running?state.phase*5:5;
+    for(var s=0;s<5;s++){
+      var info=sxy(s);var alpha=s<cur?1:0.22;
+      if(state.running&&s===Math.floor(cur))svgEl(Lstg,'rect',{x:startX+s*(stageW+gap),y:startY,width:stageW,height:246,rx:8,fill:'none',stroke:rgba(P.rose,0.6),'stroke-width':1.5});
+      var bx=info.box_x,by=info.box_y,bw=info.box_w,bh=info.box_h,cx=info.cx;
+      if(s===0){
+        var nv=Math.min(state.views,4);
+        for(var v=0;v<nv;v++){var ty=by+6+v*46;svgEl(Lstg,'rect',{x:bx,y:ty,width:bw,height:38,rx:4,fill:C.surface3,stroke:C.border,opacity:alpha});for(var d=0;d<4;d++)svgEl(Lstg,'circle',{cx:bx+10+d*16,cy:ty+19,r:3,fill:rgba(classColsForM04?classColsForM04[v%3]:P.rose,0.5*alpha)});}
+        if(state.views>4)txt(Lstg,bx,by+6+nv*46+14,'+'+(state.views-4)+' views',{fill:C.faint,'font-size':10,opacity:alpha});
+      }else if(s===1){
+        sparse.forEach(function(p){svgEl(Lstg,'circle',{cx:bx+p.u*bw,cy:by+p.v*bh,r:1.7,fill:rgba(P.rose,0.85*alpha)});});
+        for(var c=0;c<3;c++){var fx=bx+ (c*0.4+0.1)*bw,fy=by+bh-10;svgEl(Lstg,'path',{d:'M'+fx+' '+fy+' l-8 14 l16 0 Z',fill:'none',stroke:rgba(P.cyan,0.7*alpha),'stroke-width':1});}
+      }else if(s===2){
+        dense.forEach(function(p){svgEl(Lstg,'circle',{cx:bx+p.u*bw,cy:by+p.v*bh,r:1.1,fill:rgba(P.emerald,0.7*alpha)});});
+      }else if(s===3){
+        tris.forEach(function(t){svgEl(Lstg,'line',{x1:bx+t.a.u*bw,y1:by+t.a.v*bh,x2:bx+t.b.u*bw,y2:by+t.b.v*bh,stroke:rgba(P.cyan,0.6*alpha),'stroke-width':0.7});svgEl(Lstg,'line',{x1:bx+t.b.u*bw,y1:by+t.b.v*bh,x2:bx+t.c.u*bw,y2:by+t.c.v*bh,stroke:rgba(P.cyan,0.6*alpha),'stroke-width':0.7});});
+      }else if(s===4){
+        tris.forEach(function(t){var col=[P.rose,P.amber,P.emerald,P.cyan][((t.a.gx+t.a.gy))%4];svgEl(Lstg,'polygon',{points:(bx+t.a.u*bw)+','+(by+t.a.v*bh)+' '+(bx+t.b.u*bw)+','+(by+t.b.v*bh)+' '+(bx+t.c.u*bw)+','+(by+t.c.v*bh),fill:rgba(col,0.75*alpha),stroke:rgba([20,22,26],0.5*alpha),'stroke-width':0.4});});
+      }
+    }
+    var prog=state.running?state.phase:1;
+    svgEl(Lbar,'rect',{x:startX,y:startY+258,width:5*stageW+4*gap,height:8,rx:4,fill:C.surface3});
+    svgEl(Lbar,'rect',{x:startX,y:startY+258,width:(5*stageW+4*gap)*clamp(prog,0,1),height:8,rx:4,fill:rgba(P.rose,0.85)});
+    txt(Lbar,startX,startY+282,'进度 '+fmt(prog*100,0)+'%',{fill:C.faint,'font-size':10});
+  }
+  var classColsForM04=[P.rose,P.cyan,P.emerald];
+  function loop(){if(!state.running)return;state.phase+=0.008;if(state.phase>=1)state.phase=0;draw();state.raf=requestAnimationFrame(loop);}
+  function setStatsF(){
+    var ptsR=state.method==='colmap'?(state.views*1200): (state.views*800);
+    var mq=state.method==='colmap'?'高':'中';
+    var tm=state.method==='colmap'?(state.views*6+24):(state.views*4+12);
+    setStats(document.getElementById('stats04'),[
+      {label:'重建点',val:ptsR.toLocaleString()+' pts',color:'#fb7185'},
+      {label:'网格质量',val:mq,color:'#7c5cff'},
+      {label:'耗时',val:tm+' min',color:'#2dd4ff'},
+      {label:'视图数',val:''+state.views,color:'#34d399'}
+    ]);
+  }
+  document.getElementById('ctrl04a').appendChild(makeSlider('视图数',3,8,1,5,'',function(v){state.views=v;draw();setStatsF();}));
+  btnGroup(document.getElementById('ctrl04b'),['COLMAP','OpenMVS'],0,function(i){state.method=i===0?'colmap':'openmvs';setStatsF();});
+  document.getElementById('btn04').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn04b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.views=5;state.method='colmap';state.phase=0;draw();setStatsF();};
+  setLegend(document.getElementById('legend04'),[{label:'稀疏点',color:'#fb7185'},{label:'稠密点',color:'#34d399'},{label:'网格线',color:'#2dd4ff'},{label:'相机',color:'#7c5cff'}]);
+  document.getElementById('detail04').innerHTML='<span class="dt-label">SfM+MVS</span> 先用 <strong>SfM</strong> 从特征匹配估计相机位姿与稀疏点云，再用 <strong>MVS</strong> 生成稠密点云，最后 <strong>泊松/Delaunay 重建网格</strong> 并贴图。视图越多、匹配越稳，重建越精确。';
+  draw();setStatsF();
+}
+
+/* ===== MODULE 5: Voxel & Octree ===== */
+function initM05(){
+  var box=document.getElementById('viz05');
+  var W=860,H=380;
+  var state={res:16,sparsity:0.5,running:false,phase:0,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lvox=svgEl(svg,'g',{}),Loct=svgEl(svg,'g',{});
+  var sq=210,gap=70,sx=70,sy=70;
+  txt(Lbg,sx,40,'DENSE VOXELS',{fill:C.faint});
+  txt(Lbg,sx+sq+gap,40,'SPARSE OCTREE',{fill:C.faint});
+  svgEl(Lbg,'rect',{x:sx,y:sy,width:sq,height:sq,rx:6,fill:'none',stroke:C.borderStrong});
+  svgEl(Lbg,'rect',{x:sx+sq+gap,y:sy,width:sq,height:sq,rx:6,fill:'none',stroke:C.borderStrong});
+  txt(Lbg,sx,sy+sq+22,'全部填充 · 内存 ∝ res³',{fill:C.faint,'font-size':10});
+  txt(Lbg,sx+sq+gap,sy+sq+22,'自适应细分 · 仅占用区域',{fill:C.faint,'font-size':10});
+  function sceneHit(u,v){
+    var cx=0.4,cy=0.5,r=0.13+0.16*(1-state.sparsity);
+    if((u-cx)*(u-cx)+(v-cy)*(v-cy)<r*r)return 1;
+    var cx2=0.64,cy2=0.42,r2=0.08+0.1*(1-state.sparsity);
+    if((u-cx2)*(u-cx2)+(v-cy2)*(v-cy2)<r2*r2)return 1;
+    return 0;
+  }
+  function buildOct(maxDepth){
+    var leaves=[];
+    function sub(u,v,size,depth){
+      var hitAny=false,allHit=true,st=3;
+      for(var i=0;i<=st;i++)for(var j=0;j<=st;j++){if(sceneHit(u+i/st*size,v+j/st*size))hitAny=true;else allHit=false;}
+      if(hitAny&&!allHit&&depth<maxDepth&&size>0.05){sub(u,v,size/2,depth+1);sub(u+size/2,v,size/2,depth+1);sub(u,v+size/2,size/2,depth+1);sub(u+size/2,v+size/2,size/2,depth+1);}
+      else leaves.push({u:u,v:v,size:size,occ:hitAny,depth:depth});
+    }
+    sub(0,0,1,0);return leaves;
+  }
+  function draw(){
+    clearSvg(Lvox);clearSvg(Loct);
+    var res=state.res,cell=sq/res,denseOcc=0;
+    for(var i=0;i<res;i++)for(var j=0;j<res;j++){var h=sceneHit((i+0.5)/res,(j+0.5)/res);if(h){denseOcc++;svgEl(Lvox,'rect',{x:sx+i*cell,y:sy+j*cell,width:cell-0.4,height:cell-0.4,fill:rgba(P.rose,0.5)});}else{svgEl(Lvox,'rect',{x:sx+i*cell,y:sy+j*cell,width:cell-0.4,height:cell-0.4,fill:rgba(P.faint,0.05)});}}
+    var maxDepth=Math.max(2,Math.round(Math.log(res)/Math.log(2)));
+    var leaves=buildOct(maxDepth);
+    var occOct=0;
+    var animMaxDepth=state.running?Math.max(1,Math.floor(state.phase*(maxDepth+1))):maxDepth;
+    leaves.forEach(function(l){if(l.occ)occOct++;if(l.depth<=animMaxDepth){var bx=sx+sq+gap+l.u*sq,by=sy+l.v*sq,bs=l.size*sq;if(l.occ)svgEl(Loct,'rect',{x:bx,y:by,width:bs-0.5,height:bs-0.5,fill:rgba(P.emerald,0.55),stroke:rgba(P.emerald,0.3),'stroke-width':0.3});else svgEl(Loct,'rect',{x:bx,y:by,width:bs-0.5,height:bs-0.5,fill:'none',stroke:rgba(P.faint,0.12),'stroke-width':0.4});}});
+    setStatsF(denseOcc,occOct,res);
+  }
+  function setStatsF(denseOcc,occOct,res){
+    var denseMem=Math.pow(res,3);
+    var octMem=occOct*7;
+    setStats(document.getElementById('stats05'),[
+      {label:'稠密内存',val:denseMem.toLocaleString()+' vox',color:'#fb7185'},
+      {label:'八叉树内存',val:octMem.toLocaleString()+' vox',color:'#34d399'},
+      {label:'分辨率',val:res+'³',color:'#2dd4ff'},
+      {label:'占用叶',val:occOct+' leaves',color:'#7c5cff'}
+    ]);
+  }
+  function loop(){if(!state.running)return;state.phase+=0.02;if(state.phase>=1)state.phase=0;draw();state.raf=requestAnimationFrame(loop);}
+  document.getElementById('ctrl05a').appendChild(makeSlider('分辨率',4,32,4,16,'',function(v){state.res=v;draw();}));
+  document.getElementById('ctrl05b').appendChild(makeSlider('稀疏度',0,1,0.05,0.5,'',function(v){state.sparsity=v;draw();}));
+  document.getElementById('btn05').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn05b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.res=16;state.sparsity=0.5;state.phase=0;draw();};
+  setLegend(document.getElementById('legend05'),[{label:'稠密占用',color:'#fb7185'},{label:'八叉树叶',color:'#34d399'},{label:'空区域',color:'#62666d'}]);
+  document.getElementById('detail05').innerHTML='<span class="dt-label">mem</span> 稠密体素对整个空间均匀采样，内存 <strong>O(res³)</strong>。八叉树只在含物体的区域递归细分，空区域保持大节点，内存仅与 <strong>占用区域</strong> 相关，实现自适应分辨率。';
+  draw();
+}
+
+/* ===== MODULE 6: Epipolar Geometry ===== */
+function initM06(){
+  var box=document.getElementById('viz06');
+  var W=860,H=380;
+  var state={baseline:1,focal:400,running:false,phase:0,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Ltop=svgEl(svg,'g',{}),Limg=svgEl(svg,'g',{}),Lmatch=svgEl(svg,'g',{});
+  var lR={x:40,y:222,w:340,h:130};
+  var rR={x:480,y:222,w:340,h:130};
+  txt(Lbg,40,30,'TOP-DOWN · TRIANGULATION',{fill:C.faint});
+  txt(Lbg,lR.x,212,'LEFT IMAGE',{fill:C.faint,'font-size':10});
+  txt(Lbg,rR.x,212,'RIGHT IMAGE',{fill:C.faint,'font-size':10});
+  svgEl(Lbg,'rect',{x:lR.x,y:lR.y,width:lR.w,height:lR.h,rx:6,fill:'#0a0b0d',stroke:C.borderStrong});
+  svgEl(Lbg,'rect',{x:rR.x,y:rR.y,width:rR.w,height:rR.h,rx:6,fill:'#0a0b0d',stroke:C.borderStrong});
+  var pts3d=[{X:-0.32,Y:-0.18,Z:1.5,c:P.rose},{X:-0.05,Y:-0.22,Z:1.1,c:P.cyan},{X:0.18,Y:0.08,Z:2.0,c:P.emerald},{X:-0.18,Y:0.2,Z:1.05,c:P.amber},{X:0.22,Y:-0.08,Z:2.5,c:P.violet},{X:-0.08,Y:0.02,Z:1.8,c:P.rose},{X:0.12,Y:0.16,Z:1.35,c:P.cyan}];
+  function proj(p){var fn=state.focal/800;var uL=fn*p.X/p.Z,v=fn*p.Y/p.Z,uR=fn*(p.X-state.baseline)/p.Z;return{uL:uL,v:v,uR:uR};}
+  function draw(){
+    clearSvg(Ltop);clearSvg(Limg);clearSvg(Lmatch);
+    var Bpx=state.baseline*70,cx=250,camy=150;
+    var cLx=cx-Bpx/2,cRx=cx+Bpx/2;
+    svgEl(Ltop,'line',{x1:cLx,y1:camy,x2:cRx,y2:camy,stroke:rgba(P.faint,0.6),'stroke-width':1.4});
+    txt(Ltop,cx,camy+18,'baseline '+fmt(state.baseline,2)+' m',{fill:C.faint,'font-size':10,'text-anchor':'middle'});
+    [cLx,cRx].forEach(function(x){svgEl(Ltop,'rect',{x:x-7,y:camy-7,width:14,height:14,rx:3,fill:C.surface3,stroke:C.muted});svgEl(Ltop,'circle',{cx:x,cy:camy,r:3,fill:rgba(P.rose,0.9)});});
+    txt(Ltop,cLx-12,camy+4,'CL',{fill:C.faint,'font-size':9,'text-anchor':'end'});
+    txt(Ltop,cRx+12,camy+4,'CR',{fill:C.faint,'font-size':9});
+    txt(Ltop,cx,52,'depth Z = f·B / disparity',{fill:rgba(P.amber,0.85),'font-size':11,'text-anchor':'middle'});
+    var hi=state.running?Math.floor(state.phase*pts3d.length):pts3d.length;
+    pts3d.forEach(function(p,i){
+      var px=cx+p.X*150,py=camy-p.Z*42;if(py<64)py=64;
+      if(i<hi){svgEl(Ltop,'line',{x1:cLx,y1:camy,x2:px,y2:py,stroke:rgba(P.rose,0.45),'stroke-width':0.9});svgEl(Ltop,'line',{x1:cRx,y1:camy,x2:px,y2:py,stroke:rgba(P.cyan,0.45),'stroke-width':0.9});svgEl(Ltop,'circle',{cx:px,cy:py,r:5.5,fill:'none',stroke:rgba(P.emerald,0.95),'stroke-width':1.5});svgEl(Ltop,'circle',{cx:px,cy:py,r:2.5,fill:rgba(p.c,0.95)});}else{svgEl(Ltop,'circle',{cx:px,cy:py,r:2.5,fill:rgba(p.c,0.4)});}
+    });
+    var projs=pts3d.map(proj);
+    projs.forEach(function(pr,i){var p=pts3d[i];var yL=lR.y+(pr.v*1.4+0.5)*lR.h;var xL=lR.x+(pr.uL*1.4+0.5)*lR.w;var xR=rR.x+(pr.uR*1.4+0.5)*rR.w;var yR=rR.y+(pr.v*1.4+0.5)*rR.h;
+      svgEl(Limg,'line',{x1:lR.x,y1:yL,x2:lR.x+lR.w,y2:yL,stroke:rgba(p.c,0.16),'stroke-width':0.6});
+      svgEl(Limg,'line',{x1:rR.x,y1:yR,x2:rR.x+rR.w,y2:yR,stroke:rgba(p.c,0.16),'stroke-width':0.6});
+      svgEl(Limg,'circle',{cx:xL,cy:yL,r:4,fill:rgba(p.c,0.95)});
+      svgEl(Limg,'circle',{cx:xR,cy:yR,r:4,fill:rgba(p.c,0.95)});
+      svgEl(Lmatch,'line',{x1:xL,y1:yL,x2:xR,y2:yR,stroke:rgba(p.c,0.28),'stroke-width':0.6,'stroke-dasharray':'3 3'});
+    });
+    txt(Limg,lR.x+lR.w-4,lR.y+14,'epipolar rows',{fill:C.faint,'font-size':9,'text-anchor':'end'});
+    setStatsF();
+  }
+  function setStatsF(){
+    var err=clamp(120/(state.baseline*state.focal/400),0.4,40);
+    setStats(document.getElementById('stats06'),[
+      {label:'深度误差',val:fmt(err,2)+' mm',color:'#fb7185'},
+      {label:'匹配点',val:''+pts3d.length,color:'#7c5cff'},
+      {label:'基线',val:fmt(state.baseline,2)+' m',color:'#2dd4ff'},
+      {label:'焦距',val:state.focal+' px',color:'#34d399'}
+    ]);
+  }
+  function loop(){if(!state.running)return;state.phase+=0.012;if(state.phase>=1)state.phase=0;draw();state.raf=requestAnimationFrame(loop);}
+  document.getElementById('ctrl06a').appendChild(makeSlider('基线',0.3,2,0.05,1,'m',function(v){state.baseline=v;draw();}));
+  document.getElementById('ctrl06b').appendChild(makeSlider('焦距',200,800,10,400,'px',function(v){state.focal=v;draw();}));
+  document.getElementById('btn06').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);draw();}};
+  document.getElementById('btn06b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.baseline=1;state.focal=400;state.phase=0;draw();};
+  setLegend(document.getElementById('legend06'),[{label:'左相机射线',color:'#fb7185'},{label:'右相机射线',color:'#2dd4ff'},{label:'3D 点',color:'#34d399'},{label:'对极线',color:'#7c5cff'}]);
+  document.getElementById('detail06').innerHTML='<span class="dt-label">F</span> 立体相机中，左图一点在右图的对应点必在其 <strong>对极线</strong> 上。校正后对极线为水平行，匹配点行坐标相同，视差 <strong>d=u_L−u_R</strong>，深度 <strong>Z=f·B/d</strong>。基线与焦距越大，深度误差越小。';
+  draw();
+}
+
+/* ===== MODULE 7: Pipeline Comparison ===== */
+function initM07(){
+  var box=document.getElementById('viz07');
+  var W=860,H=380;
+  var methods=[
+    {name:'NeRF',color:P.rose,vals:[0.78,0.05,0.05,0.92,0.72],psnr:'31.0 dB',fps:'0.4',train:'8.0 h',mem:'5 MB'},
+    {name:'Instant-NGP',color:P.cyan,vals:[0.80,0.35,0.62,0.70,0.60],psnr:'32.0 dB',fps:'15',train:'5 min',mem:'12 MB'},
+    {name:'Gaussian Splat',color:P.emerald,vals:[0.82,0.96,0.70,0.50,0.55],psnr:'31.5 dB',fps:'134',train:'41 min',mem:'220 MB'},
+    {name:'Plenoxels',color:P.amber,vals:[0.70,0.18,0.52,0.58,0.60],psnr:'29.2 dB',fps:'8',train:'11 min',mem:'230 MB'},
+    {name:'Mip-NeRF',color:P.violet,vals:[0.88,0.04,0.03,0.85,0.65],psnr:'33.2 dB',fps:'0.3',train:'9.0 h',mem:'5 MB'}
+  ];
+  var axes=['PSNR 质量','FPS 速度','训练速度','内存效率','易用性'];
+  var state={sel:2,metric:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lrad=svgEl(svg,'g',{}),Lbar=svgEl(svg,'g',{});
+  var rcx=230,rcy=195,R=130;
+  txt(Lbg,40,30,'RADAR COMPARISON',{fill:C.faint});
+  txt(Lbg,470,30,'METRIC BARS',{fill:C.faint});
+  for(var i=0;i<5;i++){var a=(-90+i*72)*Math.PI/180;svgEl(Lbg,'line',{x1:rcx,y1:rcy,x2:rcx+Math.cos(a)*R,y2:rcy+Math.sin(a)*R,stroke:C.border,'stroke-width':0.8});svgEl(Lbg,'circle',{cx:rcx+Math.cos(a)*R*0.5,cy:rcy+Math.sin(a)*R*0.5,r:1.4,fill:C.faint,opacity:0.3});svgEl(Lbg,'circle',{cx:rcx+Math.cos(a)*R,y2:rcy+Math.sin(a)*R,r:1.4,fill:C.faint,opacity:0.3});var lblA='middle';if(i===1||i===2)lblA='start';if(i===3||i===4)lblA='end';txt(Lbg,rcx+Math.cos(a)*(R+18)-0,rcy+Math.sin(a)*(R+18)+4,axes[i],{fill:C.faint,'font-size':10,'text-anchor':lblA});}
+  function polyPts(m){var pts=[];for(var i=0;i<5;i++){var a=(-90+i*72)*Math.PI/180;var v=m.vals[i];pts.push((rcx+Math.cos(a)*R*v)+','+(rcy+Math.sin(a)*R*v));}return pts.join(' ');}
+  function draw(){
+    clearSvg(Lrad);clearSvg(Lbar);
+    methods.forEach(function(m,i){var sel=i===state.sel;svgEl(Lrad,'polygon',{points:polyPts(m),fill:rgba(m.color,sel?0.22:0.06),stroke:rgba(m.color,sel?0.95:0.4),'stroke-width':sel?2:1});for(var k=0;k<5;k++){var a=(-90+k*72)*Math.PI/180;var v=m.vals[k];svgEl(Lrad,'circle',{cx:rcx+Math.cos(a)*R*v,cy:rcy+Math.sin(a)*R*v,r:sel?3:2,fill:rgba(m.color,sel?1:0.5)});}if(sel)txt(Lrad,rcx,rcy+4,m.name,{fill:m.color,'font-size':11,'text-anchor':'middle','font-weight':'600'});});
+    var bx=470,by=50,bw=360,bh=300,rowH=bh/5;
+    svgEl(Lbar,'rect',{x:bx,y:by,width:bw,height:bh,rx:6,fill:'none',stroke:C.border});
+    txt(Lbar,bx,by-8,'当前指标: '+axes[state.metric],{fill:rgba(P.rose,0.9),'font-size':11});
+    methods.forEach(function(m,i){var yy=by+i*rowH+10;var frac=m.vals[state.metric];var bw2=frac*(bw-110);var sel=i===state.sel;svgEl(Lbar,'rect',{x:bx+90,y:yy,width:bw-100,height:rowH-14,rx:4,fill:C.surface3});svgEl(Lbar,'rect',{x:bx+90,y:yy,width:bw2,height:rowH-14,rx:4,fill:rgba(m.color,sel?0.95:0.4)});txt(Lbar,bx+6,yy+(rowH-14)/2+4,m.name,{fill:sel?C.ink:C.muted,'font-size':11});txt(Lbar,bx+94+bw2+4,yy+(rowH-14)/2+4,fmt(frac*100,0),{fill:C.faint,'font-size':10});});
+  }
+  function setStatsF(){var m=methods[state.sel];setStats(document.getElementById('stats07'),[{label:'PSNR',val:m.psnr,color:'#fb7185'},{label:'FPS',val:m.fps,color:'#7c5cff'},{label:'训练时间',val:m.train,color:'#2dd4ff'},{label:'显存',val:m.mem,color:'#34d399'}]);}
+  function refreshBtns(){
+    btnGroup(document.getElementById('ctrl07a'),methods.map(function(m){return m.name;}),state.sel,function(i){state.sel=i;draw();setStatsF();});
+    btnGroup(document.getElementById('ctrl07b'),axes,state.metric,function(i){state.metric=i;draw();});
+  }
+  document.getElementById('btn07').onclick=function(){state.metric=(state.metric+1)%5;refreshBtns();draw();};
+  document.getElementById('btn07b').onclick=function(){state.sel=2;state.metric=0;refreshBtns();draw();setStatsF();};
+  setLegend(document.getElementById('legend07'),[{label:'NeRF',color:'#fb7185'},{label:'Instant-NGP',color:'#2dd4ff'},{label:'Gaussian Splat',color:'#34d399'},{label:'Plenoxels',color:'#fbbf24'},{label:'Mip-NeRF',color:'#a78bfa'}]);
+  document.getElementById('detail07').innerHTML='<span class="dt-label">vs</span> <strong>NeRF</strong> 质量高但极慢；<strong>Instant-NGP</strong> 用哈希网格大幅加速训练；<strong>Gaussian Splatting</strong> 实时渲染但显存大；<strong>Plenoxels</strong> 无需 MLP；<strong>Mip-NeRF</strong> 抗锯齿质量最高。各方法在 质量/速度/训练/内存 间权衡。';
+  refreshBtns();draw();setStatsF();
+}
+
+/* ===== MODULE 8: Radiance Field Editing ===== */
+function initM08(){
+  var box=document.getElementById('viz08');
+  var W=860,H=380;
+  var state={edit:'relight',intensity:0.6,running:false,phase:0,raf:0};
+  var svg=makeSvg(W,H);box.appendChild(svg);
+  var Lbg=svgEl(svg,'g',{}),Lorig=svgEl(svg,'g',{}),Ledit=svgEl(svg,'g',{}),Lop=svgEl(svg,'g',{});
+  var imgW=210,imgH=180,gap=80,sx=70,sy=86;
+  txt(Lbg,sx,70,'ORIGINAL',{fill:C.faint});
+  txt(Lbg,sx+imgW+gap,70,'EDITED',{fill:C.faint});
+  svgEl(Lbg,'rect',{x:sx,y:sy,width:imgW,height:imgH,rx:6,fill:'#0a0b0d',stroke:C.borderStrong});
+  svgEl(Lbg,'rect',{x:sx+imgW+gap,y:sy,width:imgW,height:imgH,rx:6,fill:'#0a0b0d',stroke:C.borderStrong});
+  var blobs=[{u:0.34,v:0.4,r:0.21,d:1.0,c:P.rose},{u:0.62,v:0.34,r:0.15,d:0.9,c:P.cyan},{u:0.5,v:0.66,r:0.18,d:0.85,c:P.emerald},{u:0.76,v:0.62,r:0.1,d:0.7,c:P.amber}];
+  function field(bset,u,v){var r=0,g=0,b=0,w=0;bset.forEach(function(bl){var du=u-bl.u,dv=v-bl.v;var dd=(du*du+dv*dv)/(2*bl.r*bl.r);var cc=Math.exp(-dd)*bl.d;if(cc>0.01){w+=cc;r+=bl.c[0]*cc;g+=bl.c[1]*cc;b+=bl.c[2]*cc;}});return w>0?[r/w,g/w,b/w,clamp(w*0.8+0.08,0,1)]:null;}
+  function editBlobs(){var b2=blobs.slice();if(state.edit==='remove')b2.splice(1,1);else if(state.edit==='insert')b2.push({u:0.5,v:0.5,r:0.13,d:0.9,c:P.violet});return b2;}
+  function editColor(col,u,v){var c=[col[0],col[1],col[2]];if(state.edit==='relight'){var s=0.35+0.8*u;c=[c[0]*s,c[1]*s,c[2]*s];}else if(state.edit==='retexture'){c=[col[1],col[2],col[0]];}return c;}
+  var pxSize=5,cols=Math.floor(imgW/pxSize),rowsN=Math.floor(imgH/pxSize);
+  function renderImg(group,xoff,edited){clearSvg(group);var bset=edited?editBlobs():blobs;for(var j=0;j<rowsN;j++)for(var i=0;i<cols;i++){var u=(i+0.5)/cols,v=(j+0.5)/rowsN;var f=field(bset,u,v);if(f){var c=edited?editColor([f[0],f[1],f[2]],u,v):[f[0],f[1],f[2]];svgEl(group,'rect',{x:xoff+i*pxSize,y:sy+j*pxSize,width:pxSize-0.3,height:pxSize-0.3,fill:rgba(c,clamp(f[3],0,0.95))});}}}
+  function drawOp(){clearSvg(Lop);var ox=sx+imgW+gap/2,oy=sy+imgH/2;svgEl(Lop,'path',{d:'M'+(ox-14)+' '+oy+' L'+(ox+14)+' '+oy+' M'+(ox+8)+' '+(oy-6)+' L'+(ox+14)+' '+oy+' L'+(ox+8)+' '+(oy+6),stroke:rgba(P.rose,0.8),'stroke-width':1.5,fill:'none'});var names={relight:'重光照',retexture:'重贴图',insert:'插入',remove:'删除'};txt(Lop,ox,oy-14,names[state.edit],{fill:rgba(P.rose,0.9),'font-size':10,'text-anchor':'middle'});}
+  renderImg(Lorig,sx,false);
+  function buildEdit(){renderImg(Ledit,sx+imgW+gap,true);}
+  function setOp(){var op=state.running?state.phase:state.intensity;Ledit.setAttribute('opacity',clamp(op,0,1));}
+  function draw(){setOp();drawOp();}
+  function loop(){if(!state.running)return;state.phase+=0.02;if(state.phase>=1){state.phase=1;state.running=false;state.intensity=1;document.getElementById('ctrl08b').querySelector('input').value=1;document.getElementById('ctrl08b').querySelector('.val').textContent='1';setOp();return;}setOp();state.raf=requestAnimationFrame(loop);}
+  function setStatsF(){
+    var q={relight:0.92,retexture:0.85,insert:0.78,remove:0.7}[state.edit]*state.intensity;
+    var cons={relight:0.95,retexture:0.9,insert:0.82,remove:0.7}[state.edit];
+    var art={relight:0.05,retexture:0.12,insert:0.22,remove:0.3}[state.edit];
+    setStats(document.getElementById('stats08'),[
+      {label:'编辑质量',val:fmt(q*100,0)+'%',color:'#fb7185'},
+      {label:'渲染一致性',val:fmt(cons*100,0)+'%',color:'#34d399'},
+      {label:'伪影',val:fmt(art*100,0)+'%',color:'#fbbf24'},
+      {label:'强度',val:fmt(state.intensity,2),color:'#7c5cff'}
+    ]);
+  }
+  btnGroup(document.getElementById('ctrl08a'),['重光照','重贴图','插入','删除'],0,function(i){state.edit=['relight','retexture','insert','remove'][i];buildEdit();draw();setStatsF();});
+  document.getElementById('ctrl08b').appendChild(makeSlider('强度',0,1,0.05,0.6,'',function(v){state.intensity=v;if(!state.running){setOp();}setStatsF();}));
+  document.getElementById('btn08').onclick=function(){state.running=!state.running;if(state.running){state.phase=0;loop();}else{cancelAnimationFrame(state.raf);setOp();}};
+  document.getElementById('btn08b').onclick=function(){state.running=false;cancelAnimationFrame(state.raf);state.edit='relight';state.intensity=0.6;state.phase=0;btnGroup(document.getElementById('ctrl08a'),['重光照','重贴图','插入','删除'],0,function(i){state.edit=['relight','retexture','insert','remove'][i];buildEdit();draw();setStatsF();});buildEdit();draw();setStatsF();};
+  setLegend(document.getElementById('legend08'),[{label:'原始辐射场',color:'#fb7185'},{label:'编辑后',color:'#34d399'},{label:'编辑操作',color:'#7c5cff'}]);
+  document.getElementById('detail08').innerHTML='<span class="dt-label">edit</span> 在 NeRF 辐射场上可做 <strong>重光照</strong>（改变光照方向）、<strong>重贴图</strong>（改变外观）、<strong>物体插入/删除</strong> 等。强度滑块控制编辑施加程度，过高会引入伪影与一致性下降。';
+  buildEdit();draw();setStatsF();
+}
+
+initM01();initM02();initM03();initM04();initM05();initM06();initM07();initM08();
+
+document.querySelectorAll('.nav-item').forEach(function(item){
+  item.addEventListener('click',function(){
+    var target=document.getElementById(item.dataset.target);
+    if(target)target.scrollIntoView({behavior:'smooth'});
+  });
+});
+var navToggle=document.getElementById('navToggle');
+var sidebar=document.getElementById('sidebar');
+if(navToggle)navToggle.addEventListener('click',function(){sidebar.classList.toggle('open');});
+var observer=new IntersectionObserver(function(entries){
+  entries.forEach(function(entry){
+    if(entry.isIntersecting)entry.target.classList.add('visible');
+  });
+},{threshold:0.1});
+document.querySelectorAll('.fade-in').forEach(function(el){observer.observe(el);});
+window.addEventListener('scroll',function(){
+  var h=document.documentElement.scrollHeight-window.innerHeight;
+  var p=(window.scrollY/h)*100;
+  var bar=document.getElementById('progressBar');
+  if(bar)bar.style.width=p+'%';
+  var scrollPos=window.scrollY+100;
+  document.querySelectorAll('.module').forEach(function(mod){
+    var top=mod.offsetTop;var bottom=top+mod.offsetHeight;
+    if(scrollPos>=top&&scrollPos<bottom){
+      document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+      var navItem=document.querySelector('.nav-item[data-target="'+mod.id+'"]');
+      if(navItem)navItem.classList.add('active');
+    }
+  });
+});
+</script>
+</body>
+</html>

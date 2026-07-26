@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>geospatial-viz-lab · 地理空间计算可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#2dd4ff;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(45,212,255,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(45,212,255,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(45,212,255,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#04141a;border-color:transparent}
+.btn.primary:hover{background:#5ce0ff}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+.txt{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--sans);width:200px;
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.cyan{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .txt{width:140px}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>geospatial</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">geospatial computing</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/geospatial-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>坐标系投影</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>空间索引</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>空间查询</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>地理编码</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>路径规划</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>瓦片金字塔</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>空间聚合</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>矢量瓦片</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/geospatial-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>地理空间计算 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现坐标系投影、空间索引、空间查询、路径规划、瓦片金字塔等 GIS 核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 坐标系 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>坐标系与地图投影</h2>
+      <p>WGS84 球面坐标与 Web Mercator 投影的对比。Mercator 保角但面积随纬度放大，纬度越高变形越大。拖动纬度滑块观察单位圆的形变。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">projection.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>WGS84 球面</span>
+          <span><i style="background:#7c5cff"></i>Web Mercator</span>
+          <span><i style="background:#34d399"></i>单位圆（地物）</span>
+          <span><i style="background:#f87171"></i>形变放大</span>
+        </div>
+        <div class="detail-box">
+          <h4>投影公式</h4>
+          <p>Web Mercator (EPSG:3857) 把经纬度映射为平面坐标，纬度方向使用 <code>y = R·ln(tan(π/4+φ/2))</code>。它保角（局部角度正确），但不保面积——</p>
+          <code class="formula">scale(φ) = 1 / cos(φ)      area_scale(φ) = 1 / cos²(φ)</code>
+          <p id="p01detail">在赤道（φ=0°）形变为 1，在纬度 60° 放大 2 倍，85° 放大 11.5 倍，趋近 90° 时趋于无穷。这也是 Web 地图在两极裁切的原因。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">纬度 φ</div><div class="v cyan" id="st01lat">0°</div></div>
+          <div class="stat"><div class="k">线性放大</div><div class="v purple" id="st01scale">1.00</div></div>
+          <div class="stat"><div class="k">面积放大</div><div class="v" style="color:#f87171" id="st01area">1.00</div></div>
+          <div class="stat"><div class="k">投影</div><div class="v" id="st01proj">Mercator</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 空间索引 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>空间索引结构</h2>
+      <p>R-Tree 用层次包围盒加速查询；GeoHash 用一维字符串编码二维区域，前缀共享即邻近；H3 用六边形离散全球网格。切换索引并执行区域查询。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">spatial-index.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>命中点</span>
+          <span><i style="background:#7c5cff"></i>索引节点</span>
+          <span><i style="background:#f87171"></i>查询窗</span>
+          <span><i style="background:#62666d"></i>未命中</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">R-Tree</h4>
+          <p id="p02detail">R-Tree 把空间对象按 MBR（最小外接矩形）分组，父节点包含子节点 MBR 的并。区域查询只需对相交的 MBR 递归下探，避免遍历全部点。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">总点数</div><div class="v" id="st02n">—</div></div>
+          <div class="stat"><div class="k">命中数</div><div class="v cyan" id="st02hit">—</div></div>
+          <div class="stat"><div class="k">访问节点</div><div class="v purple" id="st02visit">—</div></div>
+          <div class="stat"><div class="k">剪枝率</div><div class="v" id="st02prune">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 空间查询 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>空间查询操作</h2>
+      <p>KNN 最近邻、范围查询、缓冲区（Buffer）分析是 GIS 三大基础查询。点击地图设置查询点，切换模式并调整参数。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">spatial-query.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>查询点</span>
+          <span><i style="background:#34d399"></i>KNN 命中</span>
+          <span><i style="background:rgba(45,212,255,.18);border:1px solid #2dd4ff"></i>范围/缓冲</span>
+          <span><i style="background:#62666d"></i>普通点</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">KNN 查询</h4>
+          <p id="p03detail">KNN 查找距离查询点最近的 K 个对象。朴素法 O(n)，借助空间索引（如 R-Tree 的 Best-First 搜索）可达 O(log n) 级别。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">查询模式</div><div class="v cyan" id="st03mode">KNN</div></div>
+          <div class="stat"><div class="k">参数</div><div class="v purple" id="st03param">K=3</div></div>
+          <div class="stat"><div class="k">命中</div><div class="v" id="st03hit">—</div></div>
+          <div class="stat"><div class="k">扫描</div><div class="v" id="st03scan">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 地理编码 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>地理编码与逆地理编码</h2>
+      <p>正向编码：地址文本 → 经纬度。逆向编码：经纬度 → 最近地址。模糊匹配用编辑距离（Levenshtein）容忍拼写错误。输入地址进行匹配。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">geocoding.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>最佳匹配</span>
+          <span><i style="background:#7c5cff"></i>候选</span>
+          <span><i style="background:#34d399"></i>逆编结果</span>
+          <span><i style="background:#62666d"></i>其他地址</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">地理编码</h4>
+          <p id="p04detail">输入地址文本，系统返回最匹配的位置及其经纬度。模糊匹配允许 1–2 字符差异，例如「天安门」可匹配「天安门广场」。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">地址数</div><div class="v" id="st04n">—</div></div>
+          <div class="stat"><div class="k">最佳相似度</div><div class="v cyan" id="st04sim">—</div></div>
+          <div class="stat"><div class="k">候选数</div><div class="v purple" id="st04cand">—</div></div>
+          <div class="stat"><div class="k">模式</div><div class="v" id="st04mode">正向</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 路径规划 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>最短路径算法</h2>
+      <p>Dijkstra 无启发地均匀扩展；A* 用到终点的估计距离引导搜索；Contraction Hierarchies 预先收缩节点、查询时走捷径。对比三者搜索范围。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">routing.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>起点/终点</span>
+          <span><i style="background:#7c5cff"></i>已探索</span>
+          <span><i style="background:#fbbf24"></i>边界</span>
+          <span><i style="background:#34d399"></i>最短路径</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">Dijkstra</h4>
+          <p id="p05detail">Dijkstra 以起点为中心逐层扩展，保证得到精确最短路径，但搜索范围大。点击“运行”观察算法扩展过程。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">算法</div><div class="v cyan" id="st05alg">Dijkstra</div></div>
+          <div class="stat"><div class="k">访问节点</div><div class="v purple" id="st05visit">—</div></div>
+          <div class="stat"><div class="k">路径长度</div><div class="v" id="st05len">—</div></div>
+          <div class="stat"><div class="k">探索率</div><div class="v" id="st05rate">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 瓦片金字塔 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>瓦片金字塔与 LOD</h2>
+      <p>XYZ 与 TMS 两种瓦片索引：XYZ 的 Y 轴向下，TMS 的 Y 轴向上。每加深一级缩放，瓦片数 ×4。切换层级与方案观察金字塔结构。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">tile-pyramid.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>当前层瓦片</span>
+          <span><i style="background:#7c5cff"></i>父层</span>
+          <span><i style="background:#fbbf24"></i>选中瓦片</span>
+          <span><i style="background:#34d399"></i>LOD 命中</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">XYZ 方案</h4>
+          <p id="p06detail">XYZ（Google/OSM 标准）：原点在左上，Y 向下递增；TMS：原点在左下，Y 向上递增。两者瓦片内容相同，仅 Y 坐标翻转：<code>y_tms = 2^z − 1 − y_xyz</code>。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">缩放 z</div><div class="v cyan" id="st06z">2</div></div>
+          <div class="stat"><div class="k">瓦片数</div><div class="v purple" id="st06n">4</div></div>
+          <div class="stat"><div class="k">方案</div><div class="v" id="st06scheme">XYZ</div></div>
+          <div class="stat"><div class="k">总瓦片(0..z)</div><div class="v" id="st06total">5</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 空间聚合 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>空间聚合与聚类</h2>
+      <p>热力图按密度叠加核函数；DBSCAN 按密度连通聚类，能发现任意形状簇并标识噪声。调整 ε 与 MinPts 观察簇结构变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">clustering.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>簇 1</span>
+          <span><i style="background:#7c5cff"></i>簇 2</span>
+          <span><i style="background:#fbbf24"></i>簇 3</span>
+          <span><i style="background:#62666d"></i>噪声</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">DBSCAN</h4>
+          <p id="p07detail">DBSCAN：若某点 ε 邻域内至少有 MinPts 个点则为核心点，核心点密度相连构成一簇；非核心且无核心邻居者为噪声。无需预设簇数。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v cyan" id="st07mode">DBSCAN</div></div>
+          <div class="stat"><div class="k">簇数</div><div class="v purple" id="st07k">—</div></div>
+          <div class="stat"><div class="k">噪声点</div><div class="v" style="color:#f87171" id="st07noise">—</div></div>
+          <div class="stat"><div class="k">总点数</div><div class="v" id="st07n">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 矢量瓦片 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>矢量瓦片 vs 栅格瓦片</h2>
+      <p>栅格瓦片是预渲染图片，放大即马赛克；矢量瓦片（MVT）传输几何与属性，浏览器按样式实时绘制，任意缩放保持清晰。拖动缩放对比。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">vector-raster.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>矢量 (MVT)</span>
+          <span><i style="background:#7c5cff"></i>栅格 (PNG)</span>
+          <span><i style="background:#34d399"></i>道路</span>
+          <span><i style="background:#fbbf24"></i>建筑</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">矢量瓦片</h4>
+          <p id="p08detail">MVT 用 Protocol Buffers 编码简化几何（线/面/点）与图层属性，客户端按样式（如 Mapbox GL）实时着色、可旋转可换肤；栅格瓦片体积大、不可重设样式，但渲染开销低。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">缩放</div><div class="v cyan" id="st08z">1.0×</div></div>
+          <div class="stat"><div class="k">矢量清晰度</div><div class="v purple" id="st08vec">100%</div></div>
+          <div class="stat"><div class="k">栅格像素</div><div class="v" id="st08px">—</div></div>
+          <div class="stat"><div class="k">显示</div><div class="v" id="st08mode">对比</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>geospatial-viz-lab · 地理空间计算可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/geospatial-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add("visible");});
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){if(s.el.offsetTop<=mid)cur=s;}
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 坐标系与投影
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let lat=60,showBoth=true;
+
+  function mercY(phi,R){
+    return R*Math.log(Math.tan(Math.PI/4+phi/2));
+  }
+  function latToY(latDeg,cy,r){return cy-r*latDeg/90*Math.PI/180*r/ (Math.PI/2);}
+  // 球面：把纬度映射到圆上 y（透视压缩）
+  function sphereY(latDeg,cy,r){
+    const phi=latDeg*Math.PI/180;
+    return cy-r*Math.sin(phi);
+  }
+
+  function draw(){
+    clearNode(svg);
+    const phi=lat*Math.PI/180;
+    const scale=1/Math.cos(phi);
+    const areaScale=scale*scale;
+
+    // ---- 左：球面 WGS84 ----
+    const cx1=180,cy1=210,r1=140;
+    // 地球圆
+    svg.appendChild(el("circle",{cx:cx1,cy:cy1,r:r1,fill:"rgba(45,212,255,.05)",stroke:"#2dd4ff","stroke-width":1.4}));
+    // 经线（椭圆）
+    for(let i=0;i<6;i++){
+      const lon=(i-2.5)*30;
+      const rx=r1*Math.abs(Math.cos(lon*Math.PI/180*Math.PI/180))*0+ (i===0?0:0);
+      // 用纵向椭圆表示经线：不同经度的椭圆宽度 = r1*cos(lon)
+      const ex=r1*Math.abs(Math.cos((i-2.5)*15*Math.PI/180));
+      svg.appendChild(el("ellipse",{cx:cx1,cy:cy1,rx:Math.max(2,ex),ry:r1,fill:"none",stroke:"rgba(45,212,255,.18)","stroke-width":1}));
+    }
+    // 纬线（水平线，球面投影压缩）
+    for(let li=-60;li<=60;li+=30){
+      const y=sphereY(li,cy1,r1);
+      const rx=Math.sqrt(Math.max(0,r1*r1-(y-cy1)*(y-cy1)));
+      svg.appendChild(el("line",{x1:cx1-rx,y1:y,x2:cx1+rx,y2:y,stroke:"rgba(45,212,255,.18)","stroke-width":1}));
+    }
+    // 赤道高亮
+    svg.appendChild(el("line",{x1:cx1-r1,y1:cy1,x2:cx1+r1,y2:cy1,stroke:"#2dd4ff","stroke-width":1.4}));
+    // 纬度点（单位圆在地物纬度）
+    const py=sphereY(lat,cy1,r1);
+    const prx=Math.sqrt(Math.max(0,r1*r1-(py-cy1)*(py-cy1)));
+    // 单位圆：球面上等大小
+    const unitR=18;
+    svg.appendChild(el("ellipse",{cx:cx1,cy:py,rx:unitR,ry:unitR,fill:"rgba(52,211,153,.22)",stroke:"#34d399","stroke-width":1.5}));
+    // 标签
+    const t1=el("text",{x:cx1,y:32,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#2dd4ff"});t1.textContent="WGS84 球面";svg.appendChild(t1);
+    const t1b=el("text",{x:cx1,y:50,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});t1b.textContent="(等角投影前)";svg.appendChild(t1b);
+    // 纬度标注
+    const la=el("text",{x:cx1+prx+8,y:py+4,"font-size":11,"font-family":MONO,fill:"#34d399"});la.textContent="φ="+lat+"°";svg.appendChild(la);
+
+    // ---- 右：Mercator 平面 ----
+    const cx2=520,cy2=210,r2=140;
+    // 地图框（纬度范围 -85..85）
+    const mapW=200,mapH=280;
+    const mx=cx2-mapW/2,my=cy2-mapH/2;
+    svg.appendChild(el("rect",{x:mx,y:my,width:mapW,height:mapH,fill:"rgba(124,92,255,.05)",stroke:"#7c5cff","stroke-width":1.4}));
+    // Mercator 纬线（不均匀分布）
+    for(let li=-75;li<=75;li+=15){
+      if(li===0)continue;
+      const y=cy2-mercY(li*Math.PI/180,1)* (mapH/2)/mercY(75*Math.PI/180,1);
+      if(y<my||y>my+mapH)continue;
+      svg.appendChild(el("line",{x1:mx,y1:y,x2:mx+mapW,y2:y,stroke:"rgba(124,92,255,.18)","stroke-width":1}));
+    }
+    // 赤道
+    svg.appendChild(el("line",{x1:mx,y1:cy2,x2:mx+mapW,y2:cy2,stroke:"#7c5cff","stroke-width":1.4}));
+    // 单位圆在 Mercator 上的形变：纵向放大 scale，横向也放大 scale（保角）
+    const myy=cy2-mercY(phi,1)*(mapH/2)/mercY(75*Math.PI/180,1);
+    const unitRm=18*scale;
+    svg.appendChild(el("ellipse",{cx:cx2,cy:myy,rx:unitRm,ry:unitRm,fill:"rgba(248,113,113,.18)",stroke:"#f87171","stroke-width":1.5}));
+    // 同样大小的参考圆（赤道单位）
+    svg.appendChild(el("ellipse",{cx:cx2,cy:cy2,rx:18,ry:18,fill:"none",stroke:"rgba(52,211,153,.4)","stroke-width":1,"stroke-dasharray":"3 3"}));
+    const t2=el("text",{x:cx2,y:32,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#7c5cff"});t2.textContent="Web Mercator";svg.appendChild(t2);
+    const t2b=el("text",{x:cx2,y:50,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});t2b.textContent="(EPSG:3857)";svg.appendChild(t2b);
+    const la2=el("text",{x:cx2+unitRm+6,y:myy+4,"font-size":11,"font-family":MONO,fill:"#f87171"});la2.textContent="×"+scale.toFixed(2);svg.appendChild(la2);
+
+    // 中间箭头
+    svg.appendChild(el("path",{d:"M330,210 L370,210",stroke:"#62666d","stroke-width":1.4,"marker-end":"url(#arr01)"}));
+    const defs=el("defs");const m=el("marker",{id:"arr01",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#62666d"}));defs.appendChild(m);svg.appendChild(defs);
+    const arrL=el("text",{x:350,y:200,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});arrL.textContent="投影";svg.appendChild(arrL);
+
+    // 底部说明
+    const note=el("text",{x:360,y:395,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#62666d"});note.textContent="φ=85° 时面积放大 "+(1/Math.pow(Math.cos(85*Math.PI/180),2)).toFixed(1)+"×";svg.appendChild(note);
+
+    $("st01lat").textContent=lat+"°";
+    $("st01scale").textContent=scale.toFixed(2)+"×";
+    $("st01area").textContent=areaScale.toFixed(2)+"×";
+    $("st01proj").textContent="Mercator";
+    $("p01detail").textContent="当前纬度 "+lat+"°，线性放大 "+scale.toFixed(2)+" 倍，面积放大 "+areaScale.toFixed(2)+" 倍。"+(lat>=80?"接近极点，形变极剧，Web 地图在此裁切。":lat>=60?"高纬地区明显放大，格陵兰看似与非洲相当。":"形变较温和，投影近似正确。");
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>纬度 φ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=89;inp.value=60;
+  const val=document.createElement("span");val.className="val";val.textContent="60°";
+  inp.addEventListener("input",()=>{lat=+inp.value;val.textContent=lat+"°";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="纬度扫描";
+  anim.addEventListener("click",()=>{
+    animate(2200,p=>{
+      lat=Math.round(ease(p)*89);
+      inp.value=lat;val.textContent=lat+"°";draw();
+    });
+  });
+  ctl.appendChild(anim);
+  // 关键纬度按钮
+  [[0,"赤道"],[30,"30°"],[60,"60°"],[80,"80°"]].forEach(([v,n])=>{
+    const b=document.createElement("button");b.className="btn small";b.textContent=n;
+    b.addEventListener("click",()=>{lat=v;inp.value=v;val.textContent=v+"°";draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   02 空间索引
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  let mode="rtree";
+  let pts=[];
+  let query={x:300,y:160,w:200,h:140};
+  const N=36;
+
+  function gen(){
+    pts=[];
+    for(let i=0;i<N;i++){
+      // 聚簇分布，更像真实数据
+      const cluster=Math.floor(Math.random()*4);
+      const ccx=[180,360,540,280][cluster],ccy=[140,300,180,360][cluster];
+      pts.push({x:ccx+(Math.random()-.5)*150,y:ccy+(Math.random()-.5)*130,id:i});
+    }
+  }
+
+  function inQuery(p){
+    return p.x>=query.x&&p.x<=query.x+query.w&&p.y>=query.y&&p.y<=query.y+query.h;
+  }
+
+  // R-Tree 简化：用 K-means 思路分组（4 组），每组 MBR
+  function rtreeBoxes(){
+    const groups=[[],[],[],[]];
+    const centers=[[180,150],[540,150],[180,360],[540,360]];
+    pts.forEach(p=>{
+      let bi=0,bd=Infinity;
+      centers.forEach((c,i)=>{const d=(p.x-c[0])**2+(p.y-c[1])**2;if(d<bd){bd=d;bi=i;}});
+      groups[bi].push(p);
+    });
+    return groups.filter(g=>g.length).map(g=>{
+      const xs=g.map(p=>p.x),ys=g.map(p=>p.y);
+      return {x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys),n:g.length};
+    });
+  }
+  // GeoHash 网格：precision 模拟（这里 4x4 格）
+  function geohashGrid(){
+    const gx=4,gy=4;
+    const cells=[];
+    const cw=W/gx,ch=H/gy;
+    for(let i=0;i<gx;i++)for(let j=0;j<gy;j++){
+      const inCell=pts.filter(p=>p.x>=i*cw&&p.x<(i+1)*cw&&p.y>=j*ch&&p.y<(j+1)*ch);
+      const base32="0123456789bcdefghjkmnpqrstuvwxyz";
+      cells.push({x:i*cw,y:j*ch,w:cw,h:ch,code:base32[i]+base32[j],n:inCell.length});
+    }
+    return cells;
+  }
+  // H3 六边形网格
+  function h3Grid(){
+    const hexes=[];
+    const r=42;
+    const hw=r*Math.sqrt(3)/2;
+    for(let row=0;row<6;row++){
+      for(let col=0;col<7;col++){
+        const x=60+col*hw*2+(row%2)*hw;
+        const y=60+row*r*1.5;
+        if(x>W-30||y>H-30)continue;
+        // 六边形顶点
+        const pts6=[];
+        for(let k=0;k<6;k++){
+          const a=Math.PI/3*k-Math.PI/6;
+          pts6.push((x+hw*Math.cos(a)).toFixed(1)+","+(y+r*Math.sin(a)).toFixed(1));
+        }
+        const inside=pts.filter(p=>{
+          // 简化：距离中心 < r
+          return Math.hypot(p.x-x,p.y-y)<r*0.92;
+        });
+        hexes.push({x,y,r,poly:pts6.join(" "),n:inside.length});
+      }
+    }
+    return hexes;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const hit=pts.filter(inQuery);
+    let boxes=[],visit=0,title="",desc="";
+
+    if(mode==="rtree"){
+      boxes=rtreeBoxes();
+      boxes.forEach(b=>{
+        const intersects=!(b.x>query.x+query.w||b.x+b.w<query.x||b.y>query.y+query.h||b.y+b.h<query.y);
+        if(intersects)visit++;
+        svg.appendChild(el("rect",{x:b.x,y:b.y,width:b.w,height:b.h,fill:"rgba(124,92,255,.06)",stroke:intersects?"#7c5cff":"rgba(124,92,255,.3)","stroke-width":intersects?1.6:1,"stroke-dasharray":"5 4",rx:3}));
+      });
+      title="R-Tree";
+      desc="R-Tree 把空间对象按 MBR 分组。区域查询时，若查询窗与某节点 MBR 相交则递归下探，否则整棵子树剪枝。";
+    }else if(mode==="geohash"){
+      geohashGrid().forEach(c=>{
+        const intersects=!(c.x>query.x+query.w||c.x+c.w<query.x||c.y>query.y+query.h||c.y+c.h<query.y);
+        if(intersects&&c.n>0)visit++;
+        svg.appendChild(el("rect",{x:c.x,y:c.y,width:c.w,height:c.h,fill:intersects?"rgba(124,92,255,.08)":"rgba(255,255,255,.02)",stroke:"rgba(124,92,255,.25)","stroke-width":1}));
+        if(c.n>0){const t=el("text",{x:c.x+c.w/2,y:c.y+c.h/2-3,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});t.textContent=c.code;svg.appendChild(t);
+          const t2=el("text",{x:c.x+c.w/2,y:c.y+c.h/2+12,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});t2.textContent=c.n+"pts";svg.appendChild(t2);}
+      });
+      title="GeoHash";
+      desc="GeoHash 把二维坐标编码为一维字符串，共享前缀越长表示越邻近。区域查询用前缀范围扫描即可，便于用 B-Tree 索引。";
+    }else{
+      h3Grid().forEach(h=>{
+        const intersects=!(h.x-h.r>query.x+query.w||h.x+h.r<query.x||h.y-h.r>query.y+query.h||h.y+h.r<query.y);
+        if(intersects&&h.n>0)visit++;
+        svg.appendChild(el("polygon",{points:h.poly,fill:intersects?"rgba(124,92,255,.10)":"rgba(255,255,255,.02)",stroke:"rgba(124,92,255,.3)","stroke-width":1}));
+      });
+      title="H3";
+      desc="H3 是 Uber 的六边形离散全球网格。六边形邻居距离均匀、无对角畸变，适合半径查询与区域统计。";
+    }
+
+    // 查询窗
+    svg.appendChild(el("rect",{x:query.x,y:query.y,width:query.w,height:query.h,fill:"rgba(248,113,113,.08)",stroke:"#f87171","stroke-width":1.6,"stroke-dasharray":"6 4",rx:2}));
+    const ql=el("text",{x:query.x+6,y:query.y+14,"font-size":10,"font-family":MONO,fill:"#f87171"});ql.textContent="query";svg.appendChild(ql);
+
+    // 点
+    pts.forEach(p=>{
+      const h=inQuery(p);
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:h?5:3.2,fill:h?"#2dd4ff":"#62666d",stroke:"#0b0b0c","stroke-width":1}));
+    });
+
+    $("st02n").textContent=N;
+    $("st02hit").textContent=hit.length;
+    $("st02visit").textContent=visit;
+    $("st02prune").textContent=boxes.length>0||mode==="geohash"?(100-Math.round(visit/(mode==="geohash"?16:mode==="rtree"?boxes.length:30)*100))+"%":"—";
+    $("p02title").textContent=title;
+    $("p02detail").textContent=desc;
+  }
+
+  gen();draw();
+  // 模式按钮
+  [["R-Tree","rtree"],["GeoHash","geohash"],["H3","h3"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const regen=document.createElement("button");regen.className="btn primary small";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="移动查询窗";
+  let moving=false;
+  anim.addEventListener("click",()=>{
+    if(moving)return;moving=true;anim.textContent="移动中…";
+    const sx=query.x,sy=query.y;
+    animate(2400,p=>{
+      query.x=sx+Math.sin(p*Math.PI*2)*120;
+      query.y=sy+Math.cos(p*Math.PI*2)*70;
+      query.x=Math.max(20,Math.min(W-query.w-20,query.x));
+      query.y=Math.max(20,Math.min(H-query.h-20,query.y));
+      draw();
+    },()=>{moving=false;anim.textContent="移动查询窗";});
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   03 空间查询
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420;
+  let mode="knn";
+  let k=5,radius=90;
+  let q={x:360,y:210};
+  let pts=[];
+
+  function gen(){
+    pts=[];
+    for(let i=0;i<42;i++){
+      pts.push({x:40+Math.random()*(W-80),y:40+Math.random()*(H-80),id:i});
+    }
+  }
+  function d(p){return Math.hypot(p.x-q.x,p.y-q.y);}
+
+  function draw(){
+    clearNode(svg);
+    let hit=[],scan=0,param="",title="",desc="";
+    if(mode==="knn"){
+      const sorted=pts.map(p=>{scan++;return{p,d:d(p)};}).sort((a,b)=>a.d-b.d).slice(0,k);
+      hit=sorted.map(x=>x.p);
+      param="K="+k;
+      title="KNN 查询";
+      desc="KNN 返回距查询点最近的 K 个对象。朴素实现 O(n)，配合 R-Tree Best-First 可降至 O(log n)。";
+      // 连线
+      hit.forEach(p=>{
+        svg.appendChild(el("line",{x1:q.x,y1:q.y,x2:p.x,y2:p.y,stroke:"rgba(52,211,153,.35)","stroke-width":1.2,"stroke-dasharray":"3 3"}));
+      });
+    }else if(mode==="range"){
+      hit=pts.filter(p=>{scan++;return d(p)<=radius;});
+      param="r="+radius;
+      title="范围查询";
+      desc="范围查询返回距查询点距离 ≤ r 的所有对象。空间索引可大幅减少扫描。";
+      svg.appendChild(el("circle",{cx:q.x,cy:q.y,r:radius,fill:"rgba(45,212,255,.10)",stroke:"#2dd4ff","stroke-width":1.4,"stroke-dasharray":"5 4"}));
+    }else{
+      // buffer：沿一条折线生成缓冲区
+      const line=[{x:120,y:120},{x:280,y:200},{x:440,y:140},{x:600,y:240}];
+      // 简化缓冲区：每段两端画圆 + 矩形
+      for(let i=0;i<line.length-1;i++){
+        const a=line[i],b=line[i+1];
+        svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#2dd4ff","stroke-width":2.2}));
+        // 矩形缓冲
+        const ang=Math.atan2(b.y-a.y,b.x-a.x);
+        const nx=-Math.sin(ang)*radius,ny=Math.cos(ang)*radius;
+        const poly=[a.x+nx,a.y+ny, b.x+nx,b.y+ny, b.x-nx,b.y-ny, a.x-nx,a.y-ny].join(",");
+        svg.appendChild(el("polygon",{points:poly,fill:"rgba(45,212,255,.10)",stroke:"rgba(45,212,255,.5)","stroke-width":1,"stroke-dasharray":"4 3"}));
+        svg.appendChild(el("circle",{cx:a.x,cy:a.y,r:radius,fill:"rgba(45,212,255,.06)",stroke:"rgba(45,212,255,.4)","stroke-width":1,"stroke-dasharray":"4 3"}));
+        scan++;
+      }
+      hit=pts.filter(p=>{
+        // 点到折线最短距离
+        let md=Infinity;
+        for(let i=0;i<line.length-1;i++){
+          md=Math.min(md,pointSegDist(p,line[i],line[i+1]));
+        }
+        return md<=radius;
+      });
+      param="r="+radius;
+      title="缓冲区分析";
+      desc="缓冲区（Buffer）沿几何体生成等距范围，用于邻近影响分析。点到折线最短距离需逐段计算。";
+    }
+
+    // 点
+    pts.forEach(p=>{
+      const h=hit.includes(p);
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:h?5:3.2,fill:h?"#34d399":"#62666d",stroke:"#0b0b0c","stroke-width":1}));
+    });
+    // 查询点
+    svg.appendChild(el("circle",{cx:q.x,cy:q.y,r:7,fill:"#2dd4ff",stroke:"#0b0b0c","stroke-width":1.6}));
+    svg.appendChild(el("circle",{cx:q.x,cy:q.y,r:12,fill:"none",stroke:"#2dd4ff","stroke-width":1.2,opacity:.5}));
+
+    $("st03mode").textContent=mode.toUpperCase();
+    $("st03param").textContent=param;
+    $("st03hit").textContent=hit.length;
+    $("st03scan").textContent=scan;
+    $("p03title").textContent=title;
+    $("p03detail").textContent=desc;
+  }
+  function pointSegDist(p,a,b){
+    const dx=b.x-a.x,dy=b.y-a.y;
+    const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));
+    return Math.hypot(p.x-(a.x+dx*t),p.y-(a.y+dy*t));
+  }
+
+  gen();draw();
+  // 点击设置查询点
+  svg.style.cursor="crosshair";
+  svg.addEventListener("click",e=>{
+    const r=svg.getBoundingClientRect();
+    q.x=(e.clientX-r.left)/r.width*W;
+    q.y=(e.clientY-r.top)/r.height*H;
+    draw();
+  });
+  // 模式
+  [["KNN","knn"],["范围","range"],["缓冲区","buffer"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const sg=document.createElement("div");sg.className="slider-group";
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=12;inp.value=k;
+  const val=document.createElement("span");val.className="val";val.textContent="K="+k;
+  inp.addEventListener("input",()=>{
+    if(mode==="knn"){k=+inp.value;val.textContent="K="+k;}
+    else{radius=+inp.value*15;val.textContent="r="+radius;}
+    draw();
+  });
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const regen=document.createElement("button");regen.className="btn ghost small";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+  // 模式切换时调整 slider
+  const setSlider=()=>{if(mode==="knn"){inp.min=1;inp.max=12;inp.value=k;val.textContent="K="+k;}else{inp.min=2;inp.max=10;inp.value=Math.round(radius/15);val.textContent="r="+radius;}};
+  document.querySelectorAll("#ctl03 .small").forEach((b,i)=>b.addEventListener("click",setSlider));
+})();
+
+/* ============================================================
+   04 地理编码
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420;
+  // 预设地址库
+  const db=[
+    {addr:"天安门广场",x:380,y:200},
+    {addr:"天安门",x:380,y:200},
+    {addr:"故宫博物院",x:410,y:180},
+    {addr:"王府井大街",x:440,y:210},
+    {addr:"颐和园",x:200,y:120},
+    {addr:"鸟巢国家体育场",x:340,y:90},
+    {addr:"水立方",x:360,y:100},
+    {addr:"北京大学",x:230,y:160},
+    {addr:"清华大学",x:260,y:110},
+    {addr:"中关村",x:250,y:200},
+    {addr:"三里屯",x:480,y:170},
+    {addr:"国贸中心",x:520,y:230},
+    {addr:"北京西站",x:280,y:280},
+    {addr:"北京南站",x:400,y:320},
+    {addr:"首都机场",x:580,y:60},
+    {addr:"八达岭长城",x:120,y:60}
+  ];
+  let mode="forward";
+  let query="天安门";
+  let reversePt={x:400,y:200};
+
+  function levenshtein(a,b){
+    a=a.toLowerCase();b=b.toLowerCase();
+    const m=a.length,n=b.length;
+    const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+    for(let i=0;i<=m;i++)dp[i][0]=i;
+    for(let j=0;j<=j&&j<=n;j++)dp[0][j]=j;
+    for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){
+      dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+    return dp[m][n];
+  }
+  function similarity(a,b){
+    const d=levenshtein(a,b);
+    return 1-d/Math.max(a.length,b.length);
+  }
+
+  function draw(){
+    clearNode(svg);
+    let best=null,cands=[],title="",desc="",simTxt="";
+    if(mode==="forward"){
+      // 正向：query → 坐标
+      const scored=db.map(p=>({p,s:similarity(query,p.addr)})).sort((a,b)=>b.s-a.s);
+      best=scored[0];
+      cands=scored.slice(1,4).filter(x=>x.s>0.1);
+      title="正向地理编码";
+      desc="输入地址「"+query+"」→ 最佳匹配「"+best.p.addr+"」。相似度由 Levenshtein 编辑距离计算，可容忍拼写错误。";
+      simTxt=best.s.toFixed(2);
+    }else{
+      // 逆向：reversePt → 最近地址
+      const scored=db.map(p=>({p,d:Math.hypot(p.x-reversePt.x,p.y-reversePt.y)})).sort((a,b)=>a.d-b.d);
+      best=scored[0];
+      cands=scored.slice(1,4);
+      title="逆地理编码";
+      desc="坐标 ("+reversePt.x.toFixed(0)+", "+reversePt.y.toFixed(0)+") → 最近地址「"+best.p.addr+"」，距离 "+best.d.toFixed(0)+" px。";
+      simTxt=(1-best.d/300).toFixed(2);
+      // 画查询点
+      svg.appendChild(el("circle",{cx:reversePt.x,cy:reversePt.y,r:8,fill:"#34d399",stroke:"#0b0b0c","stroke-width":1.6}));
+      svg.appendChild(el("circle",{cx:reversePt.x,cy:reversePt.y,r:16,fill:"none",stroke:"#34d399","stroke-width":1.2,opacity:.5,"stroke-dasharray":"3 3"}));
+      // 连线到最佳
+      svg.appendChild(el("line",{x1:reversePt.x,y1:reversePt.y,x2:best.p.x,y2:best.p.y,stroke:"rgba(52,211,153,.5)","stroke-width":1.2,"stroke-dasharray":"3 3"}));
+    }
+
+    // 候选点
+    cands.forEach(c=>{
+      svg.appendChild(el("circle",{cx:c.p.x,cy:c.p.y,r:6,fill:"#7c5cff",stroke:"#0b0b0c","stroke-width":1}));
+      const t=el("text",{x:c.p.x+8,y:c.p.y-6,"font-size":10,"font-family":MONO,fill:"#7c5cff"});t.textContent=c.p.addr;svg.appendChild(t);
+    });
+    // 最佳
+    svg.appendChild(el("circle",{cx:best.p.x,cy:best.p.y,r:8,fill:"#2dd4ff",stroke:"#0b0b0c","stroke-width":1.6}));
+    svg.appendChild(el("circle",{cx:best.p.x,cy:best.p.y,r:14,fill:"none",stroke:"#2dd4ff","stroke-width":1.4,opacity:.6}));
+    const bt=el("text",{x:best.p.x+10,y:best.p.y-8,"font-size":12,"font-family":MONO,fill:"#2dd4ff",style:"font-weight:600"});bt.textContent="★ "+best.p.addr;svg.appendChild(bt);
+    const bc=el("text",{x:best.p.x+10,y:best.p.y+6,"font-size":10,"font-family":MONO,fill:"#62666d"});bc.textContent="("+best.p.x.toFixed(0)+", "+best.p.y.toFixed(0)+")";svg.appendChild(bc);
+
+    // 其他地址（淡）
+    db.forEach(p=>{
+      if(p===best.p||cands.some(c=>c.p===p))return;
+      svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:3,fill:"#62666d",opacity:.5}));
+    });
+
+    $("st04n").textContent=db.length;
+    $("st04sim").textContent=simTxt;
+    $("st04cand").textContent=cands.length;
+    $("st04mode").textContent=mode==="forward"?"正向":"逆向";
+    $("p04title").textContent=title;
+    $("p04detail").textContent=desc;
+  }
+
+  draw();
+  const inp=document.createElement("input");inp.className="txt";inp.type="text";inp.value=query;inp.placeholder="输入地址…";
+  inp.addEventListener("input",()=>{query=inp.value||" ";draw();});
+  ctl.appendChild(inp);
+  [["正向","forward"],["逆向","reverse"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  // 逆向模式点击地图
+  svg.style.cursor="crosshair";
+  svg.addEventListener("click",e=>{
+    if(mode!=="reverse")return;
+    const r=svg.getBoundingClientRect();
+    reversePt.x=(e.clientX-r.left)/r.width*W;
+    reversePt.y=(e.clientY-r.top)/r.height*H;
+    draw();
+  });
+  const sample=["天安门","故宫","颐和园","中关村","机场"];
+  sample.forEach(s=>{
+    const b=document.createElement("button");b.className="btn ghost small";b.textContent=s;
+    b.addEventListener("click",()=>{query=s;inp.value=s;mode="forward";document.querySelectorAll("#ctl04 .small").forEach((x,i)=>x.classList.toggle("on",i===0));draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   05 路径规划
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=420;
+  // 网格图：6x5 节点
+  const cols=6,rows=5;
+  const nodes=[];
+  const padX=80,padY=60;
+  const dx=(W-2*padX)/(cols-1),dy=(H-2*padY)/(rows-1);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    nodes.push({id:r*cols+c,x:padX+c*dx,y:padY+r*dy,r,c});
+  }
+  // 边：四邻接 + 对角（部分）
+  const edges=[];
+  function addEdge(a,b){
+    const w=Math.hypot(nodes[a].x-nodes[b].x,nodes[a].y-nodes[b].y)*(0.8+Math.random()*0.4);
+    edges.push({a,b,w});
+  }
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const id=r*cols+c;
+    if(c<cols-1)addEdge(id,id+1);
+    if(r<rows-1)addEdge(id,id+cols);
+  }
+  // 几条对角捷径
+  addEdge(0,7);addEdge(6,13);addEdge(12,19);addEdge(17,24);addEdge(5,12);
+  let start=0,end=29;
+  let algo="dijkstra";
+  let explored=[],path=[],frontier=[];
+
+  function neighbors(id){
+    const ns=[];
+    edges.forEach(e=>{
+      if(e.a===id)ns.push({to:e.b,w:e.w});
+      else if(e.b===id)ns.push({to:e.a,w:e.w});
+    });
+    return ns;
+  }
+  function dijkstra(){
+    const dist={},prev={},visited={};
+    nodes.forEach(n=>{dist[n.id]=Infinity;});
+    dist[start]=0;
+    const pq=[{id:start,d:0}];
+    const order=[];
+    while(pq.length){
+      pq.sort((a,b)=>a.d-b.d);
+      const cur=pq.shift();
+      if(visited[cur.id])continue;
+      visited[cur.id]=true;
+      order.push(cur.id);
+      if(cur.id===end)break;
+      neighbors(cur.id).forEach(nb=>{
+        const nd=dist[cur.id]+nb.w;
+        if(nd<dist[nb.to]){dist[nb.to]=nd;prev[nb.to]=cur.id;pq.push({id:nb.to,d:nd});}
+      });
+    }
+    const p=[];let cur=end;
+    while(cur!=null){p.unshift(cur);cur=prev[cur];}
+    return {explored:order,path:p,dist:dist[end]};
+  }
+  function astar(){
+    const dist={},prev={},visited={};
+    nodes.forEach(n=>{dist[n.id]=Infinity;});
+    dist[start]=0;
+    const heur=id=>Math.hypot(nodes[id].x-nodes[end].x,nodes[id].y-nodes[end].y);
+    const pq=[{id:start,d:0,f:heur(start)}];
+    const order=[];
+    while(pq.length){
+      pq.sort((a,b)=>a.f-b.f);
+      const cur=pq.shift();
+      if(visited[cur.id])continue;
+      visited[cur.id]=true;
+      order.push(cur.id);
+      if(cur.id===end)break;
+      neighbors(cur.id).forEach(nb=>{
+        const nd=dist[cur.id]+nb.w;
+        if(nd<dist[nb.to]){dist[nb.to]=nd;prev[nb.to]=cur.id;pq.push({id:nb.to,d:nd,f:nd+heur(nb.to)});}
+      });
+    }
+    const p=[];let cur=end;
+    while(cur!=null){p.unshift(cur);cur=prev[cur];}
+    return {explored:order,path:p,dist:dist[end]};
+  }
+  function ch(){
+    // 简化 Contraction Hierarchies：先按节点重要度排序，预计算捷径，查询时只走"向上"
+    // 这里简化为：对部分中转节点预先松弛，得到更少访问
+    const dist={},prev={},visited={},contracted={};
+    nodes.forEach(n=>{dist[n.id]=Infinity;});
+    dist[start]=0;
+    // 标记中间节点为已收缩（捷径已合并）
+    nodes.forEach(n=>{if((n.r+n.c)%2===0)contracted[n.id]=true;});
+    const heur=id=>Math.hypot(nodes[id].x-nodes[end].x,nodes[id].y-nodes[end].y);
+    const pq=[{id:start,d:0,f:heur(start)}];
+    const order=[];
+    while(pq.length){
+      pq.sort((a,b)=>a.f-b.f);
+      const cur=pq.shift();
+      if(visited[cur.id])continue;
+      visited[cur.id]=true;
+      order.push(cur.id);
+      if(cur.id===end)break;
+      neighbors(cur.id).forEach(nb=>{
+        // CH：跳过收缩的中间节点（捷径已包含）
+        if(contracted[nb.to]&&nb.to!==end)return;
+        const nd=dist[cur.id]+nb.w;
+        if(nd<dist[nb.to]){dist[nb.to]=nd;prev[nb.to]=cur.id;pq.push({id:nb.to,d:nd,f:nd+heur(nb.to)});}
+      });
+    }
+    const p=[];let cur=end;
+    while(cur!=null){p.unshift(cur);cur=prev[cur];}
+    return {explored:order,path:p,dist:dist[end]};
+  }
+
+  function run(){
+    let res;
+    if(algo==="dijkstra")res=dijkstra();
+    else if(algo==="astar")res=astar();
+    else res=ch();
+    explored=res.path.length?res.explored:[];
+    path=res.path;
+  }
+
+  function draw(progress){
+    progress=progress==null?1:progress;
+    clearNode(svg);
+    // 边
+    edges.forEach(e=>{
+      svg.appendChild(el("line",{x1:nodes[e.a].x,y1:nodes[e.a].y,x2:nodes[e.b].x,y2:nodes[e.b].y,stroke:"rgba(255,255,255,.07)","stroke-width":1.2}));
+    });
+    // 已探索（按进度逐步显示）
+    const showN=Math.floor(explored.length*progress);
+    for(let i=0;i<showN;i++){
+      const n=nodes[explored[i]];
+      if(n.id===start||n.id===end)continue;
+      svg.appendChild(el("circle",{cx:n.x,cy:n.y,r:11,fill:"rgba(124,92,255,.25)",stroke:"#7c5cff","stroke-width":1}));
+    }
+    // 边界（最后几个）
+    if(showN>0){
+      const fr=explored.slice(Math.max(0,showN-3),showN);
+      fr.forEach(id=>{
+        const n=nodes[id];
+        if(id===start||id===end)return;
+        svg.appendChild(el("circle",{cx:n.x,cy:n.y,r:7,fill:"#fbbf24",opacity:.7}));
+      });
+    }
+    // 路径
+    const pathShow=Math.floor(path.length*progress);
+    if(pathShow>1){
+      let d="M"+nodes[path[0]].x+","+nodes[path[0]].y;
+      for(let i=1;i<pathShow;i++)d+=" L"+nodes[path[i]].x+","+nodes[path[i]].y;
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":3,"stroke-linecap":"round","stroke-linejoin":"round"}));
+    }
+    // 节点
+    nodes.forEach(n=>{
+      let fill="#1c1f24",stroke="rgba(255,255,255,.2)",r=5;
+      if(n.id===start){fill="#2dd4ff";stroke="#2dd4ff";r=7;}
+      else if(n.id===end){fill="#f87171";stroke="#f87171";r=7;}
+      svg.appendChild(el("circle",{cx:n.x,cy:n.y,r:r,fill:fill,stroke:stroke,"stroke-width":1.4}));
+    });
+    // 标签
+    const sl=el("text",{x:nodes[start].x,y:nodes[start].y-12,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#2dd4ff"});sl.textContent="S";svg.appendChild(sl);
+    const el2=el("text",{x:nodes[end].x,y:nodes[end].y-12,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#f87171"});el2.textContent="E";svg.appendChild(el2);
+
+    $("st05alg").textContent={dijkstra:"Dijkstra",astar:"A*",ch:"CH"}[algo];
+    $("st05visit").textContent=explored.length;
+    const len=path.length>1?path.reduce((s,id,i)=>i===0?0:s+Math.hypot(nodes[path[i]].x-nodes[path[i-1]].x,nodes[path[i]].y-nodes[path[i-1]].y),0):0;
+    $("st05len").textContent=len.toFixed(0);
+    $("st05rate").textContent=explored.length>0?Math.round(path.length/explored.length*100)+"%":"—";
+    const desc={dijkstra:"Dijkstra 无启发地按距离均匀扩展，搜索范围最大但保证最优。",astar:"A* 用到终点的欧氏距离作为启发，引导搜索朝终点方向，访问节点更少。",ch:"Contraction Hierarchies 预先按重要度收缩节点并加捷径，查询时只走向上方向，访问极少。"};
+    $("p05title").textContent={dijkstra:"Dijkstra",astar:"A*",ch:"CH"}[algo];
+    $("p05detail").textContent=desc[algo];
+  }
+
+  run();draw(1);
+  // 起终点选择
+  svg.style.cursor="pointer";
+  let pickPhase=0; // 0=none,1=pick start,2=pick end
+  svg.addEventListener("click",e=>{
+    const r=svg.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;
+    // 找最近节点
+    let bi=0,bd=Infinity;
+    nodes.forEach(n=>{const d=Math.hypot(n.x-x,n.y-y);if(d<bd){bd=d;bi=n.id;}});
+    if(bd>30)return;
+    if(pickPhase===0||pickPhase===2){start=bi;pickPhase=1;}
+    else{end=bi;pickPhase=2;}
+    run();draw(1);
+  });
+  [["Dijkstra","dijkstra"],["A*","astar"],["CH","ch"]].forEach(([n,a])=>{
+    const b=document.createElement("button");b.className="btn small"+(a===algo?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{algo=a;run();document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw(1);});
+    ctl.appendChild(b);
+  });
+  const pick=document.createElement("button");pick.className="btn primary small";pick.textContent="点击地图选 S/E";
+  pick.addEventListener("click",()=>{pickPhase=0;pick.textContent="选择中…";setTimeout(()=>pick.textContent="点击地图选 S/E",1500);});
+  ctl.appendChild(pick);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="运行动画";
+  anim.addEventListener("click",()=>{draw(0);animate(1600,p=>draw(p));});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   06 瓦片金字塔
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  let z=2,scheme="xyz",selected=null;
+
+  function totalTiles(zl){let s=0;for(let i=0;i<=zl;i++)s+=Math.pow(4,i);return s;}
+
+  function draw(){
+    clearNode(svg);
+    // 左侧：金字塔结构（侧视图）
+    const px=130,pyTop=60,pyBot=360;
+    const levels=Math.max(z+1,4);
+    for(let l=0;l<=levels;l++){
+      const y=pyBot-l*(pyBot-pyTop)/levels;
+      const w=20+l*38;
+      const active=l===z;
+      svg.appendChild(el("polygon",{points:(px-w)+","+y+" "+(px+w)+","+y+" "+(px+w*0.7)+","+(y+(pyBot-pyTop)/levels*0.6)+" "+(px-w*0.7)+","+(y+(pyBot-pyTop)/levels*0.6),fill:active?"rgba(45,212,255,.18)":"rgba(124,92,255,.06)",stroke:active?"#2dd4ff":"rgba(124,92,255,.3)","stroke-width":active?1.6:1}));
+      const t=el("text",{x:px-w-14,y:y+4,"text-anchor":"end","font-size":11,"font-family":MONO,fill:active?"#2dd4ff":"#9b9fa8"});t.textContent="z"+l;svg.appendChild(t);
+      const tc=el("text",{x:px+w+12,y:y+4,"font-size":10,"font-family":MONO,fill:"#62666d"});tc.textContent=Math.pow(4,l)+"";svg.appendChild(tc);
+    }
+    const tl=el("text",{x:px,y:40,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="金字塔 (侧视)";svg.appendChild(tl);
+
+    // 右侧：当前层瓦片网格（俯视）
+    const gx=340,gy=50,gw=320,gh=320;
+    svg.appendChild(el("rect",{x:gx,y:gy,width:gw,height:gh,fill:"rgba(45,212,255,.04)",stroke:"rgba(45,212,255,.3)","stroke-width":1.2}));
+    const n=Math.pow(2,z);
+    const cw=gw/n,ch=gh/n;
+    // 父层（z-1）虚线
+    if(z>0){
+      const pn=Math.pow(2,z-1);
+      const pcw=gw/pn,pch=gh/pn;
+      for(let i=0;i<=pn;i++)svg.appendChild(el("line",{x1:gx+i*pcw,y1:gy,x2:gx+i*pcw,y2:gy+gh,stroke:"rgba(124,92,255,.25)","stroke-width":1,"stroke-dasharray":"4 3"}));
+      for(let i=0;i<=pn;i++)svg.appendChild(el("line",{x1:gx,y1:gy+i*pch,x2:gx+gw,y2:gy+i*pch,stroke:"rgba(124,92,255,.25)","stroke-width":1,"stroke-dasharray":"4 3"}));
+    }
+    // 当前层网格
+    for(let i=0;i<=n;i++){
+      svg.appendChild(el("line",{x1:gx+i*cw,y1:gy,x2:gx+i*cw,y2:gy+gh,stroke:"rgba(45,212,255,.2)","stroke-width":1}));
+      svg.appendChild(el("line",{x1:gx,y1:gy+i*ch,x2:gx+gw,y2:gy+i*ch,stroke:"rgba(45,212,255,.2)","stroke-width":1}));
+    }
+    // 瓦片填色 + 坐标
+    for(let tx=0;tx<n;tx++)for(let ty=0;ty<n;ty++){
+      const realY=scheme==="tms"?n-1-ty:ty;
+      const isSel=selected&&selected.x===tx&&selected.y===realY;
+      const cx=gx+tx*cw+cw/2,cy=gy+ty*ch+ch/2;
+      // 交替色块表示瓦片内容
+      const seed=(tx*7+ty*13)%5;
+      const cols=["rgba(45,212,255,.12)","rgba(124,92,255,.12)","rgba(52,211,153,.12)","rgba(251,191,36,.10)","rgba(248,113,113,.10)"];
+      svg.appendChild(el("rect",{x:gx+tx*cw+1,y:gy+ty*ch+1,width:cw-2,height:ch-2,fill:isSel?"rgba(251,191,36,.3)":cols[seed],stroke:isSel?"#fbbf24":"rgba(45,212,255,.3)","stroke-width":isSel?1.6:0.6,rx:2}));
+      if(cw>30){
+        const t=el("text",{x:cx,y:cy-2,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:isSel?"#fbbf24":"#9b9fa8"});t.textContent=tx+","+realY;svg.appendChild(t);
+        if(cw>50){const t2=el("text",{x:cx,y:cy+11,"text-anchor":"middle","font-size":8,"font-family":MONO,fill:"#62666d"});t2.textContent="z="+z;svg.appendChild(t2);}
+      }
+    }
+    const tl2=el("text",{x:gx+gw/2,y:gy-12,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl2.textContent="层 z="+z+" · "+n+"×"+n+" · "+(n*n)+" 瓦片";svg.appendChild(tl2);
+    // 方向标识
+    const arr=el("text",{x:gx-8,y:gy+gh/2,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:scheme==="tms"?"#7c5cff":"#2dd4ff",transform:"rotate(-90 "+(gx-8)+" "+(gy+gh/2)+")"});arr.textContent=scheme==="tms"?"Y↑ (TMS)":"Y↓ (XYZ)";svg.appendChild(arr);
+
+    // 选中瓦片信息
+    if(selected){
+      const info=el("text",{x:gx,y:gy+gh+20,"font-size":11,"font-family":MONO,fill:"#fbbf24"});info.textContent="选中: z="+z+" x="+selected.x+" y="+selected.y+"  "+(scheme==="tms"?"(TMS)":"(XYZ)");svg.appendChild(info);
+    }
+
+    $("st06z").textContent=z;
+    $("st06n").textContent=n*n;
+    $("st06scheme").textContent=scheme.toUpperCase();
+    $("st06total").textContent=totalTiles(z);
+    $("p06title").textContent=scheme==="xyz"?"XYZ 方案":"TMS 方案";
+    $("p06detail").textContent=scheme==="xyz"?"XYZ（Google/OSM 标准）：原点在左上，Y 向下递增；TMS：原点在左下，Y 向上递增。两者瓦片内容相同，仅 Y 坐标翻转":"TMS：原点在左下，Y 向上递增；与 XYZ 的换算为 y_tms = 2^z − 1 − y_xyz。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>缩放 z</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=5;inp.value=z;
+  const val=document.createElement("span");val.className="val";val.textContent=z;
+  inp.addEventListener("input",()=>{z=+inp.value;val.textContent=z;selected=null;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  [["XYZ","xyz"],["TMS","tms"]].forEach(([n,s])=>{
+    const b=document.createElement("button");b.className="btn small"+(s===scheme?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{scheme=s;document.querySelectorAll("#ctl06 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="逐层下钻";
+  anim.addEventListener("click",()=>{
+    let from=z;
+    animate(2000,p=>{
+      z=Math.min(5,Math.floor(from+p*3));
+      inp.value=z;val.textContent=z;selected=null;draw();
+    });
+  });
+  ctl.appendChild(anim);
+  // 点击瓦片选中
+  svg.style.cursor="pointer";
+  svg.addEventListener("click",e=>{
+    const r=svg.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;
+    const gx=340,gy=50,gw=320,gh=320;
+    if(x<gx||x>gx+gw||y<gy||y>gy+gh)return;
+    const n=Math.pow(2,z);
+    const tx=Math.floor((x-gx)/(gw/n));
+    const ty=Math.floor((y-gy)/(gh/n));
+    const realY=scheme==="tms"?n-1-ty:ty;
+    selected={x:tx,y:realY};
+    draw();
+  });
+})();
+
+/* ============================================================
+   07 空间聚合
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420;
+  let mode="dbscan";
+  let eps=55,minPts=4;
+  let pts=[];
+
+  function gen(){
+    pts=[];
+    // 3 个聚簇 + 噪声
+    const centers=[[180,150],[480,200],[330,330]];
+    centers.forEach(c=>{
+      const n=12+Math.floor(Math.random()*6);
+      for(let i=0;i<n;i++)pts.push({x:c[0]+(Math.random()-.5)*120,y:c[1]+(Math.random()-.5)*100});
+    });
+    for(let i=0;i<8;i++)pts.push({x:40+Math.random()*(W-80),y:40+Math.random()*(H-80)});
+  }
+
+  function dbscan(){
+    const labels=new Array(pts.length).fill(-1); // -1=未分类,0=噪声,>0=簇
+    let cluster=0;
+    const region=p=>pts.map((q,i)=>({i,d:Math.hypot(p.x-q.x,p.y-q.y)})).filter(x=>x.d<=eps&&x.i!==pts.indexOf(p)).map(x=>x.i);
+    for(let i=0;i<pts.length;i++){
+      if(labels[i]!==-1)continue;
+      const nb=pts.map((q,j)=>j!==i&&Math.hypot(pts[i].x-q.x,pts[i].y-q.y)<=eps?j:-1).filter(j=>j>=0);
+      if(nb.length<minPts){labels[i]=0;continue;}
+      cluster++;
+      labels[i]=cluster;
+      const seed=[...nb];
+      while(seed.length){
+        const q=seed.shift();
+        if(labels[q]===0)labels[q]=cluster;
+        if(labels[q]!==-1)continue;
+        labels[q]=cluster;
+        const qnb=pts.map((p,j)=>j!==q&&Math.hypot(pts[q].x-p.x,pts[q].y-p.y)<=eps?j:-1).filter(j=>j>=0);
+        if(qnb.length>=minPts)seed.push(...qnb.filter(j=>!seed.includes(j)));
+      }
+    }
+    return labels;
+  }
+
+  function draw(){
+    clearNode(svg);
+    let clusters=0,noise=0;
+    const cols=["#2dd4ff","#7c5cff","#fbbf24","#34d399","#e879f9","#fb923c"];
+
+    if(mode==="dbscan"){
+      const labels=dbscan();
+      const maxLabel=Math.max(0,...labels);
+      clusters=maxLabel;
+      // ε 邻域可视化
+      pts.forEach((p,i)=>{
+        if(labels[i]>0){
+          svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:eps,fill:"rgba(45,212,255,.03)",stroke:"rgba(45,212,255,.1)","stroke-width":0.6}));
+        }
+      });
+      pts.forEach((p,i)=>{
+        const lb=labels[i];
+        if(lb===0){noise++;svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:4,fill:"#62666d",stroke:"#0b0b0c","stroke-width":1}));}
+        else{
+          const c=cols[(lb-1)%cols.length];
+          svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:5,fill:c,stroke:"#0b0b0c","stroke-width":1}));
+        }
+      });
+      $("p07title").textContent="DBSCAN";
+      $("p07detail").textContent="DBSCAN：核心点 ε 邻域内 ≥ MinPts 个点；核心点密度相连构成一簇；非核心且无核心邻居为噪声。无需预设簇数，可发现任意形状簇。";
+    }else{
+      // 热力图：核密度叠加
+      const res=12;
+      const cw=W/res,ch=H/res;
+      const density=new Array(res*res).fill(0);
+      pts.forEach(p=>{
+        for(let i=0;i<res;i++)for(let j=0;j<res;j++){
+          const cx=i*cw+cw/2,cy=j*ch+ch/2;
+          const d=Math.hypot(p.x-cx,p.y-cy);
+          density[j*res+i]+=Math.exp(-(d*d)/(2*eps*eps));
+        }
+      });
+      const maxD=Math.max(...density);
+      for(let i=0;i<res;i++)for(let j=0;j<res;j++){
+        const v=density[j*res+i]/maxD;
+        if(v<0.05)continue;
+        // 蓝→紫→红 色映射
+        let r,g,b;
+        if(v<0.5){const t=v/0.5;r=Math.round(45+(124-45)*t);g=Math.round(212+(92-212)*t);b=Math.round(255+(255-255)*t);}
+        else{const t=(v-0.5)/0.5;r=Math.round(124+(248-124)*t);g=Math.round(92+(113-92)*t);b=Math.round(255+(113-255)*t);}
+        svg.appendChild(el("rect",{x:i*cw,y:j*ch,width:cw+1,height:ch+1,fill:"rgba("+r+","+g+","+b+","+(0.15+v*0.5)+")"}));
+      }
+      // 点叠加
+      pts.forEach(p=>{
+        svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:2.5,fill:"#f7f8f8",opacity:.6}));
+      });
+      clusters=1;
+      $("p07title").textContent="热力图";
+      $("p07detail").textContent="热力图用高斯核函数对每个点叠加密度，色越深表示该区域点越密集。常用于表示人流、事件浓度的空间分布。";
+    }
+
+    $("st07mode").textContent=mode==="dbscan"?"DBSCAN":"Heatmap";
+    $("st07k").textContent=clusters;
+    $("st07noise").textContent=noise;
+    $("st07n").textContent=pts.length;
+  }
+
+  gen();draw();
+  [["DBSCAN","dbscan"],["热力图","heat"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>'+(mode==="dbscan"?"ε / σ":"σ")+'</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=20;inp.max=90;inp.value=eps;
+  const val=document.createElement("span");val.className="val";val.textContent=eps;
+  inp.addEventListener("input",()=>{eps=+inp.value;if(mode==="dbscan")val.textContent="ε="+eps;else val.textContent="σ="+eps;draw();});
+  const setLabel=()=>{sg.firstChild.textContent=mode==="dbscan"?"ε 邻域":"σ 核宽";val.textContent=(mode==="dbscan"?"ε=":"σ=")+eps;};
+  inp.addEventListener("input",setLabel);
+  document.querySelectorAll("#ctl07 .small").forEach(b=>b.addEventListener("click",setLabel));
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>MinPts</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=2;inp2.max=8;inp2.value=minPts;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=minPts;
+  inp2.addEventListener("input",()=>{minPts=+inp2.value;val2.textContent=minPts;draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);
+  // 仅 dbscan 显示 MinPts
+  const toggleMinPts=()=>{sg2.style.display=mode==="dbscan"?"flex":"none";};
+  document.querySelectorAll("#ctl07 .small").forEach(b=>b.addEventListener("click",toggleMinPts));
+  toggleMinPts();
+  ctl.appendChild(sg2);
+  const regen=document.createElement("button");regen.className="btn primary small";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   08 矢量瓦片 vs 栅格瓦片
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420;
+  let zoom=1.0,mode="compare";
+
+  // 一组几何（道路 + 建筑），用归一化坐标
+  const roads=[{x:50,y:80,d:"M0,0 L300,0 L300,200"},{x:50,y:280,d:"M0,0 L300,0"},{x:150,y:80,d:"M0,0 L0,200"}];
+  const buildings=[
+    {x:70,y:100,w:50,h:40},{x:140,y:100,w:40,h:60},{x:200,y:100,w:60,h:50},
+    {x:70,y:200,w:50,h:50},{x:180,y:200,w:80,h:50},{x:280,y:100,w:40,h:150}
+  ];
+
+  function rasterize(px,py,w,h,pixel){
+    // 用 pixel 大小的方块近似栅格化矩形区域
+    const cells=[];
+    const cols=Math.max(1,Math.round(w/pixel));
+    const rows=Math.max(1,Math.round(h/pixel));
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+      // 简化：按是否覆盖判定（这里矩形必覆盖）
+      cells.push({x:px+i*pixel,y:py+j*pixel,size:pixel});
+    }
+    return cells;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const halfH=(H-60)/2;
+    const topY=30,botY=30+halfH+20;
+    const mapW=300,mapH=halfH-10;
+
+    // 像素大小随 zoom 反向变化（zoom 越大像素越小=越清晰）
+    const pixel=Math.max(2,16/zoom);
+    $("st08z").textContent=zoom.toFixed(1)+"×";
+    $("st08vec").textContent="100%";
+    $("st08px").textContent=Math.round(mapW/pixel)+"×"+Math.round(mapH/pixel);
+    $("st08mode").textContent=mode==="compare"?"对比":mode==="vector"?"矢量":"栅格";
+
+    // ===== 上：栅格 =====
+    if(mode==="compare"||mode==="raster"){
+      const ox=50,oy=topY;
+      svg.appendChild(el("rect",{x:ox,y:oy,width:mapW,height:mapH,fill:"#0d0f12",stroke:"rgba(124,92,255,.4)","stroke-width":1.2}));
+      // 栅格化道路（线 → 沿线的像素）
+      roads.forEach(rd=>{
+        // 简化：把道路画成粗线再栅格化
+        const cells=rasterize(rd.x+ox,rd.y+oy,300,Math.max(4,8/zoom*4),pixel);
+        // 只保留沿线的近似：这里直接画粗线段再叠加马赛克
+        svg.appendChild(el("path",{d:rd.d,transform:"translate("+(rd.x+ox)+","+(rd.y+oy)+")",fill:"none",stroke:"#7c5cff","stroke-width":Math.max(3,8/Math.sqrt(zoom)),"stroke-linecap":"round"}));
+      });
+      // 建筑栅格化
+      buildings.forEach(b=>{
+        const px=ox+b.x,py=oy+b.y;
+        // 画马赛克方块
+        const cols=Math.max(1,Math.round(b.w*zoom/pixel));
+        const rows=Math.max(1,Math.round(b.h*zoom/pixel));
+        const cw=b.w*zoom/cols,ch=b.h*zoom/rows;
+        // 缩放后可能超出，clip 在框内
+        for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+          const cx=px+i*cw,cy=py+j*ch;
+          if(cx>ox+mapW||cy>oy+mapH)continue;
+          svg.appendChild(el("rect",{x:cx,y:cy,width:cw+0.5,height:ch+0.5,fill:"#fbbf24",opacity:.7}));
+        }
+      });
+      // 马赛克网格线（低 zoom 显示明显）
+      if(zoom<1.5){
+        for(let x=ox;x<=ox+mapW;x+=pixel)svg.appendChild(el("line",{x1:x,y1:oy,x2:x,y2:oy+mapH,stroke:"rgba(0,0,0,.25)","stroke-width":.5}));
+        for(let y=oy;y<=oy+mapH;y+=pixel)svg.appendChild(el("line",{x1:ox,y1:y,x2:ox+mapW,y2:y,stroke:"rgba(0,0,0,.25)","stroke-width":.5}));
+      }
+      const t=el("text",{x:ox,y:oy-8,"font-size":12,"font-family":MONO,fill:"#7c5cff"});t.textContent="栅格瓦片 (PNG) · "+Math.round(mapW/pixel)+"px";svg.appendChild(t);
+    }
+
+    // ===== 下：矢量 =====
+    if(mode==="compare"||mode==="vector"){
+      const ox=50,oy=botY;
+      // 矢量始终按 zoom 缩放几何，保持锐利
+      svg.appendChild(el("rect",{x:ox,y:oy,width:mapW,height:mapH,fill:"#0d0f12",stroke:"rgba(45,212,255,.4)","stroke-width":1.2}));
+      const sc=zoom;
+      const g=el("g",{transform:"translate("+ox+","+oy+") scale("+sc+")"});
+      // clip
+      const clip=el("clipPath",{id:"clip08"});clip.appendChild(el("rect",{x:0,y:0,width:mapW/sc,height:mapH/sc}));g.appendChild(clip);
+      g.setAttribute("clip-path","url(#clip08)");
+      roads.forEach(rd=>{
+        const p=el("path",{d:rd.d,transform:"translate("+rd.x+","+rd.y+")",fill:"none",stroke:"#2dd4ff","stroke-width":3/sc,"stroke-linecap":"round","stroke-linejoin":"round"});
+        g.appendChild(p);
+      });
+      buildings.forEach(b=>{
+        g.appendChild(el("rect",{x:b.x,y:b.y,width:b.w,height:b.h,fill:"#fbbf24",opacity:.85,stroke:"#34d399","stroke-width":1/sc}));
+      });
+      svg.appendChild(g);
+      const t=el("text",{x:ox,y:oy-8,"font-size":12,"font-family":MONO,fill:"#2dd4ff"});t.textContent="矢量瓦片 (MVT) · 始终锐利";svg.appendChild(t);
+    }
+
+    // 右侧说明
+    const infoX=420,infoY=topY+10;
+    const card=el("g",{transform:"translate("+infoX+","+infoY+")"});
+    card.appendChild(el("rect",{x:0,y:0,width:260,height:340,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const items=[
+      {t:"矢量瓦片 (MVT)",c:"#2dd4ff",d:"几何+属性，矢量传输"},
+      {t:"  · 缩放无锯齿",c:"#34d399",d:"客户端实时重绘"},
+      {t:"  · 可换样式",c:"#34d399",d:"同数据多主题"},
+      {t:"  · 体积小",c:"#34d399",d:"仅传输可见层"},
+      {t:"栅格瓦片 (PNG)",c:"#7c5cff",d:"预渲染图片"},
+      {t:"  · 放大马赛克",c:"#f87171",d:"像素化失真"},
+      {t:"  · 不可重设样式",c:"#f87171",d:"样式固化"},
+      {t:"  · 渲染快",c:"#fbbf24",d:"直接贴图"}
+    ];
+    items.forEach((it,i)=>{
+      const y=24+i*38;
+      card.appendChild(el("rect",{x:14,y:y-9,width:4,height:14,fill:it.c,rx:2}));
+      const t1=el("text",{x:26,y:y,"font-size":12,"font-family":MONO,fill:"#f7f8f8"});t1.textContent=it.t;card.appendChild(t1);
+      const t2=el("text",{x:26,y:y+14,"font-size":10,"font-family":"system-ui",fill:"#62666d"});t2.textContent=it.d;card.appendChild(t2);
+    });
+    svg.appendChild(card);
+
+    $("p08title").textContent="矢量瓦片";
+    $("p08detail").textContent=zoom<1?"当前缩放 "+zoom.toFixed(1)+"×：栅格瓦片已明显马赛克化，矢量瓦片仍保持锐利边缘。缩放越小差异越大。":"当前缩放 "+zoom.toFixed(1)+"×：栅格瓦片接近原生分辨率，矢量瓦片同样清晰，两者差异缩小。放大时矢量优势更明显。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>缩放</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=3;inp.max=30;inp.value=Math.round(zoom*10);
+  const val=document.createElement("span");val.className="val";val.textContent=zoom.toFixed(1)+"×";
+  inp.addEventListener("input",()=>{zoom=+inp.value/10;val.textContent=zoom.toFixed(1)+"×";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  [["对比","compare"],["矢量","vector"],["栅格","raster"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="缩放动画";
+  anim.addEventListener("click",()=>{
+    animate(2400,p=>{
+      // 0.3 → 3.0 往返
+      const t=p<0.5?p*2:(1-p)*2;
+      zoom=0.3+t*2.7;
+      inp.value=Math.round(zoom*10);val.textContent=zoom.toFixed(1)+"×";draw();
+    });
+  });
+  ctl.appendChild(anim);
+})();
+</script>
+</body>
+</html>

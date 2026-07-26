@@ -1,0 +1,2321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信息检索可视化实验室 · Info Retrieval Viz Lab</title>
+<meta name="description" content="信息检索核心算法的交互式可视化：倒排索引、TF-IDF、BM25、向量空间模型、PageRank、Learning to Rank、混合检索、评估指标。">
+<style>
+/* ============================================================
+   CSS Variables & Reset
+   ============================================================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-dim:rgba(52,211,153,.15);
+  --accent-2-dim:rgba(124,92,255,.15);
+  --danger:#f87171;
+  --warn:#fbbf24;
+  --nav-h:56px;
+  --side-w:240px;
+  --radius:14px;
+  --radius-sm:8px;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --shadow:0 2px 8px rgba(0,0,0,.3);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.45);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 24px)}
+
+body{
+  font-family:var(--font-sans);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.6;
+  font-size:14px;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Subtle background grid */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    radial-gradient(circle at 20% 10%,rgba(52,211,153,.04) 0%,transparent 40%),
+    radial-gradient(circle at 80% 80%,rgba(124,92,255,.04) 0%,transparent 40%);
+  pointer-events:none;
+  z-index:0;
+}
+
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent-dim);color:var(--accent)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-strong)}
+
+/* ============================================================
+   Progress Bar
+   ============================================================ */
+#progress-bar{
+  position:fixed;
+  top:0;left:0;
+  height:3px;
+  width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  z-index:1000;
+  transition:width .08s linear;
+  box-shadow:0 0 8px var(--accent-dim);
+}
+
+/* ============================================================
+   Navbar
+   ============================================================ */
+.navbar{
+  position:fixed;
+  top:0;left:0;right:0;
+  height:var(--nav-h);
+  background:rgba(16,17,20,.92);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  padding:0 24px;
+  z-index:900;
+  gap:24px;
+}
+
+.nav-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:700;
+  font-size:15px;
+  white-space:nowrap;
+}
+.nav-brand .logo-dot{
+  width:24px;height:24px;
+  border-radius:6px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:#08090a;font-weight:800;
+}
+.nav-brand .brand-sub{
+  color:var(--faint);font-weight:400;font-size:12px;
+}
+
+.nav-links{
+  display:flex;
+  gap:4px;
+  margin-left:auto;
+}
+.nav-links a{
+  font-size:13px;
+  color:var(--muted);
+  padding:6px 12px;
+  border-radius:var(--radius-sm);
+  transition:color .2s,background .2s;
+}
+.nav-links a:hover{color:var(--ink);background:var(--surface-2)}
+
+.nav-toggle{
+  display:none;
+  width:36px;height:36px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  align-items:center;justify-content:center;
+  margin-left:auto;
+}
+.nav-toggle span{
+  display:block;width:16px;height:2px;background:var(--ink);
+  position:relative;
+}
+.nav-toggle span::before,.nav-toggle span::after{
+  content:'';position:absolute;left:0;width:16px;height:2px;background:var(--ink);
+}
+.nav-toggle span::before{top:-5px}
+.nav-toggle span::after{top:5px}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.sidebar{
+  position:fixed;
+  top:var(--nav-h);
+  left:0;
+  bottom:0;
+  width:var(--side-w);
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  z-index:800;
+  padding:20px 0;
+}
+
+.side-section{
+  padding:0 20px 16px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:12px;
+}
+.side-label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--faint);
+  margin-bottom:10px;
+}
+.side-desc{
+  font-size:12px;color:var(--muted);line-height:1.5;
+}
+
+.side-nav{padding:0 12px}
+.side-nav a{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 12px;
+  border-radius:var(--radius-sm);
+  font-size:13px;
+  color:var(--muted);
+  transition:color .2s,background .2s,transform .2s;
+  position:relative;
+}
+.side-nav a:hover{color:var(--ink);background:var(--surface-2)}
+.side-nav a.active{color:var(--accent);background:var(--accent-dim)}
+.side-nav a.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:18px;border-radius:2px;background:var(--accent);
+}
+.side-nav .num{
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--faint);
+  min-width:22px;
+}
+.side-nav a.active .num{color:var(--accent)}
+
+/* ============================================================
+   Main Content
+   ============================================================ */
+.main{
+  margin-left:var(--side-w);
+  margin-top:var(--nav-h);
+  padding:40px 48px 80px;
+  max-width:1280px;
+  position:relative;
+  z-index:1;
+}
+
+/* Hero */
+.hero{
+  margin-bottom:56px;
+  padding:32px 0 8px;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px;
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  font-size:12px;color:var(--muted);
+  margin-bottom:20px;
+}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.hero h1{
+  font-size:clamp(28px,4vw,42px);
+  font-weight:800;
+  line-height:1.15;
+  letter-spacing:-.02em;
+  margin-bottom:16px;
+}
+.hero h1 .grad{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.hero p{
+  font-size:16px;color:var(--muted);max-width:640px;
+}
+.hero-stats{
+  display:flex;gap:32px;margin-top:28px;flex-wrap:wrap;
+}
+.hero-stat .v{font-size:22px;font-weight:700;color:var(--ink);font-family:var(--font-mono)}
+.hero-stat .l{font-size:12px;color:var(--faint)}
+
+/* Module */
+.module{
+  margin-bottom:56px;
+  scroll-margin-top:calc(var(--nav-h) + 20px);
+}
+.module-head{
+  margin-bottom:20px;
+}
+.module-head .kicker{
+  display:inline-block;
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--accent);
+  letter-spacing:.1em;
+  margin-bottom:8px;
+}
+.module-head h2{
+  font-size:26px;font-weight:700;letter-spacing:-.01em;
+  margin-bottom:8px;
+}
+.module-head p{
+  font-size:14px;color:var(--muted);max-width:680px;
+}
+
+/* Card */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.card-bar{
+  height:1px;background:linear-gradient(90deg,var(--accent),transparent 60%);
+}
+.card-body{padding:24px}
+
+/* Viz Box */
+.viz-box{
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:16px;
+  margin-bottom:20px;
+  overflow-x:auto;
+}
+.viz-box svg{margin:0 auto;max-width:100%}
+.viz-title{
+  font-size:12px;color:var(--faint);
+  font-family:var(--font-mono);
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+.viz-title .tag{
+  padding:1px 7px;border-radius:4px;
+  background:var(--surface-3);color:var(--muted);font-size:11px;
+}
+
+/* Controls */
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-bottom:20px;
+  align-items:center;
+}
+.ctrl-group{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 12px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+}
+.ctrl-group label{font-size:12px;color:var(--muted);white-space:nowrap}
+.btn{
+  padding:7px 16px;
+  border-radius:var(--radius-sm);
+  font-size:13px;font-weight:500;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--ink);
+  transition:background .2s,border-color .2s,transform .1s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--border-strong)}
+.btn:active{transform:scale(.97)}
+.btn.primary{
+  background:var(--accent-dim);
+  border-color:rgba(52,211,153,.3);
+  color:var(--accent);
+}
+.btn.primary:hover{background:rgba(52,211,153,.22)}
+.btn.purple{
+  background:var(--accent-2-dim);
+  border-color:rgba(124,92,255,.3);
+  color:var(--accent-2);
+}
+.btn.purple:hover{background:rgba(124,92,255,.22)}
+.btn.ghost{background:transparent}
+
+select,input[type="text"],input[type="number"]{
+  padding:5px 10px;
+  border-radius:6px;
+  background:var(--surface-3);
+  border:1px solid var(--border);
+  color:var(--ink);
+  font-size:12px;font-family:var(--font-sans);
+  outline:none;
+}
+select:focus,input:focus{border-color:var(--accent)}
+
+/* Range slider */
+input[type="range"]{
+  -webkit-appearance:none;appearance:none;
+  width:100px;height:4px;
+  background:var(--surface-3);
+  border-radius:2px;outline:none;
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+}
+input[type="range"]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+}
+.ctrl-value{
+  font-family:var(--font-mono);font-size:12px;color:var(--accent);
+  min-width:36px;
+}
+
+/* Tab buttons */
+.tab-row{display:flex;gap:4px;flex-wrap:wrap}
+.tab-btn{
+  padding:6px 14px;border-radius:6px;font-size:12px;
+  background:var(--surface-2);border:1px solid var(--border);
+  color:var(--muted);transition:all .2s;
+}
+.tab-btn.active{background:var(--accent-dim);border-color:rgba(52,211,153,.3);color:var(--accent)}
+
+/* Detail Box */
+.detail-box{
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:14px 16px;
+  margin-bottom:16px;
+  font-family:var(--font-mono);
+  font-size:12px;
+  line-height:1.7;
+  color:var(--muted);
+  white-space:pre-wrap;
+  word-break:break-word;
+  max-height:220px;
+  overflow-y:auto;
+}
+.detail-box .hl{color:var(--accent)}
+.detail-box .hl2{color:var(--accent-2)}
+.detail-box .kw{color:var(--warn)}
+.detail-box .cmt{color:var(--faint)}
+
+/* Stats Row */
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:12px;
+}
+.stat{
+  padding:14px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+}
+.stat .stat-label{
+  font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;
+  margin-bottom:4px;
+}
+.stat .stat-value{
+  font-size:20px;font-weight:700;font-family:var(--font-mono);
+  color:var(--ink);
+}
+.stat .stat-value.accent{color:var(--accent)}
+.stat .stat-value.purple{color:var(--accent-2)}
+.stat .stat-sub{font-size:11px;color:var(--faint);margin-top:2px}
+
+/* Footer */
+.footer{
+  margin-top:80px;padding:32px 0;
+  border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:16px;
+}
+.footer .ft-left{font-size:13px;color:var(--muted)}
+.footer .ft-right{display:flex;gap:16px}
+.footer .ft-right a{font-size:13px;color:var(--muted);transition:color .2s}
+.footer .ft-right a:hover{color:var(--accent)}
+
+/* Fade-in animation */
+.fade-in{
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity .6s ease,transform .6s ease;
+}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* SVG common */
+.svg-axis{stroke:var(--border-strong);stroke-width:1}
+.svg-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:2 4}
+.svg-label{fill:var(--muted);font-size:11px;font-family:var(--font-mono)}
+.svg-title-text{fill:var(--ink);font-size:13px;font-weight:600}
+.svg-val{fill:var(--ink);font-size:11px;font-family:var(--font-mono)}
+.svg-bar-accent{fill:var(--accent)}
+.svg-bar-purple{fill:var(--accent-2)}
+.svg-node{cursor:pointer;transition:opacity .2s}
+.svg-edge{stroke:var(--border-strong);stroke-width:1.5;fill:none}
+
+/* Responsive */
+@media(max-width:1024px){
+  :root{--side-w:0px}
+  .sidebar{
+    transform:translateX(-100%);
+    transition:transform .3s ease;
+    width:280px;
+  }
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:32px 24px 60px}
+  .nav-toggle{display:flex}
+  .nav-links{display:none}
+}
+@media(max-width:640px){
+  .main{padding:24px 16px 48px}
+  .card-body{padding:16px}
+  .hero h1{font-size:26px}
+  .hero p{font-size:14px}
+  .module-head h2{font-size:22px}
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  html{scroll-behavior:auto}
+  .fade-in{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Progress Bar -->
+<div id="progress-bar"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <div class="logo-dot">IR</div>
+    <span>Info Retrieval Viz Lab</span>
+    <span class="brand-sub">/ 信息检索可视化实验室</span>
+  </div>
+  <div class="nav-links">
+    <a href="https://github.com/wangzifan396-wzf/info-retrieval-viz-lab" target="_blank" rel="noopener">GitHub</a>
+    <a href="#m01">模块</a>
+    <a href="#m08">评估</a>
+  </div>
+  <button class="nav-toggle" id="navToggle" aria-label="菜单"><span></span></button>
+</nav>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="side-section">
+    <div class="side-label">实验室</div>
+    <p class="side-desc">信息检索核心算法的交互式可视化，涵盖从倒排索引到混合检索的完整链路。</p>
+  </div>
+  <div class="side-section">
+    <div class="side-label">导航 · 8 模块</div>
+  </div>
+  <nav class="side-nav" id="sideNav">
+    <a href="#m01"><span class="num">01</span> 倒排索引</a>
+    <a href="#m02"><span class="num">02</span> TF-IDF</a>
+    <a href="#m03"><span class="num">03</span> BM25</a>
+    <a href="#m04"><span class="num">04</span> 向量空间模型</a>
+    <a href="#m05"><span class="num">05</span> PageRank</a>
+    <a href="#m06"><span class="num">06</span> Learning to Rank</a>
+    <a href="#m07"><span class="num">07</span> 混合检索</a>
+    <a href="#m08"><span class="num">08</span> 评估指标</a>
+  </nav>
+</aside>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- Hero -->
+  <div class="hero fade-in">
+    <div class="hero-badge"><span class="dot"></span> 交互式可视化 · 零依赖 · 单文件</div>
+    <h1>信息检索 <span class="grad">可视化实验室</span></h1>
+    <p>从倒排索引的构建到混合检索的融合管道，8 个核心模块带你直观理解搜索引擎背后的算法原理。每个模块均可交互调参、实时观察结果变化。</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="v">8</div><div class="l">核心模块</div></div>
+      <div class="hero-stat"><div class="v">0</div><div class="l">外部依赖</div></div>
+      <div class="hero-stat"><div class="v">SVG</div><div class="l">原生渲染</div></div>
+      <div class="hero-stat"><div class="v">100%</div><div class="l">客户端运行</div></div>
+    </div>
+  </div>
+
+  <!-- Module 01: Inverted Index -->
+  <section class="module fade-in" id="m01">
+    <div class="module-head">
+      <span class="kicker">01 / INVERTED INDEX</span>
+      <h2>倒排索引</h2>
+      <p>将文档集合转化为「词项 → 文档列表」的映射结构。点击构建、合并、更新，观察 posting list 的动态变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">倒排索引结构图 <span class="tag">docs → terms → postings</span></div>
+          <svg id="svg01" viewBox="0 0 760 340" width="100%" height="340"></svg>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="btn01-build">构建索引</button>
+          <button class="btn purple" id="btn01-merge">合并 Posting</button>
+          <button class="btn" id="btn01-update">更新文档</button>
+          <button class="btn ghost" id="btn01-reset">重置</button>
+        </div>
+        <div class="detail-box" id="detail01">点击「构建索引」开始...</div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">文档数</div><div class="stat-value accent" id="s01-docs">0</div></div>
+          <div class="stat"><div class="stat-label">词项数</div><div class="stat-value" id="s01-terms">0</div></div>
+          <div class="stat"><div class="stat-label">Posting 数</div><div class="stat-value purple" id="s01-postings">0</div></div>
+          <div class="stat"><div class="stat-label">状态</div><div class="stat-value" id="s01-status" style="font-size:14px">空闲</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 02: TF-IDF -->
+  <section class="module fade-in" id="m02">
+    <div class="module-head">
+      <span class="kicker">02 / TF-IDF</span>
+      <h2>TF-IDF 权重计算</h2>
+      <p>词频（TF）衡量词项在文档中的出现频率，逆文档频率（IDF）衡量词项的区分能力。选择词项查看各文档的权重分布。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">TF / IDF / TF-IDF 权重对比 <span class="tag">4 docs</span></div>
+          <svg id="svg02" viewBox="0 0 760 300" width="100%" height="300"></svg>
+        </div>
+        <div class="controls">
+          <div class="ctrl-group">
+            <label>词项</label>
+            <select id="sel02-term"></select>
+          </div>
+          <div class="ctrl-group">
+            <label>公式</label>
+            <select id="sel02-formula">
+              <option value="raw">原始 TF</option>
+              <option value="log" selected>对数 TF (1+log)</option>
+              <option value="norm">归一化 TF</option>
+            </select>
+          </div>
+        </div>
+        <div class="detail-box" id="detail02"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">DF</div><div class="stat-value" id="s02-df">0</div><div class="stat-sub">文档频率</div></div>
+          <div class="stat"><div class="stat-label">IDF</div><div class="stat-value accent" id="s02-idf">0.00</div><div class="stat-sub">逆文档频率</div></div>
+          <div class="stat"><div class="stat-label">最高权重文档</div><div class="stat-value purple" id="s02-top" style="font-size:16px">—</div></div>
+          <div class="stat"><div class="stat-label">权重范围</div><div class="stat-value" id="s02-range" style="font-size:14px">0 ~ 0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 03: BM25 -->
+  <section class="module fade-in" id="m03">
+    <div class="module-head">
+      <span class="kicker">03 / BM25</span>
+      <h2>Okapi BM25 排序</h2>
+      <p>BM25 是工业界最广泛使用的排序函数。调节参数 k1（词频饱和）和 b（长度归一化），实时观察文档排序变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">BM25 文档得分排序 <span class="tag" id="tag03-query">query: "fox dog"</span></div>
+          <svg id="svg03" viewBox="0 0 760 300" width="100%" height="300"></svg>
+        </div>
+        <div class="controls">
+          <div class="ctrl-group">
+            <label>k1</label>
+            <input type="range" id="range03-k1" min="0" max="3" step="0.1" value="1.5">
+            <span class="ctrl-value" id="val03-k1">1.5</span>
+          </div>
+          <div class="ctrl-group">
+            <label>b</label>
+            <input type="range" id="range03-b" min="0" max="1" step="0.05" value="0.75">
+            <span class="ctrl-value" id="val03-b">0.75</span>
+          </div>
+          <div class="ctrl-group">
+            <label>查询</label>
+            <select id="sel03-query">
+              <option value="fox dog" selected>fox dog</option>
+              <option value="quick brown">quick brown</option>
+              <option value="lazy park tree">lazy park tree</option>
+              <option value="dog runs play">dog runs play</option>
+            </select>
+          </div>
+        </div>
+        <div class="detail-box" id="detail03"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">k1</div><div class="stat-value accent" id="s03-k1">1.5</div><div class="stat-sub">词频饱和</div></div>
+          <div class="stat"><div class="stat-label">b</div><div class="stat-value purple" id="s03-b">0.75</div><div class="stat-sub">长度归一化</div></div>
+          <div class="stat"><div class="stat-label">Top-1 文档</div><div class="stat-value" id="s03-top" style="font-size:16px">—</div></div>
+          <div class="stat"><div class="stat-label">得分范围</div><div class="stat-value" id="s03-range" style="font-size:14px">0 ~ 0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 04: Vector Space Model -->
+  <section class="module fade-in" id="m04">
+    <div class="module-head">
+      <span class="kicker">04 / VECTOR SPACE MODEL</span>
+      <h2>向量空间模型</h2>
+      <p>将文档和查询表示为高维向量，通过余弦相似度衡量匹配程度。拖动滑块调整查询向量方向，观察夹角与相似度变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">2D 向量空间 <span class="tag">余弦相似度</span></div>
+          <svg id="svg04" viewBox="0 0 760 340" width="100%" height="340"></svg>
+        </div>
+        <div class="controls">
+          <div class="ctrl-group">
+            <label>查询 · 维度1</label>
+            <input type="range" id="range04-x" min="0" max="10" step="0.5" value="6">
+            <span class="ctrl-value" id="val04-x">6.0</span>
+          </div>
+          <div class="ctrl-group">
+            <label>查询 · 维度2</label>
+            <input type="range" id="range04-y" min="0" max="10" step="0.5" value="3">
+            <span class="ctrl-value" id="val04-y">3.0</span>
+          </div>
+        </div>
+        <div class="detail-box" id="detail04"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">最佳匹配</div><div class="stat-value accent" id="s04-top" style="font-size:16px">—</div></div>
+          <div class="stat"><div class="stat-label">最高相似度</div><div class="stat-value purple" id="s04-sim">0.00</div></div>
+          <div class="stat"><div class="stat-label">夹角</div><div class="stat-value" id="s04-angle">0°</div></div>
+          <div class="stat"><div class="stat-label">查询模长</div><div class="stat-value" id="s04-norm">0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 05: PageRank -->
+  <section class="module fade-in" id="m05">
+    <div class="module-head">
+      <span class="kicker">05 / PAGERANK</span>
+      <h2>PageRank 迭代计算</h2>
+      <p>模拟随机游走过程，通过幂迭代传播节点重要性。调节阻尼因子 d，逐步迭代观察节点权重的收敛过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">网页链接图 <span class="tag">节点大小 = PageRank</span></div>
+          <svg id="svg05" viewBox="0 0 760 360" width="100%" height="360"></svg>
+        </div>
+        <div class="controls">
+          <div class="ctrl-group">
+            <label>阻尼因子 d</label>
+            <input type="range" id="range05-d" min="0.5" max="0.95" step="0.01" value="0.85">
+            <span class="ctrl-value" id="val05-d">0.85</span>
+          </div>
+          <button class="btn primary" id="btn05-step">单步迭代</button>
+          <button class="btn purple" id="btn05-run">自动迭代</button>
+          <button class="btn ghost" id="btn05-reset">重置</button>
+        </div>
+        <div class="detail-box" id="detail05"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">迭代次数</div><div class="stat-value accent" id="s05-iter">0</div></div>
+          <div class="stat"><div class="stat-label">收敛度</div><div class="stat-value" id="s05-conv">—</div></div>
+          <div class="stat"><div class="stat-label">Top 节点</div><div class="stat-value purple" id="s05-top" style="font-size:16px">—</div></div>
+          <div class="stat"><div class="stat-label">PR 总和</div><div class="stat-value" id="s05-sum">1.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 06: Learning to Rank -->
+  <section class="module fade-in" id="m06">
+    <div class="module-head">
+      <span class="kicker">06 / LEARNING TO RANK</span>
+      <h2>Learning to Rank</h2>
+      <p>机器学习排序的三种范式：Pointwise（逐点回归）、Pairwise（成对偏好）、Listwise（列表级损失）。切换范式观察排序差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">LTR 排序对比 <span class="tag" id="tag06">Pointwise</span></div>
+          <svg id="svg06" viewBox="0 0 760 320" width="100%" height="320"></svg>
+        </div>
+        <div class="controls">
+          <div class="tab-row" id="tabs06">
+            <button class="tab-btn active" data-mode="pointwise">Pointwise</button>
+            <button class="tab-btn" data-mode="pairwise">Pairwise</button>
+            <button class="tab-btn" data-mode="listwise">Listwise</button>
+          </div>
+          <button class="btn primary" id="btn06-train">训练一轮</button>
+          <button class="btn ghost" id="btn06-reset">重置</button>
+        </div>
+        <div class="detail-box" id="detail06"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">范式</div><div class="stat-value accent" id="s06-mode" style="font-size:14px">Pointwise</div></div>
+          <div class="stat"><div class="stat-label">训练轮次</div><div class="stat-value" id="s06-epoch">0</div></div>
+          <div class="stat"><div class="stat-label">NDCG@5</div><div class="stat-value purple" id="s06-ndcg">0.00</div></div>
+          <div class="stat"><div class="stat-label">Pairwise 损失</div><div class="stat-value" id="s06-loss">0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 07: Hybrid Retrieval -->
+  <section class="module fade-in" id="m07">
+    <div class="module-head">
+      <span class="kicker">07 / HYBRID RETRIEVAL</span>
+      <h2>混合检索管道</h2>
+      <p>融合关键词检索（稀疏）与向量检索（稠密），通过 RRF（Reciprocal Rank Fusion）或加权融合合并候选，再经重排序模型精排。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">混合检索流水线 <span class="tag">keyword + vector + rerank</span></div>
+          <svg id="svg07" viewBox="0 0 760 360" width="100%" height="360"></svg>
+        </div>
+        <div class="controls">
+          <div class="ctrl-group">
+            <label>关键词权重</label>
+            <input type="range" id="range07-kw" min="0" max="1" step="0.05" value="0.5">
+            <span class="ctrl-value" id="val07-kw">0.50</span>
+          </div>
+          <div class="ctrl-group">
+            <label>向量权重</label>
+            <input type="range" id="range07-vec" min="0" max="1" step="0.05" value="0.5">
+            <span class="ctrl-value" id="val07-vec">0.50</span>
+          </div>
+          <div class="ctrl-group">
+            <label>融合策略</label>
+            <select id="sel07-fusion">
+              <option value="rrf" selected>RRF</option>
+              <option value="weighted">加权线性</option>
+            </select>
+          </div>
+          <label class="ctrl-group" style="cursor:pointer">
+            <input type="checkbox" id="chk07-rerank" checked style="width:auto">
+            <span style="font-size:12px;color:var(--muted)">启用重排序</span>
+          </label>
+          <button class="btn primary" id="btn07-run">执行检索</button>
+        </div>
+        <div class="detail-box" id="detail07"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">关键词候选</div><div class="stat-value" id="s07-kw">0</div></div>
+          <div class="stat"><div class="stat-label">向量候选</div><div class="stat-value" id="s07-vec">0</div></div>
+          <div class="stat"><div class="stat-label">融合后</div><div class="stat-value accent" id="s07-fused">0</div></div>
+          <div class="stat"><div class="stat-label">最终结果</div><div class="stat-value purple" id="s07-final">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 08: Evaluation Metrics -->
+  <section class="module fade-in" id="m08">
+    <div class="module-head">
+      <span class="kicker">08 / EVALUATION METRICS</span>
+      <h2>评估指标可视化</h2>
+      <p>Precision、Recall、NDCG、MRR 是衡量检索系统质量的四大核心指标。切换指标查看不同的可视化视角。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <div class="viz-title">检索评估指标 <span class="tag" id="tag08">Precision / Recall</span></div>
+          <svg id="svg08" viewBox="0 0 760 320" width="100%" height="320"></svg>
+        </div>
+        <div class="controls">
+          <div class="tab-row" id="tabs08">
+            <button class="tab-btn active" data-metric="pr">P-R 曲线</button>
+            <button class="tab-btn" data-metric="ndcg">NDCG@K</button>
+            <button class="tab-btn" data-metric="mrr">MRR</button>
+            <button class="tab-btn" data-metric="all">综合对比</button>
+          </div>
+        </div>
+        <div class="detail-box" id="detail08"></div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">Precision@5</div><div class="stat-value accent" id="s08-p5">0.00</div></div>
+          <div class="stat"><div class="stat-label">Recall@5</div><div class="stat-value" id="s08-r5">0.00</div></div>
+          <div class="stat"><div class="stat-label">NDCG@5</div><div class="stat-value purple" id="s08-ndcg5">0.00</div></div>
+          <div class="stat"><div class="stat-label">MRR</div><div class="stat-value" id="s08-mrr">0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="ft-left">Info Retrieval Viz Lab · 信息检索可视化实验室 · MIT License</div>
+    <div class="ft-right">
+      <a href="https://github.com/wangzifan396-wzf/info-retrieval-viz-lab" target="_blank" rel="noopener">GitHub</a>
+      <a href="#m01">回到顶部</a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+'use strict';
+/* ============================================================
+   Utility Helpers
+   ============================================================ */
+var $ = function(sel, ctx){ return (ctx||document).querySelector(sel); };
+var $$ = function(sel, ctx){ return Array.prototype.slice.call((ctx||document).querySelectorAll(sel)); };
+var NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs){
+  var el = document.createElementNS(NS, tag);
+  if(attrs){
+    for(var k in attrs){
+      if(k === 'text'){ el.textContent = attrs[k]; }
+      else if(k.indexOf(':')===0){ /* skip */ }
+      else { el.setAttribute(k, attrs[k]); }
+    }
+  }
+  return el;
+}
+function el(tag, cls, text){
+  var e = document.createElementNS(NS, tag);
+  if(cls) e.setAttribute('class', cls);
+  if(text != null) e.textContent = text;
+  return e;
+}
+function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+function fmt(n, d){ return Number(n).toFixed(d||2); }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+// Shared corpus
+var CORPUS = [
+  { id:'D1', text:'the quick brown fox jumps over the lazy dog' },
+  { id:'D2', text:'the quick brown dog runs in the park' },
+  { id:'D3', text:'lazy dog sleeps under the shady tree' },
+  { id:'D4', text:'quick fox and brown dog play together' },
+  { id:'D5', text:'the dog and fox run through the green park' }
+];
+var STOPWORDS = {'the':1,'in':1,'and':1,'over':1,'under':1,'through':1};
+
+function tokenize(text){
+  return text.toLowerCase().split(/[^a-z]+/).filter(function(w){
+    return w.length>1 && !STOPWORDS[w];
+  });
+}
+function termFreq(text){
+  var tokens = tokenize(text);
+  var tf = {};
+  tokens.forEach(function(t){ tf[t] = (tf[t]||0)+1; });
+  return tf;
+}
+
+/* ============================================================
+   Progress Bar + Sidebar Active + Fade-in
+   ============================================================ */
+(function(){
+  var bar = $('#progress-bar');
+  function onScroll(){
+    var st = window.pageYOffset || document.documentElement.scrollTop;
+    var sh = document.documentElement.scrollHeight - window.innerHeight;
+    var pct = sh > 0 ? (st / sh) * 100 : 0;
+    bar.style.width = pct + '%';
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  // Sidebar active link
+  var links = $$('#sideNav a');
+  var sections = links.map(function(a){ return $(a.getAttribute('href')); });
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('active'); });
+        var active = links[sections.indexOf(e.target)];
+        if(active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin:'-30% 0px -60% 0px' });
+  sections.forEach(function(s){ if(s) obs.observe(s); });
+
+  // Fade-in
+  var fadeObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        e.target.classList.add('visible');
+        fadeObs.unobserve(e.target);
+      }
+    });
+  }, { threshold:0.08 });
+  $$('.fade-in').forEach(function(el){ fadeObs.observe(el); });
+
+  // Mobile sidebar toggle
+  var toggle = $('#navToggle');
+  var sidebar = $('#sidebar');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      sidebar.classList.toggle('open');
+    });
+  }
+  // Close sidebar on link click (mobile)
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      if(window.innerWidth <= 1024) sidebar.classList.remove('open');
+    });
+  });
+})();
+
+/* ============================================================
+   Module 01: Inverted Index
+   ============================================================ */
+var M01 = (function(){
+  var svg = $('#svg01');
+  var detail = $('#detail01');
+  var docs = CORPUS.slice(0,4);
+  var index = {};
+  var phase = 0; // 0=idle, 1=built, 2=merged, 3=updated
+
+  function buildIndex(){
+    index = {};
+    docs.forEach(function(d){
+      var tf = termFreq(d.text);
+      Object.keys(tf).forEach(function(t){
+        if(!index[t]) index[t] = [];
+        index[t].push({ doc:d.id, tf:tf[t] });
+      });
+    });
+    phase = 1;
+  }
+  function mergePostings(){
+    // simulate merge: sort postings by doc id
+    Object.keys(index).forEach(function(t){
+      index[t].sort(function(a,b){ return a.doc < b.doc ? -1 : 1; });
+    });
+    phase = 2;
+  }
+  function updateDoc(){
+    // update D4 with new text
+    docs[3] = { id:'D4', text:'quick fox and brown dog play in park today' };
+    buildIndex();
+    mergePostings();
+    phase = 3;
+  }
+  function reset(){
+    docs = CORPUS.slice(0,4);
+    index = {};
+    phase = 0;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=340;
+    // Background
+    svg.appendChild(el('rect','',{x:0,y:0,width:W,height:H,fill:'transparent'}));
+
+    // Documents column
+    var docX = 20, docW = 150;
+    var terms = Object.keys(index).sort();
+    var docCount = docs.length;
+    var docSpacing = Math.min(60, (H-60)/Math.max(docCount,1));
+
+    // Column headers
+    svg.appendChild(el('text','svg-label',{x:docX+docW/2, y:24, 'text-anchor':'middle', text:'文档集合'}));
+    svg.appendChild(el('text','svg-label',{x:380, y:24, 'text-anchor':'middle', text:'词项 (Terms)'}));
+    svg.appendChild(el('text','svg-label',{x:640, y:24, 'text-anchor':'middle', text:'Posting List'}));
+
+    // Draw docs
+    docs.forEach(function(d, i){
+      var y = 50 + i*docSpacing;
+      var g = el('g','');
+      g.appendChild(el('rect','',{x:docX, y:y-14, width:docW, height:docSpacing-6, rx:6,
+        fill:'var(--surface-2)', stroke:'var(--border)'}));
+      g.appendChild(el('text','svg-val',{x:docX+8, y:y, text:d.id+':'}));
+      var txt = d.text.length > 22 ? d.text.slice(0,20)+'..' : d.text;
+      g.appendChild(el('text','svg-label',{x:docX+8, y:y+13, text:txt}));
+      svg.appendChild(g);
+    });
+
+    if(phase === 0){
+      svg.appendChild(el('text','svg-label',{x:W/2, y:H/2, 'text-anchor':'middle',
+        text:'点击「构建索引」查看倒排索引结构', fill:'var(--faint)', 'font-size':'14'}));
+      return;
+    }
+
+    // Draw terms in middle column
+    var termY = 50;
+    var termStep = Math.min(28, (H-80)/Math.max(terms.length,1));
+    var termPositions = {};
+    terms.slice(0, 12).forEach(function(t, i){
+      var y = termY + i*termStep;
+      termPositions[t] = {x:380, y:y};
+      var df = index[t].length;
+      var g = el('g','');
+      g.appendChild(el('rect','',{x:330, y:y-10, width:100, height:20, rx:4,
+        fill: phase>=2 ? 'var(--accent-dim)' : 'var(--surface-2)',
+        stroke: phase>=2 ? 'rgba(52,211,153,.3)' : 'var(--border)'}));
+      g.appendChild(el('text','svg-val',{x:380, y:y+4, 'text-anchor':'middle', text:t+' ('+df+')'}));
+      svg.appendChild(g);
+    });
+
+    // Draw posting lists on right
+    terms.slice(0, 12).forEach(function(t, i){
+      var y = termY + i*termStep;
+      var postings = index[t];
+      var px = 560;
+      // connection line
+      svg.appendChild(el('line','',{x1:430, y1:y, x2:550, y2:y, stroke:'var(--border)', 'stroke-dasharray':'3 3'}));
+      // posting boxes
+      var txt = '[' + postings.map(function(p){ return p.doc; }).join(' → ') + ']';
+      svg.appendChild(el('text','svg-val',{x:px, y:y+4, text:txt, fill:'var(--accent-2)'}));
+      // line from docs to term
+      postings.forEach(function(p){
+        var di = docs.findIndex(function(d){ return d.id === p.doc; });
+        if(di >= 0){
+          var dy = 50 + di*docSpacing - 4;
+          svg.appendChild(el('path','',{
+            d:'M'+(docX+docW)+' '+dy+' Q 280 '+dy+' 330 '+y,
+            stroke:'var(--accent)', 'stroke-width':'1', fill:'none', opacity:'0.25'
+          }));
+        }
+      });
+    });
+  }
+
+  function updateDetail(){
+    if(phase === 0){ detail.textContent = '点击「构建索引」开始...'; }
+    else {
+      var lines = [];
+      lines.push('=== 倒排索引 (Inverted Index) ===');
+      var terms = Object.keys(index).sort();
+      terms.forEach(function(t){
+        var postings = index[t].map(function(p){ return p.doc+':tf='+p.tf; }).join(', ');
+        lines.push(t + ' → [' + postings + ']');
+      });
+      detail.innerHTML = lines.join('\n')
+        .replace(/(\w+)\s*→/g, '<span class="hl">$1 →</span>')
+        .replace(/tf=(\d+)/g, '<span class="hl2">tf=$1</span>');
+    }
+    $('#s01-docs').textContent = docs.length;
+    $('#s01-terms').textContent = Object.keys(index).length;
+    $('#s01-postings').textContent = Object.keys(index).reduce(function(s,t){ return s+index[t].length; },0);
+    $('#s01-status').textContent = ['空闲','已构建','已合并','已更新'][phase];
+  }
+
+  function init(){
+    $('#btn01-build').addEventListener('click', function(){ buildIndex(); render(); updateDetail(); });
+    $('#btn01-merge').addEventListener('click', function(){ if(phase>=1){ mergePostings(); render(); updateDetail(); } });
+    $('#btn01-update').addEventListener('click', function(){ updateDoc(); render(); updateDetail(); });
+    $('#btn01-reset').addEventListener('click', function(){ reset(); render(); updateDetail(); });
+    render();
+    updateDetail();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 02: TF-IDF
+   ============================================================ */
+var M02 = (function(){
+  var svg = $('#svg02');
+  var detail = $('#detail02');
+  var sel = $('#sel02-term');
+  var formulaSel = $('#sel02-formula');
+  var docs = CORPUS.slice(0,4);
+  var N = docs.length;
+  var allTerms = [];
+  var dfMap = {};
+
+  function computeDF(){
+    dfMap = {};
+    docs.forEach(function(d){
+      var tf = termFreq(d.text);
+      Object.keys(tf).forEach(function(t){ dfMap[t] = (dfMap[t]||0)+1; });
+    });
+    allTerms = Object.keys(dfMap).sort();
+  }
+  function idf(t){ return Math.log(N / (dfMap[t]||1)); }
+  function tfVal(count, formula){
+    if(formula === 'raw') return count;
+    if(formula === 'log') return 1 + Math.log(count);
+    if(formula === 'norm') return count; // normalized later
+    return count;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=300;
+    var term = sel.value;
+    var formula = formulaSel.value;
+    if(!term) return;
+
+    var df = dfMap[term] || 0;
+    var idfVal = idf(term);
+
+    // compute max tf for normalization
+    var maxTf = 0;
+    docs.forEach(function(d){
+      var tf = termFreq(d.text);
+      var c = tf[term]||0;
+      if(c > maxTf) maxTf = c;
+    });
+
+    var padL = 60, padR = 30, padT = 30, padB = 60;
+    var chartW = W - padL - padR;
+    var chartH = H - padT - padB;
+    var groupW = chartW / docs.length;
+    var barW = groupW * 0.22;
+
+    // axes
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:W-padR,y2:H-padB}));
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:padT,x2:padL,y2:H-padB}));
+
+    // y-axis grid + labels
+    for(var i=0;i<=4;i++){
+      var gy = H-padB - (chartH*i/4);
+      svg.appendChild(el('line','svg-grid',{x1:padL,y1:gy,x2:W-padR,y2:gy}));
+    }
+
+    var maxVal = 0;
+    var data = docs.map(function(d){
+      var tf = termFreq(d.text);
+      var c = tf[term]||0;
+      var tfv = tfVal(c, formula);
+      if(formula === 'norm' && maxTf > 0) tfv = c / maxTf;
+      var tfidf = tfv * idfVal;
+      if(tfidf > maxVal) maxVal = tfidf;
+      if(tfv > maxVal) maxVal = Math.max(maxVal, tfv);
+      return { doc:d.id, tf:c, tfv:tfv, tfidf:tfidf };
+    });
+    // ensure maxVal covers tf bars too
+    data.forEach(function(d){
+      if(formula === 'raw' && d.tf > maxVal) maxVal = d.tf;
+    });
+    if(maxVal === 0) maxVal = 1;
+
+    // bars
+    data.forEach(function(d, i){
+      var gx = padL + i*groupW + groupW/2;
+      var bh1 = (d.tf / (formula==='raw'?maxVal:Math.max(maxTf,1))) * chartH * 0.8;
+      var bh2 = (d.tfv / maxVal) * chartH * 0.8;
+      var bh3 = (d.tfidf / maxVal) * chartH * 0.8;
+
+      // TF bar (accent)
+      svg.appendChild(el('rect','svg-bar-accent',{
+        x:gx-barW*1.5, y:H-padB-bh1, width:barW, height:bh1, rx:2
+      }));
+      // TF (formula) bar (muted)
+      svg.appendChild(el('rect','',{x:gx-barW*0.5, y:H-padB-bh2, width:barW, height:bh2, rx:2,
+        fill:'var(--warn)', opacity:'0.7'}));
+      // TF-IDF bar (purple)
+      svg.appendChild(el('rect','svg-bar-purple',{
+        x:gx+barW*0.5, y:H-padB-bh3, width:barW, height:bh3, rx:2
+      }));
+
+      // doc label
+      svg.appendChild(el('text','svg-label',{x:gx, y:H-padB+16, 'text-anchor':'middle', text:d.doc}));
+      // tfidf value
+      if(d.tfidf > 0){
+        svg.appendChild(el('text','svg-val',{x:gx+barW, y:H-padB-bh3-4, 'text-anchor':'middle',
+          text:fmt(d.tfidf,2), fill:'var(--accent-2)', 'font-size':'10'}));
+      }
+    });
+
+    // legend
+    var ly = H - 14;
+    svg.appendChild(el('rect','svg-bar-accent',{x:padL, y:ly-8, width:10, height:10, rx:2}));
+    svg.appendChild(el('text','svg-label',{x:padL+14, y:ly, text:'TF (原始)'}));
+    svg.appendChild(el('rect','',{x:padL+90, y:ly-8, width:10, height:10, rx:2, fill:'var(--warn)', opacity:'0.7'}));
+    svg.appendChild(el('text','svg-label',{x:padL+104, y:ly, text:'TF ('+formula+')'}));
+    svg.appendChild(el('rect','svg-bar-purple',{x:padL+200, y:ly-8, width:10, height:10, rx:2}));
+    svg.appendChild(el('text','svg-label',{x:padL+214, y:ly, text:'TF-IDF'}));
+  }
+
+  function updateDetail(){
+    var term = sel.value;
+    var formula = formulaSel.value;
+    if(!term) return;
+    var df = dfMap[term]||0;
+    var idfVal = idf(term);
+    var lines = [];
+    lines.push('=== TF-IDF 计算 ===');
+    lines.push('词项: ' + term);
+    lines.push('文档总数 N = ' + N);
+    lines.push('DF(' + term + ') = ' + df + '  (出现在 ' + df + ' 篇文档中)');
+    lines.push('IDF = log(N/DF) = log(' + N + '/' + df + ') = ' + fmt(idfVal,4));
+    lines.push('');
+    lines.push('各文档 TF-IDF:');
+    var maxTf = 0;
+    docs.forEach(function(d){ var tf=termFreq(d.text); if((tf[term]||0)>maxTf) maxTf=tf[term]; });
+    var topDoc = '', topVal = -1, minVal = Infinity;
+    docs.forEach(function(d){
+      var tf = termFreq(d.text);
+      var c = tf[term]||0;
+      var tfv = tfVal(c, formula);
+      if(formula === 'norm' && maxTf>0) tfv = c/maxTf;
+      var tfidf = tfv * idfVal;
+      lines.push('  ' + d.id + ': tf=' + c + ', tf*=' + fmt(tfv,3) + ', tf-idf=' + fmt(tfidf,4));
+      if(tfidf > topVal){ topVal = tfidf; topDoc = d.id; }
+      if(tfidf < minVal) minVal = tfidf;
+    });
+    detail.innerHTML = lines.join('\n')
+      .replace(/(词项: .+)/, '<span class="hl">$1</span>')
+      .replace(/(IDF = .+)/, '<span class="hl2">$1</span>')
+      .replace(/(tf-idf=[\d.]+)/g, '<span class="kw">$1</span>');
+
+    $('#s02-df').textContent = df;
+    $('#s02-idf').textContent = fmt(idfVal,2);
+    $('#s02-top').textContent = topDoc;
+    $('#s02-range').textContent = fmt(minVal,2) + ' ~ ' + fmt(topVal,2);
+  }
+
+  function init(){
+    computeDF();
+    allTerms.forEach(function(t){
+      var o = document.createElement('option');
+      o.value = t; o.textContent = t + ' (df=' + dfMap[t] + ')';
+      sel.appendChild(o);
+    });
+    sel.value = allTerms[0] || '';
+    sel.addEventListener('change', function(){ render(); updateDetail(); });
+    formulaSel.addEventListener('change', function(){ render(); updateDetail(); });
+    render();
+    updateDetail();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 03: BM25
+   ============================================================ */
+var M03 = (function(){
+  var svg = $('#svg03');
+  var detail = $('#detail03');
+  var docs = CORPUS.slice(0,5);
+  var N = docs.length;
+  var avgdl = 0;
+  var dfMap = {};
+
+  function init_(){
+    var totalLen = 0;
+    docs.forEach(function(d){
+      totalLen += tokenize(d.text).length;
+      var tf = termFreq(d.text);
+      Object.keys(tf).forEach(function(t){ dfMap[t]=(dfMap[t]||0)+1; });
+    });
+    avgdl = totalLen / N;
+  }
+
+  function bm25Score(query, doc, k1, b){
+    var qTerms = tokenize(query);
+    var tf = termFreq(doc.text);
+    var dl = tokenize(doc.text).length;
+    var score = 0;
+    qTerms.forEach(function(t){
+      var f = tf[t]||0;
+      if(f === 0) return;
+      var df = dfMap[t]||0;
+      var idf = Math.log((N - df + 0.5)/(df + 0.5) + 1);
+      var denom = f + k1*(1 - b + b*(dl/avgdl));
+      score += idf * (f*(k1+1))/denom;
+    });
+    return score;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=300;
+    var k1 = parseFloat($('#range03-k1').value);
+    var b = parseFloat($('#range03-b').value);
+    var query = $('#sel03-query').value;
+
+    var scores = docs.map(function(d){
+      return { doc:d.id, score: bm25Score(query, d, k1, b), text:d.text };
+    });
+    scores.sort(function(a,b){ return b.score - a.score; });
+
+    var padL=60, padR=30, padT=30, padB=50;
+    var chartW = W-padL-padR, chartH = H-padT-padB;
+    var barH = chartH/scores.length * 0.6;
+    var gap = chartH/scores.length;
+
+    var maxScore = Math.max.apply(null, scores.map(function(s){ return s.score; }));
+    if(maxScore === 0) maxScore = 1;
+
+    // axes
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:W-padR,y2:H-padB}));
+    for(var i=0;i<=4;i++){
+      var gx = padL + chartW*i/4;
+      svg.appendChild(el('line','svg-grid',{x1:gx,y1:padT,x2:gx,y2:H-padB}));
+      svg.appendChild(el('text','svg-label',{x:gx, y:H-padB+16, 'text-anchor':'middle',
+        text:fmt(maxScore*i/4,1)}));
+    }
+
+    scores.forEach(function(s, i){
+      var y = padT + i*gap + gap/2;
+      var bw = (s.score/maxScore)*chartW*0.9;
+      var color = i === 0 ? 'var(--accent)' : (i < 3 ? 'var(--accent-2)' : 'var(--surface-3)');
+      svg.appendChild(el('rect','',{x:padL, y:y-barH/2, width:bw, height:barH, rx:4, fill:color}));
+      // rank number
+      svg.appendChild(el('text','svg-val',{x:padL-8, y:y+4, 'text-anchor':'end', text:'#'+(i+1)}));
+      // doc label
+      svg.appendChild(el('text','svg-val',{x:padL+8, y:y+4, text:s.doc, fill:'#08090a', 'font-weight':'bold', 'font-size':'11'}));
+      // score
+      if(s.score > 0){
+        svg.appendChild(el('text','svg-val',{x:padL+bw+8, y:y+4, text:fmt(s.score,3),
+          fill: i===0?'var(--accent)':'var(--muted)'}));
+      }
+    });
+
+    // Update stats
+    $('#s03-k1').textContent = fmt(k1,1);
+    $('#s03-b').textContent = fmt(b,2);
+    $('#s03-top').textContent = scores[0] ? scores[0].doc : '—';
+    var minS = scores[scores.length-1] ? scores[scores.length-1].score : 0;
+    $('#s03-range').textContent = fmt(minS,2)+' ~ '+fmt(maxScore,2);
+    $('#val03-k1').textContent = fmt(k1,1);
+    $('#val03-b').textContent = fmt(b,2);
+    $('#tag03-query').textContent = 'query: "'+query+'"';
+
+    // detail
+    var lines = [];
+    lines.push('=== BM25 排序 (k1='+fmt(k1,1)+', b='+fmt(b,2)+') ===');
+    lines.push('查询: "'+query+'"');
+    lines.push('N='+N+', avgdl='+fmt(avgdl,2));
+    lines.push('');
+    lines.push('score = Σ IDF(q) · f(q,d)·(k1+1) / (f(q,d) + k1·(1-b+b·|d|/avgdl))');
+    lines.push('');
+    scores.forEach(function(s, i){
+      lines.push('#'+(i+1)+' '+s.doc+': score='+fmt(s.score,4));
+    });
+    detail.innerHTML = lines.join('\n')
+      .replace(/(score = .+)/, '<span class="cmt">$1</span>')
+      .replace(/(#[0-9]+ .+?: )score=([\d.]+)/g, '$1<span class="hl">score=$2</span>')
+      .replace(/(k1=[\d.]+|b=[\d.]+)/g, '<span class="hl2">$1</span>');
+  }
+
+  function init(){
+    init_();
+    $('#range03-k1').addEventListener('input', render);
+    $('#range03-b').addEventListener('input', render);
+    $('#sel03-query').addEventListener('change', render);
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 04: Vector Space Model
+   ============================================================ */
+var M04 = (function(){
+  var svg = $('#svg04');
+  var detail = $('#detail04');
+  var docs = CORPUS.slice(0,4);
+  // 2D vector: dimension1 = "fox/dog", dimension2 = "quick/brown"
+  var docVectors = docs.map(function(d){
+    var tf = termFreq(d.text);
+    var x = (tf['fox']||0) + (tf['dog']||0)*0.8;
+    var y = (tf['quick']||0) + (tf['brown']||0)*0.9;
+    return { id:d.id, x:x, y:y };
+  });
+
+  function cosSim(a, b){
+    var dot = a.x*b.x + a.y*b.y;
+    var na = Math.sqrt(a.x*a.x + a.y*a.y);
+    var nb = Math.sqrt(b.x*b.x + b.y*b.y);
+    if(na === 0 || nb === 0) return 0;
+    return dot/(na*nb);
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=340;
+    var cx = W/2, cy = H-50;
+    var scale = 26; // pixels per unit
+
+    var qx = parseFloat($('#range04-x').value);
+    var qy = parseFloat($('#range04-y').value);
+    var query = { x:qx, y:qy };
+
+    // axes
+    svg.appendChild(el('line','svg-axis',{x1:cx, y1:cy, x2:W-20, y2:cy}));
+    svg.appendChild(el('line','svg-axis',{x1:cx, y1:cy, x2:cx, y2:20}));
+    // grid circles
+    for(var r=1;r<=4;r++){
+      svg.appendChild(el('circle','',{cx:cx, cy:cy, r:scale*r, fill:'none',
+        stroke:'var(--border)', 'stroke-dasharray':'2 4'}));
+    }
+    // axis labels
+    svg.appendChild(el('text','svg-label',{x:W-30, y:cy-6, text:'dim1 (fox·dog)'}));
+    svg.appendChild(el('text','svg-label',{x:cx+6, y:28, text:'dim2 (quick·brown)'}));
+
+    // doc vectors
+    var sims = docVectors.map(function(d){
+      return { id:d.id, x:d.x, y:d.y, sim:cosSim(d, query) };
+    });
+    sims.sort(function(a,b){ return b.sim - a.sim; });
+
+    docVectors.forEach(function(d){
+      var ex = cx + d.x*scale, ey = cy - d.y*scale;
+      var sim = cosSim(d, query);
+      var isTop = sims[0] && sims[0].id === d.id;
+      var color = isTop ? 'var(--accent)' : 'var(--accent-2)';
+      var opacity = isTop ? '1' : '0.5';
+      // vector line
+      svg.appendChild(el('line','',{x1:cx, y1:cy, x2:ex, y2:ey, stroke:color, 'stroke-width': isTop?2.5:1.5, opacity:opacity}));
+      // arrow head
+      var ang = Math.atan2(ey-cy, ex-cx);
+      var ah = 7;
+      svg.appendChild(el('polygon','',{points:
+        ex+','+ey+' '+(ex-ah*Math.cos(ang-0.4))+','+(ey-ah*Math.sin(ang-0.4))+' '+(ex-ah*Math.cos(ang+0.4))+','+(ey-ah*Math.sin(ang+0.4)),
+        fill:color, opacity:opacity}));
+      // label
+      svg.appendChild(el('text','svg-val',{x:ex+6, y:ey-6, text:d.id, fill:color, opacity:opacity}));
+    });
+
+    // query vector
+    var qex = cx + qx*scale, qey = cy - qy*scale;
+    svg.appendChild(el('line','',{x1:cx, y1:cy, x2:qex, y2:qey, stroke:'var(--warn)', 'stroke-width':'3'}));
+    var qang = Math.atan2(qey-cy, qex-cx);
+    var qah = 9;
+    svg.appendChild(el('polygon','',{points:
+      qex+','+qey+' '+(qex-qah*Math.cos(qang-0.4))+','+(qey-qah*Math.sin(qang-0.4))+' '+(qex-qah*Math.cos(qang+0.4))+','+(qey-qah*Math.sin(qang+0.4)),
+      fill:'var(--warn)'}));
+    svg.appendChild(el('text','svg-val',{x:qex+8, y:qey+4, text:'Query', fill:'var(--warn)', 'font-weight':'bold'}));
+
+    // angle arc between query and top doc
+    if(sims[0]){
+      var top = sims[0];
+      var tex = cx + top.x*scale, tey = cy - top.y*scale;
+      var a1 = Math.atan2(qey-cy, qex-cx);
+      var a2 = Math.atan2(tey-cy, tex-cx);
+      var arcR = 40;
+      var arcStart = { x: cx + arcR*Math.cos(a1), y: cy + arcR*Math.sin(a1) };
+      var arcEnd = { x: cx + arcR*Math.cos(a2), y: cy + arcR*Math.sin(a2) };
+      var sweep = a2 > a1 ? 1 : 0;
+      svg.appendChild(el('path','',{d:'M'+arcStart.x+' '+arcStart.y+' A '+arcR+' '+arcR+' 0 0 '+sweep+' '+arcEnd.x+' '+arcEnd.y,
+        stroke:'var(--accent)', 'stroke-width':'1.5', fill:'none', opacity:'0.6'}));
+    }
+
+    // update stats
+    var qNorm = Math.sqrt(qx*qx + qy*qy);
+    var topSim = sims[0] ? sims[0].sim : 0;
+    var angle = Math.acos(clamp(topSim, -1, 1)) * 180 / Math.PI;
+    $('#s04-top').textContent = sims[0] ? sims[0].id : '—';
+    $('#s04-sim').textContent = fmt(topSim,3);
+    $('#s04-angle').textContent = fmt(angle,1)+'°';
+    $('#s04-norm').textContent = fmt(qNorm,2);
+    $('#val04-x').textContent = fmt(qx,1);
+    $('#val04-y').textContent = fmt(qy,1);
+
+    // detail
+    var lines = [];
+    lines.push('=== 向量空间模型 ===');
+    lines.push('查询向量 Q = ('+fmt(qx,1)+', '+fmt(qy,1)+'), |Q| = '+fmt(qNorm,3));
+    lines.push('');
+    lines.push('cos(θ) = (Q·D) / (|Q|·|D|)');
+    lines.push('');
+    lines.push('文档相似度 (排序):');
+    sims.forEach(function(s, i){
+      lines.push('#'+(i+1)+' '+s.id+': cos_sim = '+fmt(s.sim,4));
+    });
+    detail.innerHTML = lines.join('\n')
+      .replace(/(cos\(θ\) = .+)/, '<span class="cmt">$1</span>')
+      .replace(/(cos_sim = [\d.]+)/g, '<span class="hl">$1</span>')
+      .replace(/(Q = \([^)]+\))/, '<span class="hl2">$1</span>');
+  }
+
+  function init(){
+    $('#range04-x').addEventListener('input', render);
+    $('#range04-y').addEventListener('input', render);
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 05: PageRank
+   ============================================================ */
+var M05 = (function(){
+  var svg = $('#svg05');
+  var detail = $('#detail05');
+  var nodes = [
+    {id:'A', x:120, y:80},
+    {id:'B', x:300, y:60},
+    {id:'C', x:480, y:100},
+    {id:'D', x:620, y:200},
+    {id:'E', x:380, y:220},
+    {id:'F', x:180, y:250}
+  ];
+  var edges = [
+    [0,1],[1,2],[2,3],[3,4],[4,0],[1,4],[2,4],[5,0],[5,4],[3,2],[4,5]
+  ];
+  var pr = [];
+  var iter = 0;
+  var prevPR = [];
+  var running = false;
+
+  function reset(){
+    pr = nodes.map(function(){ return 1/nodes.length; });
+    prevPR = pr.slice();
+    iter = 0;
+  }
+
+  function step(){
+    var d = parseFloat($('#range05-d').value);
+    prevPR = pr.slice();
+    var newPR = nodes.map(function(){ return (1-d)/nodes.length; });
+    // build out-degree
+    var outDeg = nodes.map(function(){ return 0; });
+    edges.forEach(function(e){ outDeg[e[0]]++; });
+    edges.forEach(function(e){
+      var from = e[0], to = e[1];
+      if(outDeg[from] > 0){
+        newPR[to] += d * pr[from] / outDeg[from];
+      }
+    });
+    // dangling nodes
+    var dangling = 0;
+    nodes.forEach(function(n, i){ if(outDeg[i]===0) dangling += pr[i]; });
+    if(dangling > 0){
+      nodes.forEach(function(n, i){
+        newPR[i] += d * dangling / nodes.length;
+      });
+    }
+    pr = newPR;
+    iter++;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=360;
+    var maxPR = Math.max.apply(null, pr);
+    if(maxPR === 0) maxPR = 1;
+
+    // edges
+    edges.forEach(function(e){
+      var from = nodes[e[0]], to = nodes[e[1]];
+      svg.appendChild(el('line','svg-edge',{x1:from.x, y1:from.y, x2:to.x, y2:to.y, opacity:'0.4'}));
+      // arrow
+      var ang = Math.atan2(to.y-from.y, to.x-from.x);
+      var r = 18 + pr[e[1]]/maxPR*14;
+      var ax = to.x - r*Math.cos(ang), ay = to.y - r*Math.sin(ang);
+      var ah = 7;
+      svg.appendChild(el('polygon','',{points:
+        ax+','+ay+' '+(ax-ah*Math.cos(ang-0.4))+','+(ay-ah*Math.sin(ang-0.4))+' '+(ax-ah*Math.cos(ang+0.4))+','+(ay-ah*Math.sin(ang+0.4)),
+        fill:'var(--border-strong)', opacity:'0.6'}));
+    });
+
+    // nodes
+    nodes.forEach(function(n, i){
+      var r = 14 + (pr[i]/maxPR)*20;
+      var isTop = pr[i] === maxPR;
+      var fill = isTop ? 'var(--accent)' : 'var(--accent-2)';
+      var fillOpacity = isTop ? '0.9' : (0.3 + 0.5*(pr[i]/maxPR));
+      svg.appendChild(el('circle','svg-node',{cx:n.x, cy:n.y, r:r,
+        fill:fill, 'fill-opacity':fillOpacity, stroke:fill, 'stroke-width':'2'}));
+      svg.appendChild(el('text','svg-val',{x:n.x, y:n.y+4, 'text-anchor':'middle', text:n.id,
+        fill:'#08090a', 'font-weight':'bold', 'font-size':'13'}));
+      svg.appendChild(el('text','svg-val',{x:n.x, y:n.y+r+14, 'text-anchor':'middle',
+        text:fmt(pr[i],4), fill:isTop?'var(--accent)':'var(--muted)', 'font-size':'10'}));
+    });
+
+    // convergence
+    var diff = 0;
+    for(var i=0;i<pr.length;i++){ diff += Math.abs(pr[i]-prevPR[i]); }
+    var topIdx = pr.indexOf(maxPR);
+
+    $('#s05-iter').textContent = iter;
+    $('#s05-conv').textContent = iter === 0 ? '—' : fmt(diff,6);
+    $('#s05-top').textContent = nodes[topIdx].id;
+    $('#s05-sum').textContent = fmt(pr.reduce(function(a,b){return a+b;},0),4);
+    $('#val05-d').textContent = fmt(parseFloat($('#range05-d').value),2);
+
+    var lines = [];
+    lines.push('=== PageRank 迭代 ===');
+    lines.push('阻尼因子 d = '+fmt(parseFloat($('#range05-d').value),2));
+    lines.push('迭代次数: '+iter);
+    lines.push('PR(t+1) = (1-d)/N + d · Σ PR(in)/outDeg(in)');
+    if(iter > 0) lines.push('收敛度 (L1差): '+fmt(diff,6));
+    lines.push('');
+    lines.push('各节点 PageRank:');
+    var sorted = nodes.map(function(n,i){ return {id:n.id, pr:pr[i]}; }).sort(function(a,b){ return b.pr-a.pr; });
+    sorted.forEach(function(s, i){
+      lines.push('#'+(i+1)+' '+s.id+': '+fmt(s.pr,6));
+    });
+    detail.innerHTML = lines.join('\n')
+      .replace(/(PR\(t\+1\) = .+)/, '<span class="cmt">$1</span>')
+      .replace(/(d = [\d.]+)/, '<span class="hl2">$1</span>')
+      .replace(/(#\d+ [A-F]: )([\d.]+)/g, '$1<span class="hl">$2</span>');
+  }
+
+  function init(){
+    reset();
+    $('#range05-d').addEventListener('input', render);
+    $('#btn05-step').addEventListener('click', function(){ step(); render(); });
+    $('#btn05-reset').addEventListener('click', function(){ reset(); render(); });
+    $('#btn05-run').addEventListener('click', function(){
+      if(running) return;
+      running = true;
+      var count = 0;
+      function loop(){
+        if(count >= 20 || !running){ running=false; return; }
+        step(); render(); count++;
+        requestAnimationFrame(function(){ setTimeout(loop, 400); });
+      }
+      loop();
+    });
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 06: Learning to Rank
+   ============================================================ */
+var M06 = (function(){
+  var svg = $('#svg06');
+  var detail = $('#detail06');
+  var mode = 'pointwise';
+  var epoch = 0;
+  var weights = { f1:0.3, f2:0.4, f3:0.3 };
+  var lr = 0.05;
+
+  // documents with features and relevance labels
+  var docs = [
+    {id:'D1', f:[0.8, 0.3, 0.6], rel:3},
+    {id:'D2', f:[0.5, 0.7, 0.4], rel:2},
+    {id:'D3', f:[0.2, 0.9, 0.3], rel:1},
+    {id:'D4', f:[0.9, 0.5, 0.8], rel:3},
+    {id:'D5', f:[0.4, 0.2, 0.7], rel:2},
+    {id:'D6', f:[0.6, 0.6, 0.5], rel:1},
+    {id:'D7', f:[0.3, 0.8, 0.2], rel:0}
+  ];
+
+  function score(d){ return weights.f1*d.f[0] + weights.f2*d.f[1] + weights.f3*d.f[2]; }
+
+  function dcg(rels){
+    var s = 0;
+    for(var i=0;i<rels.length;i++){ s += (Math.pow(2,rels[i])-1)/Math.log2(i+2); }
+    return s;
+  }
+  function ndcg(){
+    var sorted = docs.slice().sort(function(a,b){ return score(b)-score(a); });
+    var rels = sorted.map(function(d){ return d.rel; });
+    var ideal = docs.slice().sort(function(a,b){ return b.rel-a.rel; }).map(function(d){ return d.rel; });
+    var idcg = dcg(ideal.slice(0,5));
+    if(idcg === 0) return 0;
+    return dcg(rels.slice(0,5))/idcg;
+  }
+  function pairwiseLoss(){
+    var loss = 0, cnt = 0;
+    for(var i=0;i<docs.length;i++){
+      for(var j=0;j<docs.length;j++){
+        if(docs[i].rel > docs[j].rel){
+          var si = score(docs[i]), sj = score(docs[j]);
+          loss += Math.log(1+Math.exp(-(si-sj)));
+          cnt++;
+        }
+      }
+    }
+    return cnt > 0 ? loss/cnt : 0;
+  }
+
+  function train(){
+    epoch++;
+    if(mode === 'pointwise'){
+      // MSE regression: target = rel/maxRel
+      var maxRel = 3;
+      var grad = {f1:0, f2:0, f3:0};
+      docs.forEach(function(d){
+        var s = score(d);
+        var target = d.rel/maxRel;
+        var err = s - target;
+        grad.f1 += err*d.f[0];
+        grad.f2 += err*d.f[1];
+        grad.f3 += err*d.f[2];
+      });
+      weights.f1 -= lr*grad.f1/docs.length;
+      weights.f2 -= lr*grad.f2/docs.length;
+      weights.f3 -= lr*grad.f3/docs.length;
+    } else if(mode === 'pairwise'){
+      // pairwise hinge
+      var grad2 = {f1:0, f2:0, f3:0};
+      var cnt = 0;
+      for(var i=0;i<docs.length;i++){
+        for(var j=0;j<docs.length;j++){
+          if(docs[i].rel > docs[j].rel){
+            var si = score(docs[i]), sj = score(docs[j]);
+            var margin = si - sj;
+            if(margin < 1){
+              var sigma = 1/(1+Math.exp(margin));
+              for(var k=0;k<3;k++){ grad2['f'+(k+1)] += -sigma*(docs[i].f[k]-docs[j].f[k]); }
+              cnt++;
+            }
+          }
+        }
+      }
+      if(cnt > 0){
+        weights.f1 -= lr*grad2.f1/cnt;
+        weights.f2 -= lr*grad2.f2/cnt;
+        weights.f3 -= lr*grad2.f3/cnt;
+      }
+    } else {
+      // listwise: approximate NDCG gradient (simplified)
+      var grad3 = {f1:0, f2:0, f3:0};
+      var sorted = docs.slice().sort(function(a,b){ return score(b)-score(a); });
+      sorted.forEach(function(d, rank){
+        var idealRank = docs.slice().sort(function(a,b){ return b.rel-a.rel; }).indexOf(d);
+        var gain = (Math.pow(2,d.rel)-1)/Math.log2(rank+2);
+        var penalty = (idealRank - rank);
+        for(var k=0;k<3;k++){ grad3['f'+(k+1)] += -gain*penalty*d.f[k]; }
+      });
+      weights.f1 -= lr*grad3.f1/docs.length * 0.5;
+      weights.f2 -= lr*grad3.f2/docs.length * 0.5;
+      weights.f3 -= lr*grad3.f3/docs.length * 0.5;
+    }
+  }
+
+  function reset(){
+    weights = {f1:0.3, f2:0.4, f3:0.3};
+    epoch = 0;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=320;
+    var padL=50, padR=30, padT=30, padB=40;
+    var chartW = W-padL-padR, chartH = H-padT-padB;
+
+    var sorted = docs.slice().sort(function(a,b){ return score(b)-score(a); });
+    var maxScore = Math.max.apply(null, docs.map(score));
+    var minScore = Math.min.apply(null, docs.map(score));
+    var range = maxScore-minScore || 1;
+
+    // axes
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:W-padR,y2:H-padB}));
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:padT,x2:padL,y2:H-padB}));
+
+    var barW = chartW/sorted.length * 0.6;
+    var gap = chartW/sorted.length;
+
+    sorted.forEach(function(d, i){
+      var x = padL + i*gap + gap/2;
+      var norm = (score(d)-minScore)/range;
+      var bh = norm * chartH * 0.85 + chartH*0.05;
+      var y = H-padB-bh;
+      var color = d.rel >= 3 ? 'var(--accent)' : (d.rel >= 2 ? 'var(--accent-2)' : 'var(--surface-3)');
+      svg.appendChild(el('rect','',{x:x-barW/2, y:y, width:barW, height:bh, rx:4, fill:color, opacity:'0.85'}));
+      // rank
+      svg.appendChild(el('text','svg-val',{x:x, y:H-padB+16, 'text-anchor':'middle', text:'#'+(i+1)}));
+      // doc id
+      svg.appendChild(el('text','svg-val',{x:x, y:y-6, 'text-anchor':'middle', text:d.id, fill:'var(--muted)', 'font-size':'10'}));
+      // relevance stars
+      var stars = '';
+      for(var s=0;s<d.rel;s++){ stars += '*'; }
+      if(stars) svg.appendChild(el('text','svg-val',{x:x, y:y+14, 'text-anchor':'middle', text:stars, fill:'var(--warn)', 'font-size':'11'}));
+    });
+
+    // update stats
+    var nd = ndcg();
+    var pl = pairwiseLoss();
+    $('#s06-mode').textContent = mode.charAt(0).toUpperCase()+mode.slice(1);
+    $('#s06-epoch').textContent = epoch;
+    $('#s06-ndcg').textContent = fmt(nd,4);
+    $('#s06-loss').textContent = fmt(pl,4);
+    $('#tag06').textContent = mode.charAt(0).toUpperCase()+mode.slice(1);
+
+    var lines = [];
+    lines.push('=== Learning to Rank ('+mode+') ===');
+    lines.push('权重: w1='+fmt(weights.f1,3)+', w2='+fmt(weights.f2,3)+', w3='+fmt(weights.f3,3));
+    lines.push('训练轮次: '+epoch);
+    lines.push('NDCG@5 = '+fmt(nd,4)+', Pairwise Loss = '+fmt(pl,4));
+    lines.push('');
+    var modeDesc = {
+      pointwise: 'Pointwise: 将排序转化为回归问题，直接预测相关性分数',
+      pairwise: 'Pairwise: 最小化错误排序对的损失（如 RankNet）',
+      listwise: 'Listwise: 直接优化列表级指标（如 LambdaMART / ListNet）'
+    };
+    lines.push(modeDesc[mode]);
+    lines.push('');
+    lines.push('当前排序:');
+    sorted.forEach(function(d, i){
+      lines.push('#'+(i+1)+' '+d.id+' (rel='+d.rel+'): score='+fmt(score(d),4));
+    });
+    detail.innerHTML = lines.join('\n')
+      .replace(/(权重: .+)/, '<span class="hl2">$1</span>')
+      .replace(/(NDCG@5 = [\d.]+)/, '<span class="hl">$1</span>')
+      .replace(/(Pointwise:.+|Pairwise:.+|Listwise:.+)/, '<span class="cmt">$1</span>')
+      .replace(/(score=[\d.]+)/g, '<span class="kw">$1</span>');
+  }
+
+  function init(){
+    $$('#tabs06 .tab-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        $$('#tabs06 .tab-btn').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        mode = btn.getAttribute('data-mode');
+        render();
+      });
+    });
+    $('#btn06-train').addEventListener('click', function(){
+      train(); render();
+    });
+    $('#btn06-reset').addEventListener('click', function(){
+      reset(); render();
+    });
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 07: Hybrid Retrieval
+   ============================================================ */
+var M07 = (function(){
+  var svg = $('#svg07');
+  var detail = $('#detail07');
+  var docs = CORPUS.slice(0,5);
+  var query = 'fox dog park';
+  var state = { kwResults:[], vecResults:[], fused:[], final:[], run:false };
+
+  // Simulated keyword scores (BM25-like) and vector scores (cosine-like)
+  function getKwScores(){
+    return docs.map(function(d){
+      var tf = termFreq(d.text);
+      var q = tokenize(query);
+      var s = 0;
+      q.forEach(function(t){ s += (tf[t]||0); });
+      return { id:d.id, score:s };
+    }).sort(function(a,b){ return b.score-a.score; });
+  }
+  function getVecScores(){
+    return docs.map(function(d){
+      var tf = termFreq(d.text);
+      var q = tokenize(query);
+      var dot = 0;
+      q.forEach(function(t){ dot += (tf[t]||0)*0.7; });
+      dot += Math.random()*0.3; // simulate embedding noise
+      return { id:d.id, score:dot };
+    }).sort(function(a,b){ return b.score-a.score; });
+  }
+
+  function run(){
+    state.kwResults = getKwScores();
+    state.vecResults = getVecScores();
+    var kwW = parseFloat($('#range07-kw').value);
+    var vecW = parseFloat($('#range07-vec').value);
+    var fusion = $('#sel07-fusion').value;
+    var rerank = $('#chk07-rerank').checked;
+
+    var allIds = {};
+    state.kwResults.forEach(function(r, i){ allIds[r.id] = allIds[r.id]||{id:r.id, kwRank:i, vecRank:-1}; });
+    state.vecResults.forEach(function(r, i){
+      allIds[r.id] = allIds[r.id]||{id:r.id, kwRank:-1, vecRank:i};
+      allIds[r.id].vecRank = i;
+    });
+
+    var fused = Object.keys(allIds).map(function(id){
+      var d = allIds[id];
+      var score;
+      if(fusion === 'rrf'){
+        var k = 60;
+        score = (kwW/(k+(d.kwRank>=0?d.kwRank:99))) + (vecW/(k+(d.vecRank>=0?d.vecRank:99)));
+      } else {
+        var kwS = d.kwRank>=0 ? state.kwResults[d.kwRank].score : 0;
+        var vecS = d.vecRank>=0 ? state.vecResults[d.vecRank].score : 0;
+        score = kwW*kwS + vecW*vecS;
+      }
+      return { id:id, score:score, kwRank:d.kwRank, vecRank:d.vecRank };
+    }).sort(function(a,b){ return b.score-a.score; });
+    state.fused = fused;
+
+    if(rerank){
+      // simulate reranking: boost docs that appear in both lists
+      state.final = fused.map(function(d){
+        var boost = (d.kwRank>=0 && d.vecRank>=0) ? 0.15 : 0;
+        return { id:d.id, score:d.score+boost, kwRank:d.kwRank, vecRank:d.vecRank };
+      }).sort(function(a,b){ return b.score-a.score; });
+    } else {
+      state.final = fused.slice();
+    }
+    state.run = true;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=360;
+    if(!state.run){
+      svg.appendChild(el('text','svg-label',{x:W/2, y:H/2, 'text-anchor':'middle',
+        text:'点击「执行检索」运行混合检索管道', fill:'var(--faint)', 'font-size':'14'}));
+      return;
+    }
+
+    // Pipeline layout: 3 columns (Keyword, Vector, Fused+Final)
+    var colW = 220;
+    var col1X = 20, col2X = 270, col3X = 520;
+    var topY = 40;
+
+    // Query node
+    svg.appendChild(el('rect','',{x:300, y:10, width:160, height:28, rx:14,
+      fill:'var(--accent-dim)', stroke:'var(--accent)'}));
+    svg.appendChild(el('text','svg-val',{x:380, y:28, 'text-anchor':'middle', text:'Query: "'+query+'"', fill:'var(--accent)'}));
+
+    // Column 1: Keyword
+    svg.appendChild(el('text','svg-title-text',{x:col1X+colW/2, y:topY+20, 'text-anchor':'middle', text:'关键词检索'}));
+    svg.appendChild(el('text','svg-label',{x:col1X+colW/2, y:topY+36, 'text-anchor':'middle', text:'(BM25 / Sparse)'}));
+    state.kwResults.slice(0,4).forEach(function(r, i){
+      var y = topY+60+i*36;
+      svg.appendChild(el('rect','',{x:col1X, y:y, width:colW, height:30, rx:5,
+        fill:'var(--surface-2)', stroke:'var(--border)'}));
+      svg.appendChild(el('text','svg-val',{x:col1X+10, y:y+19, text:'#'+(i+1)+' '+r.id}));
+      svg.appendChild(el('text','svg-val',{x:col1X+colW-10, y:y+19, 'text-anchor':'end', text:fmt(r.score,2), fill:'var(--accent)'}));
+      // line to fused
+      var fusedIdx = state.fused.findIndex(function(f){ return f.id===r.id; });
+      if(fusedIdx >= 0 && fusedIdx < 4){
+        var fy = topY+60+fusedIdx*36+15;
+        svg.appendChild(el('path','',{d:'M'+(col1X+colW)+' '+(y+15)+' Q '+(col1X+colW+50)+' '+(y+15)+' '+(col3X)+' '+fy,
+          stroke:'var(--accent)', 'stroke-width':'1', fill:'none', opacity:'0.3'}));
+      }
+    });
+
+    // Column 2: Vector
+    svg.appendChild(el('text','svg-title-text',{x:col2X+colW/2, y:topY+20, 'text-anchor':'middle', text:'向量检索'}));
+    svg.appendChild(el('text','svg-label',{x:col2X+colW/2, y:topY+36, 'text-anchor':'middle', text:'(Dense Embedding)'}));
+    state.vecResults.slice(0,4).forEach(function(r, i){
+      var y = topY+60+i*36;
+      svg.appendChild(el('rect','',{x:col2X, y:y, width:colW, height:30, rx:5,
+        fill:'var(--surface-2)', stroke:'var(--border)'}));
+      svg.appendChild(el('text','svg-val',{x:col2X+10, y:y+19, text:'#'+(i+1)+' '+r.id}));
+      svg.appendChild(el('text','svg-val',{x:col2X+colW-10, y:y+19, 'text-anchor':'end', text:fmt(r.score,2), fill:'var(--accent-2)'}));
+      // line to fused
+      var fusedIdx = state.fused.findIndex(function(f){ return f.id===r.id; });
+      if(fusedIdx >= 0 && fusedIdx < 4){
+        var fy = topY+60+fusedIdx*36+15;
+        svg.appendChild(el('path','',{d:'M'+(col2X+colW)+' '+(y+15)+' Q '+(col2X+colW+30)+' '+(y+15)+' '+(col3X)+' '+fy,
+          stroke:'var(--accent-2)', 'stroke-width':'1', fill:'none', opacity:'0.3'}));
+      }
+    });
+
+    // Column 3: Fused + Reranked
+    var rerank = $('#chk07-rerank').checked;
+    svg.appendChild(el('text','svg-title-text',{x:col3X+colW/2, y:topY+20, 'text-anchor':'middle',
+      text: rerank ? '重排序结果' : '融合结果'}));
+    svg.appendChild(el('text','svg-label',{x:col3X+colW/2, y:topY+36, 'text-anchor':'middle',
+      text: rerank ? '(Reranked)' : '('+$('#sel07-fusion').value.toUpperCase()+')'}));
+    state.final.slice(0,4).forEach(function(r, i){
+      var y = topY+60+i*36;
+      var isTop = i === 0;
+      svg.appendChild(el('rect','',{x:col3X, y:y, width:colW, height:30, rx:5,
+        fill: isTop ? 'var(--accent-dim)' : 'var(--surface-2)',
+        stroke: isTop ? 'var(--accent)' : 'var(--border)'}));
+      svg.appendChild(el('text','svg-val',{x:col3X+10, y:y+19, text:'#'+(i+1)+' '+r.id, fill:isTop?'var(--accent)':'var(--ink)'}));
+      svg.appendChild(el('text','svg-val',{x:col3X+colW-10, y:y+19, 'text-anchor':'end', text:fmt(r.score,3), fill:'var(--accent)'}));
+    });
+
+    // Update stats
+    $('#s07-kw').textContent = state.kwResults.length;
+    $('#s07-vec').textContent = state.vecResults.length;
+    $('#s07-fused').textContent = state.fused.length;
+    $('#s07-final').textContent = state.final.length;
+    $('#val07-kw').textContent = fmt(parseFloat($('#range07-kw').value),2);
+    $('#val07-vec').textContent = fmt(parseFloat($('#range07-vec').value),2);
+
+    // Detail
+    var lines = [];
+    lines.push('=== 混合检索管道 ===');
+    lines.push('查询: "'+query+'"');
+    lines.push('融合策略: '+$('#sel07-fusion').value.toUpperCase()+' (kw='+fmt(kwW,2)+', vec='+fmt(vecW,2)+')');
+    lines.push('重排序: '+ ($('#chk07-rerank').checked?'启用':'禁用'));
+    lines.push('');
+    lines.push('关键词检索 Top: ' + state.kwResults.slice(0,3).map(function(r){return r.id;}).join(' > '));
+    lines.push('向量检索 Top: ' + state.vecResults.slice(0,3).map(function(r){return r.id;}).join(' > '));
+    lines.push('最终排序: ' + state.final.slice(0,3).map(function(r){return r.id;}).join(' > '));
+    detail.innerHTML = lines.join('\n')
+      .replace(/(查询: .+)/, '<span class="hl">$1</span>')
+      .replace(/(融合策略: .+)/, '<span class="hl2">$1</span>')
+      .replace(/(最终排序: .+)/, '<span class="kw">$1</span>');
+  }
+
+  function init(){
+    $('#range07-kw').addEventListener('input', function(){
+      $('#val07-kw').textContent = fmt(parseFloat(this.value),2);
+    });
+    $('#range07-vec').addEventListener('input', function(){
+      $('#val07-vec').textContent = fmt(parseFloat(this.value),2);
+    });
+    $('#btn07-run').addEventListener('click', function(){ run(); render(); });
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Module 08: Evaluation Metrics
+   ============================================================ */
+var M08 = (function(){
+  var svg = $('#svg08');
+  var detail = $('#detail08');
+  var metric = 'pr';
+
+  // Simulated ranked results with relevance judgments
+  var results = [
+    {id:'D4', rel:3}, {id:'D1', rel:2}, {id:'D7', rel:0},
+    {id:'D2', rel:3}, {id:'D5', rel:1}, {id:'D3', rel:0},
+    {id:'D6', rel:2}, {id:'D8', rel:1}, {id:'D9', rel:0}, {id:'D10', rel:0}
+  ];
+  var totalRel = results.filter(function(r){ return r.rel>0; }).length;
+
+  function precisionAtK(k){
+    var rel = 0;
+    for(var i=0;i<Math.min(k,results.length);i++){ if(results[i].rel>0) rel++; }
+    return rel/Math.min(k,results.length);
+  }
+  function recallAtK(k){
+    var rel = 0;
+    for(var i=0;i<Math.min(k,results.length);i++){ if(results[i].rel>0) rel++; }
+    return totalRel>0 ? rel/totalRel : 0;
+  }
+  function dcgAtK(k){
+    var s = 0;
+    for(var i=0;i<Math.min(k,results.length);i++){
+      s += (Math.pow(2,results[i].rel)-1)/Math.log2(i+2);
+    }
+    return s;
+  }
+  function ndcgAtK(k){
+    var ideal = results.slice().sort(function(a,b){ return b.rel-a.rel; });
+    var idcg = 0;
+    for(var i=0;i<Math.min(k,ideal.length);i++){
+      idcg += (Math.pow(2,ideal[i].rel)-1)/Math.log2(i+2);
+    }
+    if(idcg === 0) return 0;
+    return dcgAtK(k)/idcg;
+  }
+  function mrr(){
+    for(var i=0;i<results.length;i++){
+      if(results[i].rel>0) return 1/(i+1);
+    }
+    return 0;
+  }
+
+  function render(){
+    clear(svg);
+    var W=760, H=320;
+    var padL=60, padR=30, padT=30, padB=50;
+    var chartW = W-padL-padR, chartH = H-padT-padB;
+
+    if(metric === 'pr'){
+      renderPR(padL, padT, chartW, chartH, H, padB);
+    } else if(metric === 'ndcg'){
+      renderNDCG(padL, padT, chartW, chartH, H, padB);
+    } else if(metric === 'mrr'){
+      renderMRR(padL, padT, chartW, chartH, H, padB);
+    } else {
+      renderAll(padL, padT, chartW, chartH, H, padB);
+    }
+
+    // Update stats
+    $('#s08-p5').textContent = fmt(precisionAtK(5),2);
+    $('#s08-r5').textContent = fmt(recallAtK(5),2);
+    $('#s08-ndcg5').textContent = fmt(ndcgAtK(5),4);
+    $('#s08-mrr').textContent = fmt(mrr(),4);
+
+    var lines = [];
+    lines.push('=== 评估指标 ===');
+    lines.push('总相关文档数: '+totalRel);
+    lines.push('');
+    lines.push('Precision@5 = '+fmt(precisionAtK(5),4));
+    lines.push('Recall@5    = '+fmt(recallAtK(5),4));
+    lines.push('NDCG@5      = '+fmt(ndcgAtK(5),4));
+    lines.push('MRR         = '+fmt(mrr(),4));
+    lines.push('');
+    lines.push('排序结果 (relevance):');
+    lines.push(results.slice(0,10).map(function(r,i){ return (i+1)+':'+r.id+'('+r.rel+')'; }).join('  '));
+    detail.innerHTML = lines.join('\n')
+      .replace(/(Precision@5 = [\d.]+)/, '<span class="hl">$1</span>')
+      .replace(/(Recall@5    = [\d.]+)/, '<span class="hl">$1</span>')
+      .replace(/(NDCG@5      = [\d.]+)/, '<span class="hl2">$1</span>')
+      .replace(/(MRR         = [\d.]+)/, '<span class="kw">$1</span>');
+  }
+
+  function renderPR(padL, padT, chartW, chartH, H, padB){
+    // axes
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:padL+chartW,y2:H-padB}));
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:padT,x2:padL,y2:H-padB}));
+    svg.appendChild(el('text','svg-label',{x:padL+chartW/2, y:H-10, 'text-anchor':'middle', text:'Recall'}));
+    svg.appendChild(el('text','svg-label',{x:padL-40, y:padT+chartH/2, 'text-anchor':'middle', text:'Precision', transform:'rotate(-90,'+(padL-40)+','+(padT+chartH/2)+')'}));
+
+    // grid
+    for(var i=0;i<=5;i++){
+      var gx = padL+chartW*i/5, gy = H-padB-chartH*i/5;
+      svg.appendChild(el('line','svg-grid',{x1:padL,y1:gy,x2:padL+chartW,y2:gy}));
+      svg.appendChild(el('text','svg-label',{x:padL-8, y:gy+4, 'text-anchor':'end', text:fmt(i/5,1)}));
+      svg.appendChild(el('text','svg-label',{x:gx, y:H-padB+16, 'text-anchor':'middle', text:fmt(i/5,1)}));
+    }
+
+    // PR curve
+    var pts = [];
+    var relFound = 0;
+    for(var k=1;k<=results.length;k++){
+      if(results[k-1].rel>0) relFound++;
+      var p = relFound/k;
+      var r = totalRel>0 ? relFound/totalRel : 0;
+      pts.push({x:padL+r*chartW, y:H-padB-p*chartH});
+    }
+    // area
+    var pathD = 'M'+padL+' '+(H-padB)+' ';
+    pts.forEach(function(p){ pathD += 'L'+p.x+' '+p.y+' '; });
+    pathD += 'L'+pts[pts.length-1].x+' '+(H-padB)+' Z';
+    svg.appendChild(el('path','',{d:pathD, fill:'var(--accent)', opacity:'0.12'}));
+    // line
+    var lineD = 'M'+pts[0].x+' '+pts[0].y+' ';
+    pts.forEach(function(p){ lineD += 'L'+p.x+' '+p.y+' '; });
+    svg.appendChild(el('path','',{d:lineD, stroke:'var(--accent)', 'stroke-width':'2.5', fill:'none'}));
+    // points
+    pts.forEach(function(p, i){
+      svg.appendChild(el('circle','',{cx:p.x, cy:p.y, r:3, fill:'var(--accent-2)'}));
+      if(i < 5){
+        svg.appendChild(el('text','svg-val',{x:p.x+6, y:p.y-6, text:'@'+(i+1), fill:'var(--muted)', 'font-size':'9'}));
+      }
+    });
+    $('#tag08').textContent = 'Precision / Recall';
+  }
+
+  function renderNDCG(padL, padT, chartW, chartH, H, padB){
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:padL+chartW,y2:H-padB}));
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:padT,x2:padL,y2:H-padB}));
+    svg.appendChild(el('text','svg-label',{x:padL+chartW/2, y:H-10, 'text-anchor':'middle', text:'K (截断位置)'}));
+    svg.appendChild(el('text','svg-label',{x:padL-40, y:padT+chartH/2, 'text-anchor':'middle', text:'NDCG@K', transform:'rotate(-90,'+(padL-40)+','+(padT+chartH/2)+')'}));
+
+    for(var i=0;i<=5;i++){
+      var gy = H-padB-chartH*i/5;
+      svg.appendChild(el('line','svg-grid',{x1:padL,y1:gy,x2:padL+chartW,y2:gy}));
+      svg.appendChild(el('text','svg-label',{x:padL-8, y:gy+4, 'text-anchor':'end', text:fmt(i/5,1)}));
+    }
+
+    var ks = [1,2,3,4,5,6,7,8,9,10];
+    var barW = chartW/ks.length*0.6;
+    ks.forEach(function(k, i){
+      var nd = ndcgAtK(k);
+      var bh = nd*chartH;
+      var x = padL + (i+0.5)*chartW/ks.length;
+      var color = k<=5 ? 'var(--accent-2)' : 'var(--accent)';
+      svg.appendChild(el('rect','',{x:x-barW/2, y:H-padB-bh, width:barW, height:bh, rx:3, fill:color, opacity:'0.85'}));
+      svg.appendChild(el('text','svg-label',{x:x, y:H-padB+16, 'text-anchor':'middle', text:k}));
+      svg.appendChild(el('text','svg-val',{x:x, y:H-padB-bh-5, 'text-anchor':'middle', text:fmt(nd,2), fill:'var(--muted)', 'font-size':'10'}));
+    });
+    $('#tag08').textContent = 'NDCG@K';
+  }
+
+  function renderMRR(padL, padT, chartW, chartH, H, padB){
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:padL+chartW,y2:H-padB}));
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:padT,x2:padL,y2:H-padB}));
+    svg.appendChild(el('text','svg-label',{x:padL+chartW/2, y:H-10, 'text-anchor':'middle', text:'排名位置 (Rank Position)'}));
+    svg.appendChild(el('text','svg-label',{x:padL-40, y:padT+chartH/2, 'text-anchor':'middle', text:'1/Rank (RR)', transform:'rotate(-90,'+(padL-40)+','+(padT+chartH/2)+')'}));
+
+    for(var i=0;i<=5;i++){
+      var gy = H-padB-chartH*i/5;
+      svg.appendChild(el('line','svg-grid',{x1:padL,y1:gy,x2:padL+chartW,y2:gy}));
+      svg.appendChild(el('text','svg-label',{x:padL-8, y:gy+4, 'text-anchor':'end', text:fmt(i/5,1)}));
+    }
+
+    var firstRel = -1;
+    for(var i=0;i<results.length;i++){ if(results[i].rel>0){ firstRel=i; break; } }
+
+    var barW = chartW/results.length*0.6;
+    results.forEach(function(r, i){
+      var x = padL + (i+0.5)*chartW/results.length;
+      var rr = r.rel > 0 ? 1/(i+1) : 0;
+      var bh = rr*chartH;
+      var isFirst = i === firstRel;
+      var color = isFirst ? 'var(--accent)' : (r.rel>0 ? 'var(--accent-2)' : 'var(--surface-3)');
+      svg.appendChild(el('rect','',{x:x-barW/2, y:H-padB-bh, width:barW, height:Math.max(bh,2), rx:3, fill:color, opacity: isFirst?'1':'0.6'}));
+      svg.appendChild(el('text','svg-label',{x:x, y:H-padB+16, 'text-anchor':'middle', text:i+1}));
+      if(r.rel>0){
+        svg.appendChild(el('text','svg-val',{x:x, y:H-padB-bh-5, 'text-anchor':'middle', text:fmt(rr,2), fill:isFirst?'var(--accent)':'var(--muted)', 'font-size':'9'}));
+      }
+    });
+
+    // MRR line
+    var mrrVal = mrr();
+    var mrrY = H-padB-mrrVal*chartH;
+    svg.appendChild(el('line','',{x1:padL, y1:mrrY, x2:padL+chartW, y2:mrrY, stroke:'var(--warn)', 'stroke-width':'2', 'stroke-dasharray':'5 3'}));
+    svg.appendChild(el('text','svg-val',{x:padL+chartW-8, y:mrrY-5, 'text-anchor':'end', text:'MRR='+fmt(mrrVal,3), fill:'var(--warn)'}));
+    $('#tag08').textContent = 'MRR (Mean Reciprocal Rank)';
+  }
+
+  function renderAll(padL, padT, chartW, chartH, H, padB){
+    svg.appendChild(el('text','svg-title-text',{x:padL+chartW/2, y:padT+10, 'text-anchor':'middle', text:'综合指标对比'}));
+    var metrics = [
+      {name:'P@5', val:precisionAtK(5), color:'var(--accent)'},
+      {name:'R@5', val:recallAtK(5), color:'var(--accent-2)'},
+      {name:'NDCG@5', val:ndcgAtK(5), color:'var(--warn)'},
+      {name:'MRR', val:mrr(), color:'#60a5fa'}
+    ];
+    var barW = chartW/metrics.length*0.5;
+    metrics.forEach(function(m, i){
+      var x = padL + (i+0.5)*chartW/metrics.length;
+      var bh = m.val*chartH*0.8;
+      var y = H-padB-bh;
+      svg.appendChild(el('rect','',{x:x-barW/2, y:y, width:barW, height:bh, rx:6, fill:m.color, opacity:'0.85'}));
+      svg.appendChild(el('text','svg-val',{x:x, y:y-8, 'text-anchor':'middle', text:fmt(m.val,4), fill:'var(--ink)', 'font-size':'13', 'font-weight':'bold'}));
+      svg.appendChild(el('text','svg-label',{x:x, y:H-padB+18, 'text-anchor':'middle', text:m.name}));
+    });
+    // axis
+    svg.appendChild(el('line','svg-axis',{x1:padL,y1:H-padB,x2:padL+chartW,y2:H-padB}));
+    for(var i=0;i<=4;i++){
+      var gy = H-padB-chartH*0.8*i/4;
+      svg.appendChild(el('line','svg-grid',{x1:padL,y1:gy,x2:padL+chartW,y2:gy}));
+      svg.appendChild(el('text','svg-label',{x:padL-8, y:gy+4, 'text-anchor':'end', text:fmt(i/4,2)}));
+    }
+    $('#tag08').textContent = '综合对比';
+  }
+
+  function init(){
+    $$('#tabs08 .tab-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        $$('#tabs08 .tab-btn').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        metric = btn.getAttribute('data-metric');
+        render();
+      });
+    });
+    render();
+  }
+  return { init:init };
+})();
+
+/* ============================================================
+   Init All Modules
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', function(){
+  M01.init();
+  M02.init();
+  M03.init();
+  M04.init();
+  M05.init();
+  M06.init();
+  M07.init();
+  M08.init();
+});
+</script>
+</body>
+</html>

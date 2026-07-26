@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可解释性可视化实验室 · Interpretability Viz Lab</title>
+<style>
+:root{
+--bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+--border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+--ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+--accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+--font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+--font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;scroll-padding-top:72px;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;overflow-x:hidden;}
+::selection{background:rgba(167,139,250,.3);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35;}
+
+.topbar{position:fixed;top:0;left:0;right:0;height:56px;background:rgba(16,17,20,.92);border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center;padding:0 20px;gap:14px;}
+.topbar-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;white-space:nowrap;}
+.topbar-brand .logo{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--violet),var(--accent-2));display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;flex-shrink:0;}
+.topbar-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);}
+.topbar-toggle{display:none;background:none;border:1px solid var(--border);color:var(--ink);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0;}
+
+.progress-track{position:fixed;top:56px;left:0;right:0;height:2px;background:var(--surface);z-index:99;}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--accent-2));transition:width .1s linear;}
+
+.sidebar{position:fixed;top:58px;left:0;bottom:0;width:240px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 12px;z-index:50;}
+.sidebar-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 8px 8px;font-family:var(--font-mono);}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:var(--muted);cursor:pointer;text-decoration:none;font-size:13px;transition:background .15s,color .15s;}
+.nav-item:hover{background:var(--surface-2);color:var(--ink);}
+.nav-item.active{background:var(--surface-2);color:var(--violet);}
+.nav-item .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px;flex-shrink:0;}
+.nav-item.active .num{color:var(--violet);}
+
+.main{margin-left:240px;margin-top:58px;padding:32px 40px 80px;max-width:1400px;}
+.intro{margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);}
+.intro h1{font-size:30px;font-weight:700;margin-bottom:8px;letter-spacing:-.02em;}
+.intro-sub{color:var(--muted);font-size:15px;margin-bottom:16px;}
+.intro-tags{display:flex;flex-wrap:wrap;gap:8px;}
+.tag{background:var(--surface-2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:12px;font-family:var(--font-mono);}
+
+.module{margin-bottom:48px;opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
+.module.visible{opacity:1;transform:translateY(0);}
+.module-head{display:flex;align-items:center;gap:16px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.module-num{font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--violet);line-height:1;}
+.module-head h2{font-size:22px;font-weight:600;}
+.module-sub{font-size:13px;color:var(--faint);font-family:var(--font-mono);}
+.module-body{display:grid;grid-template-columns:1fr 280px;gap:20px;}
+
+.viz-area{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;min-height:440px;display:flex;align-items:center;justify-content:center;}
+.viz-svg{width:100%;height:auto;max-height:440px;display:block;}
+.viz-svg text{font-family:var(--font-mono);font-size:11px;fill:var(--muted);}
+
+.ctrl-panel{display:flex;flex-direction:column;gap:14px;}
+.ctrl-section{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.ctrl-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:8px;font-family:var(--font-mono);}
+.btn-row{display:flex;flex-wrap:wrap;gap:6px;}
+.btn{background:var(--surface-3);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;}
+.btn:hover{border-color:var(--border-strong);color:var(--ink);}
+.btn.active{background:var(--violet);border-color:var(--violet);color:#fff;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn-play{width:100%;background:var(--surface-3);border:1px solid var(--violet);color:var(--violet);padding:9px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font-sans);transition:all .15s;}
+.btn-play:hover{background:var(--violet);color:#fff;}
+
+.slider-wrap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.slider-wrap:last-child{margin-bottom:0;}
+.slider-wrap>span:first-child{font-size:12px;color:var(--muted);}
+.slider-wrap .val{font-family:var(--font-mono);font-size:12px;color:var(--violet);align-self:flex-end;}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:20px;width:100%;cursor:pointer;}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--surface-3);border-radius:2px;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;background:var(--violet);border-radius:50%;margin-top:-5px;cursor:pointer;border:2px solid var(--surface-2);}
+input[type=range]::-moz-range-track{height:4px;background:var(--surface-3);border-radius:2px;}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;background:var(--violet);border-radius:50%;cursor:pointer;border:2px solid var(--surface-2);}
+
+.stats-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.stat-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;}
+.stat-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.stat-item span:last-child{color:var(--ink);font-family:var(--font-mono);}
+
+.footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);color:var(--faint);font-size:12px;text-align:center;font-family:var(--font-mono);}
+
+@media(max-width:1024px){.module-body{grid-template-columns:1fr;}}
+@media(max-width:768px){
+.topbar-toggle{display:flex;}
+.sidebar{transform:translateX(-100%);transition:transform .25s ease;}
+.sidebar.open{transform:translateX(0);}
+.main{margin-left:0;padding:20px 16px 60px;}
+.topbar-sub{display:none;}
+.intro h1{font-size:24px;}
+}
+@media(prefers-reduced-motion:reduce){
+*{animation-duration:.01ms!important;transition-duration:.01ms!important;}
+html{scroll-behavior:auto;}
+.module{opacity:1;transform:none;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+<button class="topbar-toggle" id="sidebar-toggle">&#9776;</button>
+<div class="topbar-brand"><div class="logo">&#9670;</div><span>可解释性可视化实验室</span></div>
+<span class="topbar-sub">interpretability-viz-lab</span>
+</header>
+<div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+
+<nav class="sidebar" id="sidebar">
+<div class="sidebar-label">模块导航</div>
+<a class="nav-item" href="#m1"><span class="num">01</span>特征归因</a>
+<a class="nav-item" href="#m2"><span class="num">02</span>注意力可视化</a>
+<a class="nav-item" href="#m3"><span class="num">03</span>激活最大化</a>
+<a class="nav-item" href="#m4"><span class="num">04</span>概念激活向量</a>
+<a class="nav-item" href="#m5"><span class="num">05</span>反事实解释</a>
+<a class="nav-item" href="#m6"><span class="num">06</span>梯度分析</a>
+<a class="nav-item" href="#m7"><span class="num">07</span>探针分类器</a>
+<a class="nav-item" href="#m8"><span class="num">08</span>可解释性 vs 性能</a>
+</nav>
+
+<main class="main">
+<div class="intro">
+<h1>可解释性可视化实验室</h1>
+<p class="intro-sub">Interpretability Visualization Lab &mdash; 通过 8 个交互式模块探索 XAI 核心方法</p>
+<div class="intro-tags">
+<span class="tag">SHAP</span><span class="tag">Attention</span><span class="tag">Activation Max</span>
+<span class="tag">TCAV</span><span class="tag">Counterfactual</span><span class="tag">Gradient</span>
+<span class="tag">Probing</span><span class="tag">Tradeoff</span>
+</div>
+</div>
+
+<!-- Module 1 -->
+<section id="m1" class="module" data-idx="0">
+<div class="module-head"><span class="module-num">01</span><div><h2>特征归因</h2><span class="module-sub">Feature Attribution &middot; SHAP / LIME / Integrated Gradients</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m1-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">归因方法</div><div class="btn-row" id="m1-btns"></div></div>
+<div class="ctrl-section"><div class="ctrl-label">参数</div><div id="m1-sliders"></div></div>
+<button class="btn-play" id="m1-play">重播动画</button>
+<div class="stats-panel" id="m1-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 2 -->
+<section id="m2" class="module" data-idx="1">
+<div class="module-head"><span class="module-num">02</span><div><h2>注意力可视化</h2><span class="module-sub">Attention Interpretation &middot; Transformer Heatmap</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m2-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">层 / 头 / 阈值</div><div id="m2-sliders"></div></div>
+<button class="btn-play" id="m2-play">重播动画</button>
+<div class="stats-panel" id="m2-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 3 -->
+<section id="m3" class="module" data-idx="2">
+<div class="module-head"><span class="module-num">03</span><div><h2>激活最大化</h2><span class="module-sub">Activation Maximization &middot; Gradient Ascent</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m3-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">目标神经元</div><div class="btn-row" id="m3-btns"></div></div>
+<div class="ctrl-section"><div class="ctrl-label">参数</div><div id="m3-sliders"></div></div>
+<button class="btn-play" id="m3-play">重播动画</button>
+<div class="stats-panel" id="m3-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 4 -->
+<section id="m4" class="module" data-idx="3">
+<div class="module-head"><span class="module-num">04</span><div><h2>概念激活向量</h2><span class="module-sub">TCAV &middot; Testing with Concept Activation Vectors</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m4-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">概念</div><div class="btn-row" id="m4-btns"></div></div>
+<button class="btn-play" id="m4-play">重播动画</button>
+<div class="stats-panel" id="m4-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 5 -->
+<section id="m5" class="module" data-idx="4">
+<div class="module-head"><span class="module-num">05</span><div><h2>反事实解释</h2><span class="module-sub">Counterfactual Explanation &middot; Minimal Change to Flip Prediction</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m5-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">基础样本</div><div class="btn-row" id="m5-btns"></div></div>
+<div class="ctrl-section"><div class="ctrl-label">参数</div><div id="m5-sliders"></div></div>
+<button class="btn-play" id="m5-play">重播动画</button>
+<div class="stats-panel" id="m5-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 6 -->
+<section id="m6" class="module" data-idx="5">
+<div class="module-head"><span class="module-num">06</span><div><h2>梯度分析</h2><span class="module-sub">Gradient Analysis &middot; Vanilla / SmoothGrad / VarGrad</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m6-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">梯度方法</div><div class="btn-row" id="m6-btns"></div></div>
+<div class="ctrl-section"><div class="ctrl-label">参数</div><div id="m6-sliders"></div></div>
+<button class="btn-play" id="m6-play">重播动画</button>
+<div class="stats-panel" id="m6-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 7 -->
+<section id="m7" class="module" data-idx="6">
+<div class="module-head"><span class="module-num">07</span><div><h2>探针分类器</h2><span class="module-sub">Probing Classifiers &middot; Layer-wise Linguistic Features</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m7-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">探针任务</div><div class="btn-row" id="m7-btns"></div></div>
+<button class="btn-play" id="m7-play">重播动画</button>
+<div class="stats-panel" id="m7-stats"></div>
+</aside>
+</div>
+</section>
+
+<!-- Module 8 -->
+<section id="m8" class="module" data-idx="7">
+<div class="module-head"><span class="module-num">08</span><div><h2>可解释性 vs 性能</h2><span class="module-sub">Interpretability vs Performance Tradeoff</span></div></div>
+<div class="module-body">
+<div class="viz-area"><svg id="m8-svg" viewBox="0 0 600 400" class="viz-svg"></svg></div>
+<aside class="ctrl-panel">
+<div class="ctrl-section"><div class="ctrl-label">模型族</div><div class="btn-row" id="m8-btns"></div></div>
+<div class="ctrl-section"><div class="ctrl-label">参数</div><div id="m8-sliders"></div></div>
+<button class="btn-play" id="m8-play">重播动画</button>
+<div class="stats-panel" id="m8-stats"></div>
+</aside>
+</div>
+</section>
+
+<footer class="footer">可解释性可视化实验室 &middot; interpretability-viz-lab &middot; MIT License</footer>
+</main>
+
+<script>
+'use strict';
+/* === Utility Functions === */
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* Extended helpers */
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function prm(){return window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+function animAttr(e,a,f,to,dur,dly){if(prm()){e.setAttribute(a,to);return;}dly=dly||0;setTimeout(function(){var s=performance.now();function fr(n){var t=Math.min(1,(n-s)/dur);e.setAttribute(a,f+(to-f)*easeOut(t));if(t<1)requestAnimationFrame(fr);}requestAnimationFrame(fr);},dly);}
+function playAnim(dur,onUpdate,onComplete){if(prm()){onUpdate(1);if(onComplete)onComplete();return;}var s=performance.now();function fr(n){var t=Math.min(1,(n-s)/dur);onUpdate(easeOut(t));if(t<1)requestAnimationFrame(fr);else{if(onComplete)onComplete();}}requestAnimationFrame(fr);}
+function svgText(p,x,y,str,fill,anchor,size,weight){var t=svgEl(p,'text',{x:x,y:y,fill:fill||C.muted,'text-anchor':anchor||'start','font-size':size||11});if(weight)t.setAttribute('font-weight',weight);t.textContent=str;return t;}
+function svgLine(p,x1,y1,x2,y2,stroke,w,op,dash){var a={'x1':x1,'y1':y1,'x2':x2,'y2':y2,'stroke':stroke,'stroke-width':w||1};if(op!=null)a['stroke-opacity']=op;if(dash)a['stroke-dasharray']=dash;return svgEl(p,'line',a);}
+
+/* ============================== */
+/* Module 1: Feature Attribution  */
+/* ============================== */
+var M1={method:'shap',sampleIdx:0,
+  samples:[
+    {name:'信贷审批',pred:0.82,base:0.45,feats:[
+      {n:'年收入',shap:0.22,lime:0.18,ig:0.20},
+      {n:'信用评分',shap:0.31,lime:0.28,ig:0.29},
+      {n:'负债比',shap:-0.15,lime:-0.12,ig:-0.14},
+      {n:'工作年限',shap:0.08,lime:0.06,ig:0.07},
+      {n:'贷款金额',shap:-0.09,lime:-0.07,ig:-0.08},
+      {n:'还款记录',shap:0.12,lime:0.10,ig:0.11}
+    ]},
+    {name:'医疗诊断',pred:0.67,base:0.38,feats:[
+      {n:'年龄',shap:0.18,lime:0.15,ig:0.17},
+      {n:'血压',shap:0.25,lime:0.22,ig:0.24},
+      {n:'胆固醇',shap:0.14,lime:0.11,ig:0.13},
+      {n:'BMI',shap:-0.06,lime:-0.05,ig:-0.06},
+      {n:'血糖',shap:0.09,lime:0.07,ig:0.08},
+      {n:'家族史',shap:0.07,lime:0.06,ig:0.07}
+    ]},
+    {name:'欺诈检测',pred:0.91,base:0.50,feats:[
+      {n:'交易频率',shap:0.28,lime:0.24,ig:0.26},
+      {n:'交易金额',shap:0.19,lime:0.16,ig:0.18},
+      {n:'地理位置',shap:0.15,lime:0.13,ig:0.14},
+      {n:'设备指纹',shap:-0.04,lime:-0.03,ig:-0.04},
+      {n:'时间段',shap:0.11,lime:0.09,ig:0.10},
+      {n:'历史记录',shap:-0.08,lime:-0.06,ig:-0.07}
+    ]}
+  ]
+};
+
+function renderM1(){
+  var svg=document.getElementById('m1-svg');
+  clearSvg(svg);
+  var s=M1.samples[M1.sampleIdx];
+  var m=M1.method;
+  var feats=s.feats;
+  var n=feats.length;
+  var W=600,H=400,padL=130,padR=60,padT=44,padB=36;
+  var cw=W-padL-padR,ch=H-padT-padB;
+  var cx=padL+cw/2;
+  var gap=ch/n,barH=gap*0.55;
+  var maxV=0.35,sc=(cw/2)/maxV;
+  var rm=prm();
+
+  svgText(svg,padL,24,s.name+'  |  预测值 = '+s.pred.toFixed(2),C.ink,'start',13,'600');
+  svgLine(svg,cx,padT-8,cx,padT+ch+8,C.border,1);
+  svgText(svg,cx,padT+ch+24,'基值 '+s.base.toFixed(2),C.faint,'middle',10);
+
+  feats.forEach(function(f,i){
+    var v=f[m];
+    var y=padT+gap*i+(gap-barH)/2;
+    var isP=v>=0;
+    var w=Math.abs(v)*sc;
+    var x=isP?cx:cx-w;
+    var col=isP?C.emerald:C.rose;
+    var bar=svgEl(svg,'rect',{x:x,y:y,width:0,height:barH,rx:3,fill:col});
+    animAttr(bar,'width',0,w,600,rm?0:i*80);
+    svgText(svg,padL-12,y+barH/2+4,f.n,C.muted,'end',11);
+    var valTxt=(v>=0?'+':'')+v.toFixed(2);
+    var vt=svgEl(svg,'text',{x:isP?cx+w+6:cx-w-6,y:y+barH/2+4,'text-anchor':isP?'start':'end','font-size':10,fill:col});
+    if(rm){vt.textContent=valTxt;}else{setTimeout(function(){vt.textContent=valTxt;},i*80+550);}
+  });
+
+  var ps=0,ns=0;
+  feats.forEach(function(f){var v=f[m];if(v>=0)ps+=v;else ns+=v;});
+  setStats(document.getElementById('m1-stats'),[
+    {color:C.violet,label:'特征数',val:n},
+    {color:C.emerald,label:'正贡献和',val:'+'+ps.toFixed(3)},
+    {color:C.rose,label:'负贡献和',val:ns.toFixed(3)},
+    {color:C.cyan,label:'预测值',val:s.pred.toFixed(2)}
+  ]);
+}
+
+function initM1(){
+  var mc=document.getElementById('m1-btns');
+  var labels={shap:'SHAP',lime:'LIME',ig:'Int. Grad.'};
+  ['shap','lime','ig'].forEach(function(m,i){
+    mc.appendChild(makeBtn(labels[m],i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M1.method=m;renderM1();
+    }));
+  });
+  var sl=document.getElementById('m1-sliders');
+  sl.appendChild(makeSlider('样本',0,M1.samples.length-1,1,0,'',function(v){M1.sampleIdx=v;renderM1();}));
+  document.getElementById('m1-play').onclick=renderM1;
+  renderM1();
+}
+
+/* ================================ */
+/* Module 2: Attention Visualization */
+/* ================================ */
+var M2={layer:0,head:0,threshold:0.10,highlight:-1,
+  tokens:['[CLS]','The','cat','sat','on','the','mat','[SEP]']
+};
+
+function m2Attn(layer,head,i,j){
+  var n=M2.tokens.length;
+  var dist=Math.abs(i-j);
+  var v=Math.exp(-dist*0.45)*0.38;
+  var lf=layer/11;
+  v=v*(1-lf*0.4);
+  if(layer>4){
+    if((i===2&&j===6)||(i===6&&j===2))v+=0.32*lf;
+    if(i===0)v+=0.14*lf;
+    if((i===3&&j===2)||(i===5&&j===6))v+=0.12*lf;
+  }
+  v+=Math.sin(head*0.7+i*0.35+j*0.22)*0.04;
+  if(i===7&&j===7)v+=0.28;
+  if(i===0&&j===0)v+=0.20;
+  return Math.max(0,Math.min(1,v));
+}
+
+function renderM2(){
+  var svg=document.getElementById('m2-svg');
+  clearSvg(svg);
+  var toks=M2.tokens;
+  var n=toks.length;
+  var W=600,H=400;
+  var cellSize=Math.min((W-80)/n,(H-80)/n);
+  var gridW=cellSize*n;
+  var padL=(W-gridW)/2;
+  var padT=(H-gridW)/2+8;
+  var rm=prm();
+
+  svgText(svg,padL,20,'Layer '+M2.layer+'  |  Head '+M2.head+'  |  threshold '+M2.threshold.toFixed(2),C.ink,'start',12,'600');
+
+  for(var i=0;i<n;i++){
+    for(var j=0;j<n;j++){
+      var v=m2Attn(M2.layer,M2.head,i,j);
+      var x=padL+j*cellSize;
+      var y=padT+i*cellSize;
+      var isHL=(M2.highlight===i||M2.highlight===j);
+      var showMe=v>=M2.threshold||isHL;
+      var rect=svgEl(svg,'rect',{x:x,y:y,width:cellSize-1.5,height:cellSize-1.5,rx:2,fill:showMe?C.violet:C.surface3,'fill-opacity':0});
+      if(showMe){
+        animAttr(rect,'fill-opacity',0,v,400,rm?0:(i*n+j)*6);
+      }else{
+        rect.setAttribute('fill-opacity',0.25);
+      }
+      if(isHL){rect.setAttribute('stroke',C.cyan);rect.setAttribute('stroke-width',1.5);}
+    }
+  }
+
+  for(var k=0;k<n;k++){
+    var isH=M2.highlight===k;
+    svgText(svg,padL+k*cellSize+cellSize/2,padT-8,toks[k],isH?C.cyan:C.muted,'middle',10);
+    svgText(svg,padL-8,padT+k*cellSize+cellSize/2+3,toks[k],isH?C.cyan:C.muted,'end',10);
+  }
+  for(var c=0;c<n;c++){
+    (function(idx){
+      var tc=svgEl(svg,'rect',{x:padL+idx*cellSize,y:padT-22,width:cellSize,height:20,fill:'transparent',cursor:'pointer'});
+      tc.onclick=function(){M2.highlight=M2.highlight===idx?-1:idx;renderM2();};
+      var lc=svgEl(svg,'rect',{x:padL-68,y:padT+idx*cellSize,width:64,height:cellSize,fill:'transparent',cursor:'pointer'});
+      lc.onclick=function(){M2.highlight=M2.highlight===idx?-1:idx;renderM2();};
+    })(c);
+  }
+
+  var maxV=0,count=0;
+  for(var a=0;a<n;a++)for(var b=0;b<n;b++){var vv=m2Attn(M2.layer,M2.head,a,b);if(vv>maxV)maxV=vv;if(vv>=M2.threshold)count++;}
+  setStats(document.getElementById('m2-stats'),[
+    {color:C.violet,label:'层数',val:12},
+    {color:C.cyan,label:'头数',val:12},
+    {color:C.emerald,label:'最大注意力',val:maxV.toFixed(3)},
+    {color:C.amber,label:'关注token数',val:count}
+  ]);
+}
+
+function initM2(){
+  var sl=document.getElementById('m2-sliders');
+  sl.appendChild(makeSlider('层',0,11,1,0,'',function(v){M2.layer=v;renderM2();}));
+  sl.appendChild(makeSlider('注意力头',0,11,1,0,'',function(v){M2.head=v;renderM2();}));
+  sl.appendChild(makeSlider('阈值',0,0.5,0.01,0.10,'',function(v){M2.threshold=v;renderM2();}));
+  document.getElementById('m2-play').onclick=function(){
+    var orig=M2.threshold;
+    M2.threshold=0.5;renderM2();
+    playAnim(1200,function(t){M2.threshold=0.5-(0.5-orig)*t;renderM2();});
+  };
+  renderM2();
+}
+
+/* =================================== */
+/* Module 3: Activation Maximization   */
+/* =================================== */
+var M3={neuronIdx:0,iter:50,gridSize:14,
+  neurons:[
+    {id:'Conv5_128',pattern:'gabor',lr:0.05},
+    {id:'Conv5_256',pattern:'blob',lr:0.05},
+    {id:'FC_64',pattern:'stripe',lr:0.03},
+    {id:'FC_128',pattern:'grid',lr:0.03}
+  ]
+};
+
+function m3Pattern(type,gx,gy,gs){
+  var cx=gs/2,cy=gs/2;
+  var dx=gx-cx,dy=gy-cy;
+  var r=Math.sqrt(dx*dx+dy*dy);
+  var a=Math.atan2(dy,dx);
+  if(type==='gabor')return Math.cos(a*5)*Math.exp(-r*r/(gs*gs*0.12))*0.5+0.5;
+  if(type==='blob')return Math.exp(-r*r/(gs*gs*0.06))*0.9+0.08;
+  if(type==='stripe')return Math.abs(Math.sin(gy*0.85))*0.8+0.1;
+  if(type==='grid')return(Math.abs(Math.sin(gx*0.9))*Math.abs(Math.sin(gy*0.9)))*0.8+0.1;
+  return 0.5;
+}
+
+function m3SeedRand(seed){
+  var x=Math.sin(seed*12.9898)*43758.5453;
+  return x-Math.floor(x);
+}
+
+function renderM3(){
+  var svg=document.getElementById('m3-svg');
+  clearSvg(svg);
+  var nrn=M3.neurons[M3.neuronIdx];
+  var gs=M3.gridSize;
+  var W=600,H=400;
+  var cellSize=Math.min((W-60)/gs,(H-60)/gs);
+  var gridW=cellSize*gs;
+  var startX=(W-gridW)/2;
+  var startY=(H-gridW)/2+6;
+  var t=M3.iter/100;
+
+  svgText(svg,startX,startY-14,nrn.id+'  |  iteration '+M3.iter+'  |  lr='+nrn.lr,C.ink,'start',12,'600');
+
+  for(var i=0;i<gs;i++){
+    for(var j=0;j<gs;j++){
+      var target=m3Pattern(nrn.pattern,i,j,gs);
+      var noise=m3SeedRand(i*gs+j+1);
+      var val=noise*(1-t)+target*t;
+      var x=startX+j*cellSize;
+      var y=startY+i*cellSize;
+      svgEl(svg,'rect',{x:x,y:y,width:cellSize-0.5,height:cellSize-0.5,fill:C.cyan,'fill-opacity':(val*0.9).toFixed(3),rx:0.5});
+    }
+  }
+
+  var actVal=(t*0.85+0.08).toFixed(3);
+  setStats(document.getElementById('m3-stats'),[
+    {color:C.cyan,label:'目标神经元',val:nrn.id},
+    {color:C.emerald,label:'当前激活值',val:actVal},
+    {color:C.violet,label:'迭代数',val:M3.iter},
+    {color:C.amber,label:'学习率',val:nrn.lr.toFixed(3)}
+  ]);
+}
+
+function initM3(){
+  var mc=document.getElementById('m3-btns');
+  M3.neurons.forEach(function(nrn,i){
+    mc.appendChild(makeBtn(nrn.id,i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M3.neuronIdx=i;renderM3();
+    }));
+  });
+  var sl=document.getElementById('m3-sliders');
+  sl.appendChild(makeSlider('迭代数',0,100,1,50,'',function(v){M3.iter=v;renderM3();}));
+  document.getElementById('m3-play').onclick=function(){
+    var target=M3.iter;
+    M3.iter=0;renderM3();
+    playAnim(2000,function(t){M3.iter=Math.round(t*target);if(M3.iter<1)M3.iter=1;renderM3();});
+  };
+  renderM3();
+}
+
+/* ============================ */
+/* Module 4: TCAV               */
+/* ============================ */
+var M4={conceptIdx:0,
+  concepts:[
+    {n:'条纹',tcav:0.78,p:0.003,sig:true,type:'stripe'},
+    {n:'圆形',tcav:0.65,p:0.012,sig:true,type:'circle'},
+    {n:'颜色',tcav:0.82,p:0.001,sig:true,type:'color'},
+    {n:'纹理',tcav:0.41,p:0.085,sig:false,type:'texture'}
+  ]
+};
+
+function m4DrawPattern(svg,x,y,size,type){
+  var g=svgEl(svg,'g',{});
+  if(type==='stripe'){
+    for(var i=0;i<6;i++){
+      svgEl(g,'rect',{x:x,y:y+i*(size/6),width:size,height:size/6-1,fill:i%2===0?C.amber:C.surface3,'fill-opacity':i%2===0?0.7:0.4,rx:1});
+    }
+  }else if(type==='circle'){
+    for(var r=size/2;r>4;r-=size/7){
+      svgEl(g,'circle',{cx:x+size/2,cy:y+size/2,r:r,fill:'none',stroke:C.amber,'stroke-width':2,'stroke-opacity':0.6+0.3*(1-r/(size/2))});
+    }
+    svgEl(g,'circle',{cx:x+size/2,cy:y+size/2,r:3,fill:C.amber});
+  }else if(type==='color'){
+    for(var i=0;i<8;i++){
+      var hue=i/8;
+      var col=i<3?C.rose:i<5?C.amber:i<7?C.emerald:C.cyan;
+      svgEl(g,'rect',{x:x+i*(size/8),y:y,width:size/8-1,height:size,fill:col,'fill-opacity':0.3+0.5*(i/8),rx:1});
+    }
+  }else if(type==='texture'){
+    var cs=size/6;
+    for(var i=0;i<6;i++)for(var j=0;j<6;j++){
+      svgEl(g,'rect',{x:x+j*cs,y:y+i*cs,width:cs-1,height:cs-1,fill:(i+j)%2===0?C.amber:C.surface3,'fill-opacity':(i+j)%2===0?0.5:0.3,rx:1});
+    }
+  }
+  return g;
+}
+
+function renderM4(){
+  var svg=document.getElementById('m4-svg');
+  clearSvg(svg);
+  var c=M4.concepts[M4.conceptIdx];
+  var rm=prm();
+
+  svgText(svg,30,24,'概念: '+c.n+'  |  TCAV Score = '+c.tcav.toFixed(2),C.ink,'start',13,'600');
+
+  /* Left: concept pattern */
+  var pSize=140;
+  var pX=40,pY=50;
+  svgEl(svg,'rect',{x:pX-6,y:pY-6,width:pSize+12,height:pSize+12,fill:'none',stroke:C.border,'stroke-width':1,rx:8});
+  m4DrawPattern(svg,pX,pY,pSize,c.type);
+  svgText(svg,pX+pSize/2,pY+pSize+22,'概念示例集',C.faint,'middle',10);
+
+  /* Right: CAV direction */
+  var cavX=260,cavY=60,cavW=130,cavH=130;
+  svgEl(svg,'rect',{x:cavX,y:cavY,width:cavW,height:cavH,fill:'none',stroke:C.border,rx:6});
+  svgText(svg,cavX+cavW/2,cavY-8,'CAV 方向',C.faint,'middle',10);
+  svgLine(svg,cavX+cavW/2,cavY,cavX+cavW/2,cavY+cavH,C.border,1);
+  svgLine(svg,cavX,cavY+cavH/2,cavX+cavW,cavY+cavH/2,C.border,1);
+  var arrowAngle=-Math.PI/4+c.tcav*0.3;
+  var aLen=cavW*0.38*c.tcav+10;
+  var ax2=cavX+cavW/2+Math.cos(arrowAngle)*aLen;
+  var ay2=cavY+cavH/2+Math.sin(arrowAngle)*aLen;
+  var arr=svgEl(svg,'line',{x1:cavX+cavW/2,y1:cavY+cavH/2,x2:cavX+cavW/2,y2:cavY+cavH/2,stroke:C.violet,'stroke-width':2.5,'stroke-linecap':'round'});
+  animAttr(arr,'x2',cavX+cavW/2,ax2,700,rm?0:200);
+  animAttr(arr,'y2',cavY+cavH/2,ay2,700,rm?0:200);
+
+  /* TCAV score bar */
+  var barX=260,barY=220,barW=280,barH=24;
+  svgText(svg,barX,barY-8,'TCAV 概念重要性分数',C.faint,'start',10);
+  svgEl(svg,'rect',{x:barX,y:barY,width:barW,height:barH,fill:C.surface3,rx:4});
+  var fillBar=svgEl(svg,'rect',{x:barX,y:barY,width:0,height:barH,fill:C.violet,rx:4});
+  animAttr(fillBar,'width',0,barW*c.tcav,800,rm?0:400);
+  var scoreText=svgEl(svg,'text',{x:barX+barW*c.tcav+8,y:barY+16,fill:C.violet,'font-size':13,'font-weight':'600'});
+  if(rm){scoreText.textContent=c.tcav.toFixed(2);}else{setTimeout(function(){scoreText.textContent=c.tcav.toFixed(2);},900);}
+
+  /* p-value */
+  var pvY=270;
+  svgText(svg,barX,pvY,'p-value: '+c.p.toFixed(3),c.p<0.05?C.emerald:C.rose,'start',12);
+  var sigText=svgText(svg,barX+130,pvY,c.sig?'显著 (p<0.05)':'不显著',c.sig?C.emerald:C.rose,'start',12,'600');
+
+  /* Significance check */
+  var checkY=300;
+  svgEl(svg,'rect',{x:barX,y:checkY,width:barW,height:36,fill:c.sig?'rgba(52,211,153,0.08)':'rgba(251,113,133,0.08)',stroke:c.sig?C.emerald:C.rose,'stroke-width':1,rx:6});
+  svgText(svg,barX+14,checkY+22,c.sig?'TCAV 检验通过 - 模型学到了该概念':'TCAV 检验未通过 - 概念不显著',c.sig?C.emerald:C.rose,'start',12,'600');
+
+  setStats(document.getElementById('m4-stats'),[
+    {color:C.violet,label:'概念数',val:M4.concepts.length},
+    {color:C.amber,label:'TCAV分数',val:c.tcav.toFixed(3)},
+    {color:C.emerald,label:'p值',val:c.p.toFixed(4)},
+    {color:c.sig?C.emerald:C.rose,label:'显著性',val:c.sig?'显著':'不显著'}
+  ]);
+}
+
+function initM4(){
+  var mc=document.getElementById('m4-btns');
+  M4.concepts.forEach(function(c,i){
+    mc.appendChild(makeBtn(c.n,i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M4.conceptIdx=i;renderM4();
+    }));
+  });
+  document.getElementById('m4-play').onclick=renderM4;
+  renderM4();
+}
+
+/* ================================== */
+/* Module 5: Counterfactual           */
+/* ================================== */
+var M5={sampleIdx:0,distance:0.5,
+  samples:[
+    {name:'信贷样本',origPred:'批准',cfPred:'拒绝',feats:[
+      {n:'年收入',orig:0.72,cf:0.48,changed:true,unit:'万'},
+      {n:'信用评分',orig:0.80,cf:0.62,changed:true,unit:''},
+      {n:'负债比',orig:0.35,cf:0.55,changed:true,unit:''},
+      {n:'工作年限',orig:0.60,cf:0.60,changed:false,unit:'年'},
+      {n:'贷款金额',orig:0.45,cf:0.45,changed:false,unit:'万'},
+      {n:'还款记录',orig:0.75,cf:0.40,changed:true,unit:''}
+    ]},
+    {name:'医疗样本',origPred:'低风险',cfPred:'高风险',feats:[
+      {n:'年龄',orig:0.40,cf:0.65,changed:true,unit:''},
+      {n:'血压',orig:0.50,cf:0.78,changed:true,unit:''},
+      {n:'胆固醇',orig:0.45,cf:0.72,changed:true,unit:''},
+      {n:'BMI',orig:0.55,cf:0.55,changed:false,unit:''},
+      {n:'血糖',orig:0.42,cf:0.42,changed:false,unit:''},
+      {n:'家族史',orig:0.30,cf:0.60,changed:true,unit:''}
+    ]}
+  ]
+};
+
+function renderM5(){
+  var svg=document.getElementById('m5-svg');
+  clearSvg(svg);
+  var s=M5.samples[M5.sampleIdx];
+  var feats=s.feats;
+  var n=feats.length;
+  var W=600,H=400;
+  var padL=100,padR=100,padT=60,padB=30;
+  var cw=W-padL-padR;
+  var ch=H-padT-padB;
+  var gap=ch/n;
+  var barH=gap*0.35;
+  var maxW=cw*0.38;
+  var midX=W/2;
+  var rm=prm();
+  var d=M5.distance;
+
+  svgText(svg,padL,24,s.name,C.ink,'start',13,'600');
+  /* Original prediction label */
+  var origCol=C.emerald;
+  svgEl(svg,'rect',{x:padL-10,y:32,width:130,height:22,fill:'rgba(52,211,153,0.1)',stroke:origCol,'stroke-width':1,rx:5});
+  svgText(svg,padL+55,47,'原预测: '+s.origPred,origCol,'middle',11,'600');
+  /* CF prediction label */
+  var cfCol=C.rose;
+  svgEl(svg,'rect',{x:W-padR-120,y:32,width:130,height:22,fill:'rgba(251,113,133,0.1)',stroke:cfCol,'stroke-width':1,rx:5});
+  svgText(svg,W-padR-55,47,'反事实: '+s.cfPred,cfCol,'middle',11,'600');
+  /* Arrow */
+  svgEl(svg,'path',{d:'M '+(midX-30)+' 43 L '+(midX+30)+' 43',stroke:C.faint,'stroke-width':1.5,'marker-end':'url(#m5arrow)'});
+  var defs=svgEl(svg,'defs',{});
+  var marker=svgEl(defs,'marker',{id:'m5arrow',markerWidth:'8',markerHeight:'8',refX:'6',refY:'4',orient:'auto'});
+  svgEl(marker,'path',{d:'M0,0 L8,4 L0,8 Z',fill:C.faint});
+
+  feats.forEach(function(f,i){
+    var y=padT+gap*i+gap/2;
+    /* Feature name */
+    svgText(svg,padL-12,y+4,f.n,C.muted,'end',11);
+    /* Original bar (left, going left from midX) */
+    var origW=f.orig*maxW;
+    var origBar=svgEl(svg,'rect',{x:midX-origW,y:y-barH/2,width:0,height:barH,rx:3,fill:f.changed?C.emerald:C.surface3});
+    animAttr(origBar,'width',0,origW,500,rm?0:i*50);
+    svgText(svg,midX-origW-6,y+4,f.orig.toFixed(2),C.emerald,'end',10);
+
+    /* CF bar (right, going right from midX) */
+    var cfVal=f.orig+(f.cf-f.orig)*d;
+    var cfW=cfVal*maxW;
+    var cfCol2=f.changed?C.rose:C.surface3;
+    var cfBar=svgEl(svg,'rect',{x:midX,y:y-barH/2,width:0,height:barH,rx:3,fill:cfCol2});
+    animAttr(cfBar,'width',0,cfW,500,rm?0:i*50+100);
+    svgText(svg,midX+cfW+6,y+4,cfVal.toFixed(2),f.changed?C.rose:C.muted,'start',10);
+
+    /* Changed indicator */
+    if(f.changed&&d>0.1){
+      var dot=svgEl(svg,'circle',{cx:midX,cy:y,r:0,fill:C.amber});
+      animAttr(dot,'r',0,4,300,rm?0:i*50+200);
+    }
+    /* Center line */
+    svgLine(svg,midX,y-barH/2-3,midX,y+barH/2+3,C.border,1);
+  });
+
+  var changedCount=feats.filter(function(f){return f.changed;}).length;
+  var actualChanged=Math.round(changedCount*d);
+  setStats(document.getElementById('m5-stats'),[
+    {color:C.emerald,label:'原预测',val:s.origPred},
+    {color:C.rose,label:'反事实预测',val:s.cfPred},
+    {color:C.amber,label:'改变特征数',val:actualChanged+'/'+n},
+    {color:C.violet,label:'距离',val:d.toFixed(2)}
+  ]);
+}
+
+function initM5(){
+  var mc=document.getElementById('m5-btns');
+  M5.samples.forEach(function(s,i){
+    mc.appendChild(makeBtn(s.name,i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M5.sampleIdx=i;renderM5();
+    }));
+  });
+  var sl=document.getElementById('m5-sliders');
+  sl.appendChild(makeSlider('反事实距离',0,1,0.05,0.5,'',function(v){M5.distance=v;renderM5();}));
+  document.getElementById('m5-play').onclick=function(){
+    M5.distance=0;renderM5();
+    playAnim(1500,function(t){M5.distance=t*0.5;renderM5();});
+  };
+  renderM5();
+}
+
+/* =============================== */
+/* Module 6: Gradient Analysis     */
+/* =============================== */
+var M6={method:'vanilla',noise:0.15,gridN:9};
+
+function m6Grad(method,gx,gy,noise){
+  var x=(gx-4)/3,y=(gy-4)/3;
+  var fx,fx2;
+  if(method==='vargrad'){
+    var v1=Math.cos(x*2.5)*Math.sin(y*2.5);
+    var v2=Math.cos((x+noise)*2.5)*Math.sin(y*2.5);
+    var v3=Math.cos(x*2.5)*Math.sin((y+noise)*2.5);
+    fx=Math.abs(v1-v2)+Math.abs(v1-v3);
+    fx2=Math.abs(Math.sin(x*2.5)*Math.cos(y*2.5)-Math.sin((x+noise)*2.5)*Math.cos(y*2.5));
+    return[fx*2+0.1,fx2*2+0.1];
+  }
+  if(method==='smoothgrad'){
+    var sum1=0,sum2=0;
+    for(var k=0;k<5;k++){
+      var nx=x+(Math.sin(k*17)*0.5)*noise;
+      var ny=y+(Math.cos(k*17)*0.5)*noise;
+      sum1+=-Math.sin(nx*2.5)*2.5*Math.cos(ny*2.5);
+      sum2+=-Math.cos(nx*2.5)*Math.sin(ny*2.5)*2.5;
+    }
+    fx=sum1/5;fx2=sum2/5;
+    return[fx,fx2];
+  }
+  /* vanilla */
+  fx=-Math.sin(x*2.5)*2.5*Math.cos(y*2.5);
+  fx2=-Math.cos(x*2.5)*Math.sin(y*2.5)*2.5;
+  return[fx,fx2];
+}
+
+function renderM6(){
+  var svg=document.getElementById('m6-svg');
+  clearSvg(svg);
+  var gn=M6.gridN;
+  var W=600,H=400;
+  var padL=50,padT=50;
+  var fieldW=W-padL-30,fieldH=H-padT-30;
+  var stepX=fieldW/(gn-1),stepY=fieldH/(gn-1);
+  var rm=prm();
+
+  var labels={vanilla:'Vanilla Gradient',smoothgrad:'SmoothGrad',vargrad:'VarGrad'};
+  svgText(svg,padL,24,labels[M6.method]+'  |  noise = '+M6.noise.toFixed(2),C.ink,'start',13,'600');
+
+  /* Background grid */
+  svgEl(svg,'rect',{x:padL,y:padT,width:fieldW,height:fieldH,fill:C.surface2,'stroke':C.border,'stroke-width':1,rx:4});
+
+  var maxMag=0;
+  var grads=[];
+  for(var i=0;i<gn;i++){
+    grads.push([]);
+    for(var j=0;j<gn;j++){
+      var g=m6Grad(M6.method,i,j,M6.noise);
+      var mag=Math.sqrt(g[0]*g[0]+g[1]*g[1]);
+      if(mag>maxMag)maxMag=mag;
+      grads[i].push({gx:g[0],gy:g[1],mag:mag});
+    }
+  }
+  if(maxMag===0)maxMag=1;
+
+  for(var i2=0;i2<gn;i2++){
+    for(var j2=0;j2<gn;j2++){
+      var g2=grads[i2][j2];
+      var px=padL+j2*stepX;
+      var py=padT+i2*stepY;
+      var norm=g2.mag/maxMag;
+      /* background cell */
+      svgEl(svg,'rect',{x:px-stepX/2,y:py-stepY/2,width:stepX,height:stepY,fill:C.accent,'fill-opacity':(norm*0.12).toFixed(3)});
+      /* arrow */
+      var aLen=Math.min(stepX,stepY)*0.4*(0.3+norm*0.7);
+      var ang=Math.atan2(g2.gy,g2.gx);
+      var ax2=px+Math.cos(ang)*aLen;
+      var ay2=py+Math.sin(ang)*aLen;
+      var col=norm>0.5?C.rose:norm>0.25?C.amber:C.cyan;
+      var arr=svgEl(svg,'line',{x1:px,y1:py,x2:px,y2:py,stroke:col,'stroke-width':1.5,'stroke-linecap':'round'});
+      animAttr(arr,'x2',px,ax2,400,rm?0:(i2*gn+j2)*12);
+      animAttr(arr,'y2',py,ay2,400,rm?0:(i2*gn+j2)*12);
+      /* arrowhead */
+      var ah=svgEl(svg,'path',{d:'M'+px+' '+py,fill:col,opacity:0});
+      if(!rm)setTimeout(function(e,x2,y2,a){return function(){
+        e.setAttribute('d','M'+x2+' '+y2+' L'+(x2-Math.cos(a-0.4)*4)+' '+(y2-Math.sin(a-0.4)*4)+' L'+(x2-Math.cos(a+0.4)*4)+' '+(y2-Math.sin(a+0.4)*4)+' Z');
+        e.setAttribute('opacity',1);
+      };}(ah,ax2,ay2,ang),(i2*gn+j2)*12+350);
+      else{ah.setAttribute('d','M'+ax2+' '+ay2+' L'+(ax2-Math.cos(ang-0.4)*4)+' '+(ay2-Math.sin(ang-0.4)*4)+' L'+(ax2-Math.cos(ang+0.4)*4)+' '+(ay2-Math.sin(ang+0.4)*4)+' Z');ah.setAttribute('opacity',1);}
+    }
+  }
+
+  /* Gradient norm */
+  var totalNorm=0,sensitiveCount=0;
+  for(var si=0;si<gn;si++)for(var sj=0;sj<gn;sj++){
+    totalNorm+=grads[si][sj].mag;
+    if(grads[si][sj].mag/maxMag>0.5)sensitiveCount++;
+  }
+  var avgNorm=(totalNorm/(gn*gn)).toFixed(3);
+
+  setStats(document.getElementById('m6-stats'),[
+    {color:C.accent,label:'梯度方法',val:labels[M6.method]},
+    {color:C.cyan,label:'噪声量',val:M6.noise.toFixed(2)},
+    {color:C.amber,label:'梯度范数',val:avgNorm},
+    {color:C.rose,label:'敏感区域',val:sensitiveCount+'/'+(gn*gn)}
+  ]);
+}
+
+function initM6(){
+  var mc=document.getElementById('m6-btns');
+  var labels={vanilla:'Vanilla',smoothgrad:'SmoothGrad',vargrad:'VarGrad'};
+  ['vanilla','smoothgrad','vargrad'].forEach(function(m,i){
+    mc.appendChild(makeBtn(labels[m],i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M6.method=m;renderM6();
+    }));
+  });
+  var sl=document.getElementById('m6-sliders');
+  sl.appendChild(makeSlider('平滑噪声',0,0.5,0.01,0.15,'',function(v){M6.noise=v;renderM6();}));
+  document.getElementById('m6-play').onclick=renderM6;
+  renderM6();
+}
+
+/* =============================== */
+/* Module 7: Probing Classifiers   */
+/* =============================== */
+var M7={taskIdx:0,
+  tasks:[
+    {n:'词性标注 (POS)',color:C.violet,accs:[0.42,0.58,0.69,0.76,0.81,0.85,0.87,0.88,0.87,0.86,0.85,0.84]},
+    {n:'句法树 (Syntactic)',color:C.cyan,accs:[0.35,0.48,0.58,0.66,0.72,0.77,0.80,0.82,0.81,0.80,0.78,0.76]},
+    {n:'语义角色 (SRL)',color:C.emerald,accs:[0.30,0.38,0.45,0.52,0.58,0.64,0.69,0.73,0.76,0.78,0.77,0.75]}
+  ]
+};
+
+function renderM7(){
+  var svg=document.getElementById('m7-svg');
+  clearSvg(svg);
+  var task=M7.tasks[M7.taskIdx];
+  var accs=task.accs;
+  var n=accs.length;
+  var W=600,H=400;
+  var padL=50,padR=30,padT=40,padB=40;
+  var cw=W-padL-padR,ch=H-padT-padB;
+  var rm=prm();
+
+  svgText(svg,padL,24,task.n+'  |  最佳层探测',C.ink,'start',13,'600');
+
+  /* Axes */
+  svgLine(svg,padL,padT,padL,padT+ch,C.border,1);
+  svgLine(svg,padL,padT+ch,padL+cw,padT+ch,C.border,1);
+  /* Y axis labels */
+  for(var yv=0;yv<=1;yv+=0.25){
+    var yp=padT+ch-(yv*ch);
+    svgLine(svg,padL,yp,padL+cw,yp,C.border,0.5,0.5);
+    svgText(svg,padL-8,yp+4,yv.toFixed(2),C.faint,'end',9);
+  }
+  /* X axis labels */
+  for(var xv=0;xv<n;xv+=2){
+    var xp=padL+(xv/(n-1))*cw;
+    svgText(svg,xp,padT+ch+16,'L'+xv,C.faint,'middle',9);
+  }
+  svgText(svg,padL-8,padT-6,'准确率',C.faint,'end',9);
+  svgText(svg,padL+cw,padT+ch+30,'层',C.faint,'end',9);
+
+  /* Faint background lines for other tasks */
+  M7.tasks.forEach(function(t,ti){
+    if(ti===M7.taskIdx)return;
+    var pts='';
+    t.accs.forEach(function(a,ai){
+      var x=padL+(ai/(n-1))*cw;
+      var y=padT+ch-(a*ch);
+      pts+=(ai===0?'M':'L')+x+' '+y+' ';
+    });
+    svgEl(svg,'path',{d:pts,fill:'none',stroke:t.color,'stroke-width':1,'stroke-opacity':0.15});
+  });
+
+  /* Main task line */
+  var pts='';
+  accs.forEach(function(a,i){
+    var x=padL+(i/(n-1))*cw;
+    var y=padT+ch-(a*ch);
+    pts+=(i===0?'M':'L')+x+' '+y+' ';
+  });
+  var linePath=svgEl(svg,'path',{d:pts,fill:'none',stroke:task.color,'stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'});
+  if(!rm){
+    var totalLen=1000;
+    linePath.setAttribute('stroke-dasharray',totalLen);
+    linePath.setAttribute('stroke-dashoffset',totalLen);
+    playAnim(1200,function(t){linePath.setAttribute('stroke-dashoffset',totalLen*(1-t));});
+  }
+
+  /* Points */
+  var bestIdx=0,bestVal=0;
+  accs.forEach(function(a,i){if(a>bestVal){bestVal=a;bestIdx=i;}});
+  accs.forEach(function(a,i){
+    var x=padL+(i/(n-1))*cw;
+    var y=padT+ch-(a*ch);
+    var isBest=i===bestIdx;
+    var pt=svgEl(svg,'circle',{cx:x,cy:y,r:0,fill:isBest?task.color:C.surface,stroke:task.color,'stroke-width':2});
+    animAttr(pt,'r',0,isBest?5:3.5,300,rm?0:i*80+300);
+    if(isBest){
+      var lbl=svgEl(svg,'text',{x:x,y:y-12,fill:task.color,'text-anchor':'middle','font-size':11,'font-weight':'600'});
+      if(rm){lbl.textContent=a.toFixed(2);}else{setTimeout(function(){lbl.textContent=a.toFixed(2);},i*80+500);}
+      svgEl(svg,'rect',{x:x-22,y:y-26,width:44,height:16,fill:'none',stroke:task.color,'stroke-width':1,rx:3,'stroke-opacity':0.4});
+    }
+  });
+
+  var layerAccs=accs.map(function(a,i){return 'L'+i+':'+a.toFixed(2);}).join(' ');
+  setStats(document.getElementById('m7-stats'),[
+    {color:C.violet,label:'层数',val:n},
+    {color:task.color,label:'探针任务',val:task.n.split(' ')[0]},
+    {color:C.cyan,label:'最佳层',val:'L'+bestIdx+' ('+bestVal.toFixed(2)+')'},
+    {color:C.emerald,label:'最高准确率',val:bestVal.toFixed(3)}
+  ]);
+}
+
+function initM7(){
+  var mc=document.getElementById('m7-btns');
+  M7.tasks.forEach(function(t,i){
+    mc.appendChild(makeBtn(t.n.split(' ')[0],i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M7.taskIdx=i;renderM7();
+    }));
+  });
+  document.getElementById('m7-play').onclick=renderM7;
+  renderM7();
+}
+
+/* ======================================== */
+/* Module 8: Interpretability vs Performance */
+/* ======================================== */
+var M8={familyIdx:0,reg:0.5,
+  families:[
+    {n:'决策树',color:C.emerald,models:[
+      {n:'DT-3',interp:0.90,perf:0.72},{n:'DT-5',interp:0.75,perf:0.80},{n:'DT-8',interp:0.55,perf:0.85}
+    ]},
+    {n:'线性模型',color:C.cyan,models:[
+      {n:'LR-L1',interp:0.88,perf:0.70},{n:'LR-L2',interp:0.85,perf:0.74},{n:'Ridge',interp:0.82,perf:0.76}
+    ]},
+    {n:'神经网络',color:C.violet,models:[
+      {n:'MLP-2',interp:0.30,perf:0.86},{n:'MLP-4',interp:0.20,perf:0.90},{n:'CNN',interp:0.12,perf:0.94}
+    ]},
+    {n:'集成模型',color:C.amber,models:[
+      {n:'RF',interp:0.40,perf:0.89},{n:'GBDT',interp:0.35,perf:0.92},{n:'XGB',interp:0.30,perf:0.93}
+    ]}
+  ]
+};
+
+function renderM8(){
+  var svg=document.getElementById('m8-svg');
+  clearSvg(svg);
+  var W=600,H=400;
+  var padL=50,padR=30,padT=40,padB=40;
+  var cw=W-padL-padR,ch=H-padT-padB;
+  var rm=prm();
+
+  svgText(svg,padL,24,'可解释性 vs 性能  |  正则化 = '+M8.reg.toFixed(2),C.ink,'start',13,'600');
+
+  /* Axes */
+  svgLine(svg,padL,padT,padL,padT+ch,C.border,1);
+  svgLine(svg,padL,padT+ch,padL+cw,padT+ch,C.border,1);
+  svgText(svg,padL-8,padT-6,'性能',C.faint,'end',9);
+  svgText(svg,padL+cw,padT+ch+30,'可解释性',C.faint,'end',9);
+  for(var xv=0;xv<=1;xv+=0.25){
+    var xp=padL+xv*cw;
+    svgLine(svg,xp,padT,xp,padT+ch,C.border,0.5,0.5);
+    svgText(svg,xp,padT+ch+16,xv.toFixed(2),C.faint,'middle',9);
+  }
+  for(var yv=0;yv<=1;yv+=0.25){
+    var yp=padT+ch-(yv*ch);
+    svgLine(svg,padL,yp,padL+cw,yp,C.border,0.5,0.5);
+    svgText(svg,padL-8,yp+4,yv.toFixed(2),C.faint,'end',9);
+  }
+
+  /* Diagonal reference line */
+  svgLine(svg,padL,padT+ch,padL+cw,padT,C.faint,1,0.2,'4 4');
+
+  /* Draw all families */
+  M8.families.forEach(function(fam,fi){
+    var isActive=fi===M8.familyIdx;
+    fam.models.forEach(function(m,mi){
+      var interp=m.interp+(M8.reg-0.5)*0.15;
+      interp=Math.max(0.05,Math.min(0.98,interp));
+      var perf=m.perf-(M8.reg-0.5)*0.10;
+      perf=Math.max(0.05,Math.min(0.98,perf));
+      var px=padL+interp*cw;
+      var py=padT+ch-(perf*ch);
+      var r=isActive?6:4;
+      var op=isActive?1:0.3;
+      var circle=svgEl(svg,'circle',{cx:padL+cw/2,cy:padT+ch/2,r:0,fill:fam.color,'fill-opacity':isActive?0.8:0.3,stroke:fam.color,'stroke-width':isActive?2:1,'stroke-opacity':op});
+      animAttr(circle,'cx',padL+cw/2,px,600,rm?0:mi*100+fi*50);
+      animAttr(circle,'cy',padT+ch/2,py,600,rm?0:mi*100+fi*50);
+      animAttr(circle,'r',0,r,400,rm?0:mi*100+fi*50+200);
+      if(isActive){
+        var lbl=svgEl(svg,'text',{x:px,y:py-r-6,fill:fam.color,'text-anchor':'middle','font-size':10,'font-weight':'600','opacity':0});
+        lbl.textContent=m.n;
+        if(rm){lbl.setAttribute('opacity',1);}else{setTimeout(function(){lbl.setAttribute('opacity',1);},mi*100+fi*50+500);}
+      }
+    });
+  });
+
+  /* Legend */
+  var legX=padL+cw-110,legY=padT+10;
+  M8.families.forEach(function(fam,fi){
+    var ly=legY+fi*18;
+    svgEl(svg,'circle',{cx:legX,cy:ly,r:4,fill:fam.color,'fill-opacity':fi===M8.familyIdx?1:0.3});
+    svgText(svg,legX+10,ly+4,fam.n,fi===M8.familyIdx?C.ink:C.faint,'start',10);
+  });
+
+  var activeFam=M8.families[M8.familyIdx];
+  var avgI=0,avgP=0;
+  activeFam.models.forEach(function(m){
+    avgI+=m.interp+(M8.reg-0.5)*0.15;
+    avgP+=m.perf-(M8.reg-0.5)*0.10;
+  });
+  avgI/=activeFam.models.length;
+  avgP/=activeFam.models.length;
+
+  setStats(document.getElementById('m8-stats'),[
+    {color:activeFam.color,label:'模型族',val:activeFam.n},
+    {color:C.violet,label:'可解释性',val:avgI.toFixed(3)},
+    {color:C.emerald,label:'性能',val:avgP.toFixed(3)},
+    {color:C.amber,label:'正则化',val:M8.reg.toFixed(2)}
+  ]);
+}
+
+function initM8(){
+  var mc=document.getElementById('m8-btns');
+  M8.families.forEach(function(f,i){
+    mc.appendChild(makeBtn(f.n,i===0,function(b){
+      mc.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      M8.familyIdx=i;renderM8();
+    }));
+  });
+  var sl=document.getElementById('m8-sliders');
+  sl.appendChild(makeSlider('正则化强度',0,1,0.05,0.5,'',function(v){M8.reg=v;renderM8();}));
+  document.getElementById('m8-play').onclick=renderM8;
+  renderM8();
+}
+
+/* =============================== */
+/* Setup: Observer, Progress, Nav  */
+/* =============================== */
+function setupObserver(){
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+      }
+    });
+  },{threshold:0.08});
+  document.querySelectorAll('.module').forEach(function(m){obs.observe(m);});
+}
+
+function setupProgress(){
+  var bar=document.getElementById('progress-bar');
+  function update(){
+    var h=document.documentElement;
+    var max=h.scrollHeight-h.clientHeight;
+    var pct=max>0?(h.scrollTop/max)*100:0;
+    bar.style.width=pct+'%';
+  }
+  window.addEventListener('scroll',update,{passive:true});
+  update();
+}
+
+function setupSidebar(){
+  var toggle=document.getElementById('sidebar-toggle');
+  var sidebar=document.getElementById('sidebar');
+  toggle.addEventListener('click',function(){sidebar.classList.toggle('open');});
+  sidebar.querySelectorAll('.nav-item').forEach(function(item){
+    item.addEventListener('click',function(){
+      if(window.innerWidth<=768)sidebar.classList.remove('open');
+      sidebar.querySelectorAll('.nav-item').forEach(function(x){x.classList.remove('active');});
+      item.classList.add('active');
+    });
+  });
+  /* Active section tracking */
+  var sections=document.querySelectorAll('.module');
+  var navItems=sidebar.querySelectorAll('.nav-item');
+  var sObs=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        var idx=parseInt(entry.target.dataset.idx);
+        navItems.forEach(function(x){x.classList.remove('active');});
+        if(navItems[idx])navItems[idx].classList.add('active');
+      }
+    });
+  },{threshold:0.3,rootMargin:'-80px 0px -50% 0px'});
+  sections.forEach(function(s){sObs.observe(s);});
+}
+
+function start(){
+  initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();
+  setupObserver();setupProgress();setupSidebar();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',start);}
+else{start();}
+</script>
+</body>
+</html>

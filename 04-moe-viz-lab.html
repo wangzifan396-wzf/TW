@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoE 可视化实验室 · Mixture of Experts Visualizer</title>
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:260px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 20px)}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--ink);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+ul{list-style:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+.progress-bar{position:fixed;top:0;left:0;height:2px;width:0;z-index:1000;background:linear-gradient(90deg,var(--accent),var(--violet),var(--cyan));transition:width .1s linear;will-change:width;transform:translateZ(0)}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:900;background:rgba(8,9,10,.92);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px}
+.navbar .logo{font-weight:700;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.navbar .logo .dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet)}
+.navbar .nav-links{margin-left:auto;display:flex;gap:24px;font-size:13px;color:var(--muted)}
+.navbar .nav-links a{transition:color .2s}
+.navbar .nav-links a:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:800;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:24px 0}
+.sidebar .side-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 20px;margin-bottom:12px}
+.sidebar .side-nav li a{display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:all .2s}
+.sidebar .side-nav li a .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px}
+.sidebar .side-nav li a:hover{color:var(--ink);background:var(--surface-2)}
+.sidebar .side-nav li a.active{color:var(--violet);border-left-color:var(--violet);background:rgba(167,139,250,.08)}
+.sidebar .side-nav li a.active .num{color:var(--violet)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);min-height:calc(100vh - var(--nav-h))}
+.hero{min-height:calc(100vh - var(--nav-h));display:flex;flex-direction:column;justify-content:center;padding:0 64px;max-width:1100px;position:relative}
+.hero .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--violet);background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);padding:4px 12px;border-radius:20px;width:fit-content;margin-bottom:24px}
+.hero .badge .pulse{width:6px;height:6px;border-radius:50%;background:var(--violet);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{font-size:clamp(36px,5vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-bottom:20px}
+.hero h1 .grad{background:linear-gradient(135deg,var(--violet),var(--accent),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .subtitle{font-size:18px;color:var(--muted);max-width:580px;margin-bottom:48px;line-height:1.7}
+.hero .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:680px}
+.hero .stat{border-left:2px solid var(--border-strong);padding-left:16px}
+.hero .stat .val{font-size:28px;font-weight:700;font-family:var(--font-mono);color:var(--ink)}
+.hero .stat .label{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.module{min-height:100vh;padding:80px 64px;border-top:1px solid var(--border);display:flex;flex-direction:column;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-header{margin-bottom:40px}
+.module-header .num{font-family:var(--font-mono);font-size:13px;color:var(--violet);letter-spacing:.05em;display:block;margin-bottom:8px}
+.module-header h2{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.module-header .desc{color:var(--muted);font-size:15px;max-width:600px}
+.module-body{display:grid;grid-template-columns:1fr 380px;gap:48px;flex:1}
+.viz-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:20px;overflow:hidden}
+.viz-svg{width:100%;height:auto;display:block}
+.viz-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{padding:8px 16px;font-size:13px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--muted);transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--surface-3);color:var(--ink);box-shadow:0 0 16px rgba(167,139,250,.15)}
+.btn.active{background:var(--violet);border-color:var(--violet);color:#fff;box-shadow:0 0 20px rgba(167,139,250,.3)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.viz-stats{display:flex;gap:24px;font-size:12px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap}
+.viz-stats .stat-item{display:flex;align-items:center;gap:6px}
+.viz-stats .stat-item .dot{width:8px;height:8px;border-radius:2px}
+.info-panel{display:flex;flex-direction:column;gap:24px}
+.info-block{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px}
+.info-block h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.info-block p{font-size:13px;color:var(--muted);line-height:1.7}
+.info-block ul{display:flex;flex-direction:column;gap:8px}
+.info-block ul li{font-size:13px;color:var(--muted);padding-left:16px;position:relative;line-height:1.6}
+.info-block ul li::before{content:'';position:absolute;left:0;top:8px;width:4px;height:4px;border-radius:50%;background:var(--violet)}
+.info-block ul li strong{color:var(--ink);font-weight:600}
+.code-block{background:#0c0d10;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.code-block .code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.code-block .code-header .lang{font-size:11px;color:var(--faint);font-family:var(--font-mono)}
+.code-block .code-header .dots{display:flex;gap:5px}
+.code-block .code-header .dots span{width:8px;height:8px;border-radius:50%;background:var(--surface-3)}
+.code-block pre{padding:14px;overflow-x:auto;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:#c9d1d9}
+.code-block .kw{color:#ff7b72}.code-block .str{color:#a5d6ff}.code-block .com{color:#62666d}.code-block .fn{color:#d2a8ff}.code-block .num-l{color:#79c0ff}.code-block .var{color:#ffa657}
+.slider-wrap{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.slider-wrap input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--surface-3);border-radius:2px;outline:none;width:120px}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--violet);cursor:pointer}
+.slider-wrap .val{color:var(--violet);min-width:30px;text-align:right}
+.footer{border-top:1px solid var(--border);padding:60px 64px;background:var(--surface)}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px;max-width:1100px}
+.footer h4{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:16px}
+.footer p,.footer li{font-size:13px;color:var(--muted);line-height:1.8}
+.footer .gh-link{display:inline-flex;align-items:center;gap:6px;color:var(--violet);font-size:13px}
+.footer .license{margin-top:32px;padding-top:24px;border-top:1px solid var(--border);font-size:12px;color:var(--faint)}
+@media(max-width:1100px){.module-body{grid-template-columns:1fr}}
+@media(max-width:768px){
+  :root{--side-w:0px}.sidebar{display:none}.main{margin-left:0}.navbar .nav-links{display:none}
+  .hero,.module,.footer{padding-left:24px;padding-right:24px}.hero .stats{grid-template-columns:repeat(2,1fr)}.footer-grid{grid-template-columns:1fr}.module-header h2{font-size:24px}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.module{opacity:1!important;transform:none!important}}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav class="navbar"><div class="logo"><span class="dot"></span> MoE Viz Lab</div><div class="nav-links"><a href="#hero">首页</a><a href="#m1">模块</a><a href="#footer">关于</a></div></nav>
+<aside class="sidebar"><div class="side-title">可视化模块</div>
+<ul class="side-nav" id="sideNav">
+<li><a href="#hero"><span class="num">00</span> 首页</a></li>
+<li><a href="#m1"><span class="num">01</span> MoE 架构概览</a></li>
+<li><a href="#m2"><span class="num">02</span> 专家路由</a></li>
+<li><a href="#m3"><span class="num">03</span> Top-K 选择</a></li>
+<li><a href="#m4"><span class="num">04</span> 负载均衡</a></li>
+<li><a href="#m5"><span class="num">05</span> 容量与溢出</a></li>
+<li><a href="#m6"><span class="num">06</span> 稀疏激活</a></li>
+<li><a href="#m7"><span class="num">07</span> MoE 训练</a></li>
+<li><a href="#m8"><span class="num">08</span> 推理优化</a></li>
+</ul></aside>
+<main class="main">
+
+<section class="hero" id="hero">
+<div class="badge"><span class="pulse"></span> 交互式混合专家模型可视化实验室</div>
+<h1>MoE<br><span class="grad">可视化实验室</span></h1>
+<p class="subtitle">通过动画与交互深入理解 Mixture of Experts 核心机制。从路由到负载均衡，从稀疏激活到推理优化，把 MoE 黑箱拆成你能看见的零件。</p>
+<div class="stats">
+<div class="stat"><div class="val">8</div><div class="label">可视化模块</div></div>
+<div class="stat"><div class="val">15+</div><div class="label">交互参数</div></div>
+<div class="stat"><div class="val">DeepSeek</div><div class="label">对标模型</div></div>
+<div class="stat"><div class="val">0</div><div class="label">外部依赖</div></div>
+</div>
+</section>
+
+<!-- M1: MoE 架构概览 -->
+<section class="module" id="m1">
+<div class="module-header"><span class="num">MODULE 01</span><h2>MoE 架构概览 (Architecture)</h2><p class="desc">混合专家模型用稀疏激活替代全连接：每个 token 只激活少数专家，以更少的计算量达到更大的模型容量。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg1" viewBox="0 0 800 420"></svg>
+<div class="viz-controls" id="ctrl1"></div>
+<div class="viz-stats" id="stats1"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>稠密模型中每个 token 经过所有参数。MoE 层将 FFN 替换为多个并行 FFN（专家），门控网络为每个 token 选择 Top-K 个专家。总参数量大但每次前向传播只用一小部分。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>稀疏激活：</strong>总参数 N，每次仅激活 N×(K/num_experts)</li>
+<li><strong>DeepSeek-V3：</strong>256 专家，每次激活 8，总 671B 仅用 37B</li>
+<li><strong>GLM-5.2：</strong>744B 参数 MoE，消费级 GPU 可推理</li>
+<li><strong>关键优势：</strong>参数容量 ↑↑，计算成本 ↑</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · MoE Layer</span></div>
+<pre><code><span class="kw">class</span> <span class="fn">MoELayer</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, n_experts, top_k):
+        self.gate = nn.<span class="fn">Linear</span>(d_model, n_experts)
+        self.experts = nn.<span class="fn">ModuleList</span>([
+            <span class="fn">FFN</span>(d_model) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n_experts)
+        ])
+        self.top_k = top_k
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="com"># 门控网络打分</span>
+        logits = self.<span class="fn">gate</span>(x)  <span class="com"># [B,S,E]</span>
+        <span class="com"># Top-K 选择</span>
+        topk_val, topk_idx = logits.<span class="fn">topk</span>(self.top_k, dim=-<span class="num-l">1</span>)
+        <span class="com"># 加权求和</span>
+        <span class="kw">return</span> <span class="fn">dispatch</span>(x, topk_idx, topk_val)</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M2: 专家路由 -->
+<section class="module" id="m2">
+<div class="module-header"><span class="num">MODULE 02</span><h2>专家路由 (Expert Routing)</h2><p class="desc">门控网络根据 token 的表示决定路由到哪些专家。路由质量直接决定 MoE 模型的性能。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg2" viewBox="0 0 800 440"></svg>
+<div class="viz-controls" id="ctrl2"></div>
+<div class="viz-stats" id="stats2"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>门控网络是一个线性层 G(x)=W_g·x，输出每个专家的分数。Softmax 归一化后选择 Top-K。不同 token 倾向于不同专家——这形成了隐式的专家分工。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>门控函数：</strong>G(x) = Softmax(W_g · x)，简单线性层</li>
+<li><strong>专家特化：</strong>训练后专家会自然分工（语法/语义/代码等）</li>
+<li><strong>噪声门控：</strong>G(x) = Softmax(W·x + ε)，ε~N(0,σ²) 促进探索</li>
+<li><strong>路由稳定性：</strong>是 MoE 训练的最大挑战</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Gating</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">gating</span>(x, n_experts, top_k, noise=<span class="kw">False</span>):
+    <span class="com"># x: [batch, seq, d_model]</span>
+    logits = W_gate @ x  <span class="com"># [batch, seq, n_experts]</span>
+    <span class="kw">if</span> noise:
+        logits += torch.<span class="fn">randn_like</span>(logits) * softplus(W_noise)
+    <span class="com"># Top-K 选择</span>
+    weights, indices = logits.<span class="fn">softmax</span>(-<span class="num-l">1</span>).<span class="fn">topk</span>(top_k)
+    weights = weights / weights.<span class="fn">sum</span>(dim=-<span class="num-l">1</span>, keepdim=<span class="kw">True</span>)
+    <span class="kw">return</span> weights, indices</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M3: Top-K 选择 -->
+<section class="module" id="m3">
+<div class="module-header"><span class="num">MODULE 03</span><h2>Top-K 选择 (Top-K Selection)</h2><p class="desc">每个 token 只选择得分最高的 K 个专家。K 越大，模型质量越高但计算量也越大。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg3" viewBox="0 0 800 400"></svg>
+<div class="viz-controls" id="ctrl3"></div>
+<div class="viz-stats" id="stats3"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>门控网络输出所有专家的分数后，Top-K 选择保留最高的 K 个。选中专家的权重经归一化后用于加权求和。未选中的专家不参与计算，实现稀疏激活。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>K=1：</strong>最稀疏，最快，但可能路由坍塌</li>
+<li><strong>K=2：</strong>最常用，GPT-4 / Mixtral 标准配置</li>
+<li><strong>K=8：</strong>DeepSeek-V3 选择，质量更高</li>
+<li><strong>权衡：</strong>K↑ → 质量↑ 速度↓ 通信↑</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Top-K</span></div>
+<pre><code><span class="com"># 门控分数 → Top-K 选择</span>
+gate_scores = <span class="fn">softmax</span>(gate(x), dim=-<span class="num-l">1</span>)
+<span class="com"># [batch, seq, n_experts]</span>
+
+topk_weights, topk_indices = gate_scores.<span class="fn">topk</span>(
+    k=K, dim=-<span class="num-l">1</span>
+)
+<span class="com"># 重新归一化选中的权重</span>
+topk_weights = topk_weights / topk_weights.<span class="fn">sum</span>(
+    dim=-<span class="num-l">1</span>, keepdim=<span class="kw">True</span>
+)
+<span class="com"># 只计算选中的 K 个专家</span>
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(K):
+    expert_idx = topk_indices[..., i]
+    output += topk_weights[..., i] * <span class="fn">expert</span>(expert_idx, x)</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M4: 负载均衡 -->
+<section class="module" id="m4">
+<div class="module-header"><span class="num">MODULE 04</span><h2>负载均衡 (Load Balancing)</h2><p class="desc">如果不加约束，门控网络可能总是把 token 路由到少数专家，导致其他专家闲置。辅助损失强制均衡分配。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg4" viewBox="0 0 800 400"></svg>
+<div class="viz-controls" id="ctrl4"></div>
+<div class="viz-stats" id="stats4"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>辅助损失 L_aux = α·n_experts·Σ(f_i·P_i)，其中 f_i 是专家 i 收到的 token 比例，P_i 是平均门控概率。当分配均匀时 L_aux 最小。这个简单的损失项是 MoE 训练的关键。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>路由坍塌：</strong>不加约束时 80% token 去同一个专家</li>
+<li><strong>辅助损失：</strong>L_aux = α·N·Σ(f_i·P_i)，α≈0.01</li>
+<li><strong>Expert Capacity：</strong>每个专家设上限 capacity = C·avg</li>
+<li><strong>DeepSeek 方案：</strong>无辅助损失的偏置调整</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Aux Loss</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">load_balancing_loss</span>(gate_probs, expert_mask):
+    <span class="com"># gate_probs: [tokens, n_experts] softmax probs</span>
+    <span class="com"># expert_mask: [tokens, n_experts] 0/1 selected</span>
+    N = gate_probs.size(<span class="num-l">1</span>)
+    <span class="com"># f_i: 每个专家实际收到的比例</span>
+    f = expert_mask.<span class="fn">mean</span>(dim=<span class="num-l">0</span>)
+    <span class="com"># P_i: 每个专家的平均门控概率</span>
+    P = gate_probs.<span class="fn">mean</span>(dim=<span class="num-l">0</span>)
+    <span class="com"># 辅助损失</span>
+    aux_loss = N * (f * P).<span class="fn">sum</span>()
+    <span class="kw">return</span> aux_loss</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M5: 容量与溢出 -->
+<section class="module" id="m5">
+<div class="module-header"><span class="num">MODULE 05</span><h2>容量与溢出 (Capacity & Overflow)</h2><p class="desc">每个专家有处理上限。当分配的 token 超过容量时，多余 token 被丢弃或传递给下一层。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg5" viewBox="0 0 800 400"></svg>
+<div class="viz-controls" id="ctrl5"></div>
+<div class="viz-stats" id="stats5"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>Expert Capacity = (tokens/Batch) × capacity_factor × top_k。capacity_factor 通常 1.0-1.5。超出容量的 token 被标记为 overflow，直接透传不经过专家处理。这是 MoE 训练中信息丢失的主要来源。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>容量因子：</strong>1.0 = 刚好，1.25 = 宽松，1.5 = 很少溢出</li>
+<li><strong>Token 丢弃：</strong>溢出 token 直接透传，信息不经过 FFN</li>
+<li><strong>影响：</strong>溢出率高 → 模型质量下降</li>
+<li><strong>权衡：</strong>容量↑ → 显存↑ 但溢出↓</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Capacity</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">dispatch_with_capacity</span>(x, indices, weights, capacity):
+    <span class="com"># capacity = ceil(tokens * top_k / n_experts * factor)</span>
+    expert_counts = <span class="fn">zeros</span>(n_experts)
+    overflow_count = <span class="num-l">0</span>
+
+    <span class="kw">for</span> token <span class="kw">in</span> x:
+        <span class="kw">for</span> expert <span class="kw">in</span> <span class="fn">selected_experts</span>(token):
+            <span class="kw">if</span> expert_counts[expert] &lt; capacity:
+                <span class="fn">dispatch</span>(token, expert)
+                expert_counts[expert] += <span class="num-l">1</span>
+            <span class="kw">else</span>:
+                <span class="com"># 溢出：直接透传</span>
+                overflow_count += <span class="num-l">1</span></code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M6: 稀疏激活 -->
+<section class="module" id="m6">
+<div class="module-header"><span class="num">MODULE 06</span><h2>稀疏激活 (Sparse Activation)</h2><p class="desc">MoE 的核心优势：用更大的总参数量获得更好的性能，但每次前向传播只激活一小部分参数。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg6" viewBox="0 0 800 400"></svg>
+<div class="viz-controls" id="ctrl6"></div>
+<div class="viz-stats" id="stats6"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>DeepSeek-V3 总参数 671B 但每次推理只激活 37B。这意味着模型的"知识容量"接近 671B 模型，但"计算成本"接近 37B 稠密模型。稀疏激活让大模型在消费级硬件上可运行。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>激活比：</strong>激活参数/总参数，DeepSeek-V3 ≈ 5.5%</li>
+<li><strong>等效稠密模型：</strong>37B 激活 ≈ 70B 稠密模型性能</li>
+<li><strong>显存挑战：</strong>需加载全部参数，即使不激活</li>
+<li><strong>推理优化：</strong>按需加载专家（Expert Offloading）</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Sparse Stats</span></div>
+<pre><code><span class="com"># DeepSeek-V3 示例</span>
+total_params = <span class="num-l">671e9</span>      <span class="com"># 671B</span>
+active_params = <span class="num-l">37e9</span>     <span class="com"># 37B</span>
+n_experts = <span class="num-l">256</span>
+top_k = <span class="num-l">8</span>
+
+activation_ratio = active_params / total_params
+<span class="com"># ≈ 5.5%</span>
+
+<span class="com"># 每个专家平均参数</span>
+per_expert = total_params / n_experts
+<span class="com"># ≈ 2.6B per expert</span>
+
+<span class="com"># 每次推理实际计算</span>
+flops = top_k * per_expert
+<span class="com"># ≈ 21B FLOPs (远小于 671B)</span></code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M7: MoE 训练 -->
+<section class="module" id="m7">
+<div class="module-header"><span class="num">MODULE 07</span><h2>MoE 训练 (Training)</h2><p class="desc">MoE 训练比稠密模型更难：需要处理路由不稳定、负载不均、专家利用率等问题。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg7" viewBox="0 0 800 420"></svg>
+<div class="viz-controls" id="ctrl7"></div>
+<div class="viz-stats" id="stats7"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>MoE 训练面临独特挑战：路由坍塌（所有 token 选同一专家）、专家利用率不均、训练不稳定。解决方案包括辅助损失、专家容量、噪声注入、初始化策略等。DeepSeek 提出了无辅助损失的偏置调整方案。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>路由坍塌：</strong>训练初期门控网络偏向少数专家</li>
+<li><strong>辅助损失：</strong>α=0.01，强制均衡分配</li>
+<li><strong>初始化：</strong>门控网络需较小初始化方差</li>
+<li><strong>数据并行：</strong>Expert Parallelism 需 All-to-All 通信</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Training Loop</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">train_step</span>(model, batch, aux_weight=<span class="num-l">0.01</span>):
+    <span class="com"># 前向传播（含门控路由）</span>
+    output, gate_probs, expert_mask = model(batch)
+
+    <span class="com"># 主任务损失</span>
+    lm_loss = <span class="fn">cross_entropy</span>(output, targets)
+
+    <span class="com"># 负载均衡辅助损失</span>
+    aux_loss = <span class="fn">load_balancing_loss</span>(
+        gate_probs, expert_mask
+    )
+
+    <span class="com"># 总损失</span>
+    total_loss = lm_loss + aux_weight * aux_loss
+
+    total_loss.<span class="fn">backward</span>()
+    optimizer.<span class="fn">step</span>()
+    <span class="kw">return</span> lm_loss, aux_loss</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+<!-- M8: 推理优化 -->
+<section class="module" id="m8">
+<div class="module-header"><span class="num">MODULE 08</span><h2>推理优化 (Inference)</h2><p class="desc">MoE 推理的核心挑战：总参数巨大但每次只用一小部分。专家卸载和按需加载是关键优化。</p></div>
+<div class="module-body">
+<div class="viz-wrap">
+<svg class="viz-svg" id="svg8" viewBox="0 0 800 400"></svg>
+<div class="viz-controls" id="ctrl8"></div>
+<div class="viz-stats" id="stats8"></div>
+</div>
+<div class="info-panel">
+<div class="info-block"><h3>说明</h3><p>MoE 推理时，专家可以卸载到 CPU/磁盘，只在需要时加载到 GPU。DeepSeek-V3 的 256 专家中，每次只需 8 个在 GPU 上。通过预测下一层路由，可以提前预取专家，实现计算与 IO 的重叠。</p></div>
+<div class="info-block"><h3>面试要点</h3><ul>
+<li><strong>专家卸载：</strong>GPU 存热专家，CPU/SSD 存冷专家</li>
+<li><strong>预取：</strong>预测下一层路由，提前加载专家</li>
+<li><strong>量化：</strong>FP8/INT4 量化减少专家大小</li>
+<li><strong>批处理：</strong>合并同专家请求提升吞吐</li>
+</ul></div>
+<div class="code-block"><div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Expert Offload</span></div>
+<pre><code><span class="kw">class</span> <span class="fn">ExpertPool</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, experts, gpu_capacity):
+        self.gpu = {}   <span class="com"># GPU 上的热专家</span>
+        self.cpu = {}    <span class="com"># CPU 上的冷专家</span>
+        self.lru = <span class="fn">OrderedDict</span>()
+
+    <span class="kw">def</span> <span class="fn">get</span>(self, expert_id):
+        <span class="kw">if</span> expert_id <span class="kw">in</span> self.gpu:
+            <span class="kw">return</span> self.gpu[expert_id]
+        <span class="com"># 从 CPU 加载到 GPU</span>
+        <span class="kw">if</span> <span class="fn">len</span>(self.gpu) &gt;= capacity:
+            <span class="fn">evict_lru</span>()
+        self.gpu[expert_id] = self.cpu[expert_id].<span class="fn">cuda</span>()
+        <span class="kw">return</span> self.gpu[expert_id]</code></pre>
+</div>
+</div>
+</div>
+</section>
+
+</main>
+
+<footer class="footer" id="footer">
+<div class="footer-grid">
+<div><h4>关于项目</h4><p>MoE 可视化实验室是一个开源的交互式教学项目，通过动画与可视化拆解混合专家模型的核心机制。零外部依赖，单文件运行，适合面试复习与概念深入理解。</p>
+<p style="margin-top:12px"><a class="gh-link" href="https://github.com/wangzifan396-wzf" target="_blank">→ 在 GitHub 上查看</a></p></div>
+<div><h4>模块导航</h4><ul>
+<li><a href="#m1">01 MoE 架构概览</a></li><li><a href="#m2">02 专家路由</a></li>
+<li><a href="#m3">03 Top-K 选择</a></li><li><a href="#m4">04 负载均衡</a></li>
+<li><a href="#m5">05 容量与溢出</a></li><li><a href="#m6">06 稀疏激活</a></li>
+<li><a href="#m7">07 MoE 训练</a></li><li><a href="#m8">08 推理优化</a></li>
+</ul></div>
+<div><h4>技术栈</h4><ul><li>原生 HTML / CSS / JS</li><li>SVG 动画</li><li>IntersectionObserver</li><li>requestAnimationFrame</li><li>零外部依赖</li></ul></div>
+</div>
+<div class="license">MIT License · 2026 · Built for learners by learners</div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',violet:'#a78bfa',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',accent2:'#7c5cff',s2:'#16181c',s3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+var EXPERT_COLORS=[C.violet,C.accent,C.cyan,C.emerald,C.amber,C.rose,C.accent2,'#5eead4','#f472b6','#818cf8'];
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function rnd(a,b){return Math.random()*(b-a)+a;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function fmt(n,d){d=d||2;return Number(n).toFixed(d);}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* ===== M1: MoE 架构概览 ===== */
+var m1Mode='compare';
+function initM1(){
+  var svg=document.getElementById('svg1'),ctrl=document.getElementById('ctrl1'),stats=document.getElementById('stats1');
+  ['Dense vs MoE','MoE 路由流','参数对比'].forEach(function(name,i){
+    var key=['compare','flow','params'][i];
+    ctrl.appendChild(makeBtn(name,i===0,function(btn){ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');m1Mode=key;drawM1();}));
+  });
+  ctrl.appendChild(makeBtn('▶ 动画',false,function(){drawM1(true);}));
+  function drawM1(anim){
+    clearSvg(svg);var W=800,H=420;
+    if(m1Mode==='compare'){
+      svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='稠密模型 vs MoE 模型';
+      /* Dense */
+      var dx=60;
+      svgEl(svg,'text',{x:dx+100,y:55,'text-anchor':'middle',fill:C.accent,'font-size':'13px','font-weight':'700'}).textContent='Dense (全激活)';
+      svgEl(svg,'rect',{x:dx,y:70,width:200,height:280,rx:8,fill:C.s2,stroke:C.border,'stroke-width':'1'});
+      ['Input','FFN','FFN','FFN','Output'].forEach(function(l,i){
+        var y=90+i*52;
+        svgEl(svg,'rect',{x:dx+20,y:y,width:160,height:36,rx:6,fill:i===0||i===4?C.s3:C.accent,'opacity':anim?0:0.5,'stroke':C.border});
+        var r=svgEl(svg,'rect',{x:dx+20,y:y,width:160,height:36,rx:6,fill:'none',stroke:i===0||i===4?C.faint:C.accent,'stroke-width':'1.5'});
+        svgEl(svg,'text',{x:dx+100,y:y+23,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent=l;
+        if(anim){r.style.transition='opacity .4s ease '+(i*200)+'ms';r.style.opacity='0';requestAnimationFrame(function(){r.style.opacity='1';});}
+      });
+      svgEl(svg,'text',{x:dx+100,y:370,'text-anchor':'middle',fill:C.faint,'font-size':'11px','font-family':'monospace'}).textContent='100% 激活';
+      /* MoE */
+      var mx=420;
+      svgEl(svg,'text',{x:mx+180,y:55,'text-anchor':'middle',fill:C.violet,'font-size':'13px','font-weight':'700'}).textContent='MoE (稀疏激活)';
+      svgEl(svg,'rect',{x:mx,y:70,width:360,height:280,rx:8,fill:C.s2,stroke:C.border,'stroke-width':'1'});
+      svgEl(svg,'rect',{x:mx+140,y:85,width:80,height:30,rx:6,fill:C.s3,stroke:C.faint,'stroke-width':'1'});
+      svgEl(svg,'text',{x:mx+180,y:104,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='Gate';
+      var expN=8;
+      for(var i=0;i<expN;i++){
+        var ex=mx+20+i*40,ey=130;
+        var active=i<2;
+        svgEl(svg,'rect',{x:ex,y:ey,width:34,height:40,rx:4,fill:active?EXPERT_COLORS[i%10]:'#1a1d22','opacity':anim?0:(active?0.6:0.15),'stroke':active?EXPERT_COLORS[i%10]:C.border,'stroke-width':'1'});
+        svgEl(svg,'text',{x:ex+17,y:ey+25,'text-anchor':'middle',fill:active?'#fff':C.faint,'font-size':'9px'}).textContent='E'+i;
+        if(anim){var cell=svgEl(svg,'rect',{x:ex,y:ey,width:34,height:40,rx:4,fill:'none',stroke:active?EXPERT_COLORS[i%10]:C.border,'stroke-width':'1.5','opacity':'0'});cell.style.transition='opacity .3s ease '+(i*80)+'ms';requestAnimationFrame(function(c){return function(){c.style.opacity='1';};}(cell));}
+        /* Gate to expert line */
+        if(active){svgEl(svg,'line',{x1:mx+180,y1:115,x2:ex+17,y2:ey,stroke:EXPERT_COLORS[i%10],'stroke-width':'1','opacity':'0.5','stroke-dasharray':'2,2'});}
+      }
+      svgEl(svg,'text',{x:mx+180,y:190,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='Top-2 of 8 Experts';
+      /* Output */
+      svgEl(svg,'rect',{x:mx+140,y:230,width:80,height:30,rx:6,fill:C.s3,stroke:C.faint,'stroke-width':'1'});
+      svgEl(svg,'text',{x:mx+180,y:249,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='Combine';
+      svgEl(svg,'rect',{x:mx+140,y:280,width:80,height:30,rx:6,fill:C.violet,'opacity':'0.3',stroke:C.violet,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:mx+180,y:299,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='Output';
+      svgEl(svg,'text',{x:mx+180,y:370,'text-anchor':'middle',fill:C.violet,'font-size':'11px','font-family':'monospace'}).textContent='25% 激活 (2/8)';
+    }else if(m1Mode==='flow'){
+      svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='Token → Gate → Top-K → Experts → Combine → Output';
+      var tokens=['T1','T2','T3','T4','T5'];
+      var experts=['E0','E1','E2','E3','E4','E5'];
+      var tx=40,ty=80,tw=50,th=30;
+      tokens.forEach(function(tok,i){
+        var x=tx+i*60;
+        svgEl(svg,'rect',{x:x,y:ty,width:tw,height:th,rx:6,fill:C.s2,stroke:C.accent,'stroke-width':'1.5'});
+        svgEl(svg,'text',{x:x+tw/2,y:ty+19,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent=tok;
+        svgEl(svg,'line',{x1:x+tw/2,y1:ty+th,x2:400,y2:180,stroke:C.faint,'stroke-width':'0.5','opacity':'0.3'});
+      });
+      /* Gate */
+      svgEl(svg,'rect',{x:350,y:160,width:100,height:36,rx:8,fill:C.amber,'opacity':'0.2',stroke:C.amber,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:400,y:183,'text-anchor':'middle',fill:C.amber,'font-size':'12px','font-weight':'700'}).textContent='Gate Network';
+      /* Experts */
+      experts.forEach(function(ex,i){
+        var x=80+i*110,y=240;
+        var active=i<2;
+        svgEl(svg,'rect',{x:x,y:y,width:80,height:50,rx:6,fill:active?EXPERT_COLORS[i]:'#1a1d22','opacity':active?0.5:0.1,stroke:active?EXPERT_COLORS[i]:C.border,'stroke-width':'1.5'});
+        svgEl(svg,'text',{x:x+40,y:y+30,'text-anchor':'middle',fill:active?'#fff':C.faint,'font-size':'11px'}).textContent=ex;
+        if(active){svgEl(svg,'line',{x1:400,y1:196,x2:x+40,y2:y,stroke:EXPERT_COLORS[i],'stroke-width':'1','opacity':'0.5','stroke-dasharray':'3,2'});}
+      });
+      /* Combine */
+      svgEl(svg,'rect',{x:350,y:320,width:100,height:36,rx:8,fill:C.violet,'opacity':'0.2',stroke:C.violet,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:400,y:343,'text-anchor':'middle',fill:C.violet,'font-size':'12px','font-weight':'700'}).textContent='Weighted Sum';
+      svgEl(svg,'rect',{x:350,y:380,width:100,height:30,rx:6,fill:C.s3,stroke:C.faint,'stroke-width':'1'});
+      svgEl(svg,'text',{x:400,y:399,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='Output';
+    }else{
+      svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='参数量对比 (DeepSeek-V3 vs Dense)';
+      var data=[{label:'总参数',dense:671,moe:671,color:C.accent},{label:'激活参数',dense:671,moe:37,color:C.violet},{label:'FLOPs',dense:671,moe:37,color:C.cyan}];
+      var maxY=700;var barW=120;var chartH=280;var baseY=340;
+      data.forEach(function(d,i){
+        var x=100+i*220;
+        /* Dense bar */
+        var dh=d.dense/maxY*chartH;
+        svgEl(svg,'rect',{x:x,y:baseY-dh,width:barW/2-4,height:dh,rx:4,fill:C.accent,'opacity':'0.7'});
+        svgEl(svg,'text',{x:x+barW/4-2,y:baseY-dh-8,'text-anchor':'middle',fill:C.accent,'font-size':'11px','font-family':'monospace'}).textContent=d.dense+'B';
+        /* MoE bar */
+        var mh=d.moe/maxY*chartH;
+        svgEl(svg,'rect',{x:x+barW/2+4,y:baseY-mh,width:barW/2-4,height:mh,rx:4,fill:d.color,'opacity':'0.7'});
+        svgEl(svg,'text',{x:x+barW*3/4,y:baseY-mh-8,'text-anchor':'middle',fill:d.color,'font-size':'11px','font-family':'monospace'}).textContent=d.moe+'B';
+        /* Label */
+        svgEl(svg,'text',{x:x+barW/2,y:baseY+20,'text-anchor':'middle',fill:C.muted,'font-size':'11px'}).textContent=d.label;
+      });
+      svgEl(svg,'rect',{x:600,y:baseY-40,width:10,height:10,rx:2,fill:C.accent,'opacity':'0.7'});
+      svgEl(svg,'text',{x:616,y:baseY-31,fill:C.muted,'font-size':'11px'}).textContent='Dense';
+      svgEl(svg,'rect',{x:600,y:baseY-22,width:10,height:10,rx:2,fill:C.violet,'opacity':'0.7'});
+      svgEl(svg,'text',{x:616,y:baseY-13,fill:C.muted,'font-size':'11px'}).textContent='MoE';
+    }
+    setStats(stats,[{color:C.violet,label:'Total Params',val:'671B'},{color:C.cyan,label:'Active',val:'37B'},{color:C.emerald,label:'Ratio',val:'5.5%'},{color:C.amber,label:'Experts',val:'256'}]);
+  }
+  drawM1();
+}
+
+/* ===== M2: 专家路由 ===== */
+var m2NExp=8,m2Seq=6,m2Anim=false;
+function initM2(){
+  var svg=document.getElementById('svg2'),ctrl=document.getElementById('ctrl2'),stats=document.getElementById('stats2');
+  ctrl.appendChild(makeSlider('专家数 =',4,12,1,m2NExp,'',function(v){m2NExp=v;drawM2();}));
+  ctrl.appendChild(makeSlider('序列 =',3,8,1,m2Seq,'',function(v){m2Seq=v;drawM2();}));
+  ctrl.appendChild(makeBtn('▶ 动画',false,function(){drawM2(true);}));
+  function drawM2(anim){
+    clearSvg(svg);var W=800,H=440;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='门控网络路由 '+m2Seq+' tokens → '+m2NExp+' 专家';
+    var tokens=[];for(var i=0;i<m2Seq;i++)tokens.push('T'+(i+1));
+    var gateScores=[];
+    for(var i=0;i<m2Seq;i++){
+      var row=[];for(var j=0;j<m2NExp;j++)row.push(rnd(0,1));
+      var mx=Math.max.apply(null,row);
+      gateScores.push(row.map(function(v){return v/mx;}));
+    }
+    var tx=40,ty=60,tw=50,th=30;
+    var ex=40,ey=300,ew=clamp(700/m2NExp,40,80),eh=50;
+    var gateX=350,gateY=160;
+    /* Tokens */
+    tokens.forEach(function(tok,i){
+      var x=tx+i*(tw+8);
+      svgEl(svg,'rect',{x:x,y:ty,width:tw,height:th,rx:6,fill:C.s2,stroke:C.accent,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:x+tw/2,y:ty+19,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent=tok;
+    });
+    /* Gate */
+    svgEl(svg,'rect',{x:gateX,y:gateY,width:100,height:40,rx:8,fill:C.amber,'opacity':'0.15',stroke:C.amber,'stroke-width':'1.5'});
+    svgEl(svg,'text',{x:gateX+50,y:gateY+25,'text-anchor':'middle',fill:C.amber,'font-size':'12px','font-weight':'700'}).textContent='Gate (W·x)';
+    /* Routing lines */
+    tokens.forEach(function(tok,i){
+      var x1=tx+i*(tw+8)+tw/2;
+      svgEl(svg,'line',{x1:x1,y1:ty+th,x2:gateX+50,y2:gateY,stroke:C.faint,'stroke-width':'0.5','opacity':'0.3'});
+    });
+    /* Experts with scores */
+    for(var j=0;j<m2NExp;j++){
+      var exX=ex+j*(ew+4);
+      var color=EXPERT_COLORS[j%10];
+      svgEl(svg,'rect',{x:exX,y:ey,width:ew-2,height:eh,rx:6,fill:C.s2,stroke:color,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:exX+ew/2-1,y:ey+20,'text-anchor':'middle',fill:color,'font-size':'11px','font-weight':'600'}).textContent='E'+j;
+      /* Heat cells */
+      for(var i=0;i<m2Seq;i++){
+        var score=gateScores[i][j];
+        var cy=ey+26+i*4;
+        svgEl(svg,'rect',{x:exX+4,y:cy,width:ew-10,height:3,rx:1,fill:color,'opacity':clamp(score*0.9,0.05,0.9)});
+      }
+      /* Gate to expert lines */
+      svgEl(svg,'line',{x1:gateX+50,y1:gateY+40,x2:exX+ew/2-1,y2:ey,stroke:C.faint,'stroke-width':'0.5','opacity':'0.3'});
+    }
+    /* Selected indicators */
+    tokens.forEach(function(tok,i){
+      var maxJ=0;for(var j=1;j<m2NExp;j++)if(gateScores[i][j]>gateScores[i][maxJ])maxJ=j;
+      var exX=ex+maxJ*(ew+4);
+      svgEl(svg,'circle',{cx:exX+ew/2-1,cy:ey-6,r:3,fill:EXPERT_COLORS[maxJ%10]});
+    });
+    setStats(stats,[{color:C.violet,label:'Experts',val:m2NExp},{color:C.cyan,label:'Tokens',val:m2Seq},{color:C.emerald,label:'Avg Load',val:fmt(m2Seq/m2NExp,1)},{color:C.amber,label:'Max Load',val:Math.ceil(m2Seq/m2NExp)+1}]);
+  }
+  drawM2();
+}
+
+/* ===== M3: Top-K 选择 ===== */
+var m3K=2,m3NExp=8;
+function initM3(){
+  var svg=document.getElementById('svg3'),ctrl=document.getElementById('ctrl3'),stats=document.getElementById('stats3');
+  ctrl.appendChild(makeSlider('K (Top-K) =',1,6,1,m3K,'',function(v){m3K=v;drawM3();}));
+  ctrl.appendChild(makeSlider('专家数 =',4,12,1,m3NExp,'',function(v){m3NExp=v;drawM3();}));
+  ctrl.appendChild(makeBtn('🎲 随机',false,function(){drawM3();}));
+  function drawM3(){
+    clearSvg(svg);var W=800,H=400;
+    var scores=[];for(var i=0;i<m3NExp;i++)scores.push({idx:i,val:rnd(0,1)});
+    scores.sort(function(a,b){return b.val-a.val;});
+    var selected={};for(var i=0;i<m3K;i++)selected[scores[i].idx]=true;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='Top-'+m3K+' of '+m3NExp+' Experts';
+    var barW=clamp(650/m3NExp,40,80),barH=200,baseY=280,startX=(800-barW*m3NExp)/2;
+    scores.forEach(function(s){
+      var i=s.idx;var x=startX+i*barW;
+      var sel=selected[i];
+      var h=s.val*barH;
+      var color=sel?EXPERT_COLORS[i%10]:C.s3;
+      svgEl(svg,'rect',{x:x,y:baseY-h,width:barW-4,height:h,rx:4,fill:color,'opacity':sel?0.7:0.3});
+      if(sel){
+        svgEl(svg,'rect',{x:x-2,y:baseY-h-2,width:barW,height:h+4,rx:6,fill:'none',stroke:color,'stroke-width':'2','stroke-dasharray':'4,2'});
+        svgEl(svg,'text',{x:x+barW/2-2,y:baseY-h-10,'text-anchor':'middle',fill:color,'font-size':'10px','font-weight':'700'}).textContent='✓ SEL';
+      }
+      svgEl(svg,'text',{x:x+barW/2-2,y:baseY+16,'text-anchor':'middle',fill:sel?C.ink:C.faint,'font-size':'11px'}).textContent='E'+i;
+      svgEl(svg,'text',{x:x+barW/2-2,y:baseY-h-22,'text-anchor':'middle',fill:sel?color:C.faint,'font-size':'9px','font-family':'monospace'}).textContent=fmt(s.val,2);
+    });
+    /* Activation ratio */
+    var ratio=(m3K/m3NExp*100);
+    svgEl(svg,'text',{x:W/2,y:baseY+50,'text-anchor':'middle',fill:C.violet,'font-size':'14px','font-weight':'700','font-family':'monospace'}).textContent='激活率: '+fmt(ratio,1)+'% ('+m3K+'/'+m3NExp+')';
+    setStats(stats,[{color:C.violet,label:'K',val:m3K},{color:C.cyan,label:'Experts',val:m3NExp},{color:C.emerald,label:'Active',val:m3K+'/'+m3NExp},{color:C.amber,label:'Ratio',val:fmt(ratio,1)+'%'}]);
+  }
+  drawM3();
+}
+
+/* ===== M4: 负载均衡 ===== */
+var m4Balanced=true;
+function initM4(){
+  var svg=document.getElementById('svg4'),ctrl=document.getElementById('ctrl4'),stats=document.getElementById('stats4');
+  ctrl.appendChild(makeBtn('均衡 (有 Aux Loss)',true,function(btn){
+    ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');m4Balanced=true;drawM4();
+  }));
+  ctrl.appendChild(makeBtn('不均衡 (无 Aux Loss)',false,function(btn){
+    ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');m4Balanced=false;drawM4();
+  }));
+  function drawM4(){
+    clearSvg(svg);var W=800,H=400;
+    var nE=8,nT=64;
+    var loads=[];
+    if(m4Balanced){
+      for(var i=0;i<nE;i++)loads.push(Math.round(nT/nE+rnd(-2,2)));
+    }else{
+      /* Collapse: first 2 experts get most */
+      loads=[22,18,8,5,4,3,2,2];
+    }
+    var maxL=Math.max.apply(null,loads);
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent=m4Balanced?'负载均衡 (Aux Loss 生效)':'路由坍塌 (无 Aux Loss)';
+    var barW=60,gap=20,startX=80,baseY=300,chartH=200;
+    loads.forEach(function(load,i){
+      var x=startX+i*(barW+gap);
+      var h=load/maxL*chartH;
+      var color=m4Balanced?EXPERT_COLORS[i%10]:(i<2?C.rose:C.s3);
+      svgEl(svg,'rect',{x:x,y:baseY-h,width:barW,height:h,rx:4,fill:color,'opacity':m4Balanced?0.6:0.4});
+      svgEl(svg,'text',{x:x+barW/2,y:baseY+16,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='E'+i;
+      svgEl(svg,'text',{x:x+barW/2,y:baseY-h-6,'text-anchor':'middle',fill:color,'font-size':'11px','font-family':'monospace','font-weight':'600'}).textContent=load;
+    });
+    /* Ideal line */
+    var ideal=nT/nE;
+    var iy=baseY-ideal/maxL*chartH;
+    svgEl(svg,'line',{x1:startX-10,y1:iy,x2:startX+nE*(barW+gap)-gap+10,y2:iy,stroke:C.emerald,'stroke-width':'1.5','stroke-dasharray':'5,3'});
+    svgEl(svg,'text',{x:startX+nE*(barW+gap),y:iy+4,fill:C.emerald,'font-size':'10px'}).textContent='理想 '+Math.round(ideal);
+    /* Utilization */
+    var util=m4Balanced?100:Math.round((1-loads.filter(function(l,i){return l<ideal*0.5;}).length/nE)*100);
+    svgEl(svg,'text',{x:W/2,y:baseY+50,'text-anchor':'middle',fill:m4Balanced?C.emerald:C.rose,'font-size':'13px','font-weight':'700'}).textContent='专家利用率: '+util+'%';
+    setStats(stats,[{color:m4Balanced?C.emerald:C.rose,label:'Balance',val:m4Balanced?'Good':'Bad'},{color:C.violet,label:'Tokens',val:nT},{color:C.cyan,label:'Experts',val:nE},{color:C.amber,label:'Utilization',val:util+'%'}]);
+  }
+  drawM4();
+}
+
+/* ===== M5: 容量与溢出 ===== */
+var m5CapFactor=1.0;
+function initM5(){
+  var svg=document.getElementById('svg5'),ctrl=document.getElementById('ctrl5'),stats=document.getElementById('stats5');
+  ctrl.appendChild(makeSlider('容量因子 =',0.5,2,0.25,m5CapFactor,'×',function(v){m5CapFactor=v;drawM5();}));
+  ctrl.appendChild(makeBtn('▶ 重新分配',false,function(){drawM5();}));
+  function drawM5(){
+    clearSvg(svg);var W=800,H=400;
+    var nE=6,nT=48,k=2;
+    var capacity=Math.ceil(nT*k/nE*m5CapFactor);
+    var loads=[];
+    for(var i=0;i<nE;i++)loads.push(Math.round(rnd(capacity*0.3,capacity*1.8)));
+    var overflow=0,totalProcessed=0;
+    loads.forEach(function(l){var p=Math.min(l,capacity);totalProcessed+=p;overflow+=Math.max(0,l-capacity);});
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='容量因子 '+m5CapFactor+'× · 容量上限 '+capacity+' tokens/expert';
+    var barW=80,gap=20,startX=80,baseY=300,chartH=180;
+    var maxL=Math.max.apply(null,loads.concat([capacity]));
+    loads.forEach(function(load,i){
+      var x=startX+i*(barW+gap);
+      var capH=capacity/maxL*chartH;
+      var loadH=load/maxL*chartH;
+      var overH=Math.max(0,(load-capacity)/maxL*chartH);
+      /* Capacity line */
+      svgEl(svg,'rect',{x:x,y:baseY-capH,width:barW,height:capH,rx:4,fill:'none',stroke:C.cyan,'stroke-width':'1.5','stroke-dasharray':'4,2'});
+      /* Processed */
+      var procH=Math.min(load,capacity)/maxL*chartH;
+      svgEl(svg,'rect',{x:x,y:baseY-procH,width:barW,height:procH,rx:4,fill:EXPERT_COLORS[i%10],'opacity':'0.6'});
+      /* Overflow */
+      if(load>capacity){
+        svgEl(svg,'rect',{x:x,y:baseY-loadH,width:barW,height:overH,rx:0,fill:C.rose,'opacity':'0.5'});
+        svgEl(svg,'text',{x:x+barW/2,y:baseY-loadH-6,'text-anchor':'middle',fill:C.rose,'font-size':'10px','font-weight':'700'}).textContent='+'+(load-capacity);
+      }
+      svgEl(svg,'text',{x:x+barW/2,y:baseY+16,'text-anchor':'middle',fill:C.ink,'font-size':'11px'}).textContent='E'+i;
+      svgEl(svg,'text',{x:x+barW/2,y:baseY-capH-8,'text-anchor':'middle',fill:C.cyan,'font-size':'9px','font-family':'monospace'}).textContent='cap:'+capacity;
+    });
+    var overflowRate=overflow/(totalProcessed+overflow)*100;
+    svgEl(svg,'text',{x:W/2,y:baseY+50,'text-anchor':'middle',fill:overflow>0?C.rose:C.emerald,'font-size':'13px','font-weight':'700'}).textContent='溢出: '+overflow+' tokens ('+fmt(overflowRate,1)+'%) · 处理: '+totalProcessed;
+    setStats(stats,[{color:C.cyan,label:'Capacity',val:capacity},{color:C.emerald,label:'Processed',val:totalProcessed},{color:C.rose,label:'Overflow',val:overflow},{color:C.amber,label:'Drop Rate',val:fmt(overflowRate,1)+'%'}]);
+  }
+  drawM5();
+}
+
+/* ===== M6: 稀疏激活 ===== */
+var m6Timer=null;
+function initM6(){
+  var svg=document.getElementById('svg6'),ctrl=document.getElementById('ctrl6'),stats=document.getElementById('stats6');
+  ctrl.appendChild(makeBtn('▶ 播放',false,function(){runAnim();}));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){if(m6Timer){clearInterval(m6Timer);m6Timer=null;}}));
+  function runAnim(){
+    if(m6Timer)clearInterval(m6Timer);
+    var step=0;drawM6(step);
+    m6Timer=setInterval(function(){step=(step+1)%10;drawM6(step);if(step===0){clearInterval(m6Timer);m6Timer=null;}},800);
+  }
+  function drawM6(step){
+    clearSvg(svg);var W=800,H=400;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='DeepSeek-V3: 671B 总参数 → 37B 激活';
+    var nE=16; /* visual experts */
+    var activeN=Math.ceil(nE*0.25); /* ~25% */
+    var gridN=4,gridCols=4;
+    var cellSize=70,gap=15;
+    var startX=(W-gridCols*(cellSize+gap))/2;
+    var startY=60;
+    for(var i=0;i<nE;i++){
+      var col=i%gridCols,row=Math.floor(i/gridCols);
+      var x=startX+col*(cellSize+gap),y=startY+row*(cellSize+gap);
+      var isActive=step<5?(i<activeN):(i>=nE-activeN); /* shift active set */
+      var isCurrent=Math.abs(i-step*3)%nE<activeN;
+      svgEl(svg,'rect',{x:x,y:y,width:cellSize,height:cellSize,rx:8,fill:isActive?EXPERT_COLORS[i%10]:'#1a1d22','opacity':isActive?0.5:0.1,stroke:isActive?EXPERT_COLORS[i%10]:C.border,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:x+cellSize/2,y:y+cellSize/2-4,'text-anchor':'middle',fill:isActive?'#fff':C.faint,'font-size':'12px','font-weight':'600'}).textContent='E'+i;
+      svgEl(svg,'text',{x:x+cellSize/2,y:y+cellSize/2+12,'text-anchor':'middle',fill:isActive?'#fff':C.faint,'font-size':'9px','font-family':'monospace'}).textContent=isActive?'2.6B':'—';
+    }
+    /* Stats overlay */
+    svgEl(svg,'text',{x:W/2,y:startY+nE/gridCols*(cellSize+gap)+30,'text-anchor':'middle',fill:C.violet,'font-size':'14px','font-weight':'700'}).textContent='激活: '+activeN+'/'+nE+' = '+fmt(activeN/nE*100,1)+'%';
+    svgEl(svg,'text',{x:W/2,y:startY+nE/gridCols*(cellSize+gap)+50,'text-anchor':'middle',fill:C.muted,'font-size':'11px'}).textContent='总参数 671B · 激活 37B · 等效 70B 稠密模型';
+    setStats(stats,[{color:C.violet,label:'Total',val:'671B'},{color:C.cyan,label:'Active',val:'37B'},{color:C.emerald,label:'Ratio',val:'5.5%'},{color:C.amber,label:'Equiv',val:'70B dense'}]);
+  }
+  drawM6(0);
+}
+
+/* ===== M7: MoE 训练 ===== */
+var m7Timer=null;
+function initM7(){
+  var svg=document.getElementById('svg7'),ctrl=document.getElementById('ctrl7'),stats=document.getElementById('stats7');
+  ctrl.appendChild(makeBtn('▶ 播放训练',false,function(){runAnim();}));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){if(m7Timer){clearInterval(m7Timer);m7Timer=null;}}));
+  function runAnim(){
+    if(m7Timer)clearInterval(m7Timer);
+    var step=0;drawM7(step);
+    m7Timer=setInterval(function(){step=(step+1)%5;drawM7(step);if(step===0){clearInterval(m7Timer);m7Timer=null;}},1500);
+  }
+  function drawM7(step){
+    clearSvg(svg);var W=800,H=420;
+    var stages=[
+      {name:'初始化',desc:'门控网络小方差初始化\n专家随机初始化',color:C.faint},
+      {name:'路由探索',desc:'噪声注入促进探索\n早期路由不稳定',color:C.amber},
+      {name:'辅助损失',desc:'L_aux 强制均衡\n防止路由坍塌',color:C.rose},
+      {name:'专家特化',desc:'专家自然分工\n语法/语义/代码',color:C.cyan},
+      {name:'收敛',desc:'路由稳定\n负载均衡',color:C.emerald}
+    ];
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='MoE 训练五阶段 · 当前: '+(step>=0?stages[step].name:'—');
+    var sw=130,sh=80,gap=20;
+    var startX=(W-(5*sw+4*gap))/2;
+    var startY=70;
+    stages.forEach(function(s,i){
+      var x=startX+i*(sw+gap);var active=i===step;
+      var r=svgEl(svg,'rect',{x:x,y:startY,width:sw,height:sh,rx:10,fill:C.s2,stroke:active?s.color:C.border,'stroke-width':active?'2.5':'1.5','opacity':active?1:0.5});
+      if(active)r.style.filter='drop-shadow(0 0 10px '+s.color+')';
+      svgEl(svg,'text',{x:x+sw/2,y:startY+22,'text-anchor':'middle',fill:active?s.color:C.muted,'font-size':'13px','font-weight':'700'}).textContent=s.name;
+      svgEl(svg,'line',{x1:x+15,y1:startY+32,x2:x+sw-15,y2:startY+32,stroke:C.border,'stroke-width':'1'});
+      s.desc.split('\n').forEach(function(line,li){
+        svgEl(svg,'text',{x:x+sw/2,y:startY+50+li*14,'text-anchor':'middle',fill:C.muted,'font-size':'10px'}).textContent=line;
+      });
+      if(i<4){
+        var ax=x+sw+2,ay=startY+sh/2;
+        var done=i<step;
+        svgEl(svg,'path',{d:'M'+ax+' '+ay+' L'+(ax+gap-4)+' '+ay+' M'+(ax+gap-8)+' '+(ay-3)+' L'+(ax+gap-4)+' '+ay+' L'+(ax+gap-8)+' '+(ay+3),stroke:done?s.color:C.faint,'stroke-width':done?'2':'1.5',fill:'none',opacity:done?1:0.4});
+      }
+    });
+    /* Detail */
+    var dY=startY+sh+40;
+    if(step>=0){
+      var s=stages[step];
+      svgEl(svg,'rect',{x:startX,y:dY,width:5*sw+4*gap,height:100,rx:8,fill:C.surface,stroke:C.border});
+      svgEl(svg,'text',{x:startX+20,y:dY+24,fill:s.color,'font-size':'13px','font-weight':'700'}).textContent='▸ '+s.name;
+      var details=[
+        '阶段 '+(step+1)+'/5',
+        s.desc.replace(/\n/g,' '),
+        step===0?'方法: 小初始化方差 (σ=0.02)':step===1?'方法: G(x)+ε, ε~N(0,σ²)':step===2?'方法: L=α·N·Σ(f·P), α=0.01':step===3?'现象: 专家自然分工':'结果: 路由稳定, 负载均衡',
+        step===4?'✓ 训练完成':'⚠ 进行中...'
+      ];
+      details.forEach(function(d,i){
+        svgEl(svg,'text',{x:startX+20,y:dY+50+i*16,fill:i===0?s.color:C.muted,'font-size':'11px','font-family':'monospace'}).textContent=d;
+      });
+    }
+    setStats(stats,[{color:stages[step]?stages[step].color:C.faint,label:'Stage',val:(step+1)+'/5'},{color:C.cyan,label:'Aux Loss',val:step>=2?'on':'off'},{color:C.emerald,label:'Stable',val:step>=4?'Yes':'No'},{color:C.amber,label:'Balance',val:step>=4?'Good':'—'}]);
+  }
+  drawM7(-1);
+}
+
+/* ===== M8: 推理优化 ===== */
+var m8Timer=null;
+function initM8(){
+  var svg=document.getElementById('svg8'),ctrl=document.getElementById('ctrl8'),stats=document.getElementById('stats8');
+  ctrl.appendChild(makeBtn('▶ 播放推理',false,function(){runAnim();}));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){if(m8Timer){clearInterval(m8Timer);m8Timer=null;}}));
+  function runAnim(){
+    if(m8Timer)clearInterval(m8Timer);
+    var step=0;drawM8(step);
+    m8Timer=setInterval(function(){step=(step+1)%6;drawM8(step);if(step===0){clearInterval(m8Timer);m8Timer=null;}},1000);
+  }
+  function drawM8(step){
+    clearSvg(svg);var W=800,H=400;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='专家卸载推理 · Step '+(step+1)+'/6';
+    var nE=8;
+    var gpuCap=3; /* GPU can hold 3 experts */
+    var gpuExperts=[];
+    var cpuExperts=[];
+    for(var i=0;i<nE;i++){
+      if(i<gpuCap)gpuExperts.push(i);else cpuExperts.push(i);
+    }
+    /* Simulate token routing */
+    var activeExpert=step%nE;
+    if(step>=2&&!gpuExperts.includes(activeExpert)){
+      /* Need to load from CPU */
+      var evict=gpuExperts.shift();cpuExperts.push(evict);
+      gpuExperts.push(activeExpert);cpuExperts=cpuExperts.filter(function(e){return e!==activeExpert;});
+    }
+    /* GPU section */
+    var gpuX=60,gpuY=80;
+    svgEl(svg,'rect',{x:gpuX,y:gpuY,width:280,height:200,rx:10,fill:'none',stroke:C.emerald,'stroke-width':'1.5','stroke-dasharray':'5,3'});
+    svgEl(svg,'text',{x:gpuX+140,y:gpuY+22,'text-anchor':'middle',fill:C.emerald,'font-size':'13px','font-weight':'700'}).textContent='GPU (热缓存)';
+    svgEl(svg,'text',{x:gpuX+140,y:gpuY+38,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='容量: '+gpuCap+' 专家';
+    for(var i=0;i<gpuExperts.length;i++){
+      var ex=gpuExperts[i];
+      var ex2=gpuX+20+i*85,ey=gpuY+50;
+      var isActive=ex===activeExpert;
+      svgEl(svg,'rect',{x:ex2,y:ey,width:75,height:50,rx:6,fill:isActive?EXPERT_COLORS[ex%10]:'#1a1d22','opacity':isActive?0.6:0.3,stroke:isActive?EXPERT_COLORS[ex%10]:C.border,'stroke-width':isActive?'2':'1'});
+      svgEl(svg,'text',{x:ex2+37,y:ey+20,'text-anchor':'middle',fill:isActive?'#fff':C.muted,'font-size':'12px','font-weight':'600'}).textContent='E'+ex;
+      svgEl(svg,'text',{x:ex2+37,y:ey+36,'text-anchor':'middle',fill:isActive?'#fff':C.faint,'font-size':'9px'}).textContent=isActive?'◀ ACTIVE':'cached';
+    }
+    /* CPU section */
+    var cpuX=400,cpuY=80;
+    svgEl(svg,'rect',{x:cpuX,y:cpuY,width:340,height:200,rx:10,fill:'none',stroke:C.amber,'stroke-width':'1.5','stroke-dasharray':'5,3'});
+    svgEl(svg,'text',{x:cpuX+170,y:cpuY+22,'text-anchor':'middle',fill:C.amber,'font-size':'13px','font-weight':'700'}).textContent='CPU/SSD (冷存储)';
+    svgEl(svg,'text',{x:cpuX+170,y:cpuY+38,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='容量: '+(nE-gpuCap)+' 专家';
+    cpuExperts.forEach(function(ex,i){
+      var col=i%4,row=Math.floor(i/4);
+      var ex2=cpuX+20+col*75,ey=cpuY+50+row*60;
+      var isActive=ex===activeExpert;
+      svgEl(svg,'rect',{x:ex2,y:ey,width:65,height:45,rx:6,fill:'#1a1d22','opacity':'0.4',stroke:isActive?C.amber:C.border,'stroke-width':isActive?'2':'1'});
+      svgEl(svg,'text',{x:ex2+32,y:ey+20,'text-anchor':'middle',fill:isActive?C.amber:C.faint,'font-size':'11px'}).textContent='E'+ex;
+      svgEl(svg,'text',{x:ex2+32,y:ey+34,'text-anchor':'middle',fill:C.faint,'font-size':'8px'}).textContent='2.6B';
+    });
+    /* Transfer arrow if loading */
+    if(step>=2){
+      svgEl(svg,'path',{d:'M'+(cpuX-10)+' '+(cpuY+100)+' L'+(gpuX+270)+' '+(gpuY+100),stroke:C.cyan,'stroke-width':'2','stroke-dasharray':'6,3',fill:'none'});
+      svgEl(svg,'text',{x:(cpuX+gpuX+270)/2,y:cpuY+92,'text-anchor':'middle',fill:C.cyan,'font-size':'10px','font-weight':'600'}).textContent='◀ 按需加载';
+    }
+    /* Stats bar */
+    var bY=310;
+    var gpuUsage=gpuExperts.length/gpuCap*100;
+    var memSaved=(nE-gpuExperts.length)/nE*100;
+    svgEl(svg,'text',{x:60,y:bY,fill:C.faint,'font-size':'11px','font-family':'monospace'}).textContent='GPU 显存节省: '+fmt(memSaved,0)+'%';
+    svgEl(svg,'text',{x:400,y:bY,fill:C.faint,'font-size':'11px','font-family':'monospace'}).textContent='当前激活: E'+activeExpert+' (在'+(gpuExperts.includes(activeExpert)?'GPU✓':'CPU→GPU加载中')+')';
+    setStats(stats,[{color:C.emerald,label:'GPU Experts',val:gpuExperts.length+'/'+gpuCap},{color:C.amber,label:'CPU Experts',val:cpuExperts.length},{color:C.cyan,label:'Mem Saved',val:fmt(memSaved,0)+'%'},{color:C.violet,label:'Active',val:'E'+activeExpert}]);
+  }
+  drawM8(0);
+}
+
+/* ===== Global ===== */
+function initGlobal(){
+  var pb=document.getElementById('progressBar');
+  var modules=document.querySelectorAll('.module');
+  var sideLinks=document.querySelectorAll('#sideNav a');
+  var sections=document.querySelectorAll('section[id]');
+  function updateProgress(){var st=window.pageYOffset||document.documentElement.scrollTop;var dh=document.documentElement.scrollHeight-window.innerHeight;var p=dh>0?(st/dh)*100:0;pb.style.width=p+'%';}
+  window.addEventListener('scroll',updateProgress,{passive:true});updateProgress();
+  var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.1});
+  modules.forEach(function(m){obs.observe(m);});
+  var spy=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){var id=e.target.id;sideLinks.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+id);});}});},{rootMargin:'-30% 0px -60% 0px'});
+  sections.forEach(function(s){spy.observe(s);});
+  if(sideLinks.length>0)sideLinks[0].classList.add('active');
+}
+function initAll(){initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();initGlobal();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAll);else initAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>序列模型可视化实验室 · Sequence Viz Lab</title>
+<style>
+:root{
+--bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+--border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+--ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+--accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+--font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+--font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font-sans);
+  font-size:14px;line-height:1.6;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+/* ===== Progress Bar ===== */
+.progress-wrap{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:200}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--emerald),var(--cyan));transition:width .08s linear}
+
+/* ===== Top Nav ===== */
+.topnav{
+  position:fixed;top:3px;left:0;right:0;height:53px;z-index:150;
+  background:rgba(16,17,20,.92);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.nav-logo{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--emerald),var(--cyan));display:flex;align-items:center;justify-content:center;color:#08090a;font-weight:800;font-size:13px}
+.nav-tag{font-size:11px;color:var(--faint);font-family:var(--font-mono);border:1px solid var(--border);padding:2px 8px;border-radius:20px}
+.nav-spacer{flex:1}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-link{font-size:13px;color:var(--muted);padding:6px 12px;border-radius:6px;transition:.15s}
+.nav-link:hover{color:var(--ink);background:var(--surface-2)}
+.nav-toggle{display:none;font-size:18px;color:var(--muted);padding:4px 8px}
+
+/* ===== Sidebar ===== */
+.sidebar{
+  position:fixed;top:56px;left:0;bottom:0;width:240px;z-index:100;
+  background:var(--surface);border-right:1px solid var(--border);
+  padding:16px 0;overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:3px}
+.side-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:8px 20px 4px}
+.side-item{
+  display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;color:var(--muted);
+  border-left:2px solid transparent;transition:.15s;cursor:pointer;
+}
+.side-item:hover{color:var(--ink);background:var(--surface-2)}
+.side-item.active{color:var(--emerald);border-left-color:var(--emerald);background:rgba(52,211,153,.06)}
+.side-num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:22px}
+.side-item.active .side-num{color:var(--emerald)}
+.side-foot{padding:12px 20px;margin-top:auto;font-size:11px;color:var(--faint);border-top:1px solid var(--border);position:absolute;bottom:0;left:0;right:0;background:var(--surface)}
+
+/* ===== Main ===== */
+.main{margin-left:240px;margin-top:56px;padding:0}
+.hero{padding:64px 48px 48px;border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-100px;right:-50px;width:400px;height:400px;background:radial-gradient(circle,rgba(52,211,153,.07),transparent 70%);pointer-events:none}
+.hero-eyebrow{font-size:12px;color:var(--emerald);font-family:var(--font-mono);letter-spacing:.06em;margin-bottom:12px}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin-bottom:14px}
+.hero h1 span{color:var(--emerald)}
+.hero p{font-size:16px;color:var(--muted);max-width:640px;line-height:1.7}
+.hero-meta{display:flex;gap:24px;margin-top:28px;flex-wrap:wrap}
+.hero-stat{display:flex;flex-direction:column;gap:2px}
+.hero-stat-v{font-size:22px;font-weight:600;font-family:var(--font-mono);color:var(--ink)}
+.hero-stat-l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+
+/* ===== Module ===== */
+.module{padding:56px 48px;border-bottom:1px solid var(--border);opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-head{margin-bottom:28px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.module-num{font-family:var(--font-mono);font-size:13px;color:var(--emerald);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);padding:4px 10px;border-radius:6px;flex-shrink:0}
+.module-head h2{font-size:24px;font-weight:600;letter-spacing:-.015em}
+.module-desc{font-size:14px;color:var(--muted);margin-top:6px;max-width:680px;line-height:1.65}
+
+.viz-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;
+}
+.controls{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.btn{
+  font-size:12px;font-weight:500;padding:6px 14px;border-radius:6px;
+  border:1px solid var(--border);background:var(--surface-3);color:var(--muted);
+  transition:.15s;white-space:nowrap;
+}
+.btn:hover{color:var(--ink);border-color:var(--border-strong)}
+.btn.active{color:var(--emerald);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
+.btn-sm{font-size:11px;padding:5px 11px}
+.btn-play{color:var(--cyan);border-color:rgba(45,212,255,.3);background:rgba(45,212,255,.08)}
+.btn-play:hover{color:var(--cyan);background:rgba(45,212,255,.15)}
+
+.ctrl-divider{width:1px;height:22px;background:var(--border);margin:0 4px}
+.ctrl-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.slider-wrap span:first-child{white-space:nowrap}
+.slider-wrap input[type=range]{
+  -webkit-appearance:none;appearance:none;width:110px;height:4px;
+  background:var(--surface-3);border-radius:2px;outline:none;
+}
+.slider-wrap input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+  background:var(--emerald);cursor:pointer;border:2px solid var(--bg);
+}
+.slider-wrap input[type=range]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:var(--emerald);
+  cursor:pointer;border:2px solid var(--bg);
+}
+.slider-wrap .val{font-family:var(--font-mono);font-size:11px;color:var(--ink);min-width:34px;text-align:right}
+
+.svg-host{padding:20px;min-height:340px;display:flex;align-items:center;justify-content:center;overflow-x:auto}
+.svg-host svg{max-width:100%;height:auto}
+
+.stats{
+  display:flex;flex-wrap:wrap;gap:0;padding:12px 18px;border-top:1px solid var(--border);background:var(--surface-2);
+}
+.stat-item{display:flex;align-items:center;gap:6px;padding:4px 16px;border-right:1px solid var(--border);font-size:12px}
+.stat-item:last-child{border-right:none}
+.stat-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.stat-item span:last-child{color:var(--muted)}
+.stat-item .stat-val{color:var(--ink);font-family:var(--font-mono);font-weight:500}
+
+/* SVG element styles */
+svg .cell{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1.5;transition:.3s}
+svg .cell-active{fill:rgba(52,211,153,.18);stroke:var(--emerald)}
+svg .cell-fwd{fill:rgba(45,212,255,.1);stroke:var(--cyan)}
+svg .cell-bwd{fill:rgba(167,139,250,.1);stroke:var(--violet)}
+svg .gate{fill:var(--surface-2);stroke:var(--border-strong);stroke-width:1.2}
+svg .edge{stroke:var(--border-strong);stroke-width:1.5;fill:none}
+svg .edge-active{stroke:var(--emerald);stroke-width:2}
+svg .edge-fwd{stroke:var(--cyan);stroke-width:1.5}
+svg .edge-bwd{stroke:var(--violet);stroke-width:1.5}
+svg .lbl{fill:var(--muted);font-size:11px;font-family:var(--font-mono)}
+svg .lbl-ink{fill:var(--ink);font-size:12px;font-weight:500}
+svg .lbl-sm{fill:var(--faint);font-size:10px;font-family:var(--font-mono)}
+svg .lbl-em{fill:var(--emerald);font-size:11px;font-weight:600;font-family:var(--font-mono)}
+svg .axis{stroke:var(--border);stroke-width:1}
+svg .grid{stroke:var(--border);stroke-width:.5;stroke-dasharray:2,3}
+svg .node{transition:.3s}
+svg .pruned{opacity:.18}
+svg .pill{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1}
+
+/* footer */
+.footer{padding:40px 48px;border-top:1px solid var(--border);text-align:center;color:var(--faint);font-size:12px}
+
+/* ===== Responsive ===== */
+@media(max-width:900px){
+  .nav-toggle{display:block}
+  .nav-links{display:none}
+  .nav-tag{display:none}
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:140}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .hero{padding:40px 24px 32px}
+  .hero h1{font-size:28px}
+  .module{padding:36px 20px}
+  .module-head h2{font-size:20px}
+  .svg-host{padding:12px;min-height:280px}
+  .stats{padding:10px 12px}
+  .stat-item{padding:4px 10px;font-size:11px}
+}
+.sidebar-overlay{display:none;position:fixed;inset:56px 0 0 0;background:rgba(0,0,0,.5);z-index:90}
+.sidebar-overlay.show{display:block}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+  .module{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+<nav class="topnav">
+  <button class="nav-toggle" id="navToggle" aria-label="菜单">&#9776;</button>
+  <div class="nav-brand">
+    <div class="nav-logo">S</div>
+    <span>Sequence Viz Lab</span>
+  </div>
+  <span class="nav-tag">v1.0</span>
+  <div class="nav-spacer"></div>
+  <div class="nav-links">
+    <a class="nav-link" href="#m1-rnn">基础架构</a>
+    <a class="nav-link" href="#m4-mamba">现代SSM</a>
+    <a class="nav-link" href="#m6-linear">线性注意力</a>
+    <a class="nav-link" href="#m8-compare">架构对比</a>
+  </div>
+</nav>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="side-label">模块导航</div>
+  <div class="side-item" data-target="m1-rnn"><span class="side-num">01</span> RNN / LSTM / GRU 基础</div>
+  <div class="side-item" data-target="m2-birnn"><span class="side-num">02</span> 双向 RNN</div>
+  <div class="side-item" data-target="m3-beam"><span class="side-num">03</span> Beam Search 解码</div>
+  <div class="side-item" data-target="m4-mamba"><span class="side-num">04</span> 状态空间模型 Mamba</div>
+  <div class="side-item" data-target="m5-rwkv"><span class="side-num">05</span> RWKV 架构</div>
+  <div class="side-item" data-target="m6-linear"><span class="side-num">06</span> 线性注意力</div>
+  <div class="side-item" data-target="m7-longseq"><span class="side-num">07</span> 长序列建模</div>
+  <div class="side-item" data-target="m8-compare"><span class="side-num">08</span> 序列建模对比</div>
+  <div class="side-foot">序列模型可视化实验室<br>纯前端 · 零依赖 · SVG 交互</div>
+</aside>
+
+<main class="main">
+  <div class="hero">
+    <div class="hero-eyebrow">// SEQUENCE MODEL VISUALIZATION LAB</div>
+    <h1>序列模型<span>可视化实验室</span></h1>
+    <p>交互式探索从 RNN 到 Mamba、RWKV 的序列建模架构演进。8 个模块涵盖循环网络、注意力机制、状态空间模型与长序列建模，每个模块均提供实时 SVG 可视化与参数调控。</p>
+    <div class="hero-meta">
+      <div class="hero-stat"><span class="hero-stat-v">8</span><span class="hero-stat-l">可视化模块</span></div>
+      <div class="hero-stat"><span class="hero-stat-v">0</span><span class="hero-stat-l">外部依赖</span></div>
+      <div class="hero-stat"><span class="hero-stat-v">SVG</span><span class="hero-stat-l">交互式渲染</span></div>
+      <div class="hero-stat"><span class="hero-stat-v">100%</span><span class="hero-stat-l">单文件</span></div>
+    </div>
+  </div>
+
+  <section class="module" id="m1-rnn">
+    <div class="module-head">
+      <span class="module-num">01</span>
+      <div><h2>RNN / LSTM / GRU 基础</h2>
+      <p class="module-desc">循环神经网络通过隐藏状态在时间步间传递信息。LSTM 引入门控机制解决长程依赖，GRU 以更简结构实现类似效果。切换架构观察展开图与门控结构的差异。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m1-controls"></div>
+      <div class="svg-host" id="m1-svg"></div>
+      <div class="stats" id="m1-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2-birnn">
+    <div class="module-head">
+      <span class="module-num">02</span>
+      <div><h2>双向 RNN (Bidirectional RNN)</h2>
+      <p class="module-desc">双向 RNN 同时从正反两个方向处理序列，将两个方向的隐藏状态合并以获得更丰富的上下文表示。观察正反方向并行处理后汇聚输出的过程。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m2-controls"></div>
+      <div class="svg-host" id="m2-svg"></div>
+      <div class="stats" id="m2-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m3-beam">
+    <div class="module-head">
+      <span class="module-num">03</span>
+      <div><h2>Beam Search 解码</h2>
+      <p class="module-desc">Beam Search 在解码时保留多条候选路径并行扩展，每步仅保留得分最高的 top-k 路径并剪枝其余。调整 beam 宽度观察搜索树的展开与剪枝过程。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m3-controls"></div>
+      <div class="svg-host" id="m3-svg"></div>
+      <div class="stats" id="m3-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m4-mamba">
+    <div class="module-head">
+      <span class="module-num">04</span>
+      <div><h2>状态空间模型 Mamba</h2>
+      <p class="module-desc">Mamba 基于选择性状态空间模型，通过输入依赖的参数实现动态序列建模。状态更新遵循 h'(t) = A&middot;h(t) + B&middot;x(t)，输出 y(t) = C&middot;h(t)。切换选择机制观察差异。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m4-controls"></div>
+      <div class="svg-host" id="m4-svg"></div>
+      <div class="stats" id="m4-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5-rwkv">
+    <div class="module-head">
+      <span class="module-num">05</span>
+      <div><h2>RWKV 架构</h2>
+      <p class="module-desc">RWKV 融合 RNN 的线性推理与 Transformer 的并行训练。Time-mixing 通过 WKV 机制实现时间维混合，Channel-mixing 在通道维度做非线性变换。切换 mixing 类型观察计算流程。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m5-controls"></div>
+      <div class="svg-host" id="m5-svg"></div>
+      <div class="stats" id="m5-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6-linear">
+    <div class="module-head">
+      <span class="module-num">06</span>
+      <div><h2>线性注意力 (Linear Attention)</h2>
+      <p class="module-desc">标准注意力复杂度为 O(n&sup2;)，线性注意力通过核函数分解将复杂度降至 O(n)。Performer 使用随机特征进一步近似。切换类型对比计算模式与复杂度差异。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m6-controls"></div>
+      <div class="svg-host" id="m6-svg"></div>
+      <div class="stats" id="m6-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m7-longseq">
+    <div class="module-head">
+      <span class="module-num">07</span>
+      <div><h2>长序列建模 (Long Sequence Modeling)</h2>
+      <p class="module-desc">处理超长序列需要特殊策略：滑动窗口、分块处理、层次化聚合与稀疏注意力各有取舍。切换方法观察不同策略对长序列的处理范围与内存特征。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m7-controls"></div>
+      <div class="svg-host" id="m7-svg"></div>
+      <div class="stats" id="m7-stats"></div>
+    </div>
+  </section>
+
+  <section class="module" id="m8-compare">
+    <div class="module-head">
+      <span class="module-num">08</span>
+      <div><h2>序列建模对比 (Architecture Comparison)</h2>
+      <p class="module-desc">RNN、Transformer、Mamba、RWKV 四大架构在推理速度、内存占用、长序列能力、并行度与生成质量上各有优劣。切换对比维度查看雷达图与综合评分。</p></div>
+    </div>
+    <div class="viz-card">
+      <div class="controls" id="m8-controls"></div>
+      <div class="svg-host" id="m8-svg"></div>
+      <div class="stats" id="m8-stats"></div>
+    </div>
+  </section>
+
+  <div class="footer">Sequence Viz Lab &mdash; 序列模型可视化实验室 &middot; 纯 HTML/CSS/JS + SVG 构建</div>
+</main>
+
+<script>
+/* ============================================================
+   序列模型可视化实验室 — 核心工具函数
+   ============================================================ */
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': ';var val=document.createElement('span');val.className='stat-val';val.textContent=it.val;d.appendChild(dot);d.appendChild(txt);d.appendChild(val);c.appendChild(d);});}
+function txt(parent,x,y,str,cls,fs){var e=svgEl(parent,'text',{x:x,y:y});if(cls)e.setAttribute('class',cls);if(fs)e.setAttribute('font-size',fs);e.textContent=str;return e;}
+function line(p,x1,y1,x2,y2,cls){return svgEl(p,'line',{x1:x1,y1:y1,x2:x2,y2:y2,class:cls||'edge'});}
+function rect(p,x,y,w,h,cls,rx){var a={x:x,y:y,width:w,height:h};if(cls)a['class']=cls;if(rx)a.rx=rx;return svgEl(p,'rect',a);}
+function circle(p,cx,cy,r,cls){return svgEl(p,'circle',{cx:cx,cy:cy,r:r,class:cls||'node'});}
+function arrow(p,x1,y1,x2,y2,cls){svgEl(p,'line',{x1:x1,y1:y1,x2:x2,y2:y2,class:cls||'edge'});var ang=Math.atan2(y2-y1,x2-x1);var s=6;svgEl(p,'polygon',{points:(x2)+','+(y2)+' '+(x2-s*Math.cos(ang-.4))+','+(y2-s*Math.sin(ang-.4))+' '+(x2-s*Math.cos(ang+.4))+','+(y2-s*Math.sin(ang+.4)),fill:cls==='edge-active'?C.emerald:C.borderStrong,class:'edge'});}
+function newSvg(w,h){return el('svg',{viewBox:'0 0 '+w+' '+h,width:w,height:h,xmlns:NS});}
+function playBtn(onclick){var b=document.createElement('button');b.className='btn btn-sm btn-play';b.textContent='▶ 播放动画';b.onclick=onclick;return b;}
+
+/* animation timers registry */
+var animTimers={};
+function stopAnim(key){if(animTimers[key]){clearInterval(animTimers[key]);clearTimeout(animTimers[key]);animTimers[key]=null;}}
+function startAnim(key,fn,delay){stopAnim(key);animTimers[key]=setInterval(fn,delay);}
+var reducedMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ============================================================
+   全局交互：进度条、侧边栏、IntersectionObserver
+   ============================================================ */
+window.addEventListener('scroll',function(){
+  var h=document.documentElement;
+  var sc=h.scrollTop||document.body.scrollTop;
+  var max=h.scrollHeight-h.clientHeight;
+  var pct=max>0?(sc/max*100):0;
+  document.getElementById('progressBar').style.width=pct+'%';
+});
+
+var sidebar=document.getElementById('sidebar');
+var overlay=document.getElementById('sidebarOverlay');
+document.getElementById('navToggle').addEventListener('click',function(){sidebar.classList.toggle('open');overlay.classList.toggle('show');});
+overlay.addEventListener('click',function(){sidebar.classList.remove('open');overlay.classList.remove('show');});
+
+document.querySelectorAll('.side-item').forEach(function(item){
+  item.addEventListener('click',function(){
+    var t=document.getElementById(item.dataset.target);
+    if(t){var top=t.getBoundingClientRect().top+window.scrollY-70;window.scrollTo({top:top,behavior:reducedMotion?'auto':'smooth'});}
+    if(window.innerWidth<=900){sidebar.classList.remove('open');overlay.classList.remove('show');}
+  });
+});
+
+/* IntersectionObserver for fade-in + active sidebar */
+var io=new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){en.target.classList.add('visible');}
+  });
+},{threshold:0.08});
+document.querySelectorAll('.module').forEach(function(m){io.observe(m);});
+
+/* sidebar active highlight on scroll */
+var modules=[].slice.call(document.querySelectorAll('.module'));
+window.addEventListener('scroll',function(){
+  var sy=window.scrollY+120;var cur=modules[0];
+  modules.forEach(function(m){if(m.offsetTop<=sy)cur=m;});
+  document.querySelectorAll('.side-item').forEach(function(si){
+    si.classList.toggle('active',si.dataset.target===cur.id);
+  });
+});
+
+/* ============================================================
+   模块 1: RNN / LSTM / GRU 基础
+   ============================================================ */
+var m1={arch:'lstm',seqLen:5,step:0,hidDim:128,anim:null};
+function m1Params(){var b={rnn:4,lstm:16,gru:12};return m1.hidDim*m1.hidDim*b[m1.arch]+2*m1.hidDim;}
+function m1Render(){
+  var host=document.getElementById('m1-svg');clearSvg(host);
+  var n=m1.seqLen,cellW=78,cellH=70,gap=38,px=30,topY=50;
+  var totalW=px*2+n*cellW+(n-1)*gap;
+  var svg=newSvg(totalW,260);host.appendChild(svg);
+  /* input row */
+  for(var i=0;i<n;i++){
+    var x=px+i*(cellW+gap);
+    rect(svg,x,topY+120,cellW,24,'pill',4);
+    txt(svg,x+cellW/2,topY+136,'x'+sub(i),'lbl',11).setAttribute('text-anchor','middle');
+    arrow(svg,x+cellW/2,topY+120,x+cellW/2,topY+92,'edge');
+  }
+  /* cells */
+  for(var i=0;i<n;i++){
+    var x=px+i*(cellW+gap);
+    var cls='cell'+(i===m1.step?' cell-active':'');
+    rect(svg,x,topY,cellW,cellH,cls,8);
+    var label=m1.arch.toUpperCase();
+    txt(svg,x+cellW/2,topY+22,label,'lbl-ink',12).setAttribute('text-anchor','middle');
+    txt(svg,x+cellW/2,topY+40,'h'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    /* gate labels */
+    if(m1.arch==='lstm'){txt(svg,x+cellW/2,topY+56,'f i o','lbl-sm',9).setAttribute('text-anchor','middle');}
+    else if(m1.arch==='gru'){txt(svg,x+cellW/2,topY+56,'z r','lbl-sm',9).setAttribute('text-anchor','middle');}
+    else{txt(svg,x+cellW/2,topY+56,'tanh','lbl-sm',9).setAttribute('text-anchor','middle');}
+    /* hidden state arrow */
+    if(i<n-1){
+      var ec=i<m1.step?'edge-active':'edge';
+      arrow(svg,x+cellW,topY+cellH/2,x+cellW+gap,topY+cellH/2,ec);
+    }
+    /* output arrow */
+    arrow(svg,x+cellW/2,topY,x+cellW/2,topY-22,i<=m1.step?'edge-active':'edge');
+    rect(svg,x+cellW/2-22,topY-44,44,22,'pill',4);
+    txt(svg,x+cellW/2,topY-29,'y'+sub(i),'lbl',11).setAttribute('text-anchor','middle');
+  }
+  /* legend */
+  txt(svg,px,210,'h: 隐藏状态','lbl-sm',10);
+  txt(svg,px+130,210,m1.arch==='lstm'?'f/i/o: 遗忘/输入/输出门':(m1.arch==='gru'?'z/r: 更新/重置门':'tanh: 激活函数'),'lbl-sm',10);
+  txt(svg,px,228,'绿色高亮 = 当前处理步 t='+m1.step,'lbl-em',10);
+}
+function sub(i){return i===0?'₀':i===1?'₁':i===2?'₂':i===3?'₃':i===4?'₄':i===5?'₅':i===6?'₆':i===7?'₇':''+i;}
+function initM1(){
+  var c=document.getElementById('m1-controls');
+  var archs=[['RNN','rnn'],['LSTM','lstm'],['GRU','gru']];
+  archs.forEach(function(a){
+    c.appendChild(makeBtn(a[0],a[1]===m1.arch,function(b){
+      c.querySelectorAll('.btn').forEach(function(x){x.classList.remove('active');});b.classList.add('active');
+      m1.arch=a[1];m1.step=0;m1Render();m1Stats();
+    }));
+  });
+  c.appendChild(playBtn(function(){m1Play();}));
+  c.appendChild(makeSlider('序列长度',3,8,1,m1.seqLen,'',function(v){m1.seqLen=v;m1.step=0;m1Render();m1Stats();}));
+  m1Render();m1Stats();
+}
+function m1Stats(){
+  var pname={rnn:'RNN',lstm:'LSTM',gru:'GRU'}[m1.arch];
+  setStats(document.getElementById('m1-stats'),[
+    {color:C.emerald,label:'架构',val:pname},
+    {color:C.cyan,label:'序列长度',val:m1.seqLen},
+    {color:C.violet,label:'隐藏维度',val:m1.hidDim},
+    {color:C.amber,label:'参数数',val:(m1Params()/1000).toFixed(1)+'K'}
+  ]);
+}
+function m1Play(){
+  stopAnim('m1');m1.step=0;m1Render();
+  startAnim('m1',function(){
+    m1.step++;if(m1.step>=m1.seqLen){m1.step=m1.seqLen-1;stopAnim('m1');}
+    m1Render();
+  },500);
+}
+
+/* ============================================================
+   模块 2: 双向 RNN
+   ============================================================ */
+var m2={seqLen:5,step:0};
+function m2Render(){
+  var host=document.getElementById('m2-svg');clearSvg(host);
+  var n=m2.seqLen,cellW=64,cellH=50,gap=30,px=30;
+  var fwdY=40,bwdY=150,outY=210;
+  var totalW=px*2+n*cellW+(n-1)*gap;
+  var svg=newSvg(totalW,250);host.appendChild(svg);
+  for(var i=0;i<n;i++){
+    var x=px+i*(cellW+gap);
+    /* forward cell */
+    var fAct=i<=m2.step;
+    rect(svg,x,fwdY,cellW,cellH,'cell'+(fAct?' cell-fwd':''),8);
+    txt(svg,x+cellW/2,fwdY+22,'→ A','lbl-ink',11).setAttribute('text-anchor','middle');
+    txt(svg,x+cellW/2,fwdY+37,'h→'+sub(i),'lbl-sm',9).setAttribute('text-anchor','middle');
+    if(i<n-1)arrow(svg,x+cellW,fwdY+cellH/2,x+cellW+gap,fwdY+cellH/2,fAct?'edge-fwd':'edge');
+    /* backward cell */
+    var bAct=(n-1-i)<=m2.step;
+    rect(svg,x,bwdY,cellW,cellH,'cell'+(bAct?' cell-bwd':''),8);
+    txt(svg,x+cellW/2,bwdY+22,'A ←','lbl-ink',11).setAttribute('text-anchor','middle');
+    txt(svg,x+cellW/2,bwdY+37,'←h'+sub(i),'lbl-sm',9).setAttribute('text-anchor','middle');
+    if(i<n-1)arrow(svg,x+cellW+gap,bwdY+cellH/2,x+cellW,bwdY+cellH/2,bAct?'edge-bwd':'edge');
+    /* merge to output */
+    if(fAct&&bAct){
+      arrow(svg,x+cellW/2,fwdY+cellH,x+cellW/2,outY-18,'edge-active');
+      arrow(svg,x+cellW/2,bwdY,x+cellW/2,outY-18,'edge-active');
+      rect(svg,x+cellW/2-20,outY-18,40,20,'pill',4);
+      txt(svg,x+cellW/2,outY-4,'y'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    }else{
+      rect(svg,x+cellW/2-20,outY-18,40,20,'pill',4);
+      txt(svg,x+cellW/2,outY-4,'y'+sub(i),'lbl-sm',10).setAttribute('text-anchor','middle');
+    }
+  }
+  txt(svg,px,18,'正向 →','lbl-em',10);
+  txt(svg,px,130,'← 反向','lbl-em',10);
+  txt(svg,px,232,'t='+m2.step+(m2.step>=n-1?'  (合并完成)':''),'lbl-sm',10);
+}
+function initM2(){
+  var c=document.getElementById('m2-controls');
+  c.appendChild(playBtn(function(){m2Play();}));
+  c.appendChild(makeSlider('序列长度',3,7,1,m2.seqLen,'',function(v){m2.seqLen=v;m2.step=0;m2Render();m2Stats();}));
+  m2Render();m2Stats();
+}
+function m2Stats(){
+  var p=m2.seqLen*4*128*2;
+  setStats(document.getElementById('m2-stats'),[
+    {color:C.emerald,label:'方向数',val:2},
+    {color:C.cyan,label:'序列长度',val:m2.seqLen},
+    {color:C.amber,label:'参数数',val:(p/1000).toFixed(1)+'K'},
+    {color:C.violet,label:'处理时间',val:(m2.seqLen*1.4).toFixed(1)+'ms'}
+  ]);
+}
+function m2Play(){
+  stopAnim('m2');m2.step=0;m2Render();
+  startAnim('m2',function(){
+    m2.step++;if(m2.step>=m2.seqLen){m2.step=m2.seqLen-1;stopAnim('m2');}
+    m2Render();
+  },450);
+}
+
+/* ============================================================
+   模块 3: Beam Search 解码
+   ============================================================ */
+var m3={beam:3,step:0,data:null};
+function m3Gen(){
+  /* generate a fake beam search tree */
+  var tokens=['A','B','C','D','E'];
+  var tree=[{parent:-1,score:0,label:'<S>',level:0,alive:true}];
+  var idx=0;
+  for(var lvl=1;lvl<=4;lvl++){
+    var curLevel=tree.filter(function(n){return n.level===lvl-1&&n.alive;});
+    curLevel.forEach(function(p){
+      var kids=2+Math.floor(Math.random()*2);
+      for(var k=0;k<kids;k++){
+        idx++;
+        tree.push({parent:p.id!==undefined?p.id:tree.indexOf(p),score:0,label:tokens[Math.floor(Math.random()*tokens.length)],level:lvl,alive:true,id:idx});
+      }
+    });
+  }
+  /* assign ids properly */
+  tree.forEach(function(n,i){n.id=i;});
+  /* rebuild children by level */
+  var byLevel={};
+  tree.forEach(function(n){if(!byLevel[n.level])byLevel[n.level]=[];byLevel[n.level].push(n);});
+  /* assign scores and mark top-beam alive */
+  for(var lvl=1;lvl<=4;lvl++){
+    var nodes=byLevel[lvl]||[];
+    nodes.forEach(function(n){
+      var p=tree[n.parent];
+      n.score=p.score-Math.random()*2;
+    });
+    nodes.sort(function(a,b){return b.score-a.score;});
+    nodes.forEach(function(n,i){n.alive=i<m3.beam;});
+  }
+  return tree;
+}
+function m3Render(){
+  var host=document.getElementById('m3-svg');clearSvg(host);
+  if(!m3.data)m3.data=m3Gen();
+  var tree=m3.data;
+  var maxLvl=4,cw=700,lvlH=72,topY=30;
+  var svg=newSvg(760,maxLvl*lvlH+80);host.appendChild(svg);
+  /* position nodes by level */
+  var byLevel={};
+  tree.forEach(function(n){if(!byLevel[n.level])byLevel[n.level]=[];byLevel[n.level].push(n);});
+  for(var lvl=0;lvl<=maxLvl;lvl++){
+    var arr=byLevel[lvl]||[];
+    var step=cw/(arr.length+1);
+    arr.forEach(function(n,i){n.x=30+step*(i+1);n.y=topY+lvl*lvlH;});
+  }
+  /* draw edges */
+  tree.forEach(function(n){
+    if(n.parent>=0){
+      var p=tree[n.parent];
+      var vis=n.level<=m3.step+1;
+      var cls=(vis&&n.alive)?'edge-active':'edge';
+      if(!n.alive&&n.level<=m3.step+1)cls='edge';
+      if(!vis)cls='edge';
+      line(svg,p.x,p.y+14,n.x,n.y-14,cls);
+      if(!n.alive&&vis)svgEl(svg,'line',{x1:p.x,y1:p.y+14,x2:n.x,y2:n.y-14,'stroke-dasharray':'3,3',stroke:C.faint,'stroke-width':1});
+    }
+  });
+  /* draw nodes */
+  var cand=0,pruned=0;
+  tree.forEach(function(n){
+    var vis=n.level<=m3.step+1;
+    var cls='pill';
+    var op=vis?1:0.25;
+    var g=svgEl(svg,'g',{opacity:op});
+    if(n.alive&&vis){circle(g,n.x,n.y,14,'cell-active');}
+    else if(vis){circle(g,n.x,n.y,14,'cell');}
+    else{circle(g,n.x,n.y,12,'cell');}
+    txt(g,n.x,n.y+4,n.label,'lbl-ink',9).setAttribute('text-anchor','middle');
+    if(n.level>0&&vis){
+      txt(g,n.x,n.y+28,n.score.toFixed(2),n.alive?'lbl-em':'lbl-sm',9).setAttribute('text-anchor','middle');
+    }
+    if(n.level<=m3.step+1){
+      if(n.alive)cand++;else pruned++;
+    }
+  });
+  txt(svg,30,topY-14,'Beam='+m3.beam+'  step='+m3.step,'lbl-em',11);
+}
+function initM3(){
+  var c=document.getElementById('m3-controls');
+  c.appendChild(makeBtn('重新生成',false,function(){m3.data=m3Gen();m3.step=0;m3Render();m3Stats();}));
+  c.appendChild(playBtn(function(){m3Play();}));
+  c.appendChild(makeSlider('Beam 宽度',1,10,1,m3.beam,'',function(v){m3.beam=v;if(m3.data){m3.data.forEach(function(n){});m3RegenAlive();}m3.step=0;m3Render();m3Stats();}));
+  m3.data=m3Gen();m3Render();m3Stats();
+}
+function m3RegenAlive(){
+  if(!m3.data)return;var byLevel={};
+  m3.data.forEach(function(n){if(!byLevel[n.level])byLevel[n.level]=[];byLevel[n.level].push(n);});
+  m3.data.forEach(function(n){n.alive=true;});
+  for(var lvl=1;lvl<=4;lvl++){
+    var arr=byLevel[lvl]||[];
+    arr.forEach(function(n){var p=m3.data[n.parent];n.score=p.score-Math.random()*2;});
+    arr.sort(function(a,b){return b.score-a.score;});
+    arr.forEach(function(n,i){n.alive=i<m3.beam;});
+  }
+}
+function m3Stats(){
+  var cand=0,pruned=0;
+  if(m3.data)m3.data.forEach(function(n){if(n.level<=m3.step+1&&n.level>0){if(n.alive)cand++;else pruned++;}});
+  var best=m3.data?m3.data.filter(function(n){return n.level===4&&n.alive;}).sort(function(a,b){return b.score-a.score;})[0]:null;
+  setStats(document.getElementById('m3-stats'),[
+    {color:C.emerald,label:'Beam 宽度',val:m3.beam},
+    {color:C.cyan,label:'候选数',val:cand},
+    {color:C.rose,label:'剪枝数',val:pruned},
+    {color:C.amber,label:'最终路径',val:best?('→'+best.label+' ('+best.score.toFixed(2)+')'):'...'}
+  ]);
+}
+function m3Play(){
+  stopAnim('m3');m3.step=0;m3Render();m3Stats();
+  startAnim('m3',function(){
+    m3.step++;if(m3.step>=4){m3.step=4;stopAnim('m3');}
+    m3Render();m3Stats();
+  },600);
+}
+
+/* ============================================================
+   模块 4: 状态空间模型 Mamba
+   ============================================================ */
+var m4={mode:'selective',dim:64,seqLen:6,step:0};
+function m4Render(){
+  var host=document.getElementById('m4-svg');clearSvg(host);
+  var n=m4.seqLen,cw=70,ch=60,gap=24,px=30,topY=70;
+  var totalW=px*2+n*cw+(n-1)*gap;
+  var svg=newSvg(totalW,240);host.appendChild(svg);
+  /* input */
+  for(var i=0;i<n;i++){
+    var x=px+i*(cw+gap);
+    rect(svg,x,topY+110,cw,22,'pill',4);
+    txt(svg,x+cw/2,topY+125,'x'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    arrow(svg,x+cw/2,topY+110,x+cw/2,topY+92,i<=m4.step?'edge-active':'edge');
+  }
+  /* SSM cells */
+  for(var i=0;i<n;i++){
+    var x=px+i*(cw+gap);
+    var act=i===m4.step;
+    rect(svg,x,topY,cw,ch,'cell'+(act?' cell-active':''),8);
+    txt(svg,x+cw/2,topY+18,'SSM','lbl-ink',11).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+34,'h'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+50,m4.mode==='selective'?'sel':'fix','lbl-sm',9).setAttribute('text-anchor','middle');
+    if(i<n-1)arrow(svg,x+cw,topY+ch/2,x+cw+gap,topY+ch/2,i<m4.step?'edge-active':'edge');
+    /* output */
+    arrow(svg,x+cw/2,topY,x+cw/2,topY-18,i<=m4.step?'edge-active':'edge');
+    rect(svg,x+cw/2-18,topY-38,36,20,'pill',4);
+    txt(svg,x+cw/2,topY-24,'y'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+  }
+  /* state equation */
+  txt(svg,px,210,"h'(t) = A·h(t) + B·x(t),  y(t) = C·h(t) + D·x(t)",'lbl',11);
+  txt(svg,px,228,m4.mode==='selective'?'选择性: A,B,C 依赖输入 x(t) — 动态扫描':'固定: A,B,C 为常量 — 线性时不变','lbl-em',10);
+}
+function initM4(){
+  var c=document.getElementById('m4-controls');
+  c.appendChild(makeBtn('固定 SSM',false,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x!==b&&x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m4.mode='fixed';m4.step=0;m4Render();m4Stats();}));
+  c.appendChild(makeBtn('选择性 SSM',true,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x!==b&&x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m4.mode='selective';m4.step=0;m4Render();m4Stats();}));
+  c.appendChild(playBtn(function(){m4Play();}));
+  c.appendChild(makeSlider('状态维度',16,256,16,m4.dim,'',function(v){m4.dim=v;m4Render();m4Stats();}));
+  m4Render();m4Stats();
+}
+function m4Stats(){
+  var speed=m4.mode==='selective'?(m4.seqLen*0.3).toFixed(1):(m4.seqLen*0.8).toFixed(1);
+  setStats(document.getElementById('m4-stats'),[
+    {color:C.emerald,label:'状态维度',val:m4.dim},
+    {color:C.cyan,label:'选择机制',val:m4.mode==='selective'?'输入依赖':'固定'},
+    {color:C.violet,label:'序列长度',val:m4.seqLen},
+    {color:C.amber,label:'推理速度',val:speed+'ms'}
+  ]);
+}
+function m4Play(){
+  stopAnim('m4');m4.step=0;m4Render();
+  startAnim('m4',function(){
+    m4.step++;if(m4.step>=m4.seqLen){m4.step=m4.seqLen-1;stopAnim('m4');}
+    m4Render();m4Stats();
+  },450);
+}
+
+/* ============================================================
+   模块 5: RWKV 架构
+   ============================================================ */
+var m5={mix:'time',window:16,step:0};
+function m5Render(){
+  var host=document.getElementById('m5-svg');clearSvg(host);
+  var svg=newSvg(720,280);host.appendChild(svg);
+  if(m5.mix==='time'){
+    m5TimeMix(svg);
+  }else{
+    m5ChannelMix(svg);
+  }
+}
+function m5TimeMix(svg){
+  var n=5,cw=80,ch=70,gap=22,px=40,topY=40;
+  for(var i=0;i<n;i++){
+    var x=px+i*(cw+gap);
+    var act=i===m5.step;
+    rect(svg,x,topY,cw,ch,'cell'+(act?' cell-active':''),8);
+    txt(svg,x+cw/2,topY+22,'WKV','lbl-ink',12).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+40,'time-mix','lbl-sm',9).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+55,'w='+m5.window,'lbl-sm',9).setAttribute('text-anchor','middle');
+    if(i<n-1)arrow(svg,x+cw,topY+ch/2,x+cw+gap,topY+ch/2,i<m5.step?'edge-active':'edge');
+    /* input */
+    rect(svg,x,topY+ch+8,cw,20,'pill',4);
+    txt(svg,x+cw/2,topY+ch+22,'x'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    arrow(svg,x+cw/2,topY+ch+8,x+cw/2,topY+ch,i<=m5.step?'edge-active':'edge');
+  }
+  /* formula */
+  rect(svg,px,170,640,40,'pill',8);
+  txt(svg,px+20,195,'WKV: wkv(t) = Σ u(t,j)·k(j)·v(j)  — 线性时间注意力近似','lbl',11);
+  txt(svg,px,232,'Time-mixing: 融合过去 '+m5.window+' 步的信息，O(n) 复杂度','lbl-em',10);
+}
+function m5ChannelMix(svg){
+  var n=5,cw=80,ch=70,gap=22,px=40,topY=40;
+  for(var i=0;i<n;i++){
+    var x=px+i*(cw+gap);
+    var act=i===m5.step;
+    rect(svg,x,topY,cw,ch,'cell'+(act?' cell-active':''),8);
+    txt(svg,x+cw/2,topY+22,'Mix','lbl-ink',12).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+40,'channel','lbl-sm',9).setAttribute('text-anchor','middle');
+    txt(svg,x+cw/2,topY+55,'σ·W','lbl-sm',9).setAttribute('text-anchor','middle');
+    if(i<n-1)arrow(svg,x+cw,topY+ch/2,x+cw+gap,topY+ch/2,i<m5.step?'edge-active':'edge');
+    rect(svg,x,topY+ch+8,cw,20,'pill',4);
+    txt(svg,x+cw/2,topY+ch+22,'x'+sub(i),'lbl',10).setAttribute('text-anchor','middle');
+    arrow(svg,x+cw/2,topY+ch+8,x+cw/2,topY+ch,i<=m5.step?'edge-active':'edge');
+  }
+  rect(svg,px,170,640,40,'pill',8);
+  txt(svg,px+20,195,'Channel-mixing: y = σ(W₁x) ⊙ (W₂x)  — 通道维度非线性变换','lbl',11);
+  txt(svg,px,232,'Channel-mixing: 在通道维度做门控混合，增强表达能力','lbl-em',10);
+}
+function initM5(){
+  var c=document.getElementById('m5-controls');
+  c.appendChild(makeBtn('Time-Mix',true,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m5.mix='time';m5.step=0;m5Render();m5Stats();}));
+  c.appendChild(makeBtn('Channel-Mix',false,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m5.mix='channel';m5.step=0;m5Render();m5Stats();}));
+  c.appendChild(playBtn(function(){m5Play();}));
+  c.appendChild(makeSlider('注意力窗口',4,64,4,m5.window,'',function(v){m5.window=v;m5Render();m5Stats();}));
+  m5Render();m5Stats();
+}
+function m5Stats(){
+  var ch=512;var p=m5.window*ch*2+ch*ch;
+  setStats(document.getElementById('m5-stats'),[
+    {color:C.emerald,label:'窗口大小',val:m5.window},
+    {color:C.cyan,label:'通道数',val:512},
+    {color:C.amber,label:'参数数',val:(p/1000).toFixed(0)+'K'},
+    {color:C.violet,label:'等效注意力',val:m5.window>=32?'O(n)':'O(n)近似'}
+  ]);
+}
+function m5Play(){
+  stopAnim('m5');m5.step=0;m5Render();
+  startAnim('m5',function(){
+    m5.step++;if(m5.step>=5){m5.step=4;stopAnim('m5');}
+    m5Render();
+  },450);
+}
+
+/* ============================================================
+   模块 6: 线性注意力
+   ============================================================ */
+var m6={type:'standard',seqLen:8,step:0};
+function m6Render(){
+  var host=document.getElementById('m6-svg');clearSvg(host);
+  var svg=newSvg(700,300);host.appendChild(svg);
+  var n=m6.seqLen;
+  if(m6.type==='standard'){
+    /* n x n matrix */
+    var cell=24,px=120,py=30;
+    txt(svg,px+n*cell/2,py-10,'Attention Matrix (n x n) = O(n²)','lbl-em',11).setAttribute('text-anchor','middle');
+    for(var i=0;i<n;i++){
+      for(var j=0;j<n;j++){
+        var act=i<=m6.step&&j<=m6.step;
+        var op=act?1:0.2;
+        var g=svgEl(svg,'rect',{x:px+j*cell,y:py+i*cell,width:cell-2,height:cell-2,rx:2});
+        g.setAttribute('fill',act?C.cyan:C.surface3);
+        g.setAttribute('opacity',op);
+        g.setAttribute('stroke',C.border);
+      }
+    }
+    txt(svg,px-8,py+n*cell/2+4,'Q','lbl-ink',11).setAttribute('text-anchor','end');
+    txt(svg,px+n*cell/2,py+n*cell+18,'K','lbl-ink',11).setAttribute('text-anchor','middle');
+    /* complexity bars */
+    m6Bars(svg,px,py+n*cell+50,n);
+    txt(svg,px,py+n*cell+120,'标准注意力: softmax(QKᵀ)V — 全连接注意力矩阵','lbl',11);
+  }else if(m6.type==='linear'){
+    /* kernel decomposition: two O(n) passes */
+    var px=80,py=30;
+    txt(svg,350,py-6,'Linear Attention: φ(Q)(φ(K)ᵀV) = O(n)','lbl-em',11).setAttribute('text-anchor','middle');
+    /* pass 1: compute S = Σ φ(k)⊗v */
+    rect(svg,px,py,160,50,'pill',8);
+    txt(svg,px+80,py+20,'S = Σ φ(k)ᵀv','lbl-ink',11).setAttribute('text-anchor','middle');
+    txt(svg,px+80,py+38,'(累积状态)','lbl-sm',9).setAttribute('text-anchor','middle');
+    arrow(svg,px+160,py+25,px+210,py+25,'edge-active');
+    /* pass 2: y = φ(q)·S */
+    rect(svg,px+210,py,160,50,m6.step>0?'cell-active':'pill',8);
+    txt(svg,px+290,py+20,'y = φ(q)·S','lbl-ink',11).setAttribute('text-anchor','middle');
+    txt(svg,px+290,py+38,'(逐token输出)','lbl-sm',9).setAttribute('text-anchor','middle');
+    /* sequence tokens flowing */
+    for(var i2=0;i2<n;i2++){
+      var x=px+20+i2*18;
+      var act=i2<=m6.step;
+      circle(svg,x,py+90,7,act?'cell-active':'cell');
+      txt(svg,x,py+110,'t'+sub(i2),'lbl-sm',8).setAttribute('text-anchor','middle');
+    }
+    arrow(svg,px+80,py+50,px+80,py+78,m6.step>0?'edge-active':'edge');
+    m6Bars(svg,px,py+150,n);
+    txt(svg,px,py+220,'线性注意力: 核函数 φ 分解 QKV，避免 n×n 矩阵','lbl',11);
+  }else{
+    /* Performer random features */
+    var px=80,py=30;
+    txt(svg,350,py-6,'Performer: random features Φ ≈ exp(QKᵀ)','lbl-em',11).setAttribute('text-anchor','middle');
+    rect(svg,px,py,200,50,'pill',8);
+    txt(svg,px+100,py+20,'Φ(x) = exp(w·x - ||x||²/2)','lbl-ink',10).setAttribute('text-anchor','middle');
+    txt(svg,px+100,py+38,'w ~ N(0,I)  无偏近似','lbl-sm',9).setAttribute('text-anchor','middle');
+    arrow(svg,px+200,py+25,px+250,py+25,'edge-active');
+    rect(svg,px+250,py,170,50,'pill',8);
+    txt(svg,px+335,py+28,'≈ softmax(QKᵀ)V','lbl-ink',11).setAttribute('text-anchor','middle');
+    for(var i3=0;i3<n;i3++){
+      var x3=px+20+i3*18;
+      var act3=i3<=m6.step;
+      circle(svg,x3,py+90,7,act3?'cell-active':'cell');
+      txt(svg,x3,py+110,'t'+sub(i3),'lbl-sm',8).setAttribute('text-anchor','middle');
+    }
+    m6Bars(svg,px,py+150,n);
+    txt(svg,px,py+220,'Performer: 使用随机特征近似 softmax，可逆且无偏','lbl',11);
+  }
+}
+function m6Bars(svg,px,py,n){
+  var labels=['标准 O(n²)','线性 O(n)'];
+  var vals=[n*n,n];
+  var max=Math.max(vals[0],1);
+  var colors=[C.rose,C.emerald];
+  for(var i=0;i<2;i++){
+    var h=vals[i]/max*70;
+    txt(svg,px+i*160+40,py,'FLOPs','lbl-sm',9);
+    rect(svg,px+i*160+20,py+10+ (70-h),60,h,colors[i]===C.rose?'pruned':'',4);
+    svgEl(svg,'rect',{x:px+i*160+20,y:py+10,width:60,height:70,rx:4,fill:'none',stroke:C.border});
+    svgEl(svg,'rect',{x:px+i*160+20,y:py+10+(70-h),width:60,height:h,rx:4,fill:colors[i]});
+    txt(svg,px+i*160+50,py+90,labels[i],'lbl',10).setAttribute('text-anchor','middle');
+    txt(svg,px+i*160+50,py+104,vals[i],'lbl-em',10).setAttribute('text-anchor','middle');
+  }
+}
+function initM6(){
+  var c=document.getElementById('m6-controls');
+  c.appendChild(makeBtn('标准注意力',true,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m6.type='standard';m6.step=0;m6Render();m6Stats();}));
+  c.appendChild(makeBtn('线性注意力',false,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m6.type='linear';m6.step=0;m6Render();m6Stats();}));
+  c.appendChild(makeBtn('Performer',false,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m6.type='performer';m6.step=0;m6Render();m6Stats();}));
+  c.appendChild(playBtn(function(){m6Play();}));
+  c.appendChild(makeSlider('序列长度',4,12,1,m6.seqLen,'',function(v){m6.seqLen=v;m6.step=0;m6Render();m6Stats();}));
+  m6Render();m6Stats();
+}
+function m6Stats(){
+  var std=m6.seqLen*m6.seqLen,lin=m6.seqLen;
+  var ratio=(std/lin).toFixed(1);
+  setStats(document.getElementById('m6-stats'),[
+    {color:C.emerald,label:'序列长度',val:m6.seqLen},
+    {color:C.rose,label:'标准复杂度',val:std},
+    {color:C.emerald,label:'线性复杂度',val:lin},
+    {color:C.cyan,label:'加速比',val:ratio+'x'}
+  ]);
+}
+function m6Play(){
+  stopAnim('m6');m6.step=0;m6Render();m6Stats();
+  startAnim('m6',function(){
+    m6.step++;if(m6.step>=m6.seqLen){m6.step=m6.seqLen-1;stopAnim('m6');}
+    m6Render();m6Stats();
+  },300);
+}
+
+/* ============================================================
+   模块 7: 长序列建模
+   ============================================================ */
+var m7={method:'window',seqLen:8000,step:0};
+function m7Render(){
+  var host=document.getElementById('m7-svg');clearSvg(host);
+  var svg=newSvg(720,280);host.appendChild(svg);
+  var n=Math.min(m7.seqLen,48); /* visual count */
+  var barW=10,gap=4,px=30,py=60;
+  var totalBar=n*(barW+gap);
+  /* draw sequence as bars */
+  for(var i=0;i<n;i++){
+    var x=px+i*(barW+gap);
+    var h=20+Math.sin(i*0.5)*12+15;
+    var active=m7isActive(i);
+    svgEl(svg,'rect',{x:x,y:py-h,width:barW,height:h,rx:2,fill:active?C.emerald:C.surface3,stroke:C.border,'stroke-width':.5,opacity:active?1:0.5});
+  }
+  txt(svg,px,py-12,'序列长度: '+m7.formatLen(),'lbl-em',11);
+  /* method-specific overlay */
+  if(m7.method==='window'){
+    var win=Math.min(n,6);
+    var sx=px+m7.step*(barW+gap);
+    if(sx+win*(barW+gap)>px+totalBar)sx=px+totalBar-win*(barW+gap);
+    svgEl(svg,'rect',{x:sx-2,y:py-40,width:win*(barW+gap),height:90,rx:6,fill:'none',stroke:C.cyan,'stroke-width':2,'stroke-dasharray':'4,2'});
+    txt(svg,sx+win*(barW+gap)/2,py-46,'滑动窗口 (w='+win+')','lbl-ink',10).setAttribute('text-anchor','middle');
+  }else if(m7.method==='chunk'){
+    var cs=6;
+    for(var c=0;c<n;c+=cs){
+      var cx=px+c*(barW+gap);
+      var cw=Math.min(cs,n-c)*(barW+gap);
+      svgEl(svg,'rect',{x:cx-2,y:py-40,width:cw,height:90,rx:6,fill:'none',stroke:C.violet,'stroke-width':1.5});
+    }
+    txt(svg,px+totalBar/2,py-46,'分块处理 (chunk='+cs+')','lbl-ink',10).setAttribute('text-anchor','middle');
+  }else if(m7.method==='hier'){
+    /* hierarchical: bottom level + aggregated top */
+    var lvls=[1,3,1];
+    for(var l=0;l<3;l++){
+      var cnt=Math.ceil(n/Math.pow(3,2-l));
+      var ly=py+70+l*30;
+      for(var k=0;k<cnt;k++){
+        var hx=px+k*((totalBar)/cnt);
+        svgEl(svg,'circle',{cx:hx+5,cy:ly,r:5,fill:l===1?C.amber:(l===2?C.rose:C.cyan),stroke:C.bg,'stroke-width':1});
+      }
+    }
+    txt(svg,px+totalBar/2,py+170,'层次化: 底层→聚合→高层','lbl-ink',10).setAttribute('text-anchor','middle');
+  }else{
+    /* sparse: random attention pattern */
+    for(var s=0;s<n;s++){
+      if(Math.random()<0.35){
+        var sx2=px+s*(barW+gap);
+        var tg=s+1+Math.floor(Math.random()*4);
+        if(tg<n){
+          svgEl(svg,'line',{x1:sx2+5,y1:py-30,x2:px+tg*(barW+gap)+5,y2:py-30,stroke:C.amber,'stroke-width':1,opacity:.4});
+        }
+      }
+    }
+    txt(svg,px+totalBar/2,py-46,'稀疏注意力 (随机/局部模式)','lbl-ink',10).setAttribute('text-anchor','middle');
+  }
+  /* method label */
+  var ml={window:'滑动窗口',chunk:'分块处理',hier:'层次化',sparse:'稀疏注意力'}[m7.method];
+  txt(svg,px,250,'当前方法: '+ml+'  |  绿色高亮 = 当前处理范围','lbl-sm',10);
+}
+m7.formatLen=function(){if(m7.seqLen>=1000)return (m7.seqLen/1000)+'K';return ''+m7.seqLen;};
+function m7isActive(i){
+  if(m7.method==='window'){var win=6;return i>=m7.step&&i<m7.step+win;}
+  if(m7.method==='chunk'){return true;}
+  if(m7.method==='hier'){return true;}
+  if(m7.method==='sparse'){return Math.random()<0.35;}
+  return false;
+}
+function initM7(){
+  var c=document.getElementById('m7-controls');
+  var methods=[['滑动窗口','window'],['分块','chunk'],['层次化','hier'],['稀疏','sparse']];
+  methods.forEach(function(m,i){
+    c.appendChild(makeBtn(m[0],i===0,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m7.method=m[1];m7.step=0;m7Render();m7Stats();}));
+  });
+  c.appendChild(playBtn(function(){m7Play();}));
+  c.appendChild(makeSlider('序列长度',1000,128000,1000,m7.seqLen,'',function(v){m7.seqLen=v;m7.step=0;m7Render();m7Stats();}));
+  m7Render();m7Stats();
+}
+function m7Stats(){
+  var win={window:'局部 (w=6)',chunk:'块内 (c=6)',hier:'层次聚合',sparse:'稀疏 (~35%)'}[m7.method];
+  var mem={window:m7.seqLen*6,chunk:m7.seqLen*6,hier:m7.seqLen*1.5,sparse:m7.seqLen*0.35};
+  var memStr=mem<10000?mem.toFixed(0):((mem/1000).toFixed(1)+'K');
+  setStats(document.getElementById('m7-stats'),[
+    {color:C.emerald,label:'序列长度',val:m7.formatLen()},
+    {color:C.cyan,label:'方法',val:{window:'滑动窗口',chunk:'分块',hier:'层次化',sparse:'稀疏'}[m7.method]},
+    {color:C.violet,label:'有效窗口',val:win},
+    {color:C.amber,label:'内存占用',val:memStr}
+  ]);
+}
+function m7Play(){
+  stopAnim('m7');m7.step=0;m7Render();
+  if(m7.method!=='window'){stopAnim('m7');return;}
+  startAnim('m7',function(){
+    m7.step+=3;if(m7.step>40){m7.step=0;stopAnim('m7');}
+    m7Render();
+  },400);
+}
+
+/* ============================================================
+   模块 8: 序列建模对比 (雷达图)
+   ============================================================ */
+var m8={dim:'speed'};
+var m8Data={
+  RNN:{speed:0.9,memory:0.85,longseq:0.25,parallel:0.1,quality:0.45},
+  Transformer:{speed:0.3,memory:0.2,longseq:0.5,parallel:1.0,quality:0.95},
+  Mamba:{speed:0.85,memory:0.8,longseq:0.85,parallel:0.7,quality:0.85},
+  RWKV:{speed:0.95,memory:0.9,longseq:0.8,parallel:0.65,quality:0.8}
+};
+var m8Dims=[
+  ['speed','推理速度'],
+  ['memory','内存效率'],
+  ['longseq','长序列能力'],
+  ['parallel','并行度'],
+  ['quality','生成质量']
+];
+var m8Colors={RNN:C.cyan,Transformer:C.amber,Mamba:C.emerald,RWKV:C.violet};
+function m8Render(){
+  var host=document.getElementById('m8-svg');clearSvg(host);
+  var svg=newSvg(560,440);host.appendChild(svg);
+  var cx=280,cy=210,R=150;
+  var ndim=m8Dims.length;
+  var activeIdx=m8Dims.map(function(d){return d[0];}).indexOf(m8.dim);
+  /* grid rings */
+  for(var r=1;r<=4;r++){
+    var pts=[];
+    for(var i=0;i<ndim;i++){
+      var ang=-Math.PI/2+i*2*Math.PI/ndim;
+      pts.push((cx+Math.cos(ang)*R*r/4)+','+(cy+Math.sin(ang)*R*r/4));
+    }
+    svgEl(svg,'polygon',{points:pts.join(' '),fill:'none',stroke:r===4?C.borderStrong:'rgba(255,255,255,.06)','stroke-width':r===4?1.2:.5});
+  }
+  /* axes */
+  for(var i=0;i<ndim;i++){
+    var ang=-Math.PI/2+i*2*Math.PI/ndim;
+    line(svg,cx,cy,cx+Math.cos(ang)*R,cy+Math.sin(ang)*R,i===activeIdx?'edge-active':'grid');
+    var lx=cx+Math.cos(ang)*(R+24),ly=cy+Math.sin(ang)*(R+24)+4;
+    txt(svg,lx,ly,m8Dims[i][1],i===activeIdx?'lbl-em':'lbl',11).setAttribute('text-anchor','middle');
+  }
+  /* draw each architecture polygon */
+  Object.keys(m8Data).forEach(function(name){
+    var d=m8Data[name];var pts=[];
+    for(var i=0;i<ndim;i++){
+      var key=m8Dims[i][0];
+      var ang=-Math.PI/2+i*2*Math.PI/ndim;
+      var v=d[key];
+      pts.push((cx+Math.cos(ang)*R*v)+','+(cy+Math.sin(ang)*R*v));
+    }
+    var col=m8Colors[name];
+    svgEl(svg,'polygon',{points:pts.join(' '),fill:col,opacity:0.08,stroke:col,'stroke-width':1.5});
+    /* vertices */
+    for(var i=0;i<ndim;i++){
+      var key=m8Dims[i][0];var ang=-Math.PI/2+i*2*Math.PI/ndim;
+      var v=d[key];
+      svgEl(svg,'circle',{cx:cx+Math.cos(ang)*R*v,cy:cy+Math.sin(ang)*R*v,r:3,fill:col});
+    }
+  });
+  /* legend */
+  var lx2=20,ly2=20;
+  Object.keys(m8Colors).forEach(function(name){
+    svgEl(svg,'rect',{x:lx2,y:ly2,width:12,height:12,rx:2,fill:m8Colors[name]});
+    txt(svg,lx2+18,ly2+10,name,'lbl-ink',11);
+    /* score for active dim */
+    txt(svg,lx2+90,ly2+10,m8Data[name][m8.dim].toFixed(2),'lbl-sm',10);
+    ly2+=20;
+  });
+}
+function initM8(){
+  var c=document.getElementById('m8-controls');
+  m8Dims.forEach(function(d,i){
+    c.appendChild(makeBtn(d[1],i===0,function(b){c.querySelectorAll('.btn').forEach(function(x){if(x.classList.contains('btn-sm')&&!x.classList.contains('btn-play')&&!x.classList.contains('slider-wrap'))x.classList.remove('active');});b.classList.add('active');m8.dim=d[0];m8Render();m8Stats();}));
+  });
+  m8Render();m8Stats();
+}
+function m8Stats(){
+  var best='',bestv=-1;
+  Object.keys(m8Data).forEach(function(k){if(m8Data[k][m8.dim]>bestv){bestv=m8Data[k][m8.dim];best=k;}});
+  var dimName=m8Dims.filter(function(d){return d[0]===m8.dim;})[0][1];
+  var total={};
+  Object.keys(m8Data).forEach(function(k){total[k]=Object.keys(m8Data[k]).reduce(function(s,x){return s+m8Data[k][x];},0)/5;});
+  var bestOverall='',bov=-1;
+  Object.keys(total).forEach(function(k){if(total[k]>bov){bov=total[k];bestOverall=k;}});
+  setStats(document.getElementById('m8-stats'),[
+    {color:C.emerald,label:'架构数',val:4},
+    {color:C.cyan,label:'对比维度',val:dimName},
+    {color:C.amber,label:'最优架构',val:best},
+    {color:C.violet,label:'综合评分',val:bestOverall+' ('+bov.toFixed(2)+')'}
+  ]);
+}
+
+/* ============================================================
+   初始化所有模块
+   ============================================================ */
+document.addEventListener('DOMContentLoaded',function(){
+  initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();
+});
+</script>
+</body>
+</html>

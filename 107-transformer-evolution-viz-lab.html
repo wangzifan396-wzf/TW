@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>transformer-evolution-viz-lab · Transformer 架构演进可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#2dd4ff;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(45,212,255,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(45,212,255,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(45,212,255,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#031018;border-color:transparent}
+.btn.primary:hover{background:#5fe0ff}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:54px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>transformer-evolution</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">architecture evolution</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/transformer-evolution-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>注意力复杂度</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>线性注意力</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>Mamba / SSM</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>RWKV</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>稀疏注意力</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>滑动窗口注意力</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>Flash Attention</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>架构对比</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/transformer-evolution-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>Transformer 架构演进 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现注意力复杂度、线性注意力、Mamba/SSM、RWKV、Flash Attention 等下一代架构。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 注意力复杂度 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>注意力复杂度与 O(n²) 瓶颈</h2>
+      <p>标准注意力的计算量与内存随序列长度二次增长。拖动滑块改变序列长度 n，观察 Attention FLOPs、Attention 显存、线性注意力 FLOPs 与 KV cache 的相对规模，并在对数刻度上理解长上下文的代价。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">attention-complexity.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>Attention FLOPs (O(n²d))</span>
+          <span><i style="background:#f87171"></i>Attention 显存 (O(n²))</span>
+          <span><i style="background:#34d399"></i>Linear Attn FLOPs (O(nd²))</span>
+          <span><i style="background:#7c5cff"></i>KV Cache (O(nd))</span>
+        </div>
+        <div class="detail-box">
+          <h4>当前序列长度 n = <span id="p01n">8192</span></h4>
+          <p id="p01detail">标准注意力的注意力矩阵规模为 n×n，因此显存与计算量随 n 平方增长。当 n 从 4K 增长到 128K，注意力显存将膨胀 1024 倍，这正是长上下文建模的核心瓶颈。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">序列长度 n</div><div class="v amber" id="st01n">—</div></div>
+          <div class="stat"><div class="k">Attn FLOPs</div><div class="v" id="st01flops">—</div></div>
+          <div class="stat"><div class="k">Attn 显存</div><div class="v" style="color:#f87171" id="st01mem">—</div></div>
+          <div class="stat"><div class="k">KV Cache</div><div class="v purple" id="st01kv">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 线性注意力 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>线性注意力与 Kernel Trick</h2>
+      <p>将 softmax(QK^T) 替换为可分解的 φ(Q)φ(K)^T，先计算 φ(K)^T V（与 n 无关的 d×d 矩阵），再左乘 φ(Q)，把复杂度从 O(n²d) 降到 O(nd²)。点击切换核函数并观察分解流向。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">linear-attention.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="detail-box">
+          <h4 id="p02title">核函数 φ 映射</h4>
+          <p id="p02detail">线性注意力的关键在于 kernel trick：把不可分解的 softmax 拆成可分解的特征映射 φ。标准做法是 φ(x)=elu(x)+1，使 attn = (φ(Q)(φ(K)^T V)) / (φ(Q)∑φ(K))，分母分子均可递推，推理时成为线性 RNN。</p>
+          <code class="formula">Attn(Q,K,V) = φ(Q) · (φ(K)ᵀ V) / φ(Q) · ∑φ(K)</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">标准复杂度</div><div class="v amber" id="st02std">O(n²d)</div></div>
+          <div class="stat"><div class="k">线性复杂度</div><div class="v" style="color:#34d399" id="st02lin">O(nd²)</div></div>
+          <div class="stat"><div class="k">交叉点 n</div><div class="v purple" id="st02cross">—</div></div>
+          <div class="stat"><div class="k">当前核</div><div class="v" id="st02ker">elu+1</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 Mamba / SSM ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>Mamba 与状态空间模型</h2>
+      <p>SSM 通过连续微分方程 h'(t)=Ah(t)+Bx(t) 建模，经 ZOH 离散化为 h_t=Āh_{t-1}+B̄x_t，输出 y_t=Ch_t。Mamba 的关键创新是让 A、B、C 依赖于输入（选择性），从而可沿序列扫描。点击播放观察状态传递。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">mamba-ssm.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>输入 x_t</span>
+          <span><i style="background:#7c5cff"></i>隐状态 h_t</span>
+          <span><i style="background:#34d399"></i>输出 y_t</span>
+          <span><i style="background:#fbbf24"></i>矩阵 Ā/B̄/C</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">选择性扫描</h4>
+          <p id="p03detail">传统 SSM 的 A/B/C 是固定参数（LTI 系统）；Mamba 让 B、C 依输入变化，Ā 也通过门控改变，使模型能“遗忘”无关 token、“记住”关键 token。这把 RNN 的归纳偏置与 Transformer 的上下文选择性结合，推理为线性时间。</p>
+          <code class="formula">h_t = Ā_t h_{t-1} + B̄_t x_t ,  y_t = C_t h_t</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">序列位置</div><div class="v amber" id="st03t">0</div></div>
+          <div class="stat"><div class="k">状态维度 N</div><div class="v purple" id="st03n">16</div></div>
+          <div class="stat"><div class="k">推理复杂度</div><div class="v" style="color:#34d399">O(Nd)</div></div>
+          <div class="stat"><div class="k">是否选择性</div><div class="v" id="st03sel">是</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 RWKV ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>RWKV：线性 RNN 与注意力混合</h2>
+      <p>RWKV 用 WKV 机制把注意力改写为可递推形式：每个 token 的“键值累加”随序列增长。time-mixing 类似注意力，channel-mixing 类似 FFN。点击播放观察 WKV 的指数衰减累加。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">rwkv-wkv.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>key k_t</span>
+          <span><i style="background:#7c5cff"></i>value v_t</span>
+          <span><i style="background:#34d399"></i>累加值 wkvt</span>
+          <span><i style="background:#fbbf24"></i>衰减 w</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">WKV 机制</h4>
+          <p id="p04detail">WKV(t) = ∑_i e^{-(t-1-i)w+k_i} · v_i / ∑_i e^{-(t-1-i)w+k_i}。指数衰减项 w 使远处的 key/value 贡献随距离指数衰减，因此可在线性时间递推累加。time-mixing 处理时序混合，channel-mixing 处理通道间非线性。</p>
+          <code class="formula">wkv_t = (Σ_{i<t} e^{-(t-1-i)w+k_i} v_i + e^{u+k_t}v_t) / (Σ_{i<t} e^{-(t-1-i)w+k_i} + e^{u+k_t})</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">序列位置 t</div><div class="v amber" id="st04t">0</div></div>
+          <div class="stat"><div class="k">衰减系数 w</div><div class="v purple" id="st04w">—</div></div>
+          <div class="stat"><div class="k">有效窗口</div><div class="v" id="st04win">—</div></div>
+          <div class="stat"><div class="k">推理复杂度</div><div class="v" style="color:#34d399">O(d)</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 稀疏注意力 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>稀疏注意力模式对比</h2>
+      <p>通过限制每个 query 只关注部分 key，把注意力矩阵稀疏化。Longformer 滑窗 + 全局 token；BigBird 加入随机块；Sparse Transformer 用条纹模式。切换模式查看不同的稀疏掩码与有效密度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sparse-patterns.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>被关注</span>
+          <span><i style="background:#1c1f24"></i>掩码</span>
+          <span><i style="background:#7c5cff"></i>全局 token</span>
+          <span><i style="background:#fbbf24"></i>随机连接</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">模式：滑窗 (Sliding Window)</h4>
+          <p id="p05detail">每个 token 只关注前后 w 个 token，复杂度 O(nw)。Longformer 在此基础上加入少量全局 token（如 [CLS]）以聚合整体信息。密度 = 关注数 / n²，n 越大稀疏度越高。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v amber" id="st05mode">滑窗</div></div>
+          <div class="stat"><div class="k">窗口 w</div><div class="v purple" id="st05w">4</div></div>
+          <div class="stat"><div class="k">有效密度</div><div class="v" id="st05dens">—</div></div>
+          <div class="stat"><div class="k">复杂度</div><div class="v" style="color:#34d399" id="st05cx">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 滑动窗口注意力 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>滑动窗口注意力 (Mistral SWA)</h2>
+      <p>Mistral 采用滑动窗口注意力，每个 token 只关注前 w 个 token。配合层堆叠，第 L 层的有效感受野为 L×w，从而以局部计算达到全局覆盖。调节窗口与层数观察感受野扩展。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sliding-window.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>第 1 层窗口</span>
+          <span><i style="background:#7c5cff"></i>第 2 层窗口</span>
+          <span><i style="background:#34d399"></i>第 3 层窗口</span>
+          <span><i style="background:#fbbf24"></i>有效感受野</span>
+        </div>
+        <div class="detail-box">
+          <h4>有效感受野 = 层数 × 窗口大小</h4>
+          <p id="p06detail">每一层的输出都聚合了上一层窗口内的信息；堆叠 L 层后，顶层输出可触达 L×w 个 token。因此用较小窗口配合较多层数即可达到长程依赖，而单层复杂度仅 O(nw)。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">窗口 w</div><div class="v amber" id="st06w">3</div></div>
+          <div class="stat"><div class="k">层数 L</div><div class="v purple" id="st06l">3</div></div>
+          <div class="stat"><div class="k">有效感受野</div><div class="v" style="color:#34d399" id="st06rf">—</div></div>
+          <div class="stat"><div class="k">单层复杂度</div><div class="v" id="st06cx">O(nw)</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 Flash Attention ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>Flash Attention 与 IO 复杂度</h2>
+      <p>Flash Attention 不改变数学结果，但通过分块 (tiling) 把注意力计算限制在快速 SRAM 中，避免反复读写 HBM。标准注意力 IO 为 O(N²d)，Flash 降至 O(N²d²/M)（M 为 SRAM 大小）。切换模式对比访问模式。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">flash-attention.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>HBM 读写</span>
+          <span><i style="background:#34d399"></i>SRAM 计算</span>
+          <span><i style="background:#7c5cff"></i>分块 (tile)</span>
+          <span><i style="background:#f87171"></i>N×N 注意力矩阵</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">IO 复杂度对比</h4>
+          <p id="p07detail">标准注意力需把 N×N 的中间矩阵写回 HBM 再读出，IO 量 O(N²d)。Flash 按 Q 行分块，每块加载对应 K、V 行块到 SRAM，计算局部 softmax 并在线累积输出，全程不物化 N×N 矩阵。IO 降为 O(N²d²/M)。</p>
+          <code class="formula">IO_naive = O(N²d)   ·   IO_flash = O(N²d² / M_SRAM)</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v amber" id="st07mode">标准</div></div>
+          <div class="stat"><div class="k">块大小 Br</div><div class="v purple" id="st07br">—</div></div>
+          <div class="stat"><div class="k">HBM 访问</div><div class="v" style="color:#f87171" id="st07hbm">—</div></div>
+          <div class="stat"><div class="k">SRAM 容量 M</div><div class="v" style="color:#34d399" id="st07sram">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 架构对比 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>架构综合对比雷达图</h2>
+      <p>从推理速度、长序列支持、参数效率、训练成本、效果、并行性六个维度对比 Transformer、Linear Attention、Mamba、RWKV、Flash Attention。勾选架构叠加显示，查看各自的优势区。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">arch-compare.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 440"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend" id="lg08"></div>
+        <div class="detail-box">
+          <h4 id="p08title">综合对比说明</h4>
+          <p id="p08detail">Transformer 在效果与并行性上领先，但长序列成本高；Mamba/RWKV 推理为线性、长序列友好，但训练并行性弱；Flash Attention 是 Transformer 的 IO 优化，效果不变而训练更快。各架构在不同任务上各有所长。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">对比维度</div><div class="v amber" id="st08dim">6</div></div>
+          <div class="stat"><div class="k">已选架构</div><div class="v purple" id="st08sel">—</div></div>
+          <div class="stat"><div class="k">最佳推理</div><div class="v" style="color:#34d399" id="st08inf">—</div></div>
+          <div class="stat"><div class="k">最佳并行</div><div class="v" id="st08par">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>transformer-evolution-viz-lab · Transformer 架构演进可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/transformer-evolution-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   各模块
+   ============================================================ */
+/* ============================================================
+   01 注意力复杂度
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420,padL=58,padR=24,padT=24,padB=44;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const d=128; // head dim
+  let n=8192;
+
+  function attnFlops(nn){return 2*nn*nn*d;}
+  function attnMem(nn){return nn*nn*2;}
+  function linearFlops(nn){return 2*nn*d*d;}
+  function kvCache(nn){return 2*nn*d*2;}
+  const NMIN=512,NMAX=131072;
+  function xScale(v){return padL+(Math.log2(v)-Math.log2(NMIN))/(Math.log2(NMAX)-Math.log2(NMIN))*plotW;}
+  function fmt(v){
+    if(v<1)return v.toExponential(1);
+    if(v<1000)return v.toFixed(v<10?1:0);
+    if(v<1e6)return (v/1e3).toFixed(1)+"K";
+    if(v<1e9)return (v/1e6).toFixed(1)+"M";
+    if(v<1e12)return (v/1e9).toFixed(1)+"G";
+    if(v<1e15)return (v/1e12).toFixed(1)+"T";
+    return v.toExponential(1);
+  }
+  const series=[
+    {key:"flops",f:attnFlops,c:"#2dd4ff",lbl:"Attn FLOPs"},
+    {key:"mem",f:attnMem,c:"#f87171",lbl:"Attn 显存"},
+    {key:"lin",f:linearFlops,c:"#34d399",lbl:"Linear Attn FLOPs"},
+    {key:"kv",f:kvCache,c:"#7c5cff",lbl:"KV Cache"}
+  ];
+  function samples(){const a=[];for(let s=NMIN;s<=NMAX;s*=2)a.push({n:s,flops:attnFlops(s),mem:attnMem(s),lin:linearFlops(s),kv:kvCache(s)});return a;}
+
+  function draw(){
+    clearNode(svg);
+    const sm=samples();
+    const yMax=Math.max(...sm.flatMap(s=>[s.flops,s.mem,s.lin,s.kv]));
+    const lY=Math.log10(yMax);
+    const yScale=v=>padT+plotH-(Math.log10(Math.max(1,v))/lY)*plotH;
+    // grid
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const v=Math.pow(10,lY*i/5);
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,fill:"#62666d"});t.textContent=fmt(v);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    for(let s=NMIN;s<=NMAX;s*=4){
+      const x=xScale(s);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,fill:"#62666d"});
+      t.textContent=s>=1024?(s/1024)+"K":s;svg.appendChild(t);
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});xl.textContent="序列长度 n (log)";svg.appendChild(xl);
+    const yl=el("text",{x:16,y:padT+plotH/2,"text-anchor":"middle","font-size":11,fill:"#9b9fa8",transform:"rotate(-90 16 "+(padT+plotH/2)+")"});yl.textContent="FLOPs / 显存 (log)";svg.appendChild(yl);
+    // curves
+    series.forEach(sr=>{
+      let path="";
+      sm.forEach((s,i)=>{
+        const x=xScale(s.n),y=yScale(s[sr.key]);
+        path+=(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1)+" ";
+      });
+      svg.appendChild(el("path",{d:path,fill:"none",stroke:sr.c,"stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.95}));
+    });
+    // marker at n
+    const cx=xScale(n);
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,"stroke-dasharray":"3 3",opacity:.4}));
+    series.forEach(sr=>{
+      const val=sr.f(n);
+      const cy=yScale(val);
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:4,fill:sr.c,stroke:"#0b0b0c","stroke-width":1.4}));
+      const t=el("text",{x:cx+8,y:cy-6,"font-size":10.5,fill:sr.c});t.textContent=sr.lbl+"="+fmt(val);svg.appendChild(t);
+    });
+    // stats
+    $("st01n").textContent=n>=1024?(n/1024)+"K":n;
+    $("st01flops").textContent=fmt(attnFlops(n));
+    $("st01mem").textContent=fmt(attnMem(n))+"B";
+    $("st01kv").textContent=fmt(kvCache(n))+"B";
+    $("p01n").textContent=n;
+    const ratio=attnFlops(n*2)/attnFlops(n);
+    $("p01detail").textContent="标准注意力的注意力矩阵为 n×n，显存与计算量随 n 平方增长。当前 n="+n+"，注意力的 FLOPs 约 "+fmt(attnFlops(n))+"，显存约 "+fmt(attnMem(n))+" 字节。n 翻倍时计算量增长 "+ratio.toFixed(0)+" 倍——这正是长上下文的核心瓶颈。";
+  }
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>序列长度 n</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=9;inp.max=17;inp.value=13; // log2
+  const val=document.createElement("span");val.className="val";val.textContent=n;
+  inp.addEventListener("input",()=>{n=Math.pow(2,+inp.value);val.textContent=n>=1024?(n/1024)+"K":n;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="扫描 n";
+  anim.addEventListener("click",()=>{const from=9,to=17;animate(1800,p=>{n=Math.pow(2,from+(to-from)*ease(p));inp.value=Math.round(Math.log2(n));val.textContent=n>=1024?(n/1024)+"K":n;draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   02 线性注意力
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  let mode="std"; // std | lin
+  let ker="elu"; // elu | relu | exp
+  const kernels={
+    elu:{name:"φ(x)=elu(x)+1",desc:"ELU+1 保证非负且可分解，是最常用的线性注意力核。"},
+    relu:{name:"φ(x)=relu(x)",desc:"ReLU 简单但表达力较弱，分母可能不稳。"},
+    exp:{name:"φ(x)=e^x (近似)",desc:"指数核逼近 softmax，但仍可分解为可递推形式。"}
+  };
+
+  function matLabel(x,y,w,h,text,sub,col){
+    const g=el("g",{transform:"translate("+x+","+y+")"});
+    g.appendChild(el("rect",{x:0,y:0,width:w,height:h,rx:5,fill:"#16181c",stroke:col||"rgba(255,255,255,.18)","stroke-width":1.3}));
+    const t=el("text",{x:w/2,y:h/2-2,"text-anchor":"middle","font-size":12,fill:"#f7f8f8"});t.textContent=text;g.appendChild(t);
+    if(sub){const s=el("text",{x:w/2,y:h/2+12,"text-anchor":"middle","font-size":10,fill:"#9b9fa8"});s.textContent=sub;g.appendChild(s);}
+    return g;
+  }
+  function arrow(x1,y1,x2,y2,col,dash){
+    const a=el("line",{x1:x1,y1:y1,x2:x2,y2:y2,stroke:col||"#7c5cff","stroke-width":1.4});
+    if(dash)a.setAttribute("stroke-dasharray",dash);
+    return a;
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 标题
+    const tl=el("text",{x:W/2,y:24,"text-anchor":"middle","font-size":13,fill:"#9b9fa8"});tl.textContent=mode==="std"?"标准注意力 (n×n 瓶颈)":"线性注意力 (φ(Q)φ(K)ᵀV 分解)";svg.appendChild(tl);
+    if(mode==="std"){
+      // Q K V -> QK^T (n×n) -> softmax -> ×V
+      const yMid=180;
+      const qw=60,qh=70,gh=14;
+      // Q
+      svg.appendChild(matLabel(60,yMid-qh/2,qw,qh,"Q","n×d","#2dd4ff"));
+      svg.appendChild(matLabel(60,yMid-qh/2+qh+gh,qw,qh,"K","n×d","#7c5cff"));
+      svg.appendChild(matLabel(60,yMid-qh/2+2*(qh+gh),qw,qh,"V","n×d","#34d399"));
+      // QK^T big matrix (n×n) - the bottleneck
+      const bx=220,by=yMid-50;
+      svg.appendChild(matLabel(bx,by,90,100,"QKᵀ","n×n","#f87171"));
+      // highlight bottleneck
+      const ring=el("rect",{x:bx-4,y:by-4,width:98,height:108,rx:7,fill:"none",stroke:"#f87171","stroke-width":1.6,"stroke-dasharray":"4 3"});
+      svg.appendChild(ring);
+      const bn=el("text",{x:bx+45,y:by-14,"text-anchor":"middle","font-size":11,fill:"#f87171"});bn.textContent="瓶颈 O(n²)";svg.appendChild(bn);
+      // softmax
+      svg.appendChild(matLabel(370,by,70,100,"softmax","","#fbbf24"));
+      // ×V -> output
+      svg.appendChild(matLabel(490,yMid-35,60,70,"×V","n×d","#34d399"));
+      svg.appendChild(matLabel(600,yMid-35,70,70,"Output","n×d","#2dd4ff"));
+      // arrows
+      svg.appendChild(arrow(120,yMid-qh,220,yMid-30));
+      svg.appendChild(arrow(120,yMid-qh+qh+gh,220,yMid+30));
+      svg.appendChild(arrow(310,yMid,370,yMid));
+      svg.appendChild(arrow(440,yMid,490,yMid));
+      svg.appendChild(arrow(550,yMid,600,yMid));
+      // V arrow into multiply
+      svg.appendChild(arrow(120,yMid-qh/2+2*(qh+gh)+qh/2,490,yMid+35,"#34d399","4 3"));
+      // note
+      const n=el("text",{x:W/2,y:H-26,"text-anchor":"middle","font-size":12,fill:"#9b9fa8"});n.textContent="复杂度 O(n²d) · 显存 O(n²) · n×n 矩阵必须物化";svg.appendChild(n);
+    }else{
+      // φ(Q) φ(K) V -> φ(K)^T V (d×d) -> φ(Q) × (...) -> output
+      const yMid=180;
+      const qw=60,qh=70,gh=14;
+      svg.appendChild(matLabel(60,yMid-qh/2,qw,qh,"φ(Q)","n×d","#2dd4ff"));
+      svg.appendChild(matLabel(60,yMid-qh/2+qh+gh,qw,qh,"φ(K)","n×d","#7c5cff"));
+      svg.appendChild(matLabel(60,yMid-qh/2+2*(qh+gh),qw,qh,"V","n×d","#34d399"));
+      // φ(K)^T V small d×d
+      const bx=230,by=yMid-25;
+      svg.appendChild(matLabel(bx,by,70,50,"φ(K)ᵀV","d×d","#fbbf24"));
+      const ring=el("rect",{x:bx-4,y:by-4,width:78,height:58,rx:7,fill:"none",stroke:"#fbbf24","stroke-width":1.6,"stroke-dasharray":"4 3"});
+      svg.appendChild(ring);
+      const bn=el("text",{x:bx+35,y:by-12,"text-anchor":"middle","font-size":11,fill:"#fbbf24"});bn.textContent="小矩阵 d×d";svg.appendChild(bn);
+      // φ(Q) × (...)
+      svg.appendChild(matLabel(380,by,70,50,"×","","#2dd4ff"));
+      svg.appendChild(matLabel(500,by,80,50,"Output","n×d","#2dd4ff"));
+      // arrows
+      svg.appendChild(arrow(120,yMid-qh/2+qh+gh+qh/2,bx,by+25,"#7c5cff"));
+      svg.appendChild(arrow(120,yMid-qh/2+2*(qh+gh)+qh/2,bx,by+35,"#34d399"));
+      svg.appendChild(arrow(300,by+25,380,by+25));
+      svg.appendChild(arrow(450,by+25,500,by+25));
+      svg.appendChild(arrow(120,yMid-qh/2+qh/2,380,by+10,"#2dd4ff","4 3"));
+      const n=el("text",{x:W/2,y:H-26,"text-anchor":"middle","font-size":12,fill:"#9b9fa8"});n.textContent="复杂度 O(nd²) · 显存 O(d²) · n×n 矩阵无需物化";svg.appendChild(n);
+      // φ mapping note
+      const fm=el("text",{x:W/2,y:H-46,"text-anchor":"middle","font-size":11.5,fill:"#34d399"});fm.textContent="当前核: "+kernels[ker].name;svg.appendChild(fm);
+    }
+    // stats
+    $("st02ker").textContent=kernels[ker].name.split("=")[0].replace("φ(","").replace(")","");
+    // 交叉点：n²d = nd² => n=d
+    $("st02cross").textContent="n=d="+128;
+    $("p02title").textContent=mode==="std"?"标准注意力流程":"线性注意力分解流程";
+    $("p02detail").textContent=mode==="std"?"标准注意力需物化 n×n 的 QKᵀ 与 softmax 结果，显存与计算随 n 平方增长。当序列很长时（如 128K），n×n 矩阵将远超显存。":kernels[ker].desc+" 关键是先计算 φ(K)ᵀV（d×d，与 n 无关），再左乘 φ(Q)。当 n≫d 时复杂度从 O(n²d) 降为 O(nd²)。";
+  }
+  draw();
+  const stdBtn=document.createElement("button");stdBtn.className="btn small on";stdBtn.textContent="标准注意力";
+  const linBtn=document.createElement("button");linBtn.className="btn small";linBtn.textContent="线性注意力";
+  stdBtn.addEventListener("click",()=>{mode="std";stdBtn.classList.add("on");linBtn.classList.remove("on");draw();});
+  linBtn.addEventListener("click",()=>{mode="lin";linBtn.classList.add("on");stdBtn.classList.remove("on");draw();});
+  ctl.appendChild(stdBtn);ctl.appendChild(linBtn);
+  const lbl=document.createElement("span");lbl.className="slider-group";lbl.innerHTML='<span style="margin-left:6px">核函数</span>';ctl.appendChild(lbl);
+  Object.keys(kernels).forEach(k=>{
+    const b=document.createElement("button");b.className="btn small"+(k===ker?" on":"");b.textContent=kernels[k].name.split("=")[0];
+    b.addEventListener("click",()=>{ker=k;if(mode!=="lin"){mode="lin";linBtn.classList.add("on");stdBtn.classList.remove("on");}document.querySelectorAll("#ctl02 .small").forEach((x,i)=>{if(i>=2)x.classList.remove("on");});b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   03 Mamba / SSM
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420;
+  const T=8; // 序列长度
+  const N=8; // 状态维度 (展示用)
+  let pos=0;
+  let selective=true;
+  let playing=false;
+  // 构造确定性输入序列
+  const xs=[0.4,-0.6,0.8,0.2,-0.3,0.9,-0.5,0.1];
+  // 状态：每个位置一个 N 维向量
+  let states=[]; // states[t] = h_t
+  let outs=[];
+  function compute(){
+    states=[];outs=[];
+    let h=new Array(N).fill(0);
+    for(let t=0;t<T;t++){
+      const x=xs[t];
+      // A_t, B_t, C_t
+      let A,B,C,D=0.1;
+      if(selective){
+        // A 随输入门控（输入大时衰减大，遗忘旧状态）
+        const gate=Math.tanh(x); // [-1,1]
+        const discA=Math.exp(-0.8+gate*1.2); // 衰减系数
+        A=Array.from({length:N},(_,k)=>discA*(0.6+0.4*Math.cos(k+x)));
+        B=Array.from({length:N},(_,k)=>0.5*x*(0.5+0.5*Math.sin(k)));
+        C=Array.from({length:N},(_,k)=>0.4*Math.cos(k+t*0.3));
+      }else{
+        const discA=Math.exp(-0.5);
+        A=Array.from({length:N},(_,k)=>discA*(0.6+0.4*Math.cos(k)));
+        B=Array.from({length:N},(_,k)=>0.3*(0.5+0.5*Math.sin(k)));
+        C=Array.from({length:N},(_,k)=>0.4*Math.cos(k));
+      }
+      const nh=A.map((a,k)=>a*h[k]+B[k]*x);
+      h=nh;
+      states.push(h.slice());
+      let y=0;for(let k=0;k<N;k++)y+=C[k]*h[k];y+=D*x;
+      outs.push(y);
+    }
+  }
+  function draw(){
+    clearNode(svg);
+    compute();
+    // 顶部：输入 token 序列
+    const ty=50,cellW=70,gap=10;
+    const startX=(W-T*cellW-(T-1)*gap)/2;
+    for(let t=0;t<T;t++){
+      const cx=startX+t*(cellW+gap);
+      const on=t<=pos;
+      svg.appendChild(el("rect",{x:cx,y:ty,width:cellW,height:34,rx:6,fill:on?"rgba(45,212,255,.18)":"#16181c",stroke:t===pos?"#2dd4ff":"rgba(255,255,255,.12)","stroke-width":t===pos?1.6:1}));
+      const tx=el("text",{x:cx+cellW/2,y:ty+22,"text-anchor":"middle","font-size":12,fill:on?"#2dd4ff":"#62666d"});tx.textContent="x"+sub(t)+"="+xs[t].toFixed(2);svg.appendChild(tx);
+    }
+    // 中部：SSM 单元 + 矩阵
+    const cy=170;
+    // 状态 h 圆圈
+    const hcx=300,hcy=cy+30;
+    svg.appendChild(el("circle",{cx:hcx,cy:hcy,r:36,fill:"rgba(124,92,255,.12)",stroke:"#7c5cff","stroke-width":1.6}));
+    const hl=el("text",{x:hcx,y:hcy-4,"text-anchor":"middle","font-size":12,fill:"#7c5cff"});hl.textContent="h"+sub(pos);svg.appendChild(hl);
+    const hv=el("text",{x:hcx,y:hcy+12,"text-anchor":"middle","font-size":9,fill:"#9b9fa8"});hv.textContent="state vec";svg.appendChild(hv);
+    // 矩阵标注
+    const mats=[
+      {lbl:"Ā"+sub(pos),x:120,y:cy,desc:"转移",c:"#fbbf24"},
+      {lbl:"B̄"+sub(pos),x:120,y:cy+70,desc:"输入",c:"#2dd4ff"},
+      {lbl:"C"+sub(pos),x:520,y:cy,desc:"输出",c:"#34d399"},
+      {lbl:"D",x:520,y:cy+70,desc:"跳连",c:"#f87171"}
+    ];
+    mats.forEach(m=>{
+      svg.appendChild(el("rect",{x:m.x,y:m.y,width:90,height:46,rx:6,fill:"#16181c",stroke:m.c,"stroke-width":1.3,opacity:pos>0||m.lbl==="D"?1:.4}));
+      const t=el("text",{x:m.x+45,y:m.y+22,"text-anchor":"middle","font-size":13,fill:m.c});t.textContent=m.lbl;svg.appendChild(t);
+      const d=el("text",{x:m.x+45,y:m.y+37,"text-anchor":"middle","font-size":10,fill:"#9b9fa8"});d.textContent=m.desc+(selective?"· 选择性":"");svg.appendChild(d);
+    });
+    // 公式箭头
+    svg.appendChild(el("line",{x1:210,y1:cy+23,x2:hcx-36,y2:hcy,"stroke-width":1.4,stroke:"#fbbf24"}));
+    svg.appendChild(el("line",{x1:210,y1:cy+93,x2:hcx-26,y2:hcy+22,"stroke-width":1.4,stroke:"#2dd4ff"}));
+    svg.appendChild(el("line",{x1:hcx+36,y1:hcy,x2:520,y2:cy+23,"stroke-width":1.4,stroke:"#34d399"}));
+    // 输入箭头 (当前 x 进入)
+    const curX=startX+pos*(cellW+gap)+cellW/2;
+    svg.appendChild(el("path",{d:"M"+curX+","+(ty+34)+" Q"+curX+","+(cy+50)+" "+(hcx-30)+","+(hcy+18),stroke:"#2dd4ff","stroke-width":1.4,fill:"none",opacity:.6}));
+    // 状态条形 (h 向量)
+    const barY=300,barH=50;
+    const h=states[pos]||new Array(N).fill(0);
+    const cellB=460/N;
+    const bx0=(W-460)/2;
+    const maxAbs=Math.max(0.5,...h.map(Math.abs));
+    for(let k=0;k<N;k++){
+      const v=h[k];
+      const bh=Math.abs(v)/maxAbs*barH;
+      const cx=bx0+k*cellB;
+      svg.appendChild(el("rect",{x:cx,y:barY+(v>=0?barH-bh:barH),width:cellB-2,height:Math.max(1,bh),fill:v>=0?"#7c5cff":"#f87171",opacity:.85}));
+    }
+    svg.appendChild(el("line",{x1:bx0,y1:barY+barH,x2:bx0+460,y2:barY+barH,stroke:"rgba(255,255,255,.2)","stroke-width":1}));
+    const bl=el("text",{x:bx0+460/2,y:barY-8,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});bl.textContent="隐状态 h"+sub(pos)+" 各分量";svg.appendChild(bl);
+    // 输出
+    const oy=380;
+    svg.appendChild(el("rect",{x:300,y:oy,width:120,height:28,rx:6,fill:"rgba(52,211,153,.14)",stroke:"#34d399","stroke-width":1.3}));
+    const ot=el("text",{x:360,y:oy+18,"text-anchor":"middle","font-size":12,fill:"#34d399"});ot.textContent="y"+sub(pos)+" = "+(outs[pos]||0).toFixed(3);svg.appendChild(ot);
+    // stats
+    $("st03t").textContent=pos;
+    $("st03sel").textContent=selective?"是 (Mamba)":"否 (LTI)";
+    $("p03detail").textContent=selective?"当前为选择性 SSM (Mamba)：Ā/B̄/C 依输入 x"+sub(pos)+" 变化，当输入门控强时衰减大（遗忘旧状态），使模型能按内容选择性记忆。":"当前为线性时不变 (LTI) SSM：A/B/C 固定，无法按内容调整，表达力弱。Mamba 的核心创新即解除这一限制。";
+  }
+  function sub(i){return ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"][i]||i;}
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放扫描";
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="扫描中…";
+    function next(){
+      if(pos>=T-1){playing=false;play.textContent="播放扫描";pos=0;draw();return;}
+      pos++;draw();setTimeout(next,650);
+    }
+    setTimeout(next,300);
+  });
+  const step=document.createElement("button");step.className="btn";step.textContent="单步 →";
+  step.addEventListener("click",()=>{pos=(pos+1)%T;draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{pos=0;playing=false;play.textContent="播放扫描";draw();});
+  ctl.appendChild(play);ctl.appendChild(step);ctl.appendChild(rst);
+  const sel=document.createElement("button");sel.className="btn small"+(selective?" on":"");sel.textContent=selective?"选择性 (Mamba)":"LTI (传统)";
+  sel.addEventListener("click",()=>{selective=!selective;sel.textContent=selective?"选择性 (Mamba)":"LTI (传统)";sel.classList.toggle("on",selective);pos=0;draw();});
+  ctl.appendChild(sel);
+})();
+
+/* ============================================================
+   04 RWKV
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420;
+  const T=10;
+  let pos=4;
+  let w=0.4; // 衰减
+  let playing=false;
+  // keys/values 确定性序列
+  const ks=[0.8,0.3,1.2,0.5,0.9,0.2,1.1,0.6,0.4,0.7];
+  const vs=[0.5,-0.4,0.9,0.3,-0.7,0.6,0.2,-0.5,0.8,0.1];
+
+  function wkv(t){
+    // 计算 wkv at position t (含自身)
+    let num=0,den=0;
+    for(let i=0;i<=t;i++){
+      const dist=(t-1-i); // RWKV 距离
+      const decay=Math.exp(-(dist>=0?dist:0)*w-ks[i]);
+      const wt=Math.exp(-Math.max(0,dist)*w-ks[i]);
+      num+=wt*vs[i];
+      den+=wt;
+    }
+    // 自身项用 u 增益
+    const selfU=Math.exp(0-ks[t]); // u≈0 简化
+    return den>0?(num)/Math.max(1e-6,den):0;
+  }
+  function contributions(t){
+    // 返回每个 i<=t 的 (贡献权重, value)
+    const out=[];
+    let den=0;
+    for(let i=0;i<=t;i++){
+      const dist=Math.max(0,t-1-i);
+      const wt=Math.exp(-dist*w-ks[i]);
+      den+=wt;
+      out.push({i:i,wt:wt,v:vs[i],dist:dist});
+    }
+    return out.map(o=>({...o,score:o.wt/Math.max(1e-6,den)*o.v}));
+  }
+  function sub(i){return ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"][i]||i;}
+  function draw(){
+    clearNode(svg);
+    // 顶部：key/value 序列
+    const ty=40,cellW=58,gap=6;
+    const startX=(W-T*cellW-(T-1)*gap)/2;
+    for(let t=0;t<T;t++){
+      const cx=startX+t*(cellW+gap);
+      const on=t<=pos;
+      svg.appendChild(el("rect",{x:cx,y:ty,width:cellW,height:54,rx:6,fill:on?"rgba(45,212,255,.14)":"#16181c",stroke:t===pos?"#2dd4ff":"rgba(255,255,255,.12)","stroke-width":t===pos?1.6:1}));
+      const kt=el("text",{x:cx+cellW/2,y:ty+18,"text-anchor":"middle","font-size":10,fill:on?"#2dd4ff":"#62666d"});kt.textContent="k="+ks[t].toFixed(1);svg.appendChild(kt);
+      const vt=el("text",{x:cx+cellW/2,y:ty+34,"text-anchor":"middle","font-size":10,fill:on?"#7c5cff":"#62666d"});vt.textContent="v="+vs[t].toFixed(1);svg.appendChild(vt);
+      const tt=el("text",{x:cx+cellW/2,y:ty+48,"text-anchor":"middle","font-size":8,fill:"#62666d"});tt.textContent="t"+sub(t);svg.appendChild(tt);
+    }
+    // 中部：累加器 - 每个过往 token 的衰减贡献条
+    const conY=150;
+    const cur=contributions(pos);
+    const barW=cellW,maxAbs=Math.max(0.6,...cur.map(c=>Math.abs(c.score)));
+    cur.forEach(c=>{
+      const cx=startX+c.i*(cellW+gap);
+      const bh=Math.abs(c.score)/maxAbs*70;
+      const y0=conY+70;
+      svg.appendChild(el("rect",{x:cx,y:c.score>=0?y0-bh:y0,width:barW-2,height:Math.max(1,bh),fill:c.score>=0?"#34d399":"#f87171",opacity:.3+c.wt/(1+c.wt)*.7}));
+      // 衰减标注
+      const al=el("text",{x:cx+barW/2,y:conY-8,"text-anchor":"middle","font-size":9,fill:"#fbbf24"});al.textContent="e^{-"+c.dist.toFixed(0)+"w}";svg.appendChild(al);
+    });
+    const bl=el("text",{x:W/2,y:conY-22,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});bl.textContent="各过往 token 对 wkv"+sub(pos)+" 的（指数衰减）贡献";svg.appendChild(bl);
+    svg.appendChild(el("line",{x1:startX,y1:conY+70,x2:startX+T*(cellW+gap),y2:conY+70,stroke:"rgba(255,255,255,.18)","stroke-width":1}));
+    // 衰减曲线 (右侧)
+    const crx=560,cry=150,crr=2.5;
+    // 实际衰减曲线 e^(-d*w)
+    let path="M";
+    for(let d=0;d<=8;d+=0.5){
+      const x=crx+d*18;
+      const y=cry+90-Math.exp(-d*w)*70;
+      path+=(d===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1)+" ";
+    }
+    svg.appendChild(el("path",{d:path,fill:"none",stroke:"#fbbf24","stroke-width":1.8}));
+    // 标记当前距离
+    cur.forEach((c,idx)=>{
+      if(c.i===pos){
+        const x=crx+0*18;
+        const y=cry+90-Math.exp(0)*70;
+        svg.appendChild(el("circle",{cx:x,cy:y,r:3,fill:"#fbbf24"}));
+      }
+    });
+    const cl=el("text",{x:crx+80,y:cry-8,"text-anchor":"middle","font-size":10,fill:"#fbbf24"});cl.textContent="衰减 e^{-d·w}";svg.appendChild(cl);
+    const ax=el("text",{x:crx+72,y:cry+108,"text-anchor":"middle","font-size":9,fill:"#62666d"});ax.textContent="距离 d";svg.appendChild(ax);
+    // 输出
+    const oy=320;
+    svg.appendChild(el("rect",{x:280,y:oy,width:160,height:34,rx:7,fill:"rgba(52,211,153,.14)",stroke:"#34d399","stroke-width":1.4}));
+    const y=wkv(pos);
+    const ot=el("text",{x:360,y:oy+22,"text-anchor":"middle","font-size":13,fill:"#34d399"});ot.textContent="wkv"+sub(pos)+" = "+y.toFixed(3);svg.appendChild(ot);
+    // 说明
+    const nl=el("text",{x:W/2,y:H-22,"text-anchor":"middle","font-size":11.5,fill:"#9b9fa8"});nl.textContent="推理时累加器以 (num,den) 形式递推 → O(d) 复杂度";svg.appendChild(nl);
+    // stats
+    $("st04t").textContent=pos;
+    $("st04w").textContent=w.toFixed(2);
+    $("st04win").textContent=(1/w).toFixed(1)+" token";
+    $("p04detail").textContent="当前位置 t="+sub(pos)+"，衰减 w="+w.toFixed(2)+"。远处 token 的贡献按 e^{-d·w} 指数衰减，有效窗口约 1/w="+ (1/w).toFixed(1) +" 个 token。累加器 (num,den) 可在 O(d) 时间内递推，使推理成为线性 RNN。time-mixing 用此 WKV，channel-mixing 则是带门控的 FFN。";
+  }
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>衰减 w</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=5;inp.max=200;inp.value=w*100;
+  const val=document.createElement("span");val.className="val";val.textContent=w.toFixed(2);
+  inp.addEventListener("input",()=>{w=+inp.value/100;val.textContent=w.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>位置 t</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=0;inp2.max=T-1;inp2.value=pos;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=pos;
+  inp2.addEventListener("input",()=>{pos=+inp2.value;val2.textContent=pos;draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放扫描";
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="扫描中…";pos=0;
+    function next(){if(pos>=T-1){playing=false;play.textContent="播放扫描";return;}pos++;inp2.value=pos;val2.textContent=pos;draw();setTimeout(next,500);}
+    setTimeout(next,200);
+  });
+  ctl.appendChild(play);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{pos=4;w=0.4;inp.value=40;val.textContent="0.40";inp2.value=4;val2.textContent=4;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 稀疏注意力
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=420;
+  const N=16; // 矩阵大小
+  let mode="window";
+  let w=4;
+  let globals=[0,7,15]; // 全局 token 索引
+  let randSeed=42;
+  function rng(s){return ()=>{s=(s*9301+49297)%233280;return s/233280;};}
+  function buildMask(){
+    const m=[];
+    for(let i=0;i<N;i++)m.push(new Array(N).fill(false));
+    const gi=new Set(globals);
+    for(let i=0;i<N;i++){
+      for(let j=0;j<N;j++){
+        if(mode==="dense"){m[i][j]=j<=i;}
+        else if(mode==="window"){if(j<=i&&i-j<w)m[i][j]=true;}
+        else if(mode==="longformer"){if(j<=i&&i-j<w)m[i][j]=true;if(gi.has(i)||gi.has(j))m[i][j]=j<=i;}
+        else if(mode==="dilated"){if(j<=i){const dd=i-j;if(dd<w||dd%w===0)m[i][j]=true;}}
+        else if(mode==="bigbird"){if(j<=i&&i-j<w)m[i][j]=true;if(gi.has(i)||gi.has(j))m[i][j]=j<=i;const r=rng(randSeed+i);for(let k=0;k<2;k++){const rr=Math.floor(r()*i);if(rr>=0)m[i][rr]=true;}}
+        else if(mode==="striped"){if(j<=i){const dd=i-j;if(dd<w||j%4===0)m[i][j]=true;}}
+      }
+    }
+    return m;
+  }
+  const modeInfo={
+    dense:{name:"稠密 (Dense)",cx:"O(n²)",desc:"每个 query 关注所有过往 key（因果掩码下三角）。密度最高，复杂度 O(n²d)。"},
+    window:{name:"滑窗 (Sliding Window)",cx:"O(nw)",desc:"每个 token 只关注前 w 个 token，复杂度 O(nw)。窗口外的信息需靠层堆叠传递。"},
+    longformer:{name:"Longformer",cx:"O(n(w+g))",desc:"滑窗 + 少量全局 token（图中紫色行/列），全局 token 关注全部，用于聚合整体信息。"},
+    dilated:{name:"膨胀窗口 (Dilated)",cx:"O(nw)",desc:"窗口内密集 + 等距条纹，扩大感受野而不增复杂度。类似膨胀卷积的思想。"},
+    bigbird:{name:"BigBird",cx:"O(nw)",desc:"窗口 + 全局 + 随机连接三类组合，理论证明能逼近稠密注意力的表达力。"},
+    striped:{name:"条纹 (Sparse Transformer)",cx:"O(nw)",desc:"滑窗 + 按 stride 选取条纹列，使稀疏模式下仍能传递长程信息。"}
+  };
+  function draw(){
+    clearNode(svg);
+    const mask=buildMask();
+    const cell=24,gx=130,gy=40;
+    const gi=new Set(globals);
+    // 网格
+    for(let i=0;i<N;i++){
+      for(let j=0;j<N;j++){
+        const x=gx+j*cell,y=gy+i*cell;
+        let fill="#16181c",stroke="rgba(255,255,255,.05)";
+        if(mask[i][j]){
+          fill="rgba(45,212,255,.6)";
+          if(gi.has(i)||gi.has(j))fill="rgba(124,92,255,.7)";
+        }
+        if(mode==="bigbird"&&mask[i][j]&&!gi.has(i)&&!gi.has(j)&&(i-j>=w)){
+          // 随机连接用黄色
+          fill="rgba(251,191,36,.6)";
+        }
+        if(mode==="striped"&&mask[i][j]&&(j%4===0)&&(i-j>=w))fill="rgba(251,191,36,.6)";
+        svg.appendChild(el("rect",{x:x,y:y,width:cell-1,height:cell-1,fill:fill,stroke:stroke}));
+      }
+    }
+    // 坐标轴
+    const tl=el("text",{x:gx+N*cell/2,y:gy-18,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});tl.textContent="key j →";svg.appendChild(tl);
+    const ql=el("text",{x:gx-12,y:gy+N*cell/2,transform:"rotate(-90 "+(gx-12)+" "+(gy+N*cell/2)+")","text-anchor":"middle","font-size":11,fill:"#9b9fa8"});ql.textContent="query i ↓";svg.appendChild(ql);
+    // 全局 token 标记
+    globals.forEach(g=>{
+      svg.appendChild(el("rect",{x:gx+g*cell-1,y:gy-30,width:cell,height:18,rx:3,fill:"rgba(124,92,255,.2)",stroke:"#7c5cff","stroke-width":1}));
+      const t=el("text",{x:gx+g*cell+cell/2,y:gy-16,"text-anchor":"middle","font-size":9,fill:"#7c5cff"});t.textContent="G";svg.appendChild(t);
+    });
+    // 右侧：密度/统计
+    let cnt=0,tot=0;
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){if(j<=i){tot++;if(mask[i][j])cnt++;}}
+    const dens=tot>0?cnt/tot:0;
+    const rx=560,ry=60;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:130,height:120,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const t1=el("text",{x:rx+65,y:ry+24,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});t1.textContent="有效密度";svg.appendChild(t1);
+    // 密度条
+    const bw=100,bh=12,bx=rx+15,by=ry+40;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:6,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw*dens,height:bh,rx:6,fill:"#2dd4ff"}));
+    const dv=el("text",{x:rx+65,y:by+30,"text-anchor":"middle","font-size":13,fill:"#2dd4ff"});dv.textContent=(dens*100).toFixed(1)+"%";svg.appendChild(dv);
+    const t2=el("text",{x:rx+65,y:by+50,"text-anchor":"middle","font-size":10,fill:"#62666d"});t2.textContent="关注 "+cnt+" / "+tot+" (下三角)";svg.appendChild(t2);
+    const t3=el("text",{x:rx+65,y:ry+100,"text-anchor":"middle","font-size":11,fill:"#34d399"});t3.textContent="复杂度 "+modeInfo[mode].cx;svg.appendChild(t3);
+    // 窗口示意
+    const wy=260;
+    svg.appendChild(el("rect",{x:gx,y:wy,width:N*cell,height:80,rx:6,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const wl=el("text",{x:gx+N*cell/2,y:wy+18,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});wl.textContent="窗口 w="+w+" · 模式: "+modeInfo[mode].name;svg.appendChild(wl);
+    // 行内示意：第 i 个 query 的关注范围
+    const i=10;
+    for(let j=0;j<N;j++){
+      const x=gx+j*cell;
+      let fill="#1c1f24";
+      if(mask[i][j])fill=gi.has(i)||gi.has(j)?"#7c5cff":(mode==="bigbird"&&i-j>=w||mode==="striped"&&j%4===0&&i-j>=w?"#fbbf24":"#2dd4ff");
+      else fill="rgba(255,255,255,.05)";
+      svg.appendChild(el("rect",{x:x,y:wy+30,width:cell-1,height:18,fill:fill}));
+    }
+    const il=el("text",{x:gx-8,y:wy+44,"text-anchor":"end","font-size":10,fill:"#9b9fa8"});il.textContent="i=10";svg.appendChild(il);
+    // stats
+    $("st05mode").textContent=modeInfo[mode].name;
+    $("st05w").textContent=w;
+    $("st05dens").textContent=(dens*100).toFixed(1)+"%";
+    $("st05cx").textContent=modeInfo[mode].cx;
+    $("p05title").textContent="模式："+modeInfo[mode].name;
+    $("p05detail").textContent=modeInfo[mode].desc+" 当前有效密度 "+(dens*100).toFixed(1)+"%——n 越大，稠密注意力的浪费越显著，稀疏模式的相对节省越多。";
+  }
+  draw();
+  const modes=Object.keys(modeInfo);
+  modes.forEach(m=>{
+    const b=document.createElement("button");b.className="btn small"+(m===mode?" on":"");b.textContent=modeInfo[m].name.split(" (")[0];
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>窗口 w</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=8;inp.value=w;
+  const val=document.createElement("span");val.className="val";val.textContent=w;
+  inp.addEventListener("input",()=>{w=+inp.value;val.textContent=w;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const regen=document.createElement("button");regen.className="btn ghost small";regen.textContent="换随机种子";
+  regen.addEventListener("click",()=>{randSeed=Math.floor(Math.random()*10000);draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   06 滑动窗口注意力
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  const N=20; // token 数
+  let w=3;
+  let L=3;
+  const colors=["#2dd4ff","#7c5cff","#34d399"];
+  function draw(){
+    clearNode(svg);
+    const cell=28,gx=70,gy0=70;
+    // token 行
+    for(let t=0;t<N;t++){
+      const x=gx+t*cell;
+      svg.appendChild(el("rect",{x:x,y:gy0,width:cell-1,height:24,rx:4,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+      const tt=el("text",{x:x+cell/2,y:gy0+16,"text-anchor":"middle","font-size":10,fill:"#62666d"});tt.textContent=t;svg.appendChild(tt);
+    }
+    // 各层窗口覆盖（从顶层 token 视角，自底向上累积）
+    // 底层 (layer 1): 每个 token 关注前 w 个
+    // 层 l: 每个 token 关注上一层中窗口内 token，等价于关注 l*w 个原始 token
+    const rf=L*w;
+    for(let l=1;l<=L;l++){
+      const ly=gy0+40+(l-1)*54;
+      const cov=l*w;
+      // 该层每个 token 的覆盖区间（向左 cov 个）
+      const t=el("text",{x:gx-8,y:ly+18,"text-anchor":"end","font-size":10,fill:colors[l-1]});t.textContent="L"+l;svg.appendChild(t);
+      for(let i=0;i<N;i++){
+        const x=gx+i*cell;
+        // 顶层只显示最后一个 token 的覆盖，避免太密
+        const showFull=l<L;
+        if(showFull){
+          // 画该 token 在该层的窗口
+          const start=Math.max(0,i-cov+1);
+          svg.appendChild(el("rect",{x:gx+start*cell,y:ly,width:(i-start+1)*cell-1,height:18,rx:3,fill:colors[l-1],opacity:.12+(l/L)*.18}));
+          svg.appendChild(el("rect",{x:x,y:ly,width:cell-1,height:18,rx:3,fill:colors[l-1],opacity:.9}));
+        }
+      }
+      if(l===L){
+        // 顶层：高亮最后一个 token 的有效感受野
+        const last=N-1;
+        const start=Math.max(0,last-rf+1);
+        // 有效感受野框
+        svg.appendChild(el("rect",{x:gx+start*cell-3,y:ly-3,width:(last-start+1)*cell+6,height:24,rx:5,fill:"none",stroke:"#fbbf24","stroke-width":1.8,"stroke-dasharray":"4 3"}));
+        const tl=el("text",{x:gx+start*cell+(last-start+1)*cell/2,y:ly-12,"text-anchor":"middle","font-size":11,fill:"#fbbf24"});tl.textContent="有效感受野 = L×w = "+rf;svg.appendChild(tl);
+        // 顶层 token 覆盖
+        svg.appendChild(el("rect",{x:gx+start*cell,y:ly,width:(last-start+1)*cell-1,height:18,rx:3,fill:"#fbbf24",opacity:.35}));
+        svg.appendChild(el("rect",{x:gx+last*cell,y:ly,width:cell-1,height:18,rx:3,fill:colors[l-1],opacity:.9}));
+      }
+      const ll=el("text",{x:gx+N*cell+8,y:ly+14,"font-size":10,fill:colors[l-1]});ll.textContent="cov="+(l*w);svg.appendChild(ll);
+    }
+    // 说明区
+    const ny=gy0+40+L*54+20;
+    svg.appendChild(el("rect",{x:60,y:ny,width:W-120,height:60,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const n1=el("text",{x:W/2,y:ny+22,"text-anchor":"middle","font-size":12,fill:"#9b9fa8"});n1.textContent="单层复杂度 O(n·w)，但堆叠 L 层后顶层可触达 L×w 个 token";svg.appendChild(n1);
+    const n2=el("text",{x:W/2,y:ny+42,"text-anchor":"middle","font-size":11,fill:"#fbbf24"});n2.textContent="当前: w="+w+", L="+L+" → 有效感受野 "+rf+" 个 token";svg.appendChild(n2);
+    // stats
+    $("st06w").textContent=w;
+    $("st06l").textContent=L;
+    $("st06rf").textContent=rf+" token";
+    $("p06detail").textContent="每一层的输出聚合了上一层窗口内的信息。堆叠 L 层后，顶层输出可触达 L×w="+rf+" 个原始 token。当前 w="+w+"、L="+L+"，单层复杂度仅 O(nw)=O("+N+"×"+w+")，却能覆盖 "+rf+" 个 token 的感受野——这就是 Mistral SWA 高效长程依赖的来源。";
+  }
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>窗口 w</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=6;inp.value=w;
+  const val=document.createElement("span");val.className="val";val.textContent=w;
+  inp.addEventListener("input",()=>{w=+inp.value;val.textContent=w;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>层数 L</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=1;inp2.max=5;inp2.value=L;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=L;
+  inp2.addEventListener("input",()=>{L=+inp2.value;val2.textContent=L;draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="逐层展开";
+  anim.addEventListener("click",()=>{const fromL=1,toL=5;animate(1500,p=>{L=Math.round(fromL+(toL-fromL)*ease(p));inp2.value=L;val2.textContent=L;draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   07 Flash Attention
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420;
+  let mode="naive";
+  let Br=2; // 行块大小 (以 tile 计)
+  const d=128,Msram=Br*64; // SRAM 容量示意
+  const N=8; // 矩阵分块数 (N×N tiles)
+  function tile(i,j,col,on){
+    const cell=34,gx=140,gy=50;
+    return el("rect",{x:gx+j*cell,y:gy+i*cell,width:cell-2,height:cell-2,rx:3,fill:on?col:"#16181c",stroke:"rgba(255,255,255,.1)","stroke-width":1});
+  }
+  function draw(){
+    clearNode(svg);
+    const cell=34,gx=140,gy=50;
+    // 标题
+    const tl=el("text",{x:W/2,y:22,"text-anchor":"middle","font-size":13,fill:"#9b9fa8"});tl.textContent=mode==="naive"?"标准注意力：N×N 矩阵物化于 HBM":"Flash Attention：分块在 SRAM 中计算，不物化 N×N";svg.appendChild(tl);
+    // N×N tile 网格 (注意力矩阵 S=QK^T)
+    const tlbl=el("text",{x:gx+N*cell/2,y:gy-8,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});tlbl.textContent="S = QKᵀ  (N×N attention)";svg.appendChild(tlbl);
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+      let on=false,col="#f87171";
+      if(mode==="naive"){
+        // 标准：全部 tiles 都要写回 HBM 再读出
+        on=true;col="rgba(248,113,113,.5)";
+      }else{
+        // Flash：按 Br 行分块，逐块计算 (此例展示前 Br 行已计算)
+        on=i<Br;col="rgba(52,211,153,.7)";
+      }
+      svg.appendChild(el("rect",{x:gx+j*cell,y:gy+i*cell,width:cell-2,height:cell-2,rx:3,fill:on?col:"#16181c",stroke:"rgba(255,255,255,.1)","stroke-width":1}));
+    }
+    // 行块边框 (Flash)
+    if(mode==="flash"){
+      svg.appendChild(el("rect",{x:gx-3,y:gy-3,width:N*cell+6,height:Br*cell+6,rx:5,fill:"none",stroke:"#7c5cff","stroke-width":1.8,"stroke-dasharray":"4 3"}));
+      const bl=el("text",{x:gx+N*cell/2,y:gy+Br*cell+18,"text-anchor":"middle","font-size":10,fill:"#7c5cff"});bl.textContent="当前行块 Br="+Br+" 行 · 在 SRAM 内完成";svg.appendChild(bl);
+    }
+    // 左侧：HBM
+    const hx=20,hy=gy-10,hw=100,hh=N*cell+20;
+    svg.appendChild(el("rect",{x:hx,y:hy,width:hw,height:hh,rx:8,fill:"#0b0b0c",stroke:"#f87171","stroke-width":1.4}));
+    const hl=el("text",{x:hx+hw/2,y:hy+16,"text-anchor":"middle","font-size":11,fill:"#f87171"});hl.textContent="HBM";svg.appendChild(hl);
+    const hl2=el("text",{x:hx+hw/2,y:hy+30,"text-anchor":"middle","font-size":9,fill:"#62666d"});hl2.textContent="大 · 慢";svg.appendChild(hl2);
+    // HBM 内容
+    const items=mode==="naive"?["Q","K","V","S (N×N)","P=softmax","O"]:["Q","K","V","O"];
+    items.forEach((it,i)=>{
+      const onH = mode==="naive"?(i>=3):(false);
+      svg.appendChild(el("rect",{x:hx+10,y:hy+40+i*22,width:hw-20,height:18,rx:3,fill:onH?"rgba(248,113,113,.25)":"#16181c",stroke:onH?"#f87171":"rgba(255,255,255,.12)"}));
+      const t=el("text",{x:hx+hw/2,y:hy+40+i*22+13,"text-anchor":"middle","font-size":10,fill:onH?"#f87171":"#9b9fa8"});t.textContent=it;svg.appendChild(t);
+    });
+    // 右侧：SRAM
+    const sx=520,sy=gy-10,sw=110,sh=N*cell+20;
+    svg.appendChild(el("rect",{x:sx,y:sy,width:sw,height:sh,rx:8,fill:"#0b0b0c",stroke:"#34d399","stroke-width":1.4}));
+    const sl=el("text",{x:sx+sw/2,y:sy+16,"text-anchor":"middle","font-size":11,fill:"#34d399"});sl.textContent="SRAM";svg.appendChild(sl);
+    const sl2=el("text",{x:sx+sw/2,y:sy+30,"text-anchor":"middle","font-size":9,fill:"#62666d"});sl2.textContent="小 · 快 (M)";svg.appendChild(sl2);
+    // SRAM 内容
+    const sItems=mode==="naive"?["(几乎不用)"]:["Qᵢ (Br×d)","Kⱼ (Bc×d)","Vⱼ (Bc×d)","Sᵢⱼ (Br×Bc)","Pᵢⱼ (Br×Bc)","Oᵢ (累积)"];
+    sItems.forEach((it,i)=>{
+      svg.appendChild(el("rect",{x:sx+10,y:sy+40+i*22,width:sw-20,height:18,rx:3,fill:"rgba(52,211,153,.15)",stroke:"rgba(52,211,153,.4)"}));
+      const t=el("text",{x:sx+sw/2,y:sy+40+i*22+13,"text-anchor":"middle","font-size":9.5,fill:"#9b9fa8"});t.textContent=it;svg.appendChild(t);
+    });
+    // 数据流箭头
+    if(mode==="naive"){
+      // HBM <-> matrix 双向 (写 S, 读 S, 写 P, 读 P)
+      for(let k=0;k<3;k++){
+        svg.appendChild(el("line",{x1:hx+hw,y1:hy+50+k*22,x2:gx-3,y2:gy+20+k*30,stroke:"#f87171","stroke-width":1.2,opacity:.5,"stroke-dasharray":"3 3"}));
+        svg.appendChild(el("line",{x1:gx+N*cell+3,y1:gy+30+k*30,x2:sx,y2:sy+50+k*22,stroke:"#f87171","stroke-width":1.2,opacity:.3,"stroke-dasharray":"3 3"}));
+      }
+      const note=el("text",{x:W/2,y:H-22,"text-anchor":"middle","font-size":11.5,fill:"#f87171"});note.textContent="S/P 反复读写 HBM · IO = O(N²d)";svg.appendChild(note);
+    }else{
+      // HBM -> SRAM (加载块), SRAM 计算, SRAM -> HBM (写 O 一次)
+      svg.appendChild(el("path",{d:"M"+(hx+hw)+","+(hy+60)+" Q"+((hx+hw+sx)/2)+","+(gy-20)+" "+(sx-3)+","+(sy+60),stroke:"#34d399","stroke-width":1.6,fill:"none"}));
+      const al=el("text",{x:(hx+hw+sx)/2,y:gy-8,"text-anchor":"middle","font-size":10,fill:"#34d399"});al.textContent="加载 Qᵢ,Kⱼ,Vⱼ 块";svg.appendChild(al);
+      svg.appendChild(el("path",{d:"M"+(sx-3)+","+(sy+hh-40)+" Q"+((hx+hw+sx)/2)+","+(gy+N*cell+50)+" "+(hx+hw)+","+(hy+hh-40),stroke:"#2dd4ff","stroke-width":1.2,fill:"none","stroke-dasharray":"3 3"}));
+      const al2=el("text",{x:(hx+hw+sx)/2,y:gy+N*cell+44,"text-anchor":"middle","font-size":10,fill:"#2dd4ff"});al2.textContent="写回 O (仅一次)";svg.appendChild(al2);
+      const note=el("text",{x:W/2,y:H-22,"text-anchor":"middle","font-size":11.5,fill:"#34d399"});note.textContent="不物化 N×N · IO = O(N²d²/M)";svg.appendChild(note);
+    }
+    // stats
+    const Nreal=4096; // 真实序列长度
+    const ioNaive=Nreal*Nreal*d;
+    const ioFlash=Nreal*Nreal*d*d/Msram;
+    $("st07mode").textContent=mode==="naive"?"标准":"Flash";
+    $("st07br").textContent=Br+" tiles";
+    $("st07hbm").textContent=mode==="naive"?fmtIO(ioNaive):fmtIO(ioFlash);
+    $("st07sram").textContent=Msram+" units";
+    $("p07title").textContent=mode==="naive"?"标准注意力 IO 模式":"Flash Attention IO 模式";
+    $("p07detail").textContent=mode==="naive"?"标准注意力把 S=QKᵀ 与 P=softmax(S) 写回 HBM 再读出，IO 量约 O(N²d)="+fmtIO(ioNaive)+"。N×N 中间矩阵占满显存带宽。":"Flash 把 Q 按行分块（Br 行），每块加载对应 K、V 列块到 SRAM，在片上计算局部 softmax 并在线累积 O，全程不物化 N×N。IO 降为 O(N²d²/M)="+fmtIO(ioFlash)+"，约为标准的 d/M 倍。";
+  }
+  function fmtIO(v){
+    if(v<1e6)return (v/1e3).toFixed(1)+"KB";
+    if(v<1e9)return (v/1e6).toFixed(1)+"MB";
+    if(v<1e12)return (v/1e9).toFixed(1)+"GB";
+    return (v/1e12).toFixed(2)+"TB";
+  }
+  draw();
+  const naive=document.createElement("button");naive.className="btn small on";naive.textContent="标准注意力";
+  const flash=document.createElement("button");flash.className="btn small";flash.textContent="Flash Attention";
+  naive.addEventListener("click",()=>{mode="naive";naive.classList.add("on");flash.classList.remove("on");draw();});
+  flash.addEventListener("click",()=>{mode="flash";flash.classList.add("on");naive.classList.remove("on");draw();});
+  ctl.appendChild(naive);ctl.appendChild(flash);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>行块 Br</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=6;inp.value=Br;
+  const val=document.createElement("span");val.className="val";val.textContent=Br+" tiles";
+  inp.addEventListener("input",()=>{Br=+inp.value;val.textContent=Br+" tiles";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="逐块扫描";
+  anim.addEventListener("click",()=>{if(mode!=="flash"){mode="flash";flash.classList.add("on");naive.classList.remove("on");}const from=1,to=6;animate(2000,p=>{Br=Math.round(from+(to-from)*ease(p));inp.value=Br;val.textContent=Br+" tiles";draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   08 架构对比雷达图
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08"),lg=$("lg08");
+  const W=720,H=440;
+  const dims=["推理速度","长序列支持","参数效率","训练效率","模型效果","训练并行性"];
+  const archs=[
+    {name:"Transformer",c:"#2dd4ff",scores:[0.4,0.25,0.5,0.3,0.95,0.95]},
+    {name:"Linear Attn",c:"#34d399",scores:[0.8,0.85,0.7,0.7,0.6,0.85]},
+    {name:"Mamba",c:"#7c5cff",scores:[0.95,0.95,0.85,0.6,0.8,0.4]},
+    {name:"RWKV",c:"#fbbf24",scores:[0.95,0.9,0.85,0.65,0.75,0.4]},
+    {name:"Flash Attn",c:"#f87171",scores:[0.6,0.7,0.5,0.85,0.95,0.95]}
+  ];
+  let on=new Set([0,2,4]); // 默认显示 Transformer, Mamba, Flash
+  const cx=290,cy=200,R=130;
+  function pt(angle,r){return [cx+Math.cos(angle)*r,cy+Math.sin(angle)*r];}
+  function draw(){
+    clearNode(svg);
+    // 网格圈
+    for(let g=1;g<=4;g++){
+      const rr=R*g/4;
+      let p="";
+      for(let i=0;i<dims.length;i++){
+        const a=-Math.PI/2+i*2*Math.PI/dims.length;
+        const [x,y]=pt(a,rr);
+        p+=(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1)+" ";
+      }
+      p+="Z";
+      svg.appendChild(el("path",{d:p,fill:"none",stroke:"rgba(255,255,255,.07)","stroke-width":1}));
+    }
+    // 轴
+    dims.forEach((d,i)=>{
+      const a=-Math.PI/2+i*2*Math.PI/dims.length;
+      const [x,y]=pt(a,R);
+      svg.appendChild(el("line",{x1:cx,y1:cy,x2:x,y2:y,stroke:"rgba(255,255,255,.1)","stroke-width":1}));
+      const [lx,ly]=pt(a,R+24);
+      const t=el("text",{x:lx,y:ly+4,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});t.textContent=d;svg.appendChild(t);
+    });
+    // 数据多边形
+    archs.forEach((ar,idx)=>{
+      if(!on.has(idx))return;
+      let p="";
+      ar.scores.forEach((s,i)=>{
+        const a=-Math.PI/2+i*2*Math.PI/dims.length;
+        const [x,y]=pt(a,R*s);
+        p+=(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1)+" ";
+      });
+      p+="Z";
+      svg.appendChild(el("path",{d:p,fill:ar.c,opacity:.12,stroke:ar.c,"stroke-width":1.8,"stroke-linejoin":"round"}));
+      ar.scores.forEach((s,i)=>{
+        const a=-Math.PI/2+i*2*Math.PI/dims.length;
+        const [x,y]=pt(a,R*s);
+        svg.appendChild(el("circle",{cx:x,cy:y,r:3,fill:ar.c}));
+      });
+    });
+    // 中心点
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:2,fill:"#62666d"}));
+    // 右侧：选中架构详情
+    const rx=520,ry=50;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:180,height:H-90,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tl=el("text",{x:rx+90,y:ry+22,"text-anchor":"middle","font-size":12,fill:"#9b9fa8"});tl.textContent="选中架构分数";svg.appendChild(tl);
+    let oy=ry+42;
+    archs.forEach((ar,idx)=>{
+      if(!on.has(idx))return;
+      svg.appendChild(el("rect",{x:rx+12,y:oy-9,width:8,height:8,fill:ar.c}));
+      const nm=el("text",{x:rx+26,y:oy,"font-size":11,fill:"#f7f8f8"});nm.textContent=ar.name;svg.appendChild(nm);
+      // 平均分
+      const avg=ar.scores.reduce((a,b)=>a+b,0)/ar.scores.length;
+      const av=el("text",{x:rx+160,y:oy,"text-anchor":"end","font-size":11,fill:ar.c});av.textContent=avg.toFixed(2);svg.appendChild(av);
+      oy+=20;
+    });
+    // 维度均值
+    const avgByDim=dims.map((d,i)=>{
+      let s=0,c=0;
+      archs.forEach((ar,idx)=>{if(on.has(idx)){s+=ar.scores[i];c++;}});
+      return c>0?s/c:0;
+    });
+    oy+=10;
+    const tl2=el("text",{x:rx+12,y:oy,"font-size":10,fill:"#62666d"});tl2.textContent="维度均值:";svg.appendChild(tl2);
+    oy+=16;
+    dims.forEach((d,i)=>{
+      const t=el("text",{x:rx+12,y:oy,"font-size":9.5,fill:"#62666d"});t.textContent=d+" "+avgByDim[i].toFixed(2);svg.appendChild(t);
+      oy+=13;
+    });
+    // stats
+    let infBest={name:"—",v:-1},parBest={name:"—",v:-1};
+    archs.forEach((ar,idx)=>{if(on.has(idx)){if(ar.scores[0]>infBest.v)infBest={name:ar.name,v:ar.scores[0]};if(ar.scores[5]>parBest.v)parBest={name:ar.name,v:ar.scores[5]};}});
+    $("st08sel").textContent=on.size;
+    $("st08inf").textContent=infBest.name;
+    $("st08par").textContent=parBest.name;
+    // legend
+    clearNode(lg);
+    archs.forEach((ar,idx)=>{
+      const s=document.createElement("span");
+      s.innerHTML='<i style="background:'+ar.c+'"></i>'+ar.name;
+      lg.appendChild(s);
+    });
+    $("p08detail").textContent="勾选/取消架构叠加对比。Transformer 在效果与并行性上领先但推理慢；Mamba/RWKV 推理快、长序列友好但训练并行性弱；Flash Attention 兼顾效果与训练速度。当前选中 "+on.size+" 个架构，推理速度最佳: "+infBest.name+"，训练并行性最佳: "+parBest.name+"。";
+  }
+  draw();
+  const tl=document.createElement("span");tl.className="slider-group";tl.innerHTML='<span style="margin-right:4px">勾选架构:</span>';ctl.appendChild(tl);
+  archs.forEach((ar,idx)=>{
+    const b=document.createElement("button");b.className="btn small"+(on.has(idx)?" on":"");b.textContent=ar.name;
+    b.style.borderColor=on.has(idx)?ar.c:"";
+    b.addEventListener("click",()=>{
+      if(on.has(idx))on.delete(idx);else on.add(idx);
+      b.classList.toggle("on",on.has(idx));
+      b.style.borderColor=on.has(idx)?ar.c:"";
+      draw();
+    });
+    ctl.appendChild(b);
+  });
+  const allBtn=document.createElement("button");allBtn.className="btn small";allBtn.textContent="全选/全不";
+  allBtn.addEventListener("click",()=>{if(on.size===archs.length){on.clear();}else{archs.forEach((_,i)=>on.add(i));}draw();archs.forEach((ar,idx)=>{const b=ctl.querySelectorAll(".small")[idx+1];if(b){b.classList.toggle("on",on.has(idx));b.style.borderColor=on.has(idx)?ar.c:"";}});});
+  ctl.appendChild(allBtn);
+})();
+
+/* ===MODULES_ANCHOR=== */
+</script>
+</body>
+</html>

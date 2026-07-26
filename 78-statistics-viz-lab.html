@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>statistics-viz-lab · 统计学可视化实验室</title>
+<meta name="description" content="8 个交互式模块，用纯 SVG 动画探索从描述统计到贝叶斯推断的核心统计学概念。">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --danger:#f87171;
+  --warn:#fbbf24;
+  --nav-h:56px;
+  --side-w:240px;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --r:10px;
+  --r-sm:7px;
+  --shadow:0 1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.35);
+}
+
+/* ============ RESET ============ */
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-.01em}
+p{margin:0}
+svg{display:block;max-width:100%;height:auto}
+
+/* ============ PROGRESS ============ */
+.progress-wrap{
+  position:fixed;top:0;left:0;right:0;height:3px;z-index:300;
+  background:transparent;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transform-origin:left;
+  transition:width .08s linear;
+}
+
+/* ============ NAVBAR ============ */
+.navbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:200;
+  display:flex;align-items:center;gap:16px;padding:0 20px;
+  background:rgba(16,17,20,.82);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;white-space:nowrap}
+.brand-mark{
+  width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#06080a;font-weight:700;font-size:13px;font-family:var(--font-mono);
+}
+.brand-name{font-size:15px}
+.brand-name span{color:var(--muted);font-weight:400}
+.nav-spacer{flex:1}
+.nav-link{
+  color:var(--muted);font-size:13px;padding:6px 12px;border-radius:7px;
+  transition:color .15s,background .15s;
+}
+.nav-link:hover{color:var(--ink);background:var(--surface-2)}
+.nav-gh{display:inline-flex;align-items:center;gap:7px}
+.nav-gh svg{width:15px;height:15px}
+.menu-btn{
+  display:none;background:var(--surface-2);border:1px solid var(--border);
+  color:var(--ink);width:36px;height:36px;border-radius:8px;cursor:pointer;
+  align-items:center;justify-content:center;
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:120;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px;
+  transition:transform .25s ease;
+}
+.side-label{
+  font-size:11px;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--faint);padding:0 10px;margin:14px 0 6px;
+}
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:8px;color:var(--muted);
+  font-size:13.5px;cursor:pointer;transition:background .15s,color .15s;
+  border:1px solid transparent;
+}
+.side-link .num{
+  font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  width:22px;flex:none;
+}
+.side-link:hover{background:var(--surface-2);color:var(--ink)}
+.side-link.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(52,211,153,.22);
+}
+.side-link.active .num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 10px;font-size:11.5px;color:var(--faint);
+  border-top:1px solid var(--border);line-height:1.7;
+}
+
+/* ============ MAIN ============ */
+.main{
+  margin-left:var(--side-w);
+  margin-top:var(--nav-h);
+  padding:34px 40px 80px;
+  max-width:1180px;
+}
+
+/* hero */
+.hero{padding:26px 0 34px;border-bottom:1px solid var(--border);margin-bottom:34px}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:11.5px;letter-spacing:.16em;
+  color:var(--accent);text-transform:uppercase;
+  padding:5px 11px;border:1px solid rgba(52,211,153,.25);
+  border-radius:30px;background:var(--accent-soft);
+}
+.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.hero h1{font-size:38px;line-height:1.12;margin:18px 0 12px;letter-spacing:-.02em}
+.hero h1 .grad{
+  background:linear-gradient(110deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{color:var(--muted);font-size:15.5px;max-width:640px}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+  padding:6px 12px;border:1px solid var(--border);border-radius:30px;background:var(--surface);
+}
+.chip b{color:var(--ink);font-weight:600}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+
+/* ============ MODULE ============ */
+.module{margin-bottom:46px;scroll-margin-top:74px;opacity:0;transform:translateY(26px);transition:opacity .6s ease,transform .6s ease}
+.module.visible{opacity:1;transform:none}
+.module-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
+.kicker{
+  font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--accent);
+  flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
+  background:var(--accent-soft);border:1px solid rgba(52,211,153,.2);
+}
+.module-head h2{font-size:22px;margin-bottom:4px}
+.module-head .module-desc{color:var(--muted);font-size:13.5px;max-width:560px}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.viz-box{
+  position:relative;background:var(--surface-2);
+  border-bottom:1px solid var(--border);padding:14px 14px 6px;
+}
+.viz-box .chart{width:100%}
+.viz-legend{display:flex;flex-wrap:wrap;gap:14px;padding:4px 6px 10px;font-size:11.5px;color:var(--muted)}
+.lg-item{display:inline-flex;align-items:center;gap:6px}
+.lg-swatch{width:11px;height:11px;border-radius:3px}
+
+.controls{
+  display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;
+  padding:16px 18px;border-bottom:1px solid var(--border);background:var(--surface);
+}
+.ctrl{display:flex;flex-direction:column;gap:6px;min-width:140px}
+.ctrl label{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.ctrl label .v{font-family:var(--font-mono);color:var(--ink)}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);border:2px solid #06080a;cursor:pointer;
+  transition:transform .12s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);
+  border:2px solid #06080a;cursor:pointer;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .15s,border-color .15s,transform .08s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#06120c;border-color:transparent;font-weight:600}
+.btn.primary:hover{background:#2bbd8a}
+.btn.ghost{background:transparent}
+.select{
+  font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+  padding:8px 12px;border-radius:8px;background:var(--surface-2);
+  border:1px solid var(--border-strong);outline:none;
+}
+.select:focus{border-color:var(--accent)}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:3px;gap:3px}
+.seg button{
+  border:none;background:transparent;color:var(--muted);cursor:pointer;
+  padding:6px 11px;border-radius:6px;font-size:12.5px;font-family:inherit;
+  transition:background .15s,color .15s;
+}
+.seg button.on{background:var(--accent);color:#06120c;font-weight:600}
+.seg button:hover:not(.on){color:var(--ink)}
+
+.detail-box{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  font-size:13px;color:var(--muted);line-height:1.7;background:var(--surface);
+}
+.detail-box b{color:var(--ink);font-weight:600}
+.detail-box code{
+  font-family:var(--font-mono);font-size:12px;color:var(--accent);
+  background:var(--surface-2);padding:1px 6px;border-radius:5px;
+}
+.detail-box .ac2{color:var(--accent-2)}
+
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;
+  background:var(--border);
+}
+.stat{background:var(--surface);padding:13px 16px;display:flex;flex-direction:column;gap:3px}
+.stat-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.stat-value{font-family:var(--font-mono);font-size:17px;color:var(--ink);font-weight:600}
+.stat-value.acc{color:var(--accent)}
+.stat-value.acc2{color:var(--accent-2)}
+.stat-value.warn{color:var(--warn)}
+.stat-value.danger{color:var(--danger)}
+.stat-sub{font-size:10.5px;color:var(--faint);font-family:var(--font-mono)}
+
+/* svg helpers */
+.axis-line{stroke:var(--border-strong);stroke-width:1}
+.grid-line{stroke:var(--border);stroke-width:1}
+.tick-text{fill:var(--faint);font-size:10px;font-family:var(--font-mono)}
+.axis-title{fill:var(--muted);font-size:11px}
+.curve-accent{fill:none;stroke:var(--accent);stroke-width:2}
+.curve-accent2{fill:none;stroke:var(--accent-2);stroke-width:2}
+.fill-accent{fill:var(--accent);opacity:.85}
+.fill-accent-soft{fill:var(--accent);opacity:.14}
+.fill-accent2-soft{fill:var(--accent-2);opacity:.14}
+.fill-danger-soft{fill:var(--danger);opacity:.18}
+.point-accent{fill:var(--accent)}
+.point-accent2{fill:var(--accent-2)}
+.ref-line{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
+
+/* footer */
+.foot{
+  margin-top:30px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--accent)}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:960px){
+  :root{--side-w:0px}
+  .sidebar{transform:translateX(-100%);width:240px;box-shadow:0 0 40px rgba(0,0,0,.5)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 70px}
+  .menu-btn{display:inline-flex}
+  .nav-link{display:none}
+  .hero h1{font-size:30px}
+}
+@media (max-width:560px){
+  .hero h1{font-size:25px}
+  .module-head{flex-wrap:wrap}
+  .controls{padding:14px}
+  .ctrl{min-width:120px;flex:1 1 130px}
+}
+
+/* ============ REDUCED MOTION ============ */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+  .module{opacity:1;transform:none}
+  .progress-bar{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <div class="brand">
+    <div class="brand-mark">Σ</div>
+    <div class="brand-name">statistics-viz-lab <span>· 统计学可视化实验室</span></div>
+  </div>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="#m1">模块</a>
+  <a class="nav-link nav-gh" href="https://github.com/wangzifan396-wzf/statistics-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.7.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="side-label">可视化模块</div>
+  <a class="side-link" href="#m1"><span class="num">01</span>描述统计</a>
+  <a class="side-link" href="#m2"><span class="num">02</span>假设检验</a>
+  <a class="side-link" href="#m3"><span class="num">03</span>置信区间</a>
+  <a class="side-link" href="#m4"><span class="num">04</span>回归分析</a>
+  <a class="side-link" href="#m5"><span class="num">05</span>方差分析</a>
+  <a class="side-link" href="#m6"><span class="num">06</span>贝叶斯统计</a>
+  <a class="side-link" href="#m7"><span class="num">07</span>非参数检验</a>
+  <a class="side-link" href="#m8"><span class="num">08</span>抽样分布</a>
+  <div class="side-foot">
+    纯 HTML / CSS / JS + SVG<br>零运行时依赖<br>
+    <span style="color:var(--accent)">●</span> emerald · <span style="color:var(--accent-2)">●</span> violet
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <header class="hero">
+    <span class="eyebrow">Statistics · Visualization · Lab</span>
+    <h1>用动画探索 <span class="grad">统计学的核心概念</span></h1>
+    <p>八个交互式模块，从描述统计到贝叶斯推断。每一个图表都用原生 SVG 与 requestAnimationFrame 实时绘制——拖动参数，观察分布如何响应，亲手看见 p 值、置信区间与中心极限定理的几何意义。</p>
+    <div class="hero-meta">
+      <span class="chip"><span class="dot" style="background:var(--accent)"></span>8 个模块</span>
+      <span class="chip"><span class="dot" style="background:var(--accent-2)"></span>纯 SVG 动画</span>
+      <span class="chip"><b>0</b> 依赖</span>
+      <span class="chip">响应式 · <b>prefers-reduced-motion</b></span>
+    </div>
+  </header>
+
+  <!-- ===================== MODULE 01 ===================== -->
+  <section class="module" id="m1">
+    <div class="module-head">
+      <div class="kicker">01</div>
+      <div>
+        <h2>描述统计</h2>
+        <p class="module-desc">均值、中位数、众数、方差、标准差——以及用箱线图直观展示数据的五数概括与离群点。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m1-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>直方图</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>箱线图</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>均值</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--danger)"></span>离群点</span>
+        </div>
+      </div>
+      <div class="controls" id="m1-ctrl">
+        <div class="ctrl"><label>样本量 n <span class="v" id="m1-nv">60</span></label><input type="range" id="m1-n" min="20" max="200" value="60" step="1"></div>
+        <div class="ctrl"><label>标准差 σ <span class="v" id="m1-sv">12</span></label><input type="range" id="m1-s" min="3" max="30" value="12" step="1"></div>
+        <div class="ctrl"><label>偏度 <span class="v" id="m1-skv">0.0</span></label><input type="range" id="m1-sk" min="0" max="100" value="0" step="1"></div>
+        <button class="btn primary" id="m1-gen">生成新数据</button>
+      </div>
+      <div class="detail-box" id="m1-detail"></div>
+      <div class="stats-row" id="m1-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 02 ===================== -->
+  <section class="module" id="m2">
+    <div class="module-head">
+      <div class="kicker">02</div>
+      <div>
+        <h2>假设检验</h2>
+        <p class="module-desc">t 检验、卡方检验、F 检验。观察检验统计量落在分布的何处，p 值就是尾部面积——拒绝域一目了然。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m2-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>分布密度</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--danger);opacity:.5"></span>拒绝域</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>观测统计量</span>
+        </div>
+      </div>
+      <div class="controls" id="m2-ctrl">
+        <div class="seg" id="m2-type">
+          <button data-t="t" class="on">t 检验</button>
+          <button data-t="chi">卡方</button>
+          <button data-t="f">F 检验</button>
+        </div>
+        <div class="ctrl"><label>显著性 α <span class="v" id="m2-av">0.05</span></label><input type="range" id="m2-a" min="1" max="20" value="5" step="1"></div>
+        <div class="ctrl"><label>效应量 <span class="v" id="m2-ev">2.6</span></label><input type="range" id="m2-e" min="-50" max="50" value="26" step="1"></div>
+        <div class="ctrl"><label>自由度 df <span class="v" id="m2-dv">12</span></label><input type="range" id="m2-d" min="2" max="40" value="12" step="1"></div>
+        <button class="btn primary" id="m2-gen">重新采样</button>
+      </div>
+      <div class="detail-box" id="m2-detail"></div>
+      <div class="stats-row" id="m2-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 03 ===================== -->
+  <section class="module" id="m3">
+    <div class="module-head">
+      <div class="kicker">03</div>
+      <div>
+        <h2>置信区间</h2>
+        <p class="module-desc">区间估计的频率派解释：重复抽样下，95% 的区间会覆盖真实参数。绿条覆盖、红条遗漏——覆盖率动画让概率变得可见。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m3-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>覆盖真值</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--danger)"></span>未覆盖</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>真实均值 μ</span>
+        </div>
+      </div>
+      <div class="controls" id="m3-ctrl">
+        <div class="ctrl"><label>置信水平 <span class="v" id="m3-cv">95%</span></label><input type="range" id="m3-c" min="80" max="99" value="95" step="1"></div>
+        <div class="ctrl"><label>样本量 n <span class="v" id="m3-nv">30</span></label><input type="range" id="m3-n" min="5" max="60" value="30" step="1"></div>
+        <div class="ctrl"><label>区间数 <span class="v" id="m3-kv">30</span></label><input type="range" id="m3-k" min="10" max="50" value="30" step="1"></div>
+        <button class="btn primary" id="m3-gen">重新抽样</button>
+      </div>
+      <div class="detail-box" id="m3-detail"></div>
+      <div class="stats-row" id="m3-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 04 ===================== -->
+  <section class="module" id="m4">
+    <div class="module-head">
+      <div class="kicker">04</div>
+      <div>
+        <h2>回归分析</h2>
+        <p class="module-desc">最小二乘法寻找残差平方和最小的直线。R² 衡量模型解释的变异比例——动画展示拟合直线如何收敛到最优解。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m4-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>数据点</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>回归线</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn);opacity:.5"></span>残差</span>
+        </div>
+      </div>
+      <div class="controls" id="m4-ctrl">
+        <div class="ctrl"><label>真实斜率 <span class="v" id="m4-sv">1.8</span></label><input type="range" id="m4-s" min="-30" max="30" value="18" step="1"></div>
+        <div class="ctrl"><label>噪声 σ <span class="v" id="m4-nv">8</span></label><input type="range" id="m4-n" min="0" max="30" value="8" step="1"></div>
+        <div class="ctrl"><label>点数 <span class="v" id="m4-pv">40</span></label><input type="range" id="m4-p" min="10" max="100" value="40" step="1"></div>
+        <button class="btn primary" id="m4-gen">重新生成</button>
+        <button class="btn" id="m4-fit">动画拟合</button>
+      </div>
+      <div class="detail-box" id="m4-detail"></div>
+      <div class="stats-row" id="m4-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 05 ===================== -->
+  <section class="module" id="m5">
+    <div class="module-head">
+      <div class="kicker">05</div>
+      <div>
+        <h2>方差分析 (ANOVA)</h2>
+        <p class="module-desc">单因素方差分析将总变异拆分为组间与组内。F = 组间方差 / 组内方差——组均值差异越大，F 越大，越倾向拒绝"均值相等"。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m5-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>组内散点</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>组均值</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>总均值</span>
+        </div>
+      </div>
+      <div class="controls" id="m5-ctrl">
+        <div class="ctrl"><label>组数 k <span class="v" id="m5-kv">4</span></label><input type="range" id="m5-k" min="2" max="6" value="4" step="1"></div>
+        <div class="ctrl"><label>组间差异 <span class="v" id="m5-dv">10</span></label><input type="range" id="m5-d" min="0" max="25" value="10" step="1"></div>
+        <div class="ctrl"><label>组内 σ <span class="v" id="m5-sv">5</span></label><input type="range" id="m5-s" min="1" max="15" value="5" step="1"></div>
+        <button class="btn primary" id="m5-gen">重新采样</button>
+      </div>
+      <div class="detail-box" id="m5-detail"></div>
+      <div class="stats-row" id="m5-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 06 ===================== -->
+  <section class="module" id="m6">
+    <div class="module-head">
+      <div class="kicker">06</div>
+      <div>
+        <h2>贝叶斯统计</h2>
+        <p class="module-desc">先验 × 似然 = 后验。Metropolis-Hastings MCMC 从后验中采样，直方图逐步逼近真实后验分布——看见信念如何被数据更新。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m6-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--muted)"></span>先验</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>似然</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>后验（MCMC）</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>理论后验</span>
+        </div>
+      </div>
+      <div class="controls" id="m6-ctrl">
+        <div class="ctrl"><label>先验均值 <span class="v" id="m6-pv">0.0</span></label><input type="range" id="m6-p" min="-50" max="50" value="0" step="1"></div>
+        <div class="ctrl"><label>先验不确定 <span class="v" id="m6-tv">5.0</span></label><input type="range" id="m6-t" min="10" max="100" value="50" step="1"></div>
+        <div class="ctrl"><label>观测数据 <span class="v" id="m6-dv">8</span></label><input type="range" id="m6-d" min="1" max="30" value="8" step="1"></div>
+        <button class="btn primary" id="m6-run">MCMC 采样</button>
+        <button class="btn" id="m6-gen">重置数据</button>
+      </div>
+      <div class="detail-box" id="m6-detail"></div>
+      <div class="stats-row" id="m6-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 07 ===================== -->
+  <section class="module" id="m7">
+    <div class="module-head">
+      <div class="kicker">07</div>
+      <div>
+        <h2>非参数检验</h2>
+        <p class="module-desc">不依赖分布假设的检验：秩和检验、Wilcoxon 符号秩、Kolmogorov-Smirnov。用经验分布函数 (ECDF) 可视化两组分布的差异。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m7-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>样本 A 的 ECDF</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>样本 B 的 ECDF</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>统计量 D / W</span>
+        </div>
+      </div>
+      <div class="controls" id="m7-ctrl">
+        <div class="seg" id="m7-type">
+          <button data-t="ks" class="on">K-S 检验</button>
+          <button data-t="rank">秩和检验</button>
+          <button data-t="wilcoxon">Wilcoxon</button>
+        </div>
+        <div class="ctrl"><label>分布偏移 <span class="v" id="m7-sv">0.8</span></label><input type="range" id="m7-s" min="-30" max="30" value="8" step="1"></div>
+        <div class="ctrl"><label>样本量 <span class="v" id="m7-nv">30</span></label><input type="range" id="m7-n" min="10" max="80" value="30" step="1"></div>
+        <button class="btn primary" id="m7-gen">重新采样</button>
+      </div>
+      <div class="detail-box" id="m7-detail"></div>
+      <div class="stats-row" id="m7-stats"></div>
+    </div>
+  </section>
+
+  <!-- ===================== MODULE 08 ===================== -->
+  <section class="module" id="m8">
+    <div class="module-head">
+      <div class="kicker">08</div>
+      <div>
+        <h2>抽样分布</h2>
+        <p class="module-desc">中心极限定理：无论总体分布形状如何，样本均值的分布随样本量增大趋近正态。动画逐帧抽取样本，直方图向钟形曲线收敛。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="viz-box"><div id="m8-viz"></div>
+        <div class="viz-legend">
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent-2)"></span>总体分布</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--accent)"></span>样本均值直方图</span>
+          <span class="lg-item"><span class="lg-swatch" style="background:var(--warn)"></span>理论正态 N(μ, σ²/n)</span>
+        </div>
+      </div>
+      <div class="controls" id="m8-ctrl">
+        <div class="seg" id="m8-pop">
+          <button data-p="uniform" class="on">均匀</button>
+          <button data-p="skew">偏态</button>
+          <button data-p="bimodal">双峰</button>
+        </div>
+        <div class="ctrl"><label>样本量 n <span class="v" id="m8-nv">5</span></label><input type="range" id="m8-n" min="1" max="50" value="5" step="1"></div>
+        <div class="ctrl"><label>速度 <span class="v" id="m8-spv">中</span></label><input type="range" id="m8-sp" min="1" max="5" value="3" step="1"></div>
+        <button class="btn primary" id="m8-toggle">开始采样</button>
+        <button class="btn" id="m8-reset">重置</button>
+      </div>
+      <div class="detail-box" id="m8-detail"></div>
+      <div class="stats-row" id="m8-stats"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>statistics-viz-lab · 统计学可视化实验室 · MIT License</span>
+    <a href="https://github.com/wangzifan396-wzf/statistics-viz-lab" target="_blank" rel="noopener">github.com/wangzifan396-wzf/statistics-viz-lab</a>
+  </footer>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+/* =================================================================
+   statistics-viz-lab — 全部可视化逻辑
+   纯原生 JS + SVG，零依赖
+================================================================= */
+var SVGNS='http://www.w3.org/2000/svg';
+var $=function(s){return document.querySelector(s);};
+var $$=function(s){return document.querySelectorAll(s);};
+var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ---------- 数值格式化 ---------- */
+function fmt(x,d){if(d===undefined)d=3;return (Number.isFinite(x))?(+x).toFixed(d):'—';}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+
+/* ---------- SVG 元素工厂 ---------- */
+function el(tag,attrs,text){
+  var e=document.createElementNS(SVGNS,tag);
+  if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]);
+  if(text!=null)e.textContent=text;
+  return e;
+}
+/* 通用图表容器：返回坐标系映射函数 */
+function chart(container,w,h,pad){
+  if(!w)w=640;if(!h)h=380;
+  if(!pad)pad={l:52,r:24,t:24,b:44};
+  container.innerHTML='';
+  var svg=el('svg',{viewBox:'0 0 '+w+' '+h,class:'chart'});
+  var pw=w-pad.l-pad.r, ph=h-pad.t-pad.b;
+  var plotG=el('g',{transform:'translate('+pad.l+','+pad.t+')'});
+  svg.appendChild(plotG);
+  container.appendChild(svg);
+  function x(v,min,max){return (v-min)/(max-min)*pw;}
+  function y(v,min,max){return ph-(v-min)/(max-min)*ph;}
+  return {svg:svg,g:plotG,pw:pw,ph:ph,pad:pad,x:x,y:y,w:w,h:h};
+}
+/* 画坐标轴 */
+function axes(c,xmin,xmax,ymin,ymax,xlabel,ylabel,opts){
+  opts=opts||{};
+  // 网格
+  var gx=opts.gridx||5, gy=opts.gridy||4;
+  var i,v;
+  for(i=1;i<gx;i++){v=xmin+(xmax-xmin)*i/gx;c.g.appendChild(el('line',{class:'grid-line',x1:c.x(v,xmin,xmax),y1:0,x2:c.x(v,xmin,xmax),y2:c.ph}));}
+  for(i=1;i<gy;i++){v=ymin+(ymax-ymin)*i/gy;c.g.appendChild(el('line',{class:'grid-line',x1:0,y1:c.y(v,ymin,ymax),x2:c.pw,y2:c.y(v,ymin,ymax)}));}
+  // 轴线
+  c.g.appendChild(el('line',{class:'axis-line',x1:0,y1:c.ph,x2:c.pw,y2:c.ph}));
+  c.g.appendChild(el('line',{class:'axis-line',x1:0,y1:0,x2:0,y2:c.ph}));
+  // x 刻度
+  for(i=0;i<=gx;i++){
+    v=xmin+(xmax-xmin)*i/gx;
+    var tx=el('text',{class:'tick-text',x:c.x(v,xmin,xmax),y:c.ph+15,'text-anchor':'middle'},fmt(v,opts.xd||0));
+    c.g.appendChild(tx);
+  }
+  // y 刻度
+  for(i=0;i<=gy;i++){
+    v=ymin+(ymax-ymin)*i/gy;
+    c.g.appendChild(el('text',{class:'tick-text',x:-8,y:c.y(v,ymin,ymax)+3,'text-anchor':'end'},fmt(v,opts.yd||2)));
+  }
+  if(xlabel)c.g.appendChild(el('text',{class:'axis-title',x:c.pw/2,y:c.ph+34,'text-anchor':'middle'},xlabel));
+  if(ylabel)c.g.appendChild(el('text',{class:'axis-title',x:-c.ph/2,y:-38,transform:'rotate(-90)','text-anchor':'middle'},ylabel));
+}
+/* 由函数生成 path d 字符串 */
+function pathFn(fn,xmin,xmax,sx,sy,w,h,ymin,ymax,steps){
+  if(!steps)steps=120;
+  var d='';
+  for(var i=0;i<=steps;i++){
+    var xv=xmin+(xmax-xmin)*i/steps;
+    var yv=fn(xv);
+    if(!Number.isFinite(yv))yv=ymin;
+    var px=sx+(xv-xmin)/(xmax-xmin)*w;
+    var py=sy+h-(clamp(yv,ymin,ymax)-ymin)/(ymax-ymin)*h;
+    d+=(i?'L':'M')+px.toFixed(2)+' '+py.toFixed(2)+' ';
+  }
+  return d;
+}
+
+/* ===================== 随机数 ===================== */
+function rand(a,b){return a+Math.random()*(b-a);}
+function randn(mean,std){
+  if(mean===undefined)mean=0;if(std===undefined)std=1;
+  var u=0,v=0;
+  while(u===0)u=Math.random();
+  while(v===0)v=Math.random();
+  return mean+std*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function sampleArr(n,fn){var a=[];for(var i=0;i<n;i++)a.push(fn());return a;}
+
+/* ===================== 描述统计量 ===================== */
+function mean(a){var s=0;for(var i=0;i<a.length;i++)s+=a[i];return s/a.length;}
+function variance(a,sample){
+  if(sample===undefined)sample=true;
+  var m=mean(a),s=0;
+  for(var i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);
+  return s/(sample?a.length-1:a.length);
+}
+function stddev(a,sample){return Math.sqrt(variance(a,sample));}
+function median(a){
+  var s=a.slice().sort(function(p,q){return p-q;}),n=s.length;
+  return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;
+}
+function quantile(a,q){
+  var s=a.slice().sort(function(p,q){return p-q;}),n=s.length;
+  var pos=(n-1)*q,base=Math.floor(pos),rest=pos-base;
+  return s[base]+(s[base+1]!==undefined?(s[base+1]-s[base])*rest:0);
+}
+function mode(a){
+  var freq={},best=a[0],bestc=0;
+  for(var i=0;i<a.length;i++){freq[a[i]]=(freq[a[i]]||0)+1;if(freq[a[i]]>bestc){bestc=freq[a[i]];best=a[i];}}
+  return best;
+}
+function pearsonR(x,y){
+  var mx=mean(x),my=mean(y),sxy=0,sxx=0,syy=0;
+  for(var i=0;i<x.length;i++){sxy+=(x[i]-mx)*(y[i]-my);sxx+=(x[i]-mx)*(x[i]-mx);syy+=(y[i]-my)*(y[i]-my);}
+  return sxy/Math.sqrt(sxx*syy);
+}
+
+/* ===================== 分布函数 ===================== */
+function logGamma(x){
+  var g=7;
+  var c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(x<0.5)return Math.log(Math.PI/Math.sin(Math.PI*x))-logGamma(1-x);
+  x-=1;var a=c[0];var t=x+g+0.5;
+  for(var i=1;i<g+2;i++)a+=c[i]/(x+i);
+  return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a);
+}
+function gamma(x){return Math.exp(logGamma(x));}
+function normalPDF(x,mu,sigma){if(mu===undefined)mu=0;if(sigma===undefined)sigma=1;return Math.exp(-0.5*((x-mu)/sigma)*((x-mu)/sigma))/(sigma*Math.sqrt(2*Math.PI));}
+function normalCDF(z){
+  var x=Math.abs(z)/Math.SQRT2;
+  var t=1/(1+0.3275911*x);
+  var erf=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return z>=0?0.5*(1+erf):0.5*(1-erf);
+}
+function invNormalCDF(p){
+  if(p<=0)return -8;if(p>=1)return 8;
+  var a=[-3.969683028665376e1,2.209460984245205e2,-2.759285104469687e2,1.38357751867269e2,-3.066479806614716e1,2.506628277459239];
+  var b=[-5.447609879822406e1,1.615858368580409e2,-1.556989798598866e2,6.680131188771972e1,-1.328068155288572e1];
+  var c=[-7.784894002430293e-3,-3.223964580411365e-1,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783];
+  var d=[7.784695709041462e-3,3.224671290700398e-1,2.445134137142996,3.754408661907416];
+  var pl=0.02425,ph=1-pl,q,r,u;
+  if(p<pl){q=Math.sqrt(-2*Math.log(p));return((((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1));}
+  else if(p<=ph){q=p-0.5;r=q*q;return((((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q)/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);}
+  else{q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+}
+function tPDF(t,df){return gamma((df+1)/2)/(Math.sqrt(df*Math.PI)*gamma(df/2))*Math.pow(1+t*t/df,-(df+1)/2);}
+function integrate(a,b,fn,steps){
+  if(!steps)steps=300;
+  var h=(b-a)/steps,s=fn(a)+fn(b);
+  for(var i=1;i<steps;i+=2)s+=4*fn(a+i*h);
+  for(var j=2;j<steps;j+=2)s+=2*fn(a+j*h);
+  return s*h/3;
+}
+function tCDF(t,df){return integrate(-12,t,function(x){return tPDF(x,df);},400);}
+function tTwoSidedP(t,df){return 2*(1-tCDF(Math.abs(t),df));}
+function chiPDF(x,k){if(x<=0)return 0;return Math.pow(x,k/2-1)*Math.exp(-x/2)/(Math.pow(2,k/2)*gamma(k/2));}
+function chiCDF(x,k){return integrate(0,x,function(t){return chiPDF(t,k);},300);}
+function fPDF(x,d1,d2){if(x<=0)return 0;var num=gamma((d1+d2)/2)*Math.pow(d1/d2,d1/2)*Math.pow(x,d1/2-1);var den=gamma(d1/2)*gamma(d2/2)*Math.pow(1+d1*x/d2,(d1+d2)/2);return num/den;}
+function fCDF(x,d1,d2){return integrate(0,x,function(t){return fPDF(t,d1,d2);},300);}
+
+/* ===================== UI: 进度条 / 侧栏 / 淡入 ===================== */
+function setupProgress(){
+  var bar=$('#progress');
+  function onScroll(){
+    var st=document.documentElement.scrollTop||document.body.scrollTop;
+    var sh=(document.documentElement.scrollHeight-document.documentElement.clientHeight);
+    bar.style.width=(sh>0?(st/sh*100):0)+'%';
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+}
+function setupSidebar(){
+  var btn=$('#menuBtn'),sb=$('#sidebar');
+  if(btn)btn.addEventListener('click',function(){sb.classList.toggle('open');});
+  var links=$$('.side-link');
+  var sections=[];
+  for(var i=0;i<links.length;i++){(function(l){var tgt=document.getElementById(l.getAttribute('href').slice(1));if(tgt)sections.push({link:l,sec:tgt});})(links[i]);}
+  function onScroll(){
+    var st=(document.documentElement.scrollTop||document.body.scrollTop)+120;
+    var cur=sections[0]&&sections[0].sec;
+    for(var i=0;i<sections.length;i++){if(sections[i].sec.offsetTop<=st)cur=sections[i].sec;}
+    for(var j=0;j<sections.length;j++){sections[j].link.classList.toggle('active',sections[j].sec===cur);}
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  // 点击侧栏链接后关闭移动菜单
+  for(var k=0;k<links.length;k++)links[k].addEventListener('click',function(){sb.classList.remove('open');});
+}
+function setupObserver(){
+  if(reduceMotion){var ms=$$('.module');for(var i=0;i<ms.length;i++)ms[i].classList.add('visible');return;}
+  if(!('IntersectionObserver'in window)){var ms2=$$('.module');for(var i=0;i<ms2.length;i++)ms2[i].classList.add('visible');return;}
+  var io=new IntersectionObserver(function(entries){
+    for(var i=0;i<entries.length;i++){if(entries[i].isIntersecting){entries[i].target.classList.add('visible');io.unobserve(entries[i].target);}}
+  },{threshold:0.08});
+  var mods=$$('.module');for(var i=0;i<mods.length;i++)io.observe(mods[i]);
+}
+
+/* stats-row 渲染助手 */
+function renderStats(container,arr){
+  container.innerHTML='';
+  for(var i=0;i<arr.length;i++){
+    var o=arr[i];
+    var d=el('div',{class:'stat'});
+    d.appendChild(el('span',{class:'stat-label'},o.label));
+    var cls='stat-value';if(o.cls)cls+=' '+o.cls;
+    d.appendChild(el('span',{class:cls},o.value));
+    if(o.sub)d.appendChild(el('span',{class:'stat-sub'},o.sub));
+    container.appendChild(d);
+  }
+}
+
+/* =================================================================
+   MODULE 01 — 描述统计
+================================================================= */
+function initM1(){
+  var viz=$('#m1-viz'),detail=$('#m1-detail'),stats=$('#m1-stats');
+  var nI=$('#m1-n'),sI=$('#m1-s'),skI=$('#m1-sk');
+  var data=[];
+  function gen(){
+    var n=+nI.value,s=+sI.value,sk=+skI.value/100;
+    data=[];
+    for(var i=0;i<n;i++){
+      var v=randn(50,s);
+      // 加入偏度：指数偏移
+      v=v+sk*(Math.random()*Math.random()*s*2);
+      data.push(v);
+    }
+    render();
+  }
+  function render(){
+    var m=mean(data),md=median(data),mo=mode(data),v=variance(data),sd=stddev(data);
+    var q1=quantile(data,.25),q3=quantile(data,.75),iqr=q3-q1;
+    var lo=q1-1.5*iqr,hi=q3+1.5*iqr;
+    var dmin=Math.min.apply(null,data),dmax=Math.max.apply(null,data);
+    var whiskerLo=Math.min.apply(null,data.filter(function(x){return x>=lo;}));
+    var whiskerHi=Math.max.apply(null,data.filter(function(x){return x<=hi;}));
+    var outliers=data.filter(function(x){return x<lo||x>hi;});
+    // 直方图
+    var lo2=Math.min(dmin,m-3*sd),hi2=Math.max(dmax,m+3*sd);
+    var bins=14,binW=(hi2-lo2)/bins;
+    var hist=new Array(bins).fill(0);
+    for(var i=0;i<data.length;i++){var bi=Math.min(bins-1,Math.floor((data[i]-lo2)/binW));hist[bi]++;}
+    var hmax=Math.max.apply(null,hist);
+    var c=chart(viz,640,360,{l:48,r:24,t:18,b:96});
+    axes(c,lo2,hi2,0,hmax*1.15,'数值','频数',{gridx:6,gridy:4,yd:0,xd:0});
+    // 直方图柱
+    for(var i=0;i<bins;i++){
+      var bx=c.x(lo2+i*binW,lo2,hi2),bw=c.x(lo2+(i+1)*binW,lo2,hi2)-bx;
+      var bh=c.y(0,0,hmax*1.15)-c.y(hist[i],0,hmax*1.15);
+      c.g.appendChild(el('rect',{x:bx+.5,y:c.y(hist[i],0,hmax*1.15),width:Math.max(1,bw-1),height:Math.max(0,bh),fill:'var(--accent)',opacity:.55,rx:2}));
+    }
+    // 均值/中位数线
+    var lineY1=-2,lineY2=c.ph+2;
+    c.g.appendChild(el('line',{x1:c.x(m,lo2,hi2),y1:lineY1,x2:c.x(m,lo2,hi2),y2:lineY2,stroke:'var(--warn)','stroke-width':2}));
+    c.g.appendChild(el('line',{x1:c.x(md,lo2,hi2),y1:lineY1,x2:c.x(md,lo2,hi2),y2:lineY2,stroke:'var(--accent-2)','stroke-width':1.5,'stroke-dasharray':'4 3'}));
+    c.g.appendChild(el('text',{class:'tick-text',x:c.x(m,lo2,hi2),y:-6,'text-anchor':'middle',fill:'var(--warn)'},'均值 '+fmt(m,1)));
+    // 箱线图（在下方）
+    var boxY=c.ph+52,boxH=26;
+    var xs=function(v){return c.x(v,lo2,hi2);};
+    // whisker 线
+    c.g.appendChild(el('line',{x1:xs(whiskerLo),y1:boxY+boxH/2,x2:xs(whiskerHi),y2:boxY+boxH/2,stroke:'var(--accent-2)','stroke-width':1.5}));
+    c.g.appendChild(el('line',{x1:xs(whiskerLo),y1:boxY,x2:xs(whiskerLo),y2:boxY+boxH,stroke:'var(--accent-2)','stroke-width':1.5}));
+    c.g.appendChild(el('line',{x1:xs(whiskerHi),y1:boxY,x2:xs(whiskerHi),y2:boxY+boxH,stroke:'var(--accent-2)','stroke-width':1.5}));
+    // box
+    c.g.appendChild(el('rect',{x:xs(q1),y:boxY,width:xs(q3)-xs(q1),height:boxH,fill:'var(--accent2-soft)',stroke:'var(--accent-2)','stroke-width':1.5,rx:3}));
+    // median 竖线
+    c.g.appendChild(el('line',{x1:xs(md),y1:boxY-2,x2:xs(md),y2:boxY+boxH+2,stroke:'var(--ink)','stroke-width':2.5}));
+    // outliers
+    for(var i=0;i<outliers.length;i++){
+      c.g.appendChild(el('circle',{cx:xs(outliers[i]),cy:boxY+boxH/2,r:3.2,fill:'var(--danger)'}));
+    }
+    c.g.appendChild(el('text',{class:'tick-text',x:0,y:boxY-6,fill:'var(--accent-2)'},'箱线图'));
+    detail.innerHTML='样本量 <b>n='+data.length+'</b>。直方图展示数据分布形状；下方箱线图给出五数概括：最小须 <code>'+fmt(whiskerLo,1)+'</code>、Q1 <code>'+fmt(q1,1)+'</code>、中位数 <code>'+fmt(md,1)+'</code>、Q3 <code>'+fmt(q3,1)+'</code>、最大须 <code>'+fmt(whiskerHi,1)+'</code>。IQR = Q3−Q1 = <b>'+fmt(iqr,1)+'</b>，超出 1.5×IQR 的点（红）为离群点。黄色竖线为均值，紫色虚线为中位数——二者偏离程度反映分布的偏态。';
+    renderStats(stats,[
+      {label:'均值 μ',value:fmt(m,2),cls:'warn'},
+      {label:'中位数',value:fmt(md,2),cls:'acc2'},
+      {label:'众数',value:fmt(mo,2)},
+      {label:'方差 σ²',value:fmt(v,2)},
+      {label:'标准差 σ',value:fmt(sd,2)},
+      {label:'IQR',value:fmt(iqr,2)},
+      {label:'离群点',value:String(outliers.length),cls:outliers.length?'danger':''}
+    ]);
+  }
+  [['m1-n','m1-nv',1],['m1-s','m1-sv',0],['m1-sk','m1-skv',1]].forEach(function(p){
+    var inp=$('#'+p[0]),out=$('#'+p[1]);
+    inp.addEventListener('input',function(){out.textContent=p[2]?(+inp.value).toFixed(1):inp.value;gen();});
+  });
+  $('#m1-gen').addEventListener('click',gen);
+  gen();
+}
+
+/* =================================================================
+   MODULE 02 — 假设检验
+================================================================= */
+function initM2(){
+  var viz=$('#m2-viz'),detail=$('#m2-detail'),stats=$('#m2-stats');
+  var aI=$('#m2-a'),eI=$('#m2-e'),dI=$('#m2-d');
+  var curType='t';
+  function params(){
+    return {a:+aI.value/100,effect:+eI.value/10,df:+dI.value};
+  }
+  function pdf(x,p){
+    if(curType==='t')return tPDF(x,p.df);
+    if(curType==='chi')return chiPDF(x,p.df);
+    if(curType==='f')return fPDF(x,p.df,p.df);
+    return 0;
+  }
+  function cdf(x,p){
+    if(curType==='t')return tCDF(x,p.df);
+    if(curType==='chi')return chiCDF(x,p.df);
+    if(curType==='f')return fCDF(x,p.df,p.df);
+    return 0;
+  }
+  function critVal(p){
+    // 上侧 alpha 临界值
+    if(curType==='t')return invNormalCDF(1-p.a/2)*1.0; // 近似，下面修正
+    return 0;
+  }
+  function render(){
+    var p=params();
+    var obs=p.effect; // 观测统计量
+    var xMin,xMax;
+    if(curType==='t'){xMin=-4.5;xMax=4.5;}
+    else if(curType==='chi'){xMin=0;xMax=Math.max(20,p.df*2.2);}
+    else{xMin=0;xMax=Math.max(6,p.df*1.4);}
+    // 临界值
+    var critHi,critLo=null;
+    if(curType==='t'){
+      // 用数值反演求临界值
+      critHi=invT(p.a/2,p.df);
+      critLo=-critHi;
+    }else{
+      critHi=invCDFUpper(p.a,p);
+    }
+    // p 值
+    var pval;
+    if(curType==='t'){pval=2*(1-cdf(Math.abs(obs),p));}
+    else{pval=1-cdf(obs,p);}
+    var ymax=0;for(var xx=xMin;xx<=xMax;xx+=(xMax-xMin)/80){var pv=pdf(xx,p);if(pv>ymax)ymax=pv;}
+    var c=chart(viz,640,340,{l:46,r:24,t:18,b:46});
+    axes(c,xMin,xMax,0,ymax*1.18,'统计量','密度',{gridx:6,gridy:4,yd:2,xd:1});
+    // 拒绝域填充（上侧 / 双侧）
+    var steps=160;
+    function areaPath(x0,x1){
+      var d='M'+c.x(x0,xMin,xMax).toFixed(2)+' '+c.y(0,0,ymax*1.18).toFixed(2)+' ';
+      for(var i=0;i<=steps;i++){var xv=x0+(x1-x0)*i/steps;d+='L'+c.x(xv,xMin,xMax).toFixed(2)+' '+c.y(pdf(xv,p),0,ymax*1.18).toFixed(2)+' ';}
+      d+='L'+c.x(x1,xMin,xMax).toFixed(2)+' '+c.y(0,0,ymax*1.18).toFixed(2)+' Z';return d;
+    }
+    if(curType==='t'){
+      c.g.appendChild(el('path',{d:areaPath(xMin,critLo),class:'fill-danger-soft'}));
+      c.g.appendChild(el('path',{d:areaPath(critHi,xMax),class:'fill-danger-soft'}));
+    }else{
+      c.g.appendChild(el('path',{d:areaPath(critHi,xMax),class:'fill-danger-soft'}));
+    }
+    // p 值区域（观测统计量尾部）
+    if(curType==='t'){
+      var obsAbs=Math.abs(obs);
+      if(obs>=0)c.g.appendChild(el('path',{d:areaPath(obsAbs,xMax),fill:'var(--warn)',opacity:.25}));
+      else c.g.appendChild(el('path',{d:areaPath(xMin,obsAbs),fill:'var(--warn)',opacity:.25}));
+    }else{
+      if(obs>=0)c.g.appendChild(el('path',{d:areaPath(obs,xMax),fill:'var(--warn)',opacity:.25}));
+    }
+    // 密度曲线
+    var dpath=pathFn(function(x){return pdf(x,p);},xMin,xMax,0,0,c.pw,c.ph,0,ymax*1.18,steps);
+    c.g.appendChild(el('path',{d:dpath,class:'curve-accent'}));
+    // 临界值线
+    function vline(xv,label,col){
+      c.g.appendChild(el('line',{x1:c.x(xv,xMin,xMax),y1:0,x2:c.x(xv,xMin,xMax),y2:c.ph,stroke:col,'stroke-width':1.5,'stroke-dasharray':'5 3'}));
+      c.g.appendChild(el('text',{class:'tick-text',x:c.x(xv,xMin,xMax),y:-6,'text-anchor':'middle',fill:col},label));
+    }
+    if(curType==='t'){vline(critHi,'+'+fmt(critHi,2),'var(--danger)');vline(critLo,fmt(critLo,2),'var(--danger)');}
+    else{vline(critHi,fmt(critHi,2),'var(--danger)');}
+    // 观测统计量
+    c.g.appendChild(el('line',{x1:c.x(obs,xMin,xMax),y1:0,x2:c.x(obs,xMin,xMax),y2:c.ph,stroke:'var(--warn)','stroke-width':2.5}));
+    c.g.appendChild(el('circle',{cx:c.x(obs,xMin,xMax),cy:c.y(pdf(obs,p),0,ymax*1.18),r:5,fill:'var(--warn)'}));
+    var reject=pval<p.a;
+    var typeLabel={t:'t 检验（双侧）',chi:'卡方检验（右尾）',f:'F 检验（右尾）'}[curType];
+    detail.innerHTML='<b>'+typeLabel+'</b>，自由度 df = <code>'+p.df+'</code>，显著性水平 α = <code>'+p.a.toFixed(2)+'</code>。红色阴影为拒绝域，黄色为观测统计量 <code>'+fmt(obs,2)+'</code> 对应的 p 值尾部面积。p 值 = <b style="color:'+(reject?'var(--danger)':'var(--accent)')+'">'+fmt(pval,4)+'</b> '+(reject?'&lt; α，<b>拒绝 H₀</b>':'≥ α，<b>不拒绝 H₀</b>')+'。';
+    renderStats(stats,[
+      {label:'检验类型',value:typeLabel.split('（')[0]},
+      {label:'观测统计量',value:fmt(obs,3),cls:'warn'},
+      {label:'自由度 df',value:String(p.df)},
+      {label:'临界值',value:curType==='t'?'±'+fmt(critHi,2):fmt(critHi,2),cls:'danger'},
+      {label:'p 值',value:fmt(pval,4),cls:reject?'danger':'acc'},
+      {label:'判定',value:reject?'拒绝 H₀':'不拒绝',cls:reject?'danger':'acc'}
+    ]);
+  }
+  // 数值反演 t 临界值
+  function invT(upperP,df){
+    // upperP 是上侧概率，返回分位点
+    var lo=-8,hi=8;
+    for(var i=0;i<60;i++){var mid=(lo+hi)/2;var up=1-tCDF(mid,df);if(up>upperP)lo=mid;else hi=mid;}
+    return (lo+hi)/2;
+  }
+  function invCDFUpper(upperP,p){
+    var lo=curType==='t'?-8:0,hi=curType==='t'?8:Math.max(40,p.df*4);
+    for(var i=0;i<60;i++){var mid=(lo+hi)/2;var up=1-cdf(mid,p);if(up>upperP)lo=mid;else hi=mid;}
+    return (lo+hi)/2;
+  }
+  $('#m2-type').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    curType=b.dataset.t;
+    $$('#m2-type button').forEach(function(x){x.classList.toggle('on',x===b);});
+    // df 范围调整
+    if(curType==='chi'||curType==='f'){dI.min=1;}else{dI.min=2;}
+    render();
+  });
+  aI.addEventListener('input',function(){$('#m2-av').textContent=(+aI.value/100).toFixed(2);render();});
+  eI.addEventListener('input',function(){$('#m2-ev').textContent=(+eI.value/10).toFixed(1);render();});
+  dI.addEventListener('input',function(){$('#m2-dv').textContent=dI.value;render();});
+  $('#m2-gen').addEventListener('click',function(){eI.value=20+Math.round(randn(0,15));$('#m2-ev').textContent=(+eI.value/10).toFixed(1);render();});
+  render();
+}
+
+/* =================================================================
+   MODULE 03 — 置信区间
+================================================================= */
+function initM3(){
+  var viz=$('#m3-viz'),detail=$('#m3-detail'),stats=$('#m3-stats');
+  var cI=$('#m3-c'),nI=$('#m3-n'),kI=$('#m3-k');
+  var mu=50,sigma=12;
+  var intervals=[]; // {lo,hi,mean,covers}
+  var raf=null,revealCount=0;
+  function gen(){
+    var n=+nI.value,k=+kI.value,conf=+cI.value/100;
+    var z=invNormalCDF(1-(1-conf)/2);
+    intervals=[];
+    for(var i=0;i<k;i++){
+      var sm=mean(sampleArr(n,function(){return randn(mu,sigma);}));
+      var se=sigma/Math.sqrt(n);
+      var lo=sm-z*se,hi=sm+z*se;
+      intervals.push({lo:lo,hi:hi,mean:sm,covers:lo<=mu&&mu<=hi});
+    }
+    revealCount=0;
+    cancelAnimationFrame(raf);
+    animate();
+  }
+  function animate(){
+    if(reduceMotion){revealCount=intervals.length;render();return;}
+    if(revealCount<intervals.length){
+      revealCount++;
+      render();
+      raf=requestAnimationFrame(animate);
+    }else{render();}
+  }
+  function render(){
+    var conf=+cI.value/100,n=+nI.value,k=intervals.length;
+    var z=invNormalCDF(1-(1-conf)/2);
+    var se=sigma/Math.sqrt(n);
+    var allLo=Math.min(mu-z*se*2.6,intervals.length?Math.min.apply(null,intervals.map(function(d){return d.lo;})):mu-z*se*2);
+    var allHi=Math.max(mu+z*se*2.6,intervals.length?Math.max.apply(null,intervals.map(function(d){return d.hi;})):mu+z*se*2);
+    var pad=(allHi-allLo)*0.05;allLo-=pad;allHi+=pad;
+    var c=chart(viz,640,Math.max(280,Math.min(440,k*9+60)),{l:48,r:24,t:18,b:46});
+    axes(c,allLo,allHi,0,k,'区间','序号',{gridx:6,gridy:0,yd:0,xd:1});
+    // 真实均值线
+    c.g.appendChild(el('line',{x1:c.x(mu,allLo,allHi),y1:0,x2:c.x(mu,allLo,allHi),y2:c.ph,stroke:'var(--warn)','stroke-width':2,'stroke-dasharray':'5 4'}));
+    c.g.appendChild(el('text',{class:'tick-text',x:c.x(mu,allLo,allHi),y:-6,'text-anchor':'middle',fill:'var(--warn)'},'μ='+mu));
+    var shown=intervals.slice(0,revealCount);
+    var covers=0;
+    for(var i=0;i<shown.length;i++){
+      var d=shown[i];
+      if(d.covers)covers++;
+      var yy=c.y(i+0.5,0,k);
+      var col=d.covers?'var(--accent)':'var(--danger)';
+      c.g.appendChild(el('line',{x1:c.x(d.lo,allLo,allHi),y1:yy,x2:c.x(d.hi,allLo,allHi),y2:yy,stroke:col,'stroke-width':5,'stroke-linecap':'round',opacity:.8}));
+      c.g.appendChild(el('circle',{cx:c.x(d.mean,allLo,allHi),cy:yy,r:3,fill:col}));
+    }
+    var rate=shown.length?covers/shown.length:0;
+    detail.innerHTML='置信水平 <b>'+(conf*100).toFixed(0)+'%</b>，每次抽样用 <code>x̄ ± z·σ/√n</code> 构造区间（z = <code>'+fmt(z,3)+'</code>）。真实均值 μ = '+mu+'（黄虚线）。绿色区间覆盖 μ，红色未覆盖。已显示 <b>'+shown.length+'</b> / '+k+' 个区间，覆盖率 <b style="color:'+(Math.abs(rate-conf)<0.06?'var(--accent)':'var(--warn)')+'">'+(rate*100).toFixed(1)+'%</b>，理论上应趋近 '+(conf*100).toFixed(0)+'%。';
+    renderStats(stats,[
+      {label:'置信水平',value:(conf*100).toFixed(0)+'%'},
+      {label:'z 临界值',value:fmt(z,3)},
+      {label:'样本量 n',value:String(n)},
+      {label:'区间宽度',value:fmt(2*z*se,2)},
+      {label:'已显示',value:shown.length+'/'+k},
+      {label:'覆盖率',value:(rate*100).toFixed(1)+'%',cls:Math.abs(rate-conf)<0.06?'acc':'warn'}
+    ]);
+  }
+  cI.addEventListener('input',function(){$('#m3-cv').textContent=cI.value+'%';gen();});
+  nI.addEventListener('input',function(){$('#m3-nv').textContent=nI.value;gen();});
+  kI.addEventListener('input',function(){$('#m3-kv').textContent=kI.value;gen();});
+  $('#m3-gen').addEventListener('click',gen);
+  gen();
+}
+
+/* =================================================================
+   MODULE 04 — 回归分析
+================================================================= */
+function initM4(){
+  var viz=$('#m4-viz'),detail=$('#m4-detail'),stats=$('#m4-stats');
+  var sI=$('#m4-s'),nI=$('#m4-n'),pI=$('#m4-p');
+  var xs=[],ys=[];var raf=null;
+  function gen(){
+    var slope=+sI.value/10,noise=+nI.value,n=+pI.value;
+    xs=[];ys=[];
+    for(var i=0;i<n;i++){
+      var x=5+Math.random()*90;
+      var y=10+slope*x+randn(0,noise);
+      xs.push(x);ys.push(y);
+    }
+    render();
+  }
+  function ols(){
+    var n=xs.length,mx=mean(xs),my=mean(ys);
+    var sxy=0,sxx=0;
+    for(var i=0;i<n;i++){sxy+=(xs[i]-mx)*(ys[i]-my);sxx+=(xs[i]-mx)*(xs[i]-mx);}
+    var slope=sxy/sxx,intercept=my-slope*mx;
+    var ssRes=0,ssTot=0;
+    for(var i=0;i<n;i++){var yp=intercept+slope*xs[i];ssRes+=(ys[i]-yp)*(ys[i]-yp);ssTot+=(ys[i]-my)*(ys[i]-my);}
+    var r2=1-ssRes/ssTot;
+    return {slope:slope,intercept:intercept,r2:r2,r:Math.sqrt(Math.abs(r2))*Math.sign(slope)};
+  }
+  function render(animSlope,animIntercept){
+    var fit=ols();
+    var slope=animSlope!=null?animSlope:fit.slope;
+    var intercept=animIntercept!=null?animIntercept:fit.intercept;
+    var xMin=0,xMax=100;
+    var yMin=Math.min.apply(null,ys)-5,yMax=Math.max.apply(null,ys)+5;
+    var c=chart(viz,640,360,{l:48,r:24,t:18,b:46});
+    axes(c,xMin,xMax,yMin,yMax,'x','y',{gridx:5,gridy:4,yd:0,xd:0});
+    // 残差线
+    for(var i=0;i<xs.length;i++){
+      var yp=intercept+slope*xs[i];
+      c.g.appendChild(el('line',{x1:c.x(xs[i],xMin,xMax),y1:c.y(ys[i],yMin,yMax),x2:c.x(xs[i],xMin,xMax),y2:c.y(yp,yMin,yMax),stroke:'var(--warn)','stroke-width':1,opacity:.4}));
+    }
+    // 回归线
+    c.g.appendChild(el('line',{x1:c.x(xMin,xMin,xMax),y1:c.y(intercept+slope*xMin,yMin,yMax),x2:c.x(xMax,xMin,xMax),y2:c.y(intercept+slope*xMax,yMin,yMax),class:'curve-accent2','stroke-width':2.5}));
+    // 点
+    for(var i=0;i<xs.length;i++){
+      c.g.appendChild(el('circle',{cx:c.x(xs[i],xMin,xMax),cy:c.y(ys[i],yMin,yMax),r:3.5,fill:'var(--accent)',opacity:.85}));
+    }
+    // 动画中的 R²
+    var ssRes=0,my=mean(ys),ssTot=0;
+    for(var i=0;i<xs.length;i++){var yp=intercept+slope*xs[i];ssRes+=(ys[i]-yp)*(ys[i]-yp);ssTot+=(ys[i]-my)*(ys[i]-my);}
+    var r2=ssTot>0?1-ssRes/ssTot:1;
+    detail.innerHTML='最小二乘法最小化残差（黄线）平方和。最优拟合直线：<code>y = '+fmt(intercept,2)+' + '+fmt(fit.slope,3)+'·x</code>。判定系数 <b>R² = '+fmt(fit.r2,4)+'</b> 表示模型解释了 <b>'+(fit.r2*100).toFixed(1)+'%</b> 的 y 方向变异。皮尔逊相关系数 r = <code>'+fmt(fit.r,3)+'</code>。';
+    renderStats(stats,[
+      {label:'截距',value:fmt(fit.intercept,3)},
+      {label:'斜率',value:fmt(fit.slope,3),cls:'acc2'},
+      {label:'R²',value:fmt(fit.r2,4),cls:'acc'},
+      {label:'相关系数 r',value:fmt(fit.r,3)},
+      {label:'样本量',value:String(xs.length)},
+      {label:'残差平方和',value:fmt(ssRes,1)}
+    ]);
+    // 动画时显示当前 R²
+    if(animSlope!=null){
+      var existing=c.g.querySelector('#m4-animR2');
+      if(existing)existing.remove();
+      var t=el('text',{id:'m4-animR2',x:c.pw-6,y:16,'text-anchor':'end',fill:'var(--accent)','font-size':13,'font-family':'var(--font-mono)'},'R² = '+fmt(r2,3));
+      c.g.appendChild(t);
+    }
+  }
+  function animateFit(){
+    cancelAnimationFrame(raf);
+    var fit=ols();
+    // 从斜率 0 动画到最优
+    var start=null,dur=reduceMotion?0:1100;
+    var fromSlope=0,fromInt=mean(ys);
+    function step(ts){
+      if(!start)start=ts;
+      var t=clamp((ts-start)/dur,0,1);
+      var e=1-Math.pow(1-t,3);
+      render(fromSlope+(fit.slope-fromSlope)*e,fromInt+(fit.intercept-fromInt)*e);
+      if(t<1)raf=requestAnimationFrame(step);
+    }
+    if(dur===0)render();else raf=requestAnimationFrame(step);
+  }
+  sI.addEventListener('input',function(){$('#m4-sv').textContent=(+sI.value/10).toFixed(1);gen();});
+  nI.addEventListener('input',function(){$('#m4-nv').textContent=nI.value;gen();});
+  pI.addEventListener('input',function(){$('#m4-pv').textContent=pI.value;gen();});
+  $('#m4-gen').addEventListener('click',gen);
+  $('#m4-fit').addEventListener('click',animateFit);
+  gen();
+}
+
+/* =================================================================
+   MODULE 05 — 方差分析 ANOVA
+================================================================= */
+function initM5(){
+  var viz=$('#m5-viz'),detail=$('#m5-detail'),stats=$('#m5-stats');
+  var kI=$('#m5-k'),dI=$('#m5-d'),sI=$('#m5-s');
+  var groups=[];
+  function gen(){
+    var k=+kI.value,sep=+dI.value,sig=+sI.value;
+    groups=[];
+    for(var g=0;g<k;g++){
+      var gm=40+(g-(k-1)/2)*sep;
+      var vals=sampleArr(12+Math.floor(Math.random()*6),function(){return randn(gm,sig);});
+      groups.push({mean:mean(vals),vals:vals});
+    }
+    render();
+  }
+  function render(){
+    var k=groups.length;
+    var all=[];for(var i=0;i<groups.length;i++)all=all.concat(groups[i].vals);
+    var grand=mean(all);
+    var lo=Math.min.apply(null,all)-3,hi=Math.max.apply(null,all)+3;
+    // ANOVA 计算
+    var ssB=0,ssW=0;var nTotal=all.length;
+    for(var g=0;g<k;g++){
+      ssB+=groups[g].vals.length*(groups[g].mean-grand)*(groups[g].mean-grand);
+      for(var j=0;j<groups[g].vals.length;j++)ssW+=(groups[g].vals[j]-groups[g].mean)*(groups[g].vals[j]-groups[g].mean);
+    }
+    var dfB=k-1,dfW=nTotal-k;
+    var msB=ssB/dfB,msW=ssW/dfW;
+    var F=msW>0?msB/msW:0;
+    var pval=1-fCDF(F,dfB,dfW);
+    var c=chart(viz,640,360,{l:48,r:24,t:18,b:46});
+    axes(c,0,k+1,lo,hi,'组','测量值',{gridx:0,gridy:5,yd:0,xd:0});
+    // 总均值线
+    c.g.appendChild(el('line',{x1:0,y1:c.y(grand,lo,hi),x2:c.pw,y2:c.y(grand,lo,hi),stroke:'var(--warn)','stroke-width':1.5,'stroke-dasharray':'5 4'}));
+    c.g.appendChild(el('text',{class:'tick-text',x:c.pw,y:c.y(grand,lo,hi)-4,'text-anchor':'end',fill:'var(--warn)'},'总均值 '+fmt(grand,1)));
+    var palette=['var(--accent)','var(--accent-2)','#fbbf24','#f87171','#60a5fa','#a78bfa'];
+    for(var g=0;g<k;g++){
+      var cx=c.x(g+1,0,k+1);
+      var col=palette[g%palette.length];
+      // 散点
+      for(var j=0;j<groups[g].vals.length;j++){
+        var jitter=(Math.random()-0.5)*0.35;
+        c.g.appendChild(el('circle',{cx:c.x(g+1+jitter,0,k+1),cy:c.y(groups[g].vals[j],lo,hi),r:3,fill:col,opacity:.7}));
+      }
+      // 组均值横线
+      var bw=0.32;
+      c.g.appendChild(el('line',{x1:c.x(g+1-bw,0,k+1),y1:c.y(groups[g].mean,lo,hi),x2:c.x(g+1+bw,0,k+1),y2:c.y(groups[g].mean,lo,hi),stroke:'var(--accent-2)','stroke-width':3}));
+      // 组均值到总均值的连线（组间变异）
+      c.g.appendChild(el('line',{x1:cx,y1:c.y(groups[g].mean,lo,hi),x2:cx,y2:c.y(grand,lo,hi),stroke:'var(--accent-2)','stroke-width':1,'stroke-dasharray':'3 2',opacity:.5}));
+      c.g.appendChild(el('text',{class:'tick-text',x:cx,y:c.ph+15,'text-anchor':'middle'},'组 '+(g+1)));
+    }
+    var reject=pval<0.05;
+    detail.innerHTML='单因素 ANOVA：总变异 = 组间变异 SS<sub>B</sub> + 组内变异 SS<sub>W</sub>。F = MS<sub>B</sub>/MS<sub>W</sub> = <code>'+fmt(F,2)+'</code>。组间差异越大（紫线越长），F 越大。p 值 = <b style="color:'+(reject?'var(--danger)':'var(--accent)')+'">'+fmt(pval,4)+'</b> '+(reject?'&lt; 0.05，<b>拒绝"各组均值相等"</b>':'≥ 0.05，组间无显著差异')+'。';
+    renderStats(stats,[
+      {label:'组数 k',value:String(k)},
+      {label:'SS 组间',value:fmt(ssB,1),cls:'acc2'},
+      {label:'SS 组内',value:fmt(ssW,1),cls:'acc'},
+      {label:'F 统计量',value:fmt(F,2),cls:'warn'},
+      {label:'p 值',value:fmt(pval,4),cls:reject?'danger':'acc'},
+      {label:'判定',value:reject?'拒绝 H₀':'不拒绝',cls:reject?'danger':'acc'}
+    ]);
+  }
+  kI.addEventListener('input',function(){$('#m5-kv').textContent=kI.value;gen();});
+  dI.addEventListener('input',function(){$('#m5-dv').textContent=dI.value;gen();});
+  sI.addEventListener('input',function(){$('#m5-sv').textContent=sI.value;gen();});
+  $('#m5-gen').addEventListener('click',gen);
+  gen();
+}
+
+/* =================================================================
+   MODULE 06 — 贝叶斯统计 + MCMC
+================================================================= */
+function initM6(){
+  var viz=$('#m6-viz'),detail=$('#m6-detail'),stats=$('#m6-stats');
+  var pI=$('#m6-p'),tI=$('#m6-t'),dI=$('#m6-d');
+  var obsData=[]; // 观测数据
+  var mcmcSamples=[];var raf=null;
+  var knownSigma=4; // 似然已知标准差
+  function genData(){
+    var dn=+dI.value;
+    obsData=sampleArr(dn,function(){return randn(3,knownSigma);}); // 真实 theta=3
+    mcmcSamples=[];
+    render();
+  }
+  // 后验 ∝ 先验 × 似然。模型：theta 未知，数据 ~ N(theta, sigma^2)
+  // 先验 ~ N(mu0, tau0^2)，后验 ~ N(mu_post, tau_post^2) 共轭
+  function posterior(){
+    var mu0=+pI.value/10,tau0=+tI.value/10;
+    var n=obsData.length;
+    var xbar=mean(obsData);
+    var prec0=1/(tau0*tau0),precL=n/(knownSigma*knownSigma);
+    var precPost=prec0+precL;
+    var muPost=(prec0*mu0+precL*xbar)/precPost;
+    var tauPost=1/Math.sqrt(precPost);
+    return {mu0:mu0,tau0:tau0,muPost:muPost,tauPost:tauPost,xbar:xbar,n:n};
+  }
+  function logPostUnnorm(theta,po){
+    // 先验 + 似然（忽略常数）
+    var lp=-0.5*((theta-po.mu0)/(po.tau0))*((theta-po.mu0)/po.tau0);
+    for(var i=0;i<obsData.length;i++)lp+=-0.5*((obsData[i]-theta)/knownSigma)*((obsData[i]-theta)/knownSigma);
+    return lp;
+  }
+  function render(){
+    var po=posterior();
+    var lo=Math.min(po.mu0-3*po.tau0,po.muPost-3*po.tauPost,mean(obsData)-2)-1;
+    var hi=Math.max(po.mu0+3*po.tau0,po.muPost+3*po.tauPost,mean(obsData)+2)+1;
+    var yMax=Math.max(normalPDF(po.mu0,po.mu0,po.tau0),normalPDF(po.muPost,po.muPost,po.tauPost));
+    // 似然缩放显示
+    var likCenter=mean(obsData),likStd=knownSigma/Math.sqrt(Math.max(1,obsData.length));
+    var likMax=normalPDF(likCenter,likCenter,likStd);
+    var c=chart(viz,640,360,{l:46,r:24,t:18,b:46});
+    axes(c,lo,hi,0,yMax*1.2,'θ (参数)','密度',{gridx:6,gridy:4,yd:2,xd:1});
+    // 先验
+    c.g.appendChild(el('path',{d:pathFn(function(x){return normalPDF(x,po.mu0,po.tau0);},lo,hi,0,0,c.pw,c.ph,0,yMax*1.2),stroke:'var(--muted)','stroke-width':2,fill:'none'}));
+    // 似然（归一化到同尺度）
+    c.g.appendChild(el('path',{d:pathFn(function(x){return normalPDF(x,likCenter,likStd)*(yMax*1.2/likMax*0.9);},lo,hi,0,0,c.pw,c.ph,0,yMax*1.2),stroke:'var(--warn)','stroke-width':2,fill:'none','stroke-dasharray':'5 3'}));
+    // 理论后验
+    c.g.appendChild(el('path',{d:pathFn(function(x){return normalPDF(x,po.muPost,po.tauPost);},lo,hi,0,0,c.pw,c.ph,0,yMax*1.2),class:'curve-accent2','stroke-width':2,'stroke-dasharray':'2 2'}));
+    // MCMC 直方图
+    if(mcmcSamples.length>10){
+      var bins=28,binW=(hi-lo)/bins,hist=new Array(bins).fill(0);
+      for(var i=0;i<mcmcSamples.length;i++){var bi=Math.min(bins-1,Math.max(0,Math.floor((mcmcSamples[i]-lo)/binW)));hist[bi]++;}
+      var hmax=Math.max.apply(null,hist);
+      for(var i=0;i<bins;i++){
+        if(hist[i]===0)continue;
+        var bx=c.x(lo+i*binW,lo,hi),bw=c.x(lo+(i+1)*binW,lo,hi)-bx;
+        var bh=c.y(0,0,yMax*1.2)-c.y(hist[i]/hmax*yMax*1.05,0,yMax*1.2);
+        c.g.appendChild(el('rect',{x:bx,y:c.y(hist[i]/hmax*yMax*1.05,0,yMax*1.2),width:Math.max(1,bw-1),height:Math.max(0,bh),fill:'var(--accent)',opacity:.55}));
+      }
+    }
+    // 标记
+    c.g.appendChild(el('line',{x1:c.x(po.mu0,lo,hi),y1:0,x2:c.x(po.mu0,lo,hi),y2:c.ph,stroke:'var(--muted)','stroke-width':1,'stroke-dasharray':'3 3'}));
+    c.g.appendChild(el('line',{x1:c.x(po.muPost,lo,hi),y1:0,x2:c.x(po.muPost,lo,hi),y2:c.ph,stroke:'var(--accent-2)','stroke-width':1.5,'stroke-dasharray':'3 3'}));
+    var ci95=[po.muPost-1.96*po.tauPost,po.muPost+1.96*po.tauPost];
+    detail.innerHTML='共轭正态模型：先验 θ ~ N('+fmt(po.mu0,1)+', '+fmt(po.tau0,1)+'²)（灰），似然（黄虚）由 <b>n='+po.n+'</b> 个观测驱动，理论后验（紫虚）~ N('+fmt(po.muPost,2)+', '+fmt(po.tauPost,2)+'²)。<span class="ac2">Metropolis-Hastings</span> 采样（绿直方图）逐步逼近理论后验。95% 可信区间 = <code>['+fmt(ci95[0],2)+', '+fmt(ci95[1],2)+']</code>。';
+    renderStats(stats,[
+      {label:'MCMC 样本数',value:String(mcmcSamples.length),cls:'acc'},
+      {label:'后验均值',value:fmt(po.muPost,2),cls:'acc2'},
+      {label:'后验标准差',value:fmt(po.tauPost,2)},
+      {label:'先验均值',value:fmt(po.mu0,2)},
+      {label:'数据均值',value:fmt(po.xbar,2),cls:'warn'},
+      {label:'95% CI 下',value:fmt(ci95[0],2)},{label:'95% CI 上',value:fmt(ci95[1],2)}
+    ]);
+  }
+  function runMCMC(){
+    cancelAnimationFrame(raf);
+    mcmcSamples=[];
+    var po=posterior();
+    var theta=po.mu0,curLog=logPostUnnorm(theta,po);
+    var proposalSd=Math.max(0.5,po.tauPost*1.5);
+    var total=reduceMotion?600:2400,batch=reduceMotion?600:60;
+    var drawn=0;
+    function step(){
+      var n=Math.min(batch,total-drawn);
+      for(var i=0;i<n;i++){
+        var prop=theta+randn(0,proposalSd);
+        var propLog=logPostUnnorm(prop,po);
+        if(Math.log(Math.random())<propLog-curLog){theta=prop;curLog=propLog;}
+        if(drawn>200)mcmcSamples.push(theta); // burn-in
+        drawn++;
+      }
+      render();
+      if(drawn<total)raf=requestAnimationFrame(step);
+    }
+    raf=requestAnimationFrame(step);
+  }
+  pI.addEventListener('input',function(){$('#m6-pv').textContent=(+pI.value/10).toFixed(1);render();});
+  tI.addEventListener('input',function(){$('#m6-tv').textContent=(+tI.value/10).toFixed(1);render();});
+  dI.addEventListener('input',function(){$('#m6-dv').textContent=dI.value;genData();});
+  $('#m6-run').addEventListener('click',runMCMC);
+  $('#m6-gen').addEventListener('click',genData);
+  genData();
+}
+
+/* =================================================================
+   MODULE 07 — 非参数检验
+================================================================= */
+function initM7(){
+  var viz=$('#m7-viz'),detail=$('#m7-detail'),stats=$('#m7-stats');
+  var sI=$('#m7-s'),nI=$('#m7-n');
+  var curType='ks';
+  var A=[],B=[];
+  function gen(){
+    var n=+nI.value,shift=+sI.value/10;
+    A=sampleArr(n,function(){return randn(0,1);});
+    B=sampleArr(n,function(){return randn(shift,1);});
+    render();
+  }
+  function ecdf(data,vals){
+    var s=data.slice().sort(function(p,q){return p-q;});
+    return vals.map(function(v){
+      var cnt=0;for(var i=0;i<s.length;i++){if(s[i]<=v)cnt++;else break;}
+      return cnt/s.length;
+    });
+  }
+  function ksTest(){
+    var all=(A.concat(B)).sort(function(p,q){return p-q;});
+    var fa=ecdf(A,all),fb=ecdf(B,all);
+    var D=0,di=0;
+    for(var i=0;i<all.length;i++){var d=Math.abs(fa[i]-fb[i]);if(d>D){D=d;di=all[i];}}
+    var ne=A.length*B.length/(A.length+B.length);
+    var pval=2*Math.exp(-2*ne*D*D);
+    pval=clamp(pval,0,1);
+    return {D:D,di:di,pval:pval,all:all,fa:fa,fb:fb};
+  }
+  function rankSumTest(){
+    // Mann-Whitney U
+    var combined=A.map(function(v){return {v:v,g:0};}).concat(B.map(function(v){return {v:v,g:1};}));
+    combined.sort(function(p,q){return p.v-q.v;});
+    // 排名（平均并列）
+    var ranks=new Array(combined.length);
+    var i=0;
+    while(i<combined.length){
+      var j=i;while(j<combined.length-1&&combined[j+1].v===combined[i].v)j++;
+      var r=(i+j)/2+1;for(var k=i;k<=j;k++)ranks[k]=r;
+      i=j+1;
+    }
+    var R1=0;for(var k=0;k<combined.length;k++)if(combined[k].g===0)R1+=ranks[k];
+    var n1=A.length,n2=B.length;
+    var U=R1-n1*(n1+1)/2;
+    var muU=n1*n2/2,sdU=Math.sqrt(n1*n2*(n1+n2+1)/12);
+    var z=(U-muU)/sdU;
+    var pval=2*(1-normalCDF(Math.abs(z)));
+    return {U:U,z:z,pval:pval,R1:R1};
+  }
+  function wilcoxonTest(){
+    // 配对符号秩（这里用 A-B 配对）
+    var diffs=[];var n=Math.min(A.length,B.length);
+    for(var i=0;i<n;i++)diffs.push(A[i]-B[i]);
+    diffs=diffs.filter(function(d){return d!==0;});
+    var abs=diffs.map(function(d){return {d:d,a:Math.abs(d)};});
+    abs.sort(function(p,q){return p.a-q.a;});
+    var ranks=new Array(abs.length);
+    var i=0;
+    while(i<abs.length){
+      var j=i;while(j<abs.length-1&&abs[j+1].a===abs[i].a)j++;
+      var r=(i+j)/2+1;for(var k=i;k<=j;k++)ranks[k]=r;
+      i=j+1;
+    }
+    var Wp=0;for(var k=0;k<abs.length;k++)if(abs[k].d>0)Wp+=ranks[k];
+    var nn=abs.length;
+    var mu=nn*(nn+1)/4,sd=Math.sqrt(nn*(nn+1)*(2*nn+1)/24);
+    var z=sd>0?(Wp-mu)/sd:0;
+    var pval=2*(1-normalCDF(Math.abs(z)));
+    return {W:Wp,z:z,pval:pval,n:nn};
+  }
+  function render(){
+    var all=(A.concat(B)).sort(function(p,q){return p-q;});
+    var lo=all[0]-0.5,hi=all[all.length-1]+0.5;
+    var c=chart(viz,640,360,{l:46,r:24,t:18,b:46});
+    axes(c,lo,hi,0,1,'数值','累积概率 F(x)',{gridx:6,gridy:5,yd:2,xd:1});
+    var res;
+    if(curType==='ks'){
+      res=ksTest();
+      // ECDF A
+      var dA='';var prev=0;
+      var sA=A.slice().sort(function(p,q){return p-q;});
+      var sB=B.slice().sort(function(p,q){return p-q;});
+      function ecdfPath(sorted){
+        var d='M'+c.x(lo,lo,hi)+' '+c.y(0,0,1)+' ';
+        for(var i=0;i<sorted.length;i++){var xx=sorted[i];d+='L'+c.x(xx,lo,hi)+' '+c.y(i/sorted.length,0,1)+' L'+c.x(xx,lo,hi)+' '+c.y((i+1)/sorted.length,0,1)+' ';}
+        d+='L'+c.x(hi,lo,hi)+' '+c.y(1,0,1);return d;
+      }
+      c.g.appendChild(el('path',{d:ecdfPath(sA),class:'curve-accent','stroke-width':2,fill:'none'}));
+      c.g.appendChild(el('path',{d:ecdfPath(sB),class:'curve-accent2','stroke-width':2,fill:'none'}));
+      // 点
+      for(var i=0;i<sA.length;i++)c.g.appendChild(el('circle',{cx:c.x(sA[i],lo,hi),cy:c.y((i+1)/sA.length,0,1),r:2.5,fill:'var(--accent)'}));
+      for(var i=0;i<sB.length;i++)c.g.appendChild(el('circle',{cx:c.x(sB[i],lo,hi),cy:c.y((i+1)/sB.length,0,1),r:2.5,fill:'var(--accent-2)'}));
+      // D 标记
+      var idx=res.all.indexOf(res.di);
+      c.g.appendChild(el('line',{x1:c.x(res.di,lo,hi),y1:c.y(res.fa[idx],0,1),x2:c.x(res.di,lo,hi),y2:c.y(res.fb[idx],0,1),stroke:'var(--warn)','stroke-width':3}));
+      c.g.appendChild(el('text',{class:'tick-text',x:c.x(res.di,lo,hi),y:c.y(Math.max(res.fa[idx],res.fb[idx]),0,1)-6,'text-anchor':'middle',fill:'var(--warn)'},'D='+fmt(res.D,2)));
+    }else if(curType==='rank'){
+      res=rankSumTest();
+      // 画两组散点 + 排名
+      drawGroups(c,lo,hi);
+    }else{
+      res=wilcoxonTest();
+      drawGroups(c,lo,hi);
+    }
+    var reject=res.pval<0.05;
+    var labels={ks:['K-S 统计量 D','D'],rank:['秩和 U','U'],wilcoxon:['Wilcoxon W','W']};
+    detail.innerHTML='当前检验：<b>'+labels[curType][0]+'</b>。' +(curType==='ks'?'Kolmogorov-Smirnov 比较两组经验分布函数 (ECDF) 的最大垂直距离 <code>D = '+fmt(res.D,3)+'</code>（黄线）。':curType==='rank'?'Mann-Whitney 秩和检验将两组数据合并排名，统计量 <code>U = '+fmt(res.U,1)+'</code>，标准化 z = '+fmt(res.z,3)+'。':'Wilcoxon 符号秩检验对配对差值的绝对值排名，统计量 <code>W = '+fmt(res.W,1)+'</code>，z = '+fmt(res.z,3)+'。')+' p 值 = <b style="color:'+(reject?'var(--danger)':'var(--accent)')+'">'+fmt(res.pval,4)+'</b> '+(reject?'&lt; 0.05，<b>分布有显著差异</b>':'≥ 0.05，无显著差异')+'。';
+    renderStats(stats,[
+      {label:'检验方法',value:labels[curType][0].split(' ')[0]},
+      {label:labels[curType][1],value:fmt(curType==='ks'?res.D:(curType==='rank'?res.U:res.W),2),cls:'warn'},
+      {label:'z 统计量',value:fmt(res.z||0,3)},
+      {label:'样本量',value:A.length+' + '+B.length},
+      {label:'p 值',value:fmt(res.pval,4),cls:reject?'danger':'acc'},
+      {label:'判定',value:reject?'有差异':'无差异',cls:reject?'danger':'acc'}
+    ]);
+  }
+  function drawGroups(c,lo,hi){
+    var palette=['var(--accent)','var(--accent-2)'];
+    var sets=[A,B];
+    for(var g=0;g<2;g++){
+      var s=sets[g].slice().sort(function(p,q){return p-q;});
+      for(var j=0;j<s.length;j++){
+        c.g.appendChild(el('circle',{cx:c.x(s[j],lo,hi),cy:c.y(g===0?0.2:0.8,0,1)+randn(0,0.02),r:3,fill:palette[g],opacity:.75}));
+      }
+    }
+  }
+  $('#m7-type').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    curType=b.dataset.t;
+    $$('#m7-type button').forEach(function(x){x.classList.toggle('on',x===b);});
+    render();
+  });
+  sI.addEventListener('input',function(){$('#m7-sv').textContent=(+sI.value/10).toFixed(1);gen();});
+  nI.addEventListener('input',function(){$('#m7-nv').textContent=nI.value;gen();});
+  $('#m7-gen').addEventListener('click',gen);
+  gen();
+}
+
+/* =================================================================
+   MODULE 08 — 抽样分布 / 中心极限定理
+================================================================= */
+function initM8(){
+  var viz=$('#m8-viz'),detail=$('#m8-detail'),stats=$('#m8-stats');
+  var nI=$('#m8-n'),spI=$('#m8-sp');
+  var popType='uniform';
+  var means=[]; // 累积的样本均值
+  var raf=null,running=false;
+  // 总体
+  function popSample(){
+    if(popType==='uniform')return rand(0,100);
+    if(popType==='skew'){return -Math.log(1-Math.random())*25;} // 指数偏态
+    if(popType==='bimodal'){return Math.random()<0.5?randn(25,8):randn(75,8);}
+    return rand(0,100);
+  }
+  function popPDF(x){
+    if(popType==='uniform')return (x>=0&&x<=100)?0.01:0;
+    if(popType==='skew')return x>0?0.04*Math.exp(-x/25):0;
+    if(popType==='bimodal')return 0.5*normalPDF(x,25,8)+0.5*normalPDF(x,75,8);
+    return 0;
+  }
+  function popMean(){
+    if(popType==='uniform')return 50;
+    if(popType==='skew')return 25;
+    if(popType==='bimodal')return 50;
+    return 50;
+  }
+  function popStd(){
+    if(popType==='uniform')return 100/Math.sqrt(12);
+    if(popType==='skew')return 25;
+    if(popType==='bimodal')return Math.sqrt(8*8+25*25);
+    return 28.87;
+  }
+  function drawOne(){
+    var n=+nI.value;
+    var s=sampleArr(n,popSample);
+    means.push(mean(s));
+    if(means.length>3000)means.shift();
+  }
+  function render(){
+    var n=+nI.value;
+    var pm=popMean(),ps=popStd();
+    var theoStd=ps/Math.sqrt(n);
+    var c=chart(viz,640,380,{l:46,r:24,t:18,b:46});
+    // 上半：总体分布
+    var topH=c.ph*0.42;
+    // 下半：样本均值分布
+    // 画分隔线
+    c.g.appendChild(el('line',{x1:0,y1:topH+8,x2:c.pw,y2:topH+8,stroke:'var(--border)'}));
+    // ---- 总体 ----
+    var popLo=popType==='skew'?0:-5,popHi=popType==='skew'?120:105;
+    if(popType==='bimodal'){popLo=-5;popHi=105;}
+    if(popType==='uniform'){popLo=-5;popHi=105;}
+    var popMax=0;for(var xx=popLo;xx<=popHi;xx+=1)popMax=Math.max(popMax,popPDF(xx));
+    var popTopG=el('g',{transform:'translate(0,0)'});
+    c.g.appendChild(popTopG);
+    // 总体曲线
+    var pd=pathFn(function(x){return popPDF(x);},popLo,popHi,0,0,c.pw,topH,0,popMax*1.15,100);
+    popTopG.appendChild(el('path',{d:pd,stroke:'var(--accent-2)','stroke-width':2,fill:'rgba(124,92,255,.12)'}));
+    popTopG.appendChild(el('text',{class:'tick-text',x:6,y:12,fill:'var(--accent-2)'},'总体分布'));
+    popTopG.appendChild(el('text',{class:'tick-text',x:6,y:26,fill:'var(--faint)'},'μ='+fmt(pm,1)+' σ='+fmt(ps,1)));
+    // ---- 样本均值直方图 ----
+    var botTop=topH+16,botH=c.ph-topH-20;
+    var mLo=pm-4*theoStd,mHi=pm+4*theoStd;
+    if(means.length>0){
+      var realMin=Math.min.apply(null,means),realMax=Math.max.apply(null,means);
+      mLo=Math.min(mLo,realMin);mHi=Math.max(mHi,realMax);
+    }
+    var bins=36,binW=(mHi-mLo)/bins;
+    var hist=new Array(bins).fill(0);
+    for(var i=0;i<means.length;i++){var bi=Math.min(bins-1,Math.max(0,Math.floor((means[i]-mLo)/binW)));hist[bi]++;}
+    var hmax=Math.max(1,Math.max.apply(null,hist));
+    var botG=el('g',{transform:'translate(0,'+botTop+')'});
+    c.g.appendChild(botG);
+    // 理论正态曲线（样本均值分布）
+    var npd=pathFn(function(x){return normalPDF(x,pm,theoStd);},mLo,mHi,0,0,c.pw,botH,0,hmax/means.length*(1.0),100);
+    // 缩放：把正态 PDF 转成期望频数
+    // 期望频数 = N * binW * pdf
+    var npd2=pathFn(function(x){return means.length*binW*normalPDF(x,pm,theoStd);},mLo,mHi,0,0,c.pw,botH,0,hmax*1.05,100);
+    botG.appendChild(el('path',{d:npd2,stroke:'var(--warn)','stroke-width':2,fill:'none','stroke-dasharray':'5 3'}));
+    // 直方图
+    for(var i=0;i<bins;i++){
+      if(hist[i]===0)continue;
+      var bx=c.x(mLo+i*binW,mLo,mHi),bw=c.x(mLo+(i+1)*binW,mLo,mHi)-bx;
+      var bh=botH-(hist[i]/(hmax*1.05))*botH;
+      botG.appendChild(el('rect',{x:bx+.5,y:bh,width:Math.max(1,bw-1),height:botH-bh,fill:'var(--accent)',opacity:.7}));
+    }
+    // 均值线
+    botG.appendChild(el('line',{x1:c.x(pm,mLo,mHi),y1:0,x2:c.x(pm,mLo,mHi),y2:botH,stroke:'var(--warn)','stroke-width':1,'stroke-dasharray':'3 3'}));
+    botG.appendChild(el('text',{class:'tick-text',x:6,y:12,fill:'var(--accent)'},'样本均值分布 (n='+n+', N='+means.length+')'));
+    // 底部刻度
+    for(var i=0;i<=6;i++){var v=mLo+(mHi-mLo)*i/6;botG.appendChild(el('text',{class:'tick-text',x:c.x(v,mLo,mHi),y:botH+13,'text-anchor':'middle'},fmt(v,0)));}
+    var em=means.length?mean(means):pm;
+    var esd=means.length?stddev(means):0;
+    detail.innerHTML='中心极限定理：从总体（上）反复抽取样本量为 <b>n='+n+'</b> 的样本，计算均值。无论总体形状如何（均匀/偏态/双峰），样本均值分布（下）随样本数增加趋近正态 <code>N(μ, σ²/n)</code>（黄虚线）。理论标准误 σ/√n = <b>'+fmt(theoStd,2)+'</b>，实测均值标准差 = <b>'+fmt(esd,2)+'</b>——二者应接近。';
+    renderStats(stats,[
+      {label:'总体类型',value:{uniform:'均匀',skew:'偏态',bimodal:'双峰'}[popType]},
+      {label:'样本量 n',value:String(n),cls:'acc2'},
+      {label:'已抽样本',value:String(means.length),cls:'acc'},
+      {label:'总体 μ',value:fmt(pm,2)},
+      {label:'均值之均值',value:fmt(em,2),cls:'warn'},
+      {label:'理论 SE',value:fmt(theoStd,2)},
+      {label:'实测 SD',value:fmt(esd,2)}
+    ]);
+  }
+  function tick(){
+    if(!running)return;
+    var speed=+spI.value;
+    var perFrame=Math.max(1,Math.round(speed*speed*0.8));
+    for(var i=0;i<perFrame;i++)drawOne();
+    render();
+    raf=requestAnimationFrame(tick);
+  }
+  function toggle(){
+    running=!running;
+    $('#m8-toggle').textContent=running?'暂停':'开始采样';
+    if(running){raf=requestAnimationFrame(tick);}
+    else{cancelAnimationFrame(raf);}
+  }
+  $('#m8-pop').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    popType=b.dataset.p;
+    $$('#m8-pop button').forEach(function(x){x.classList.toggle('on',x===b);});
+    means=[];render();
+  });
+  nI.addEventListener('input',function(){$('#m8-nv').textContent=nI.value;means=[];render();});
+  spI.addEventListener('input',function(){var v=+spI.value;$('#m8-spv').textContent=['极慢','慢','中','快','极快'][v-1]||'中';});
+  $('#m8-toggle').addEventListener('click',toggle);
+  $('#m8-reset').addEventListener('click',function(){running=false;cancelAnimationFrame(raf);$('#m8-toggle').textContent='开始采样';means=[];render();});
+  render();
+}
+
+/* ===================== BOOT ===================== */
+function boot(){
+  setupProgress();
+  setupSidebar();
+  setupObserver();
+  try{initM1();}catch(e){console.error('M1',e);}
+  try{initM2();}catch(e){console.error('M2',e);}
+  try{initM3();}catch(e){console.error('M3',e);}
+  try{initM4();}catch(e){console.error('M4',e);}
+  try{initM5();}catch(e){console.error('M5',e);}
+  try{initM6();}catch(e){console.error('M6',e);}
+  try{initM7();}catch(e){console.error('M7',e);}
+  try{initM8();}catch(e){console.error('M8',e);}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
+else boot();
+
+})();
+</script>
+</body>
+</html>

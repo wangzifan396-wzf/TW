@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>continual-learning-viz-lab · 持续学习可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#a78bfa;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(167,139,250,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(167,139,250,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(167,139,250,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1030;border-color:transparent}
+.btn.primary:hover{background:#b89dff}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>continual-learning</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">continual learning</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/continual-learning-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>灾难性遗忘</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>EWC 弹性巩固</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>经验回放</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>渐进神经网络</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>知识蒸馏</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>突触巩固</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>任务边界检测</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>评估指标</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/continual-learning-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>持续学习 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现灾难性遗忘、EWC、经验回放、知识蒸馏、突触巩固等持续学习核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 灾难性遗忘 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>灾难性遗忘 Catastrophic Forgetting</h2>
+      <p>顺序学习多个任务时，新任务的梯度会覆盖旧知识，导致旧任务精度骤降。播放动画观察多任务遗忘曲线，切换“无保护 / 有保护”对比遗忘程度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">forgetting-curves.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend" id="lg01"></div>
+        <div class="detail-box">
+          <h4 id="p01title">多任务遗忘曲线</h4>
+          <p id="p01detail">点击“播放”顺序训练 4 个任务。无保护时旧任务精度随新任务训练迅速崩塌至随机水平；开启保护（如回放）后衰减显著放缓。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">任务 T1 终态</div><div class="v amber" id="st01t1">—</div></div>
+          <div class="stat"><div class="k">任务 T2 终态</div><div class="v purple" id="st01t2">—</div></div>
+          <div class="stat"><div class="k">任务 T3 终态</div><div class="v" style="color:#34d399" id="st01t3">—</div></div>
+          <div class="stat"><div class="k">平均遗忘</div><div class="v" style="color:#f87171" id="st01avg">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 EWC ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>EWC 弹性权重巩固</h2>
+      <p>Elastic Weight Consolidation 用 Fisher 信息矩阵估计各参数对旧任务的重要性，对重要参数施加二次惩罚，使新任务解靠近旧任务最优。拖动 λ 观察参数轨迹。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ewc-loss-landscape.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>旧任务损失盆地</span>
+          <span><i style="background:#7c5cff"></i>新任务损失盆地</span>
+          <span><i style="background:#34d399"></i>参数轨迹</span>
+          <span><i style="background:rgba(167,139,250,.3);border:1px solid #a78bfa"></i>Fisher 约束</span>
+        </div>
+        <div class="detail-box">
+          <h4>损失函数</h4>
+          <p>EWC 在新任务损失上叠加旧任务的二次正则：<code class="formula">L = L_new(θ) + (λ/2) Σ Fᵢ (θᵢ − θ*ᵢ)²</code>其中 <code>Fᵢ</code> 是 Fisher 对角元，<code>θ*</code> 为旧任务最优参数。λ 越大，参数越被“锁”在旧最优附近。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">EWC λ</div><div class="v amber" id="st02lam">0.0</div></div>
+          <div class="stat"><div class="k">终点旧任务损失</div><div class="v purple" id="st02old">—</div></div>
+          <div class="stat"><div class="k">终点新任务损失</div><div class="v" style="color:#34d399" id="st02new">—</div></div>
+          <div class="stat"><div class="k">权衡</div><div class="v" id="st02trade">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 经验回放 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>经验回放 Experience Replay</h2>
+      <p>Replay Buffer 保存旧任务样本，训练时与新批次混合。ER 随机采样、MER 选最大干扰样本、A-GEM 将梯度投影到不增加旧任务损失的方向。切换策略观察梯度约束差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">replay-buffer.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>任务 T1</span>
+          <span><i style="background:#7c5cff"></i>任务 T2</span>
+          <span><i style="background:#34d399"></i>任务 T3</span>
+          <span><i style="background:#f87171"></i>任务 T4</span>
+          <span><i style="background:#fbbf24"></i>回放采样</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">策略说明</h4>
+          <p id="p03detail">ER：从缓冲区均匀采样旧样本混入当前批次。MER：选择会使旧任务损失上升最多的样本优先回放。A-GEM：估计旧任务梯度参考方向，将当前梯度投影到不与其成钝角的半空间。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">缓冲区容量</div><div class="v amber" id="st03cap">24</div></div>
+          <div class="stat"><div class="k">已存样本</div><div class="v purple" id="st03used">0</div></div>
+          <div class="stat"><div class="k">当前任务</div><div class="v" style="color:#34d399" id="st03cur">T1</div></div>
+          <div class="stat"><div class="k">策略</div><div class="v" id="st03strat">ER</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 渐进神经网络 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>渐进神经网络 Progressive Net</h2>
+      <p>每来一个新任务就添加一列新网络，并通过侧枝连接复用旧列已学特征，旧列参数完全冻结从而零遗忘。点击“添加任务”观察列与侧枝的增长。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">progressive-net.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>前馈连接（可训练）</span>
+          <span><i style="background:#7c5cff"></i>侧枝连接（可训练）</span>
+          <span><i style="background:#62666d"></i>冻结列</span>
+        </div>
+        <div class="detail-box">
+          <h4>结构</h4>
+          <p>第 k 列的隐藏层通过侧枝接收前面所有列对应隐藏层的输出：<code>h⁽ᵏ⁾ = φ(W⁽ᵏ⁾x + Σ_{j&lt;k} U^{(j→k)} h⁽ʲ⁾)</code>。旧列权重冻结，知识被横向迁移且不会遗忘。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">列数</div><div class="v amber" id="st04cols">1</div></div>
+          <div class="stat"><div class="k">可训练参数</div><div class="v purple" id="st04param">—</div></div>
+          <div class="stat"><div class="k">侧枝连接</div><div class="v" style="color:#34d399" id="st04lateral">0</div></div>
+          <div class="stat"><div class="k">遗忘</div><div class="v" style="color:#34d399">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 知识蒸馏 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>知识蒸馏 Knowledge Distillation</h2>
+      <p>用旧任务教师模型的软目标（soft targets）指导新任务学生模型，迁移暗知识。温度 T 越高，分布越平滑，非正确类的相对信息越显著。拖动温度滑块观察。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">distillation-softmax.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>硬目标 (T=1)</span>
+          <span><i style="background:#a78bfa"></i>软目标 (高温)</span>
+          <span><i style="background:#7c5cff"></i>教师 logits</span>
+        </div>
+        <div class="detail-box">
+          <h4>蒸馏损失</h4>
+          <p><code class="formula">L = α · CE(y, s) + (1−α) · T² · KL(softmax(z_t/T) ‖ softmax(z_s/T))</code>高温放大概率分布的尾部，使学生学习到类间相似度等“暗知识”，T² 系数保证梯度量级与温度无关。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">温度 T</div><div class="v amber" id="st05t">4</div></div>
+          <div class="stat"><div class="k">熵 (bits)</div><div class="v purple" id="st05ent">—</div></div>
+          <div class="stat"><div class="k">最大类概率</div><div class="v" style="color:#34d399" id="st05max">—</div></div>
+          <div class="stat"><div class="k">暗知识</div><div class="v" id="st05dark">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 突触巩固 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>突触巩固 Synaptic Consolidation</h2>
+      <p>生物突触巩固的算法化：估计每个参数的重要性，重要参数学习率被压低。散点显示参数重要性 vs 学习新任务后的权重改变量，切换“巩固开关”对比。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">synaptic-consolidation.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>参数点</span>
+          <span><i style="background:#f87171"></i>重要参数（被保护）</span>
+          <span><i style="background:#34d399"></i>趋势曲线</span>
+        </div>
+        <div class="detail-box">
+          <h4>重要性引导的学习率</h4>
+          <p>对参数 i 维护重要性 <code>Ωᵢ</code>（累积权值改变量或 Fisher 近似），更新时 <code>θᵢ ← θᵢ − η · gradᵢ / (1 + Ωᵢ)</code>。Ωᵢ 越大，有效步长越小，重要参数被“巩固”。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">巩固强度</div><div class="v amber" id="st06str">1.0</div></div>
+          <div class="stat"><div class="k">被保护参数</div><div class="v purple" id="st06prot">—</div></div>
+          <div class="stat"><div class="k">平均 |Δw|</div><div class="v" style="color:#34d399" id="st06delta">—</div></div>
+          <div class="stat"><div class="k">遗忘量</div><div class="v" style="color:#f87171" id="st06forg">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 任务边界检测 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>任务边界检测 Boundary Detection</h2>
+      <p>无监督地检测数据分布偏移：用新颖性信号（特征变化率）发现任务切换点。播放数据流，调整阈值，观察检测器在分布跳变处触发边界标记。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">boundary-detection.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>特征 f₁</span>
+          <span><i style="background:#7c5cff"></i>特征 f₂</span>
+          <span><i style="background:#fbbf24"></i>新颖性信号</span>
+          <span><i style="background:#f87171"></i>检测到的边界</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">检测原理</h4>
+          <p id="p07detail">滑动窗口计算特征分布的距离（如 KL 或均值漂移），得到新颖性信号 s(t)。当 s(t) 超过阈值且距上次边界大于最小间隔时，判定为新任务起始。阈值过高漏检，过低误报。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">真实边界</div><div class="v amber" id="st07real">3</div></div>
+          <div class="stat"><div class="k">检测边界</div><div class="v purple" id="st07det">0</div></div>
+          <div class="stat"><div class="k">漏检</div><div class="v" style="color:#f87171" id="st07miss">—</div></div>
+          <div class="stat"><div class="k">误报</div><div class="v" style="color:#fbbf24" id="st07false">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 评估指标 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>评估指标 BWT / FWT / ACC</h2>
+      <p>用准确率矩阵 R[i,j]（学完任务 i 后在任务 j 上的精度）评估持续学习。ACC 为末行均值，BWT 度量后向迁移（遗忘），FWT 度量前向迁移。悬停单元格查看数值。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">accuracy-matrix.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="detail-box">
+          <h4 id="p08title">指标定义</h4>
+          <p id="p08detail"><code class="formula" style="display:inline">ACC = (1/T) Σⱼ R[T,j]</code>　<code class="formula" style="display:inline">BWT = (1/(T−1)) Σ_{j&lt;T} (R[T,j] − R[j,j])</code>　<code class="formula" style="display:inline">FWT = (1/(T−1)) Σ_{j&gt;1} (R[j−1,j] − R̃ⱼ)</code>BWT&lt;0 表示遗忘，FWT&gt;0 表示前向迁移。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">ACC</div><div class="v amber" id="st08acc">—</div></div>
+          <div class="stat"><div class="k">BWT</div><div class="v purple" id="st08bwt">—</div></div>
+          <div class="stat"><div class="k">FWT</div><div class="v" style="color:#34d399" id="st08fwt">—</div></div>
+          <div class="stat"><div class="k">当前方法</div><div class="v" id="st08method">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>continual-learning-viz-lab · 持续学习可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/continual-learning-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MF="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+function txt(x,y,s,opts){const t=el("text",Object.assign({x:x,y:y,"font-family":MF},opts||{}));t.textContent=s;return t;}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add("visible");});
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){if(s.el.offsetTop<=mid)cur=s;}
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 灾难性遗忘
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01"),lg=$("lg01");
+  const W=720,H=420,padL=50,padR=22,padT=26,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const tasks=["T1","T2","T3","T4"];
+  const cols=["#a78bfa","#7c5cff","#34d399","#f87171"];
+  const N=100,phaseLen=25;
+  let protectedMode=false,cursor=N;
+
+  // 图例
+  clearNode(lg);
+  tasks.forEach((t,i)=>{const s=document.createElement("span");s.innerHTML='<i style="background:'+cols[i]+'"></i>'+t;lg.appendChild(s);});
+
+  function accAt(t,i){
+    const base=0.12,peak=0.92;
+    const phase=Math.floor(t/phaseLen);
+    if(i>phase)return base;
+    if(i===phase){
+      const prog=(t-i*phaseLen)/phaseLen;
+      return base+(peak-base)*prog;
+    }
+    const since=t-(i+1)*phaseLen;
+    const rate=protectedMode?0.010:0.045;
+    return Math.max(base,peak*Math.exp(-rate*since));
+  }
+  function curve(i){
+    const arr=[];
+    for(let t=0;t<=N;t++)arr.push(accAt(t,i));
+    return arr;
+  }
+  function yScale(a){return padT+plotH-(a)*plotH;}
+  function xScale(t){return padL+(t/N)*plotW;}
+
+  function draw(){
+    clearNode(svg);
+    // 阶段背景
+    for(let i=0;i<4;i++){
+      const x1=xScale(i*phaseLen),x2=xScale((i+1)*phaseLen);
+      svg.appendChild(el("rect",{x:x1,y:padT,width:x2-x1,height:plotH,fill:i%2?"rgba(255,255,255,.015)":"rgba(255,255,255,.03)"}));
+      const lb=txt(x1+(x2-x1)/2,padT+14,tasks[i],{"text-anchor":"middle","font-size":11,fill:cols[i]});svg.appendChild(lb);
+    }
+    // 网格 + 轴
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      svg.appendChild(txt(padL-8,y+3.5,(i*0.25).toFixed(2),{"text-anchor":"end","font-size":10,fill:"#62666d"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(txt(padL+plotW/2,H-6,"training step",{"text-anchor":"middle","font-size":11,fill:"#9b9fa8"}));
+    // 曲线
+    tasks.forEach((_,i)=>{
+      const c=curve(i);
+      let d="";
+      for(let t=0;t<=cursor;t++){
+        const x=xScale(t),y=yScale(c[t]);
+        d+=(t===0?"M":"L")+x+","+y+" ";
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:cols[i],"stroke-width":2.2,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.95}));
+      // 末端点
+      const ec=c[Math.round(cursor)];
+      const ex=xScale(cursor),ey=yScale(ec);
+      svg.appendChild(el("circle",{cx:ex,cy:ey,r:3.6,fill:cols[i]}));
+    });
+    // 游标
+    const cx=xScale(cursor);
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,opacity:.3,"stroke-dasharray":"3 3"}));
+    // 统计
+    const ci=Math.round(cursor);
+    $("st01t1").textContent=(accAt(ci,0)*100).toFixed(0)+"%";
+    $("st01t2").textContent=(accAt(ci,1)*100).toFixed(0)+"%";
+    $("st01t3").textContent=(accAt(ci,2)*100).toFixed(0)+"%";
+    let forget=0,cnt=0;
+    for(let i=0;i<4;i++){
+      const ph=Math.floor(ci/phaseLen);
+      if(i<ph){forget+=(0.92-accAt(ci,i));cnt++;}
+    }
+    $("st01avg").textContent=cnt>0?"−"+(forget/cnt*100).toFixed(0)+"%":"—";
+    $("p01detail").textContent="训练进度 "+ci+"/"+N+"。"+(protectedMode?"已开启保护（如经验回放），旧任务衰减缓慢。":"无保护：新任务梯度直接覆盖旧知识，旧任务精度骤降。");
+  }
+
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放";
+  const toggle=document.createElement("button");toggle.className="btn";toggle.textContent="无保护";
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    cursor=0;draw();
+    animate(2600,p=>{cursor=p*N;draw();},()=>{playing=false;play.textContent="播放";});
+  });
+  toggle.addEventListener("click",()=>{
+    protectedMode=!protectedMode;
+    toggle.textContent=protectedMode?"有保护":"无保护";
+    toggle.classList.toggle("on",protectedMode);
+    cursor=N;draw();
+    $("p01title").textContent=protectedMode?"有保护的多任务曲线":"多任务遗忘曲线";
+  });
+  rst.addEventListener("click",()=>{cursor=N;draw();});
+  ctl.appendChild(play);ctl.appendChild(toggle);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 EWC
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  const ox=210,oy=200;      // 旧任务最优
+  const nx=520,ny=200;      // 新任务最优
+  const F=[0.55,0.12];      // Fisher 对角（x 强约束，y 弱约束）
+  let lambda=0;
+
+  function simulate(){
+    let x=ox,y=oy;const traj=[[x,y]];const lr=18;
+    for(let i=0;i<140;i++){
+      const gx=(x-nx)+lambda*F[0]*(x-ox);
+      const gy=(y-ny)+lambda*F[1]*(y-oy);
+      x-=lr*gx/320;y-=lr*gy/320;
+      traj.push([x,y]);
+    }
+    return traj;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const traj=simulate();
+    // 旧任务盆地（嵌套椭圆）
+    for(let k=4;k>=1;k--){
+      svg.appendChild(el("ellipse",{cx:ox,cy:oy,rx:30*k,ry:22*k,fill:"rgba(167,139,250,"+(0.05*k/4)+")",stroke:"rgba(167,139,250,.25)","stroke-width":1}));
+    }
+    // 新任务盆地
+    for(let k=4;k>=1;k--){
+      svg.appendChild(el("ellipse",{cx:nx,cy:ny,rx:30*k,ry:22*k,fill:"rgba(124,92,255,"+(0.05*k/4)+")",stroke:"rgba(124,92,255,.25)","stroke-width":1}));
+    }
+    // Fisher 约束椭圆（旧任务，沿重要方向窄）
+    if(lambda>0){
+      const rx=70/Math.sqrt(F[0]),ry=70/Math.sqrt(F[1]);
+      svg.appendChild(el("ellipse",{cx:ox,cy:oy,rx:rx,ry:ry,fill:"rgba(167,139,250,.08)",stroke:"#a78bfa","stroke-width":1.4,"stroke-dasharray":"5 4"}));
+    }
+    // 轨迹
+    let d="M"+traj[0][0]+","+traj[0][1];
+    for(let i=1;i<traj.length;i++)d+=" L"+traj[i][0].toFixed(1)+","+traj[i][1].toFixed(1);
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":2.2,"stroke-linecap":"round","stroke-linejoin":"round"}));
+    // 起点与终点
+    svg.appendChild(el("circle",{cx:ox,cy:oy,r:6,fill:"#a78bfa",stroke:"#0b0b0c","stroke-width":1.5}));
+    svg.appendChild(txt(ox,oy-14,"θ* (旧)",{"text-anchor":"middle","font-size":11,fill:"#a78bfa"}));
+    svg.appendChild(el("circle",{cx:nx,cy:ny,r:6,fill:"#7c5cff",stroke:"#0b0b0c","stroke-width":1.5}));
+    svg.appendChild(txt(nx,ny-14,"θ_new (新)",{"text-anchor":"middle","font-size":11,fill:"#7c5cff"}));
+    const end=traj[traj.length-1];
+    svg.appendChild(el("circle",{cx:end[0],cy:end[1],r:5,fill:"#34d399",stroke:"#0b0b0c","stroke-width":1.5}));
+    // 箭头方向标注
+    svg.appendChild(txt(W/2,30,"参数空间 (θ₁, θ₂)",{"text-anchor":"middle","font-size":12,fill:"#9b9fa8"}));
+    // 统计
+    const dxo=end[0]-ox,dyo=end[1]-oy;const oldLoss=0.5*(F[0]*dxo*dxo+F[1]*dyo*dyo)/100;
+    const dxn=end[0]-nx,dyn=end[1]-ny;const newLoss=0.5*(dxn*dxn+dyn*dyn)/100;
+    $("st02lam").textContent=lambda.toFixed(2);
+    $("st02old").textContent=oldLoss.toFixed(2);
+    $("st02new").textContent=newLoss.toFixed(2);
+    $("st02trade").textContent=lambda===0?"全部遗忘":lambda>0.6?"偏向旧任务":"权衡";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>λ (EWC 强度)</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=1;inp.step=0.05;inp.value=0;
+  const val=document.createElement("span");val.className="val";val.textContent="0.00";
+  inp.addEventListener("input",()=>{lambda=+inp.value;val.textContent=lambda.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="λ 扫描动画";
+  anim.addEventListener("click",()=>{
+    animate(2000,p=>{lambda=ease(p);inp.value=lambda;val.textContent=lambda.toFixed(2);draw();});
+  });
+  ctl.appendChild(anim);
+  const none=document.createElement("button");none.className="btn small on";none.textContent="λ=0";
+  none.addEventListener("click",()=>{lambda=0;inp.value=0;val.textContent="0.00";draw();});
+  const mid=document.createElement("button");mid.className="btn small";mid.textContent="λ=0.5";
+  mid.addEventListener("click",()=>{lambda=0.5;inp.value=0.5;val.textContent="0.50";draw();});
+  ctl.appendChild(none);ctl.appendChild(mid);
+})();
+
+/* ============================================================
+   03 经验回放
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  const cols=["#a78bfa","#7c5cff","#34d399","#f87171"];
+  const CAP=24,colN=6,rowN=4;
+  let buffer=[]; // {task}
+  let curTask=0,strat="ER",step=0;
+
+  function draw(replay){
+    clearNode(svg);
+    const bufX=40,bufY=40,cell=46;
+    // 缓冲区框
+    svg.appendChild(txt(bufX+colN*cell/2,bufY-12,"Replay Buffer",{"text-anchor":"middle","font-size":12,fill:"#9b9fa8"}));
+    svg.appendChild(el("rect",{x:bufX-6,y:bufY-6,width:colN*cell+12,height:rowN*cell+12,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.14)"}));
+    for(let i=0;i<CAP;i++){
+      const c=i%colN,r=Math.floor(i/colN);
+      const x=bufX+c*cell,y=bufY+r*cell;
+      const item=buffer[i];
+      const fill=item?"rgba("+hexRgb(cols[item.task])+",.5)":"#16181c";
+      const stroke=item?cols[item.task]:"rgba(255,255,255,.08)";
+      svg.appendChild(el("rect",{x:x+2,y:y+2,width:cell-4,height:cell-4,rx:5,fill:fill,stroke:stroke,"stroke-width":1.2}));
+      if(item){
+        const t=txt(x+cell/2,y+cell/2+3.5,"T"+(item.task+1),{"text-anchor":"middle","font-size":10,fill:"#f7f8f8"});svg.appendChild(t);
+      }
+    }
+    // 当前流（底部）
+    const streamY=300;
+    svg.appendChild(txt(W/2,streamY-18,"当前数据流 → 任务 T"+(curTask+1),{"text-anchor":"middle","font-size":12,fill:cols[curTask]}));
+    for(let i=0;i<8;i++){
+      const x=160+i*56;
+      svg.appendChild(el("rect",{x:x,y:streamY,width:46,height:24,rx:4,fill:"rgba("+hexRgb(cols[curTask])+",.4)",stroke:cols[curTask],"stroke-width":1}));
+      svg.appendChild(txt(x+23,streamY+15,"T"+(curTask+1),{"text-anchor":"middle","font-size":9,fill:"#f7f8f8"}));
+    }
+    // 回放采样高亮
+    if(replay&&replay.length){
+      replay.forEach(idx=>{
+        const c=idx%colN,r=Math.floor(idx/colN);
+        const x=bufX+c*cell,y=bufY+r*cell;
+        svg.appendChild(el("rect",{x:x,y:y,width:cell,height:cell,rx:6,fill:"none",stroke:"#fbbf24","stroke-width":2.4}));
+      });
+    }
+    // 梯度方向指示（右侧）
+    const gx=600,gy=200;
+    svg.appendChild(txt(gx,gy-80,"梯度约束",{"text-anchor":"middle","font-size":11,fill:"#9b9fa8"}));
+    let gvec;
+    if(strat==="ER")gvec=[0.6,-0.2];
+    else if(strat==="MER")gvec=[0.7,-0.5];
+    else gvec=[0.3,-0.6]; // A-GEM 投影
+    drawArrow(gx-30,gy+30,gx-30+gvec[0]*70,gy+30+gvec[1]*70,"#fbbf24",2.4);
+    drawArrow(gx-30,gy+30,gx-30+0.6*70,gy+30-0.6*70,"#7c5cff",1.6,true);
+    svg.appendChild(txt(gx+30,gy+10,strat,{"text-anchor":"middle","font-size":11,fill:"#fbbf24"}));
+    // 统计
+    $("st03used").textContent=buffer.length;
+    $("st03cur").textContent="T"+(curTask+1);
+    $("st03strat").textContent=strat;
+    $("p03title").textContent=strat+" 策略";
+    const desc={
+      ER:"ER：从缓冲区均匀随机采样旧样本，与新批次混合训练。简单有效，但可能采到无关样本。",
+      MER:"MER（Maximally Interfered Replay）：优先回放会使旧任务损失上升最多的样本，针对性缓解干扰。",
+      A_GEM:"A-GEM：用缓冲区样本估计旧任务平均梯度参考，将当前梯度投影到不增加旧任务损失的可行半空间。"
+    };
+    $("p03detail").textContent=desc[strat.replace("-","_")]||desc.ER;
+  }
+  function hexRgb(hex){
+    const h=hex.replace("#","");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+    return r+","+g+","+b;
+  }
+  function drawArrow(x1,y1,x2,y2,color,w,dash){
+    svg.appendChild(el("line",{x1:x1,y1:y1,x2:x2,y2:y2,stroke:color,"stroke-width":w,"stroke-dasharray":dash?"4 3":null}));
+    const ang=Math.atan2(y2-y1,x2-x1);
+    svg.appendChild(el("path",{d:"M"+x2+","+y2+" L"+(x2-8*Math.cos(ang-0.4))+","+(y2-8*Math.sin(ang-0.4))+" L"+(x2-8*Math.cos(ang+0.4))+","+(y2-8*Math.sin(ang+0.4))+" z",fill:color}));
+  }
+
+  function trainStep(){
+    // 加入当前任务样本
+    if(buffer.length<CAP){
+      buffer.push({task:curTask});
+    }else{
+      // ER 按比例替换；其它策略也替换最旧
+      const replaceIdx=step%CAP;
+      buffer[replaceIdx]={task:curTask};
+    }
+    // 选择回放样本
+    let replay=[];
+    if(buffer.length>=4){
+      const old=buffer.map((b,i)=>({b:b,i:i})).filter(o=>o.b.task!==curTask);
+      if(old.length){
+        if(strat==="ER"){
+          for(let k=0;k<3;k++){const pick=old[Math.floor(Math.random()*old.length)];if(replay.indexOf(pick.i)<0)replay.push(pick.i);}
+        }else if(strat==="MER"){
+          old.sort((a,b)=>Math.abs(a.i-step)-Math.abs(b.i-step));
+          replay=old.slice(0,3).map(o=>o.i);
+        }else{ // A-GEM
+          const half=Math.floor(old.length/2);
+          replay=old.slice(0,Math.min(3,half+1)).map(o=>o.i);
+        }
+      }
+    }
+    step++;
+    if(step%6===0){curTask=(curTask+1)%4;step=0;}
+    draw(replay);
+  }
+
+  draw();
+  const train=document.createElement("button");train.className="btn primary";train.textContent="训练一步";
+  train.addEventListener("click",trainStep);
+  const auto=document.createElement("button");auto.className="btn";auto.textContent="自动训练";
+  let autoT=null;
+  auto.addEventListener("click",()=>{
+    if(autoT){clearInterval(autoT);autoT=null;auto.textContent="自动训练";return;}
+    auto.textContent="停止";autoT=setInterval(trainStep,500);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{buffer=[];curTask=0;step=0;draw();});
+  const sel=document.createElement("select");sel.className="select";
+  [["ER","ER 随机回放"],["MER","MER 最大干扰"],["A-GEM","A-GEM 梯度投影"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{strat=sel.value;draw();});
+  ctl.appendChild(train);ctl.appendChild(auto);ctl.appendChild(sel);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   04 渐进神经网络
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let nCols=1;
+  const colColors=["#a78bfa","#7c5cff","#34d399","#f87171"];
+  const layers=[3,4,2]; // 每列：输入3，隐藏4，输出2
+  const layerY=[320,200,80];
+
+  function colX(ci){return 90+ci*150;}
+
+  function draw(){
+    clearNode(svg);
+    // 冻结标注
+    for(let ci=0;ci<nCols;ci++){
+      const x=colX(ci);
+      const frozen=ci<nCols-1;
+      // 列框
+      svg.appendChild(el("rect",{x:x-55,y:60,width:110,height:300,rx:10,fill:"rgba(255,255,255,.02)",stroke:frozen?"rgba(255,255,255,.1)":"rgba(167,139,250,.4)","stroke-width":1.4,"stroke-dasharray":frozen?"4 4":null}));
+      // 列标题
+      svg.appendChild(txt(x,52,"Column "+(ci+1)+(frozen?" (冻结)":" (新)"),{"text-anchor":"middle","font-size":11,fill:frozen?"#62666d":colColors[ci]}));
+      // 节点
+      const nodes=[];
+      layers.forEach((cnt,li)=>{
+        const row=[];
+        for(let ni=0;ni<cnt;ni++){
+          const ny=layerY[li]-((cnt-1)*30)/2+ni*30;
+          const fill=frozen?"#1c1f24":colColors[ci];
+          const stroke=frozen?"#62666d":colColors[ci];
+          svg.appendChild(el("circle",{cx:x,cy:ny,r:9,fill:fill,stroke:stroke,"stroke-width":1.5}));
+          row.push({x:x,y:ny});
+        }
+        nodes.push(row);
+      });
+      // 前馈连接（列内）
+      for(let li=0;li<layers.length-1;li++){
+        nodes[li].forEach(a=>nodes[li+1].forEach(b=>{
+          svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:frozen?"#3a3d44":"rgba(167,139,250,.4)","stroke-width":frozen?0.7:1,opacity:.6}));
+        }));
+      }
+      // 侧枝连接（新列 -> 所有旧列隐藏层）
+      if(!frozen){
+        for(let prev=0;prev<ci;prev++){
+          const px=colX(prev);
+          // 旧列隐藏层节点
+          const cnt=layers[1];
+          for(let ni=0;ni<cnt;ni++){
+            const py=layerY[1]-((cnt-1)*30)/2+ni*30;
+            // 从新列输入层到旧列隐藏——用曲线表示侧枝
+            const sx=nodes[0][0].x,sy=nodes[0][0].y;
+            svg.appendChild(el("path",{d:"M"+(x-9)+","+nodes[1][ni].y+" C"+(x-60)+","+nodes[1][ni].y+" "+(px+60)+","+py+" "+(px+9)+","+py,fill:"none",stroke:"#7c5cff","stroke-width":1.2,opacity:.5,"stroke-dasharray":"3 3"}));
+          }
+        }
+      }
+    }
+    // 统计
+    let params=0,lateral=0;
+    for(let ci=0;ci<nCols;ci++){
+      // 当前列前馈参数
+      for(let li=0;li<layers.length-1;li++)params+=layers[li]*layers[li+1];
+      // 侧枝
+      if(ci>0)for(let prev=0;prev<ci;prev++){lateral+=layers[0]*layers[1];params+=layers[0]*layers[1];}
+    }
+    $("st04cols").textContent=nCols;
+    $("st04param").textContent=params;
+    $("st04lateral").textContent=lateral;
+  }
+
+  draw();
+  const add=document.createElement("button");add.className="btn primary";add.textContent="添加任务列";
+  add.addEventListener("click",()=>{if(nCols<4){nCols++;draw();}});
+  const rm=document.createElement("button");rm.className="btn small";rm.textContent="移除一列";
+  rm.addEventListener("click",()=>{if(nCols>1){nCols--;draw();}});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{nCols=1;draw();});
+  ctl.appendChild(add);ctl.appendChild(rm);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 知识蒸馏
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  const logits=[2.4,1.1,0.4,-0.5,-1.2];
+  const classes=["猫","狗","鸟","鱼","车"];
+  let T=4;
+
+  function softmax(zs,t){
+    const mx=Math.max.apply(null,zs);
+    const exps=zs.map(z=>Math.exp((z/t)-mx/t));
+    const s=exps.reduce((a,b)=>a+b,0);
+    return exps.map(e=>e/s);
+  }
+  function entropy(p){let h=0;p.forEach(v=>{if(v>0)h-=v*Math.log2(v);});return h;}
+
+  function draw(){
+    clearNode(svg);
+    // 左：教师/学生网络示意
+    const netX=70;
+    const drawNet=(x,label,color)=>{
+      svg.appendChild(txt(x,40,label,{"text-anchor":"middle","font-size":12,fill:color}));
+      const ls=[3,4,3];
+      const ys=[120,200,280];
+      ls.forEach((cnt,li)=>{
+        for(let i=0;i<cnt;i++){
+          const ny=ys[li]-((cnt-1)*26)/2+i*26;
+          svg.appendChild(el("circle",{cx:x,cy:ny,r:7,fill:"#1c1f24",stroke:color,"stroke-width":1.3}));
+        }
+      });
+      // 连接
+      for(let li=0;li<2;li++){
+        const c1=ls[li],c2=ls[li+1];
+        for(let i=0;i<c1;i++)for(let j=0;j<c2;j++){
+          const y1=ys[li]-((c1-1)*26)/2+i*26,y2=ys[li+1]-((c2-1)*26)/2+j*26;
+          svg.appendChild(el("line",{x1:x,y1:y1,x2:x,y2:y2,stroke:"rgba(255,255,255,.12)","stroke-width":0.7}));
+        }
+      }
+    };
+    drawNet(netX,"教师 (旧)","#f87171");
+    drawNet(netX+90,"学生 (新)","#a78bfa");
+    // 蒸馏箭头
+    svg.appendChild(el("path",{d:"M"+(netX+12)+",200 Q"+(netX+45)+",170 "+(netX+78)+",200",fill:"none",stroke:"#7c5cff","stroke-width":1.6}));
+    svg.appendChild(txt(netX+45,165,"蒸馏",{"text-anchor":"middle","font-size":10,fill:"#7c5cff"}));
+
+    // 右：softmax 分布柱状图
+    const barX=300,barY=60,barW=380,barH=270;
+    svg.appendChild(el("rect",{x:barX,y:barY,width:barW,height:barH,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.1)"}));
+    svg.appendChild(txt(barX+barW/2,barY-10,"软目标分布 (T="+T.toFixed(1)+")",{"text-anchor":"middle","font-size":12,fill:"#9b9fa8"}));
+    const soft=softmax(logits,T);
+    const hard=softmax(logits,1);
+    const bw=(barW-40)/classes.length;
+    const maxP=1;
+    classes.forEach((c,i)=>{
+      const cx=barX+20+i*bw;
+      // 硬目标
+      const hh=hard[i]/maxP*(barH-40);
+      svg.appendChild(el("rect",{x:cx,y:barY+barH-20-hh,width:bw/2-4,height:hh,fill:"#f87171",opacity:.7}));
+      // 软目标
+      const hs=soft[i]/maxP*(barH-40);
+      svg.appendChild(el("rect",{x:cx+bw/2,y:barY+barH-20-hs,width:bw/2-4,height:hs,fill:"#a78bfa",opacity:.9}));
+      // 标签
+      svg.appendChild(txt(cx+bw/2,barY+barH-6,c,{"text-anchor":"middle","font-size":11,fill:"#9b9fa8"}));
+      // 数值
+      svg.appendChild(txt(cx+bw/4,barY+barH-24-hh,(hard[i]*100).toFixed(0),{"text-anchor":"middle","font-size":9,fill:"#f87171"}));
+      svg.appendChild(txt(cx+3*bw/4,barY+barH-24-hs,(soft[i]*100).toFixed(0),{"text-anchor":"middle","font-size":9,fill:"#a78bfa"}));
+    });
+    // 基线
+    svg.appendChild(el("line",{x1:barX+20,y1:barY+barH-20,x2:barX+barW-20,y2:barY+barH-20,stroke:"rgba(255,255,255,.2)","stroke-width":1}));
+    // 统计
+    $("st05t").textContent=T.toFixed(1);
+    $("st05ent").textContent=entropy(soft).toFixed(2);
+    $("st05max").textContent=(Math.max.apply(null,soft)*100).toFixed(0)+"%";
+    // 暗知识：非最大类的概率和
+    const mx=Math.max.apply(null,soft);
+    const dark=soft.reduce((a,b)=>a+(Math.abs(b-mx)>1e-9?b:0),0);
+    $("st05dark").textContent=(dark*100).toFixed(0)+"%";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>温度 T</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=10;inp.step=0.5;inp.value=4;
+  const val=document.createElement("span");val.className="val";val.textContent="4.0";
+  inp.addEventListener("input",()=>{T=+inp.value;val.textContent=T.toFixed(1);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="温度扫描";
+  anim.addEventListener("click",()=>{animate(2200,p=>{T=1+9*ease(p);inp.value=T;val.textContent=T.toFixed(1);draw();});});
+  ctl.appendChild(anim);
+  const low=document.createElement("button");low.className="btn small";low.textContent="T=1 (硬)";
+  low.addEventListener("click",()=>{T=1;inp.value=1;val.textContent="1.0";draw();});
+  const hi=document.createElement("button");hi.className="btn small";hi.textContent="T=8 (软)";
+  hi.addEventListener("click",()=>{T=8;inp.value=8;val.textContent="8.0";draw();});
+  ctl.appendChild(low);ctl.appendChild(hi);
+})();
+
+/* ============================================================
+   06 突触巩固
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400,padL=54,padR=24,padT=24,padB=42;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let consolidate=true,strength=1.0;
+  const N=60;
+  // 固定伪随机重要性
+  const imps=[];
+  for(let i=0;i<N;i++){const s=Math.sin(i*12.9898)*43758.5453;imps.push((s-Math.floor(s)));}
+  const deltas=[];
+  function compute(){
+    deltas.length=0;
+    for(let i=0;i<N;i++){
+      const imp=imps[i];
+      let d;
+      if(consolidate){
+        d=0.9*Math.pow(1-imp,strength)*0.9+0.05;
+      }else{
+        d=0.45+0.4*((Math.sin(i*7.13)*0.5+0.5));
+      }
+      deltas.push(d);
+    }
+  }
+
+  function draw(){
+    clearNode(svg);compute();
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      svg.appendChild(txt(padL-8,y+3.5,(i/5).toFixed(1),{"text-anchor":"end","font-size":10,fill:"#62666d"}));
+    }
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      svg.appendChild(el("line",{x1:x,y1:padT,x2:x,y2:padT+plotH,class:"gridline"}));
+      svg.appendChild(txt(x,padT+plotH+16,(i/5).toFixed(1),{"text-anchor":"middle","font-size":10,fill:"#62666d"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(txt(padL+plotW/2,H-6,"参数重要性 Ωᵢ",{"text-anchor":"middle","font-size":11,fill:"#9b9fa8"}));
+    svg.appendChild(txt(14,padT+plotH/2,"|Δwᵢ|",{"text-anchor":"middle","font-size":11,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"}));
+    // 趋势曲线
+    if(consolidate){
+      let d="";
+      for(let i=0;i<=plotW;i+=4){
+        const x=padL+i;const imp=i/plotW;
+        const v=0.9*Math.pow(1-imp,strength)*0.9+0.05;
+        const y=padT+plotH-v*plotH;
+        d+=(i===0?"M":"L")+x+","+y+" ";
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":1.8,opacity:.8}));
+    }else{
+      svg.appendChild(el("line",{x1:padL,y1:padT+plotH-0.6*plotH,x2:padL+plotW,y2:padT+plotH-0.6*plotH,stroke:"#34d399","stroke-width":1.8,opacity:.6,"stroke-dasharray":"5 4"}));
+    }
+    // 散点
+    imps.forEach((imp,i)=>{
+      const x=padL+imp*plotW;
+      const y=padT+plotH-deltas[i]*plotH;
+      const important=imp>0.6;
+      const c=consolidate&&important?"#f87171":"#a78bfa";
+      svg.appendChild(el("circle",{cx:x,cy:y,r:3.5,fill:c,opacity:.85}));
+    });
+    // 统计
+    const prot=imps.filter(v=>v>0.6).length;
+    const avg=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+    const forg=consolidate?avg*0.3:avg;
+    $("st06str").textContent=strength.toFixed(1);
+    $("st06prot").textContent=prot;
+    $("st06delta").textContent=avg.toFixed(2);
+    $("st06forg").textContent=forg.toFixed(2);
+  }
+
+  draw();
+  const toggle=document.createElement("button");toggle.className="btn primary";toggle.textContent="巩固：开";
+  toggle.addEventListener("click",()=>{consolidate=!consolidate;toggle.textContent="巩固："+(consolidate?"开":"关");draw();});
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>巩固强度</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.2;inp.max=3;inp.step=0.1;inp.value=1;
+  const val=document.createElement("span");val.className="val";val.textContent="1.0";
+  inp.addEventListener("input",()=>{strength=+inp.value;val.textContent=strength.toFixed(1);draw();});
+  sg.appendChild(inp);sg.appendChild(val);
+  ctl.appendChild(toggle);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   07 任务边界检测
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400,padL=46,padR=18,padT=24,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const N=120;
+  let threshold=0.35,cursor=0;
+  // 生成数据：4 段不同均值/方差
+  const f1=[],f2=[],surprise=[];
+  const bounds=[30,60,90];
+  const means=[[0.3,0.4],[0.7,0.3],[0.4,0.75],[0.65,0.65]];
+  for(let i=0;i<N;i++){
+    const seg=Math.min(3,Math.floor(i/30));
+    const m=means[seg];
+    const s1=Math.sin(i*0.7)*0.02;
+    f1.push(Math.max(0,Math.min(1,m[0]+(Math.random()-0.5)*0.12+s1)));
+    f2.push(Math.max(0,Math.min(1,m[1]+(Math.random()-0.5)*0.12+Math.cos(i*0.5)*0.02)));
+  }
+  // 新颖性：滑动窗口均值变化
+  for(let i=0;i<N;i++){
+    if(i<4){surprise.push(0);continue;}
+    const d1=Math.abs((f1[i]+f1[i-1])/2-(f1[i-3]+f1[i-4])/2);
+    const d2=Math.abs((f2[i]+f2[i-1])/2-(f2[i-3]+f2[i-4])/2);
+    surprise.push(Math.min(1,(d1+d2)*3));
+  }
+  function xs(i){return padL+(i/(N-1))*plotW;}
+  function ys(v){return padT+plotH/2-v*plotH/2;}
+  function ysS(v){return padT+plotH-10-v*(plotH-20);}
+  function ysS0(v){return padT+plotH-10-v*(plotH-20);}
+
+  function detect(){
+    const det=[];let last=-20;
+    for(let i=0;i<=cursor;i++){
+      if(surprise[i]>threshold&&i-last>=8){det.push(i);last=i;}
+    }
+    return det;
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 分隔线
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH/2,x2:padL+plotW,y2:padT+plotH/2,stroke:"rgba(255,255,255,.1)","stroke-dasharray":"3 3"}));
+    svg.appendChild(txt(padL-8,padT+plotH/2-30,"特征",{"text-anchor":"end","font-size":10,fill:"#9b9fa8"}));
+    svg.appendChild(txt(padL-8,padT+plotH-12,"新颖性",{"text-anchor":"end","font-size":10,fill:"#9b9fa8"}));
+    // 特征曲线（上半）
+    let d1="",d2="";
+    for(let i=0;i<=cursor;i++){d1+=(i===0?"M":"L")+xs(i)+","+ys(f1[i])+" ";d2+=(i===0?"M":"L")+xs(i)+","+ys(f2[i])+" ";}
+    svg.appendChild(el("path",{d:d1,fill:"none",stroke:"#a78bfa","stroke-width":1.6}));
+    svg.appendChild(el("path",{d:d2,fill:"none",stroke:"#7c5cff","stroke-width":1.6}));
+    // 新颖性（下半，柱状）
+    for(let i=0;i<=cursor;i++){
+      const x=xs(i),v=surprise[i];
+      const h=v*(plotH/2-14);
+      svg.appendChild(el("rect",{x:x-1.5,y:ysS0(v),width:3,height:h,fill:v>threshold?"#fbbf24":"rgba(251,191,36,.35)"}));
+    }
+    // 阈值线
+    const ty=ysS0(threshold);
+    svg.appendChild(el("line",{x1:padL,y1:ty,x2:padL+plotW,y2:ty,stroke:"#f87171","stroke-width":1.4,"stroke-dasharray":"5 3"}));
+    svg.appendChild(txt(padL+plotW-4,ty-4,"阈值",{"text-anchor":"end","font-size":10,fill:"#f87171"}));
+    // 真实边界
+    bounds.forEach(b=>{if(b<=cursor)svg.appendChild(el("line",{x1:xs(b),y1:padT,x2:xs(b),y2:padT+plotH,stroke:"rgba(255,255,255,.15)","stroke-width":1,"stroke-dasharray":"2 4"}));});
+    // 检测到的边界
+    const det=detect();
+    det.forEach(d=>{
+      svg.appendChild(el("line",{x1:xs(d),y1:padT,x2:xs(d),y2:padT+plotH,stroke:"#f87171","stroke-width":2}));
+      svg.appendChild(el("circle",{cx:xs(d),cy:padT+8,r:5,fill:"#f87171"}));
+    });
+    // 游标
+    const cx=xs(cursor);
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,opacity:.4}));
+    // 统计
+    $("st07det").textContent=det.length;
+    let miss=0;bounds.forEach(b=>{let found=false;det.forEach(d=>{if(Math.abs(d-b)<8)found=true;});if(!found&&b<=cursor)miss++;});
+    const falses=det.filter(d=>bounds.every(b=>Math.abs(d-b)>=8)).length;
+    $("st07miss").textContent=miss;
+    $("st07false").textContent=falses;
+  }
+
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放数据流";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";cursor=0;draw();
+    animate(3200,p=>{cursor=Math.round(p*(N-1));draw();},()=>{playing=false;play.textContent="播放数据流";});
+  });
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>阈值</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.1;inp.max=0.7;inp.step=0.02;inp.value=0.35;
+  const val=document.createElement("span");val.className="val";val.textContent="0.35";
+  inp.addEventListener("input",()=>{threshold=+inp.value;val.textContent=threshold.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);
+  const end=document.createElement("button");end.className="btn small";end.textContent="跳到末尾";
+  end.addEventListener("click",()=>{cursor=N-1;draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{cursor=0;draw();});
+  ctl.appendChild(play);ctl.appendChild(sg);ctl.appendChild(end);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   08 评估指标
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  const T=4;
+  const methods={
+    "Naive (无保护)":[
+      [0.92,0,0,0],
+      [0.30,0.90,0,0],
+      [0.15,0.32,0.91,0],
+      [0.10,0.20,0.28,0.90]
+    ],
+    "EWC":[
+      [0.92,0,0,0],
+      [0.70,0.90,0,0],
+      [0.58,0.72,0.91,0],
+      [0.50,0.66,0.70,0.90]
+    ],
+    "Replay (回放)":[
+      [0.92,0,0,0],
+      [0.85,0.90,0,0],
+      [0.80,0.84,0.91,0],
+      [0.78,0.82,0.80,0.90]
+    ]
+  };
+  let cur="Replay (回放)";
+  let hover=null;
+
+  function metrics(R){
+    const last=T-1;
+    const acc=R[last].reduce((a,b)=>a+b,0)/T;
+    let bwt=0;for(let j=0;j<last;j++)bwt+=(R[last][j]-R[j][j]);bwt/=(T-1);
+    let fwt=0,cnt=0;for(let i=1;i<T;i++){for(let j=0;j<i;j++){fwt+=R[i-1][j]-0.1;cnt++;}}fwt=cnt>0?fwt/cnt:0;
+    // FWT 标准：上三角零样本 R[i-1][j] for j>i 不存在(下三角)。改用 R[i][i] 与随机基线差作为前向(简化)
+    fwt=0;cnt=0;
+    for(let i=1;i<T;i++){fwt+=R[i][i]-0.5;cnt++;}fwt=cnt>0?fwt/cnt:0;
+    return {acc:acc,bwt:bwt,fwt:fwt};
+  }
+
+  function color(v){
+    if(v===0)return "#0b0b0c";
+    const r=Math.round(248+(52-248)*v),g=Math.round(113+(211-113)*v),b=Math.round(113+(153-113)*v);
+    return "rgb("+r+","+g+","+b+")";
+  }
+
+  function draw(){
+    clearNode(svg);
+    const R=methods[cur];
+    const m=metrics(R);
+    const gridX=60,gridY=40,cell=70;
+    // 行列标签
+    for(let i=0;i<T;i++){
+      svg.appendChild(txt(gridX-8,gridY+i*cell+cell/2+4,"学完 T"+(i+1),{"text-anchor":"end","font-size":10,fill:"#9b9fa8"}));
+      svg.appendChild(txt(gridX+i*cell+cell/2,gridY-8,"任务 T"+(i+1),{"text-anchor":"middle","font-size":10,fill:"#9b9fa8"}));
+    }
+    // 矩阵
+    for(let i=0;i<T;i++){
+      for(let j=0;j<T;j++){
+        const x=gridX+j*cell,y=gridY+i*cell;
+        const v=R[i][j];
+        const isHover=hover&&hover[0]===i&&hover[1]===j;
+        if(v===0){
+          svg.appendChild(el("rect",{x:x,y:y,width:cell-3,height:cell-3,rx:5,fill:"#0b0b0c",stroke:"rgba(255,255,255,.06)","stroke-width":1}));
+          svg.appendChild(txt(x+cell/2-1.5,y+cell/2+4,"—",{"text-anchor":"middle","font-size":13,fill:"#3a3d44"}));
+        }else{
+          svg.appendChild(el("rect",{x:x,y:y,width:cell-3,height:cell-3,rx:5,fill:color(v),stroke:isHover?"#f7f8f8":"rgba(255,255,255,.1)","stroke-width":isHover?2:1}));
+          svg.appendChild(txt(x+cell/2-1.5,y+cell/2+4,(v*100).toFixed(0),{"text-anchor":"middle","font-size":14,fill:v>0.5?"#0b0b0c":"#f7f8f8","font-weight":650}));
+        }
+      }
+    }
+    // 交互层（透明矩形捕获 hover）
+    for(let i=0;i<T;i++){
+      for(let j=0;j<T;j++){
+        const x=gridX+j*cell,y=gridY+i*cell;
+        const r=el("rect",{x:x,y:y,width:cell-3,height:cell-3,rx:5,fill:"transparent"});
+        r.style.cursor="pointer";
+        r.addEventListener("mouseenter",()=>{hover=[i,j];draw();});
+        r.addEventListener("mouseleave",()=>{hover=null;draw();});
+        svg.appendChild(r);
+      }
+    }
+    // 右侧指标卡
+    const cardX=420,cardY=60,cw=260,ch=70;
+    const cards=[
+      {k:"ACC 平均精度",v:m.acc,c:"#a78bfa",y:cardY},
+      {k:"BWT 后向迁移",v:m.bwt,c:m.bwt<0?"#f87171":"#34d399",y:cardY+ch+10},
+      {k:"FWT 前向迁移",v:m.fwt,c:m.fwt>0?"#34d399":"#f87171",y:cardY+(ch+10)*2}
+    ];
+    cards.forEach(cd=>{
+      svg.appendChild(el("rect",{x:cardX,y:cd.y,width:cw,height:ch,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+      svg.appendChild(txt(cardX+14,cd.y+22,cd.k,{"font-size":11,fill:"#9b9fa8"}));
+      const vs=cd.k.indexOf("ACC")>=0?(cd.v*100).toFixed(1)+"%":(cd.v*100).toFixed(1)+"%";
+      svg.appendChild(txt(cardX+14,cd.y+54,vs,{"font-size":24,fill:cd.c,"font-weight":700}));
+    });
+    // 提示
+    if(hover){
+      const i=hover[0],j=hover[1],v=R[i][j];
+      $("p08title").textContent="单元格 R["+(i+1)+","+(j+1)+"]";
+      $("p08detail").textContent=v===0?("学完任务 T"+(i+1)+" 时任务 T"+(j+1)+" 尚未出现（零样本，记为 0）。"):("学完任务 T"+(i+1)+" 后，在任务 T"+(j+1)+" 上的准确率为 "+(v*100).toFixed(0)+"%。"+(j<i?(v<R[j][j]?"发生遗忘。":"保持良好。"):""));
+    }else{
+      $("p08title").textContent="指标定义";
+      $("p08detail").textContent="ACC 为末行均值；BWT<0 表示后向遗忘；FWT>0 表示新任务零样本表现高于基线，存在前向迁移。切换不同方法对比。";
+    }
+    // 统计
+    $("st08acc").textContent=(m.acc*100).toFixed(0)+"%";
+    $("st08bwt").textContent=(m.bwt*100).toFixed(0)+"%";
+    $("st08fwt").textContent=(m.fwt*100).toFixed(0)+"%";
+    $("st08method").textContent=cur;
+  }
+
+  draw();
+  Object.keys(methods).forEach((name,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(name===cur?" on":"");b.textContent=name;
+    b.addEventListener("click",()=>{cur=name;document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="清除悬停";
+  rst.addEventListener("click",()=>{hover=null;draw();});
+  ctl.appendChild(rst);
+})();
+
+</script>
+</body>
+</html>

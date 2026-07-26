@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gaussian-splatting-viz-lab · 3D 高斯泼溅可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#2dd4ff;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:100%;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(52,211,153,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(52,211,153,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#04261a;border-color:transparent}
+.btn.primary:hover{background:#6ee7b7}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>gaussian-splatting</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">3d gaussian splatting</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/gaussian-splatting-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>高斯属性</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>可微光栅化</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>球谐函数</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>自适应密度控制</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>优化训练</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>SfM 初始化</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>3DGS vs NeRF</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>场景编辑</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/gaussian-splatting-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>3D 高斯泼溅 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现高斯属性、可微光栅化、球谐函数、自适应密度控制等 3DGS 核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 高斯属性 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>高斯属性 G(x) = α·e^(-½(x-μ)ᵀΣ⁻¹(x-μ))</h2>
+      <p>每个 3D 高斯由四组属性定义：位置 μ（中心）、协方差 Σ（形状与朝向）、颜色（球谐系数 SH）、不透明度 α。调节各属性观察椭球形态与渲染贡献的变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">gaussian-attributes.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>高斯椭球</span>
+          <span><i style="background:#7c5cff"></i>位置 μ</span>
+          <span><i style="background:#2dd4ff"></i>协方差轴 Σ</span>
+          <span><i style="background:#fbbf24"></i>SH 颜色</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">3D 高斯属性</h4>
+          <p id="p01detail">3D 高斯在空间中呈椭球分布。μ 决定中心位置；Σ = R·S·Sᵀ·Rᵀ 由旋转 R 与缩放 S 参数化，保证半正定；SH 系数编码视角相关颜色；α 控制不透明度。所有属性均可微，通过梯度下降优化。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">不透明度 α</div><div class="v amber" id="st01a">0.90</div></div>
+          <div class="stat"><div class="k">缩放 S</div><div class="v purple" id="st01s">1.00</div></div>
+          <div class="stat"><div class="k">各向异性</div><div class="v" style="color:#2dd4ff" id="st01an">1.00</div></div>
+          <div class="stat"><div class="k">旋转 θ</div><div class="v" id="st01r">0°</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 可微光栅化 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>可微光栅化 (Tile-based α-Blending)</h2>
+      <p>3DGS 将高斯按深度排序，投影到 2D 后在 tile 内做前向 α 混合：C = Σ c_i α_i T_i，T_i = Π(1-α_j)。整个过程可微，梯度回传至高斯属性。逐步观察混合累积过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">rasterization.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>高斯层 (按深度)</span>
+          <span><i style="background:#7c5cff"></i>累积像素</span>
+          <span><i style="background:#f87171"></i>tile 边界</span>
+        </div>
+        <div class="detail-box">
+          <h4>α 混合公式</h4>
+          <code class="formula">C = Σᵢ cᵢ · αᵢ · Tᵢ ,  Tᵢ = Πⱼ<ᵢ (1 - αⱼ)</code>
+          <p id="p02detail">高斯按深度从远到近排序。每个像素的最终颜色是各高斯贡献的加权和，权重为 αᵢ 乘以此前所有高斯的透射率 Tᵢ。tile-based 划分将屏幕分块并行处理，提升渲染效率。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">高斯层数</div><div class="v amber" id="st02n">5</div></div>
+          <div class="stat"><div class="k">已混合</div><div class="v" style="color:#7c5cff" id="st02blended">0</div></div>
+          <div class="stat"><div class="k">透射率 T</div><div class="v" style="color:#34d399" id="st02t">1.00</div></div>
+          <div class="stat"><div class="k">tile 大小</div><div class="v" id="st02tile">16px</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 球谐函数 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>球谐函数 (Spherical Harmonics)</h2>
+      <p>球谐系数编码视角相关颜色：低阶捕捉漫反射，高阶捕捉镜面与高光。3DGS 默认用 3 阶 (16 系数/通道)。改变视角观察颜色随观察方向的变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">spherical-harmonics.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>SH 基函数</span>
+          <span><i style="background:#fbbf24"></i>视角依赖颜色</span>
+          <span><i style="background:#7c5cff"></i>观察方向</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">球谐阶数与视角依赖</h4>
+          <p id="p03detail">SH 阶数 l=0 为常数项（视角无关漫反射）；l=1 引入线性变化；l=2 二阶捕捉更复杂的角度依赖；l=3 三阶可表现高光。阶数越高颜色随视角变化越剧烈，但也更易过拟合。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">SH 阶数</div><div class="v amber" id="st03order">3</div></div>
+          <div class="stat"><div class="k">系数数</div><div class="v purple" id="st03coef">16</div></div>
+          <div class="stat"><div class="k">视角 θ</div><div class="v" style="color:#7c5cff" id="st03view">0°</div></div>
+          <div class="stat"><div class="k">当前颜色</div><div class="v" style="color:#34d399" id="st03col">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 自适应密度控制 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>自适应密度控制</h2>
+      <p>每 100 次迭代根据位置梯度调整高斯密度：梯度大的高斯 split（分裂为两个小高斯）；大尺度高斯 clone（克隆到梯度大处）；α 过小或过大的高斯 prune（剪枝）。观察密度随训练的演化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">density-control.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>普通高斯</span>
+          <span><i style="background:#fbbf24"></i>split (分裂)</span>
+          <span><i style="background:#7c5cff"></i>clone (克隆)</span>
+          <span><i style="background:#f87171"></i>prune (剪枝)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">密度控制策略</h4>
+          <p id="p04detail">当某高斯在视图空间的位置梯度超过阈值 τ_pos，且尺度较大则 clone，较小则 split。split 将一个高斯分为两个较小的高斯以细化区域。α < ε_α 的高斯被 prune。此机制使高斯数自适应场景复杂度。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">高斯数</div><div class="v amber" id="st04n">12</div></div>
+          <div class="stat"><div class="k">迭代</div><div class="v purple" id="st04iter">0</div></div>
+          <div class="stat"><div class="k">split/clone</div><div class="v" style="color:#fbbf24" id="st04sc">0</div></div>
+          <div class="stat"><div class="k">prune</div><div class="v" style="color:#f87171" id="st04pr">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 优化训练 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>优化训练过程</h2>
+      <p>3DGS 用 photometric loss（L1 + D-SSIM）监督，对所有高斯属性做梯度下降。损失随迭代下降，PSNR 上升，高斯逐步贴合场景。播放动画观察收敛过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">optimization.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>损失 (左轴)</span>
+          <span><i style="background:#34d399"></i>PSNR (右轴)</span>
+          <span><i style="background:#7c5cff"></i>高斯 (场景)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">损失与收敛</h4>
+          <p id="p05detail">总损失 L = (1-λ)·L1 + λ·D-SSIM，λ=0.2。Adam 优化器，位置学习率从 1.6e-4 余弦退火到 1.6e-6。前 1500 步冻结 SH 高阶系数。PSNR 从 ~20dB 升至 ~30dB，渲染质量持续提升。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">迭代</div><div class="v amber" id="st05iter">0</div></div>
+          <div class="stat"><div class="k">损失</div><div class="v" style="color:#f87171" id="st05loss">—</div></div>
+          <div class="stat"><div class="k">PSNR</div><div class="v" style="color:#34d399" id="st05psnr">—</div></div>
+          <div class="stat"><div class="k">高斯数</div><div class="v purple" id="st05n">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 SfM 初始化 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>SfM 初始化</h2>
+      <p>3DGS 用 COLMAP 的 SfM 稀疏点云初始化高斯：每个点 → 一个高斯。初始 Σ 取最近 3 点平均距离，α=0.1，SH 由点颜色设定。逐步观察从图像到点云再到高斯的流程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sfm-init.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>输入图像</span>
+          <span><i style="background:#2dd4ff"></i>SfM 稀疏点</span>
+          <span><i style="background:#34d399"></i>初始高斯</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">COLMAP → 高斯初始化</h4>
+          <p id="p06detail">COLMAP 通过特征匹配与束调整恢复相机位姿与稀疏点云。3DGS 为每个点创建一个各向同性高斯：μ=点位置，Σ=I·d²（d 为到最近 3 点平均距离），α=0.1，SH 由点颜色初始化。从此起点开始优化。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">阶段</div><div class="v amber" id="st06stage">0 / 3</div></div>
+          <div class="stat"><div class="k">图像数</div><div class="v purple" id="st06img">5</div></div>
+          <div class="stat"><div class="k">SfM 点</div><div class="v" style="color:#2dd4ff" id="st06pts">—</div></div>
+          <div class="stat"><div class="k">初始高斯</div><div class="v" style="color:#34d399" id="st06g">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 3DGS vs NeRF ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>3DGS vs NeRF 对比</h2>
+      <p>3DGS 用显式高斯实现实时渲染（>100 FPS），NeRF 用隐式 MLP 体积渲染（~0.1 FPS）。3DGS 训练更快但内存占用更大。切换指标查看两者在速度、训练时间、内存、质量上的权衡。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">3dgs-vs-nerf.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>3DGS</span>
+          <span><i style="background:#7c5cff"></i>NeRF</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">指标对比</h4>
+          <p id="p07detail">3DGS 渲染速度 134 FPS（实时），NeRF 仅约 0.1 FPS；3DGS 训练约 41 分钟，NeRF 需数小时至数天；3DGS 显存占用更大（显式存储高斯）；两者 PSNR 接近（3DGS 略优）。3DGS 牺牲内存换取速度与质量。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前指标</div><div class="v amber" id="st07metric">渲染速度</div></div>
+          <div class="stat"><div class="k">3DGS</div><div class="v" style="color:#34d399" id="st07gs">—</div></div>
+          <div class="stat"><div class="k">NeRF</div><div class="v" style="color:#7c5cff" id="st07nerf">—</div></div>
+          <div class="stat"><div class="k">优势</div><div class="v purple" id="st07adv">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 场景编辑 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>场景编辑 (高斯变换)</h2>
+      <p>显式高斯表示便于编辑：对每个高斯施加仿射变换 x' = R·S·x + t 实现变形、合成、动画。变换矩阵直接作用于 μ 与 Σ。调节平移、旋转、缩放观察高斯场景的实时形变。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">scene-editing.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#2dd4ff"></i>原始高斯</span>
+          <span><i style="background:#34d399"></i>变换后高斯</span>
+          <span><i style="background:#fbbf24"></i>变换矩阵</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">仿射变换 x' = R·S·x + t</h4>
+          <p id="p08detail">对高斯施加仿射变换：μ' = R·S·μ + t，Σ' = R·S·Σ·Sᵀ·Rᵀ。平移移动场景，旋转改变朝向，缩放改变大小。相比 NeRF 的隐式表示，3DGS 的显式高斯使场景编辑、合成、动画变得直观高效。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">平移 tx</div><div class="v amber" id="st08tx">0</div></div>
+          <div class="stat"><div class="k">旋转 θ</div><div class="v purple" id="st08r">0°</div></div>
+          <div class="stat"><div class="k">缩放</div><div class="v" style="color:#34d399" id="st08s">1.00</div></div>
+          <div class="stat"><div class="k">高斯数</div><div class="v" id="st08n">24</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>gaussian-splatting-viz-lab · 3D 高斯泼溅可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/gaussian-splatting-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function easeIO(p){return p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+const C_ACC="#34d399",C_ACC2="#7c5cff",C_OK="#2dd4ff",C_WARN="#f87171",C_AMBER="#fbbf24";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 高斯属性
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  let alpha=0.9,scale=1.0,aniso=1.0,rot=0,viewAngle=0;
+  // SH 模拟颜色（视角依赖）
+  function shColor(va){
+    // l=0 常数 + l=1 线性项
+    const r=0.4+0.3*Math.cos(va)+0.1*Math.cos(2*va);
+    const g=0.7+0.2*Math.cos(va+1)+0.05*Math.cos(2*va);
+    const b=0.5+0.25*Math.sin(va)+0.1*Math.cos(2*va+0.5);
+    return "rgb("+Math.round(clamp(r)*255)+","+Math.round(clamp(g)*255)+","+Math.round(clamp(b)*255)+")";
+  }
+  function clamp(v){return Math.max(0,Math.min(1,v));}
+
+  function draw(){
+    clearNode(svg);
+    const cx=300,cy=210;
+    // 3D 投影：viewAngle 影响椭圆的可见形状
+    const rx=scale*(60*aniso)*Math.abs(Math.cos(viewAngle))+scale*8;
+    const ry=scale*60/Math.sqrt(aniso);
+    const col=shColor(viewAngle);
+    // 椭球（带渐变模拟 3D）
+    const defs=el("defs");
+    const grad=el("radialGradient",{id:"g01",cx:"35%",cy:"30%",r:"70%"});
+    grad.appendChild(el("stop",{offset:"0%","stop-color":col,"stop-opacity":alpha}));
+    grad.appendChild(el("stop",{offset:"60%","stop-color":col,"stop-opacity":(alpha*0.7).toFixed(2)}));
+    grad.appendChild(el("stop",{offset:"100%","stop-color":col,"stop-opacity":"0"}));
+    defs.appendChild(grad);
+    svg.appendChild(defs);
+    // 椭球
+    const ell=el("ellipse",{cx:cx,cy:cy,rx:rx,ry:ry,fill:"url(#g01)",stroke:col,"stroke-width":1.4,"stroke-opacity":alpha*0.8,transform:"rotate("+rot+" "+cx+" "+cy+")"});
+    svg.appendChild(ell);
+    // 协方差轴
+    const ang=rot*Math.PI/180;
+    const ax1x=cx+Math.cos(ang)*rx,ax1y=cy+Math.sin(ang)*rx;
+    const ax2x=cx+Math.cos(ang+Math.PI/2)*ry,ax2y=cy+Math.sin(ang+Math.PI/2)*ry;
+    svg.appendChild(el("line",{x1:cx,y1:cy,x2:ax1x,y2:ax1y,stroke:C_OK,"stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    svg.appendChild(el("line",{x1:cx,y1:cy,x2:ax2x,y2:ax2y,stroke:C_OK,"stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    // 轴标签
+    const al1=el("text",{x:ax1x+6,y:ax1y,"font-size":10,"font-family":MONO,fill:C_OK});al1.textContent="σ₁";svg.appendChild(al1);
+    const al2=el("text",{x:ax2x+6,y:ax2y,"font-size":10,"font-family":MONO,fill:C_OK});al2.textContent="σ₂";svg.appendChild(al2);
+    // 位置 μ
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:4,fill:C_ACC2,stroke:"#0b0b0c","stroke-width":1.4}));
+    const ml=el("text",{x:cx+8,y:cy-8,"font-size":11,"font-family":MONO,fill:C_ACC2});ml.textContent="μ (位置)";svg.appendChild(ml);
+    // 观察方向箭头
+    const vax=cx+Math.cos(viewAngle)*120,vay=cy+Math.sin(viewAngle)*120;
+    svg.appendChild(el("line",{x1:cx,y1:cy,x2:vax,y2:vay,stroke:C_AMBER,"stroke-width":1.6,"marker-end":"url(#a01)"}));
+    const vl=el("text",{x:vax+6,y:vay,"font-size":10,"font-family":MONO,fill:C_AMBER});vl.textContent="视线";svg.appendChild(vl);
+    const mk=el("marker",{id:"a01",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:C_AMBER}));svg.appendChild(mk);
+
+    // 右侧属性面板
+    const px=520,py=60;
+    function attrRow(y,label,val,col){
+      svg.appendChild(el("rect",{x:px,y:y,width:170,height:30,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      const t=el("text",{x:px+10,y:y+19,"font-size":11,"font-family":MONO,fill:col});t.textContent=label;svg.appendChild(t);
+      const v=el("text",{x:px+160,y:y+19,"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#f7f8f8"});v.textContent=val;svg.appendChild(v);
+    }
+    attrRow(py,"μ (位置)","(0,0,0)",C_ACC2);
+    attrRow(py+38,"Σ = R·S·Sᵀ·Rᵀ",scale.toFixed(2),C_OK);
+    attrRow(py+76,"α (不透明度)",alpha.toFixed(2),C_ACC);
+    attrRow(py+114,"SH 颜色",col,C_AMBER);
+    // SH 色块
+    svg.appendChild(el("rect",{x:px+10,y:py+150,width:150,height:24,rx:4,fill:col,opacity:alpha}));
+
+    $("st01a").textContent=alpha.toFixed(2);
+    $("st01s").textContent=scale.toFixed(2);
+    $("st01an").textContent=aniso.toFixed(2);
+    $("st01r").textContent=Math.round(rot)+"°";
+  }
+
+  draw();
+  function mkSlider(label,init,min,max,step,cb){
+    const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>'+label+'</span>';
+    const inp=document.createElement("input");inp.type="range";inp.min=min;inp.max=max;inp.step=step;inp.value=init;
+    const val=document.createElement("span");val.className="val";val.textContent=init;
+    inp.addEventListener("input",()=>{cb(+inp.value);val.textContent=(+inp.value).toFixed(step<1?2:0);draw();});
+    sg.appendChild(inp);sg.appendChild(val);return sg;
+  }
+  ctl.appendChild(mkSlider("α 不透明度",0.9,0.05,1,0.05,v=>alpha=v));
+  ctl.appendChild(mkSlider("S 缩放",1.0,0.3,2,0.05,v=>scale=v));
+  ctl.appendChild(mkSlider("各向异性",1.0,0.3,2.5,0.05,v=>aniso=v));
+  ctl.appendChild(mkSlider("θ 旋转",0,-180,180,1,v=>rot=v));
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="视角旋转";
+  anim.addEventListener("click",()=>{
+    animate(3000,p=>{viewAngle=p*Math.PI*2;draw();});
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   02 可微光栅化
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  let nGauss=5,blended=0;
+  const layers=[]; // {depth, color, alpha}
+  function gen(){
+    layers.length=0;
+    const cols=["#34d399","#2dd4ff","#fbbf24","#7c5cff","#f87171","#a3e635"];
+    for(let i=0;i<nGauss;i++){
+      layers.push({depth:i,color:cols[i%cols.length],alpha:0.3+Math.random()*0.5});
+    }
+    layers.sort((a,b)=>b.depth-a.depth); // 远到近
+  }
+  function draw(){
+    clearNode(svg);
+    // 左：分层高斯（按深度）
+    const lx=80,ly=60,lw=240,lh=280;
+    svg.appendChild(el("rect",{x:lx,y:ly,width:lw,height:lh,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:lx+lw/2,y:ly-8,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="高斯层 (远→近)";svg.appendChild(tl);
+    // tile 网格
+    const tileSize=40;
+    for(let tx=lx;tx<lx+lw;tx+=tileSize)svg.appendChild(el("line",{x1:tx,y1:ly,x2:tx,y2:ly+lh,stroke:"rgba(248,113,113,.12)","stroke-width":1}));
+    for(let ty=ly;ty<ly+lh;ty+=tileSize)svg.appendChild(el("line",{x1:lx,y1:ty,x2:lx+lw,y2:ty,stroke:"rgba(248,113,113,.12)","stroke-width":1}));
+    // 每层一个椭圆
+    layers.forEach((l,i)=>{
+      const cy=ly+30+i*((lh-40)/Math.max(1,nGauss-1));
+      const cx=lx+lw/2+(i%2?20:-15);
+      const on=i<blended;
+      const rx=50+ (i%3)*8, ry=16;
+      svg.appendChild(el("ellipse",{cx:cx,cy:cy,rx:rx,ry:ry,fill:l.color,opacity:on?l.alpha:l.alpha*0.3,stroke:l.color,"stroke-width":1,"stroke-opacity":on?1:0.3}));
+      // 深度标
+      const dt=el("text",{x:lx+8,y:cy+3,"font-size":9,"font-family":MONO,fill:on?l.color:"#62666d"});dt.textContent="d="+l.depth;svg.appendChild(dt);
+    });
+    // 右：累积像素
+    const rx=400,ry=60,rw=260,rh=280;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:rw,height:rh,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const rt=el("text",{x:rx+rw/2,y:ry-8,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});rt.textContent="累积像素颜色";svg.appendChild(rt);
+    // 计算混合
+    let R=0,G=0,B=0,T=1;
+    const blendedLayers=layers.slice(0,blended);
+    blendedLayers.forEach(l=>{
+      const rgb=hexToRgb(l.color);
+      const contrib=l.alpha*T;
+      R+=rgb[0]*contrib;G+=rgb[1]*contrib;B+=rgb[2]*contrib;
+      T*=(1-l.alpha);
+    });
+    const finalCol="rgb("+Math.round(Math.min(255,R))+","+Math.round(Math.min(255,G))+","+Math.round(Math.min(255,B))+")";
+    // 像素大方块
+    svg.appendChild(el("rect",{x:rx+30,y:ry+40,width:rw-60,height:120,rx:8,fill:finalCol,opacity:0.95}));
+    // 公式展开
+    const fy=ry+190;
+    const ft=el("text",{x:rx+rw/2,y:fy,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});ft.textContent="C = Σ cᵢ·αᵢ·Tᵢ";svg.appendChild(ft);
+    // 逐层贡献条
+    blendedLayers.forEach((l,i)=>{
+      const by=fy+20+i*22;
+      const rgb=hexToRgb(l.color);
+      const contrib=l.alpha;
+      svg.appendChild(el("rect",{x:rx+20,y:by,width:(rw-40)*contrib,height:14,rx:3,fill:l.color,opacity:0.7}));
+      const t=el("text",{x:rx+rw-24,y:by+11,"text-anchor":"end","font-size":9.5,"font-family":MONO,fill:"#f7f8f8"});t.textContent="α="+l.alpha.toFixed(2)+" T="+(Math.pow(1-l.alpha,i)).toFixed(2);svg.appendChild(t);
+    });
+    // 箭头连接
+    svg.appendChild(el("line",{x1:lx+lw,y1:ly+lh/2,x2:rx,y2:ry+rh/2,stroke:"#62666d","stroke-width":1.2,"stroke-dasharray":"4 3","marker-end":"url(#a02)"}));
+    const mk=el("marker",{id:"a02",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#62666d"}));svg.appendChild(mk);
+
+    $("st02n").textContent=nGauss;
+    $("st02blended").textContent=blended;
+    $("st02t").textContent=T.toFixed(3);
+    if(blended===0)$("p02detail").textContent="高斯按深度从远到近排序。每个像素的最终颜色是各高斯贡献的加权和，权重为 αᵢ 乘以此前所有高斯的透射率 Tᵢ。tile-based 划分将屏幕分块并行处理，提升渲染效率。点击\"逐步混合\"观察。";
+    else if(blended<nGauss)$("p02detail").textContent="已混合 "+blended+" 层，当前透射率 T="+T.toFixed(3)+"。剩余 "+(nGauss-blended)+" 层待混合。颜色逐步累积。";
+    else $("p02detail").textContent="全部 "+nGauss+" 层混合完成，最终透射率 T="+T.toFixed(3)+"，像素颜色 "+finalCol+"。整个过程可微，梯度通过 α 与颜色回传至高斯属性。";
+  }
+  function hexToRgb(h){const n=parseInt(h.slice(1),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+
+  gen();draw();
+  const step=document.createElement("button");step.className="btn primary";step.textContent="逐步混合 →";
+  step.addEventListener("click",()=>{if(blended<nGauss){blended++;draw();}});
+  const all=document.createElement("button");all.className="btn";all.textContent="全部混合";
+  all.addEventListener("click",()=>{blended=nGauss;draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{blended=0;draw();});
+  ctl.appendChild(step);ctl.appendChild(all);ctl.appendChild(rst);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>高斯层数</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=8;inp.step=1;inp.value=5;
+  const val=document.createElement("span");val.className="val";val.textContent="5";
+  inp.addEventListener("input",()=>{nGauss=+inp.value;val.textContent=nGauss;blended=0;gen();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn small";anim.textContent="混合动画";
+  anim.addEventListener("click",()=>{
+    blended=0;draw();
+    let i=0;
+    function next(){if(i>=nGauss)return;blended++;draw();i++;setTimeout(next,400);}
+    next();
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   03 球谐函数
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  let order=3,viewAngle=0;
+  // SH 基函数极坐标图 (2D 截面)
+  // l=0: 常数; l=1: cos/sin; l=2: cos(2θ); l=3: cos(3θ)
+  function shBasis(l,m,theta){
+    // 简化的实球谐（2D 极角截面）
+    if(l===0)return 0.5;
+    if(l===1){if(m===-1)return 0.6*Math.sin(theta);if(m===0)return 0.6*Math.cos(theta);return 0.6*Math.sin(theta+1);}
+    if(l===2){if(m===-2)return 0.5*Math.cos(2*theta);if(m===-1)return 0.5*Math.sin(2*theta);if(m===0)return 0.4*(3*Math.cos(theta)*Math.cos(theta)-1)/2;if(m===1)return 0.5*Math.cos(2*theta+1);return 0.5*Math.sin(2*theta+1);}
+    if(l===3){return 0.4*Math.cos(3*theta+m*0.5);}
+    return 0;
+  }
+  function viewColor(va){
+    // 合成 SH 颜色
+    let r=0.5,g=0.5,b=0.5;
+    for(let l=0;l<=order;l++){
+      for(let m=-l;m<=l;m++){
+        const c=shBasis(l,m,va);
+        if(l%3===0)r+=c*0.15;
+        else if(l%3===1)g+=c*0.15;
+        else b+=c*0.15;
+      }
+    }
+    r=Math.max(0,Math.min(1,r));g=Math.max(0,Math.min(1,g));b=Math.max(0,Math.min(1,b));
+    return "rgb("+Math.round(r*255)+","+Math.round(g*255)+","+Math.round(b*255)+")";
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 左：SH 基函数极坐标图
+    const cx=180,cy=200,R=120;
+    const tl=el("text",{x:cx,y:30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="SH 基函数 (极坐标)";svg.appendChild(tl);
+    // 坐标
+    svg.appendChild(el("line",{x1:cx-R,y1:cy,x2:cx+R,y2:cy,stroke:"rgba(255,255,255,.07)"}));
+    svg.appendChild(el("line",{x1:cx,y1:cy-R,x2:cx,y2:cy+R,stroke:"rgba(255,255,255,.07)"}));
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:R,fill:"none",stroke:"rgba(255,255,255,.05)"}));
+    // 绘制各阶基函数（每个一条曲线）
+    const basisCols=["#34d399","#2dd4ff","#fbbf24","#f87171","#a3e635","#7c5cff","#fb923c","#fde68a","#67e8f9","#fca5a5","#86efac","#fcd34d","#a5b4fc","#fecaca","#bbf7d0","#fdba74"];
+    let bi=0;
+    for(let l=0;l<=order;l++){
+      for(let m=-l;m<=l;m++){
+        const pts=[];
+        for(let a=0;a<=Math.PI*2;a+=0.1){
+          const v=Math.abs(shBasis(l,m,a));
+          const r=R*0.35+v*R*0.65;
+          pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);
+        }
+        let d="M"+pts[0][0]+","+pts[0][1];
+        for(let i=1;i<pts.length;i++)d+=" L"+pts[i][0]+","+pts[i][1]+" ";
+        d+="Z";
+        svg.appendChild(el("path",{d:d,fill:basisCols[bi%basisCols.length],opacity:0.08,stroke:basisCols[bi%basisCols.length],"stroke-width":1}));
+        bi++;
+      }
+    }
+    const ncoef=bi;
+    // 阶数标签
+    for(let l=0;l<=order;l++){
+      const a=-Math.PI/2+l*(Math.PI*2/(order+1+0.001))*0.3;
+      const t=el("text",{x:cx+Math.cos(a)*(R+14),y:cy+Math.sin(a)*(R+14),"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent="l="+l;svg.appendChild(t);
+    }
+
+    // 右：视角依赖颜色球
+    const rx=500,ry=200,rR=100;
+    const rt=el("text",{x:rx,y:80,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});rt.textContent="视角依赖颜色";svg.appendChild(rt);
+    const col=viewColor(viewAngle);
+    // 球
+    const defs=el("defs");
+    const grad=el("radialGradient",{id:"g03",cx:"35%",cy:"30%",r:"75%"});
+    grad.appendChild(el("stop",{offset:"0%","stop-color":col,"stop-opacity":"1"}));
+    grad.appendChild(el("stop",{offset:"100%","stop-color":col,"stop-opacity":"0.5"}));
+    defs.appendChild(grad);svg.appendChild(defs);
+    svg.appendChild(el("circle",{cx:rx,cy:ry,r:rR,fill:"url(#g03)",stroke:col,"stroke-width":1.4}));
+    // 视角箭头
+    const vax=rx+Math.cos(viewAngle)*(rR+40),vay=ry+Math.sin(viewAngle)*(rR+40);
+    svg.appendChild(el("line",{x1:rx,y1:ry,x2:vax,y2:vay,stroke:C_AMBER,"stroke-width":1.8,"marker-end":"url(#a03)"}));
+    const mk=el("marker",{id:"a03",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:C_AMBER}));svg.appendChild(mk);
+    const vl=el("text",{x:vax+8,y:vay+4,"font-size":11,"font-family":MONO,fill:C_AMBER});vl.textContent="θ="+Math.round(viewAngle*180/Math.PI)+"°";svg.appendChild(vl);
+    // 颜色值
+    const cl=el("text",{x:rx,y:ry+rR+30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:col});cl.textContent=col;svg.appendChild(cl);
+    // 阶数说明
+    const orderDesc=["l=0 常数(漫反射)","l=1 线性","l=2 二阶(高光)","l=3 三阶(锐利)"];
+    const od=el("text",{x:rx,y:ry+rR+52,"text-anchor":"middle","font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});od.textContent=orderDesc[order];svg.appendChild(od);
+
+    $("st03order").textContent=order;
+    $("st03coef").textContent=ncoef;
+    $("st03view").textContent=Math.round(viewAngle*180/Math.PI)+"°";
+    $("st03col").textContent=col;
+    $("p03detail").textContent="SH 阶数 l="+order+"，共 "+ncoef+" 个系数/通道。当前视角 "+Math.round(viewAngle*180/Math.PI)+"°，颜色 "+col+"。阶数越高颜色随视角变化越剧烈。";
+  }
+
+  draw();
+  // 阶数按钮
+  [0,1,2,3].forEach(o=>{
+    const b=document.createElement("button");b.className="btn small"+(o===3?" on":"");b.textContent="l="+o;
+    b.addEventListener("click",()=>{order=o;draw();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>视角 θ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=360;inp.step=2;inp.value=0;
+  const val=document.createElement("span");val.className="val";val.textContent="0°";
+  inp.addEventListener("input",()=>{viewAngle=(+inp.value)*Math.PI/180;val.textContent=(+inp.value)+"°";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="视角旋转";
+  anim.addEventListener("click",()=>{
+    animate(3000,p=>{viewAngle=p*Math.PI*2;inp.value=Math.round(p*360);val.textContent=Math.round(p*360)+"°";draw();});
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   04 自适应密度控制
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  let gaussians=[]; // {x,y,r,col,op,grad,state}
+  let iter=0,scCount=0,prCount=0;
+  function init(){
+    gaussians=[];iter=0;scCount=0;prCount=0;
+    for(let i=0;i<12;i++){
+      const a=Math.PI*2*i/12;
+      gaussians.push({x:360+Math.cos(a)*90,y:180+Math.sin(a)*70,r:18+Math.random()*8,col:"#34d399",op:0.6,grad:Math.random()*0.5,state:"normal"});
+    }
+  }
+  function step(){
+    iter++;
+    scCount=0;prCount=0;
+    gaussians.forEach(g=>{
+      // 梯度增长
+      g.grad=Math.min(1,g.grad+0.2+Math.random()*0.3);
+      if(g.grad>0.7){
+        if(g.r>16){
+          // split
+          g.state="split";
+          scCount++;
+          const na=Math.random()*Math.PI*2;
+          gaussians.push({x:g.x+Math.cos(na)*10,y:g.y+Math.sin(na)*10,r:g.r*0.6,col:"#fbbf24",op:g.op*0.9,grad:0.2,state:"normal"});
+          g.r*=0.6;g.grad=0.2;g.col="#fbbf24";
+        }else{
+          // clone
+          g.state="clone";scCount++;
+          const na=Math.random()*Math.PI*2;
+          gaussians.push({x:g.x+Math.cos(na)*14,y:g.y+Math.sin(na)*14,r:g.r,col:"#7c5cff",op:g.op,grad:0.3,state:"normal"});
+          g.col="#7c5cff";g.grad=0.3;
+        }
+      }
+      // prune 小 α
+      if(g.op<0.1){g.state="prune";prCount++;}
+    });
+    // 移除 prune
+    setTimeout(()=>{gaussians=gaussians.filter(g=>g.state!=="prune");draw();},300);
+    // 随机降低一些 α
+    gaussians.forEach(g=>{if(Math.random()<0.1)g.op*=0.7;});
+  }
+  function draw(){
+    clearNode(svg);
+    // 场景框
+    svg.appendChild(el("rect",{x:60,y:40,width:600,height:300,rx:10,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:360,y:28,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="高斯密度控制 · 迭代 "+iter;svg.appendChild(tl);
+    // 梯度热区背景
+    gaussians.forEach(g=>{
+      if(g.grad>0.5){
+        svg.appendChild(el("circle",{cx:g.x,cy:g.y,r:g.r*2.5,fill:"#f87171",opacity:(g.grad-0.5)*0.15}));
+      }
+    });
+    // 高斯
+    gaussians.forEach(g=>{
+      let stroke=g.col;
+      if(g.state==="split")stroke=C_AMBER;
+      else if(g.state==="clone")stroke=C_ACC2;
+      else if(g.state==="prune")stroke=C_WARN;
+      svg.appendChild(el("circle",{cx:g.x,cy:g.y,r:g.r,fill:g.col,opacity:g.op,stroke:stroke,"stroke-width":1.4}));
+      // 梯度箭头
+      if(g.grad>0.4){
+        const al=g.grad*20;
+        svg.appendChild(el("line",{x1:g.x,y1:g.y,x2:g.x+al,y2:g.y-al*0.5,stroke:C_WARN,"stroke-width":1,"marker-end":"url(#a04)","opacity":g.grad}));
+      }
+    });
+    const mk=el("marker",{id:"a04",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:C_WARN}));svg.appendChild(mk);
+    // 密度曲线（右下小图）
+    const dx=540,dy=250,dw=110,dh=80;
+    svg.appendChild(el("rect",{x:dx,y:dy,width:dw,height:dh,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const dl=el("text",{x:dx+dw/2,y:dy-4,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});dl.textContent="高斯数 vs 迭代";svg.appendChild(dl);
+    // 简化密度曲线
+    const hist=[12,15,22,30,28,35];
+    const maxN=Math.max(...hist,gaussians.length);
+    hist.forEach((n,i)=>{
+      const h=(n/maxN)*(dh-10);
+      svg.appendChild(el("rect",{x:dx+8+i*(dw-16)/hist.length,y:dy+dh-5-h,width:(dw-16)/hist.length-2,height:h,fill:C_ACC,opacity:0.7}));
+    });
+    // 当前点
+    const ch=(gaussians.length/maxN)*(dh-10);
+    svg.appendChild(el("rect",{x:dx+8+hist.length*(dw-16)/hist.length,y:dy+dh-5-ch,width:(dw-16)/hist.length-2,height:ch,fill:C_AMBER}));
+
+    $("st04n").textContent=gaussians.length;
+    $("st04iter").textContent=iter;
+    $("st04sc").textContent=scCount;
+    $("st04pr").textContent=prCount;
+    if(iter===0)$("p04detail").textContent="当某高斯在视图空间的位置梯度超过阈值 τ_pos，且尺度较大则 clone，较小则 split。split 将一个高斯分为两个较小的高斯以细化区域。α < ε_α 的高斯被 prune。此机制使高斯数自适应场景复杂度。";
+    else $("p04detail").textContent="迭代 "+iter+"：本次 split/clone "+scCount+" 个，prune "+prCount+" 个，当前共 "+gaussians.length+" 个高斯。高梯度区（红色热区）触发密度增加，低贡献高斯被剪枝。";
+  }
+
+  init();draw();
+  const stepBtn=document.createElement("button");stepBtn.className="btn primary";stepBtn.textContent="密度控制步 →";
+  stepBtn.addEventListener("click",()=>{step();draw();});
+  const play=document.createElement("button");play.className="btn";play.textContent="自动演化";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing){playing=false;play.textContent="自动演化";return;}
+    playing=true;play.textContent="停止";
+    function next(){if(!playing)return;step();draw();setTimeout(next,1000);}
+    next();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{init();draw();});
+  ctl.appendChild(stepBtn);ctl.appendChild(play);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 优化训练
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400,padL=54,padR=54,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let iter=0;
+  const MAXITER=7000;
+  function loss(it){return 0.5*Math.exp(-it/1500)+0.02+0.01*Math.sin(it/200);}
+  function psnr(it){return 20+10*(1-Math.exp(-it/2000));}
+  function nGauss(it){return Math.round(120+it*0.15-Math.max(0,it-3000)*0.05);}
+
+  function draw(){
+    clearNode(svg);
+    const yMaxLoss=0.55,yMaxPsnr=32;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      // 左轴 loss
+      const lv=yMaxLoss*i/5;
+      const lt=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":9.5,"font-family":MONO,fill:C_WARN});lt.textContent=lv.toFixed(2);svg.appendChild(lt);
+      // 右轴 psnr
+      const pv=yMaxPsnr*i/5;
+      const pt=el("text",{x:padL+plotW+8,y:y+3.5,"font-size":9.5,"font-family":MONO,fill:C_ACC});pt.textContent=pv.toFixed(0)+"dB";svg.appendChild(pt);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // x 轴
+    for(let i=0;i<=7;i++){
+      const x=padL+(i/7)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#62666d"});t.textContent=Math.round(MAXITER*i/7/1000)+"k";svg.appendChild(t);
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});xl.textContent="迭代步数";svg.appendChild(xl);
+    // 损失曲线
+    const lp=[];
+    for(let i=0;i<=plotW;i+=3){
+      const it=MAXITER*i/plotW;
+      lp.push([padL+i,padT+plotH-(loss(Math.min(it,iter))/yMaxLoss)*plotH]);
+    }
+    let dl="M"+lp[0][0]+","+lp[0][1];
+    for(let i=1;i<lp.length;i++)dl+=" L"+lp[i][0]+","+lp[i][1];
+    svg.appendChild(el("path",{d:dl,fill:"none",stroke:C_WARN,"stroke-width":2}));
+    // PSNR 曲线
+    const pp=[];
+    for(let i=0;i<=plotW;i+=3){
+      const it=MAXITER*i/plotW;
+      pp.push([padL+i,padT+plotH-(psnr(Math.min(it,iter))/yMaxPsnr)*plotH]);
+    }
+    let dp="M"+pp[0][0]+","+pp[0][1];
+    for(let i=1;i<pp.length;i++)dp+=" L"+pp[i][0]+","+pp[i][1];
+    svg.appendChild(el("path",{d:dp,fill:"none",stroke:C_ACC,"stroke-width":2}));
+    // 当前点
+    const cx=padL+(iter/MAXITER)*plotW;
+    const cyL=padT+plotH-(loss(iter)/yMaxLoss)*plotH;
+    const cyP=padT+plotH-(psnr(iter)/yMaxPsnr)*plotH;
+    svg.appendChild(el("circle",{cx:cx,cy:cyL,r:4,fill:C_WARN,stroke:"#0b0b0c","stroke-width":1.4}));
+    svg.appendChild(el("circle",{cx:cx,cy:cyP,r:4,fill:C_ACC,stroke:"#0b0b0c","stroke-width":1.4}));
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#62666d","stroke-width":1,"stroke-dasharray":"3 3",opacity:.5}));
+    // 图例
+    svg.appendChild(el("rect",{x:padL+8,y:padT+6,width:10,height:3,fill:C_WARN}));
+    const ll1=el("text",{x:padL+24,y:padT+11,"font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});ll1.textContent="loss";svg.appendChild(ll1);
+    svg.appendChild(el("rect",{x:padL+58,y:padT+6,width:10,height:3,fill:C_ACC}));
+    const ll2=el("text",{x:padL+74,y:padT+11,"font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});ll2.textContent="PSNR";svg.appendChild(ll2);
+
+    $("st05iter").textContent=iter;
+    $("st05loss").textContent=loss(iter).toFixed(4);
+    $("st05psnr").textContent=psnr(iter).toFixed(2)+"dB";
+    $("st05n").textContent=nGauss(iter);
+    $("p05detail").textContent="迭代 "+iter+"：损失 "+loss(iter).toFixed(4)+"，PSNR "+psnr(iter).toFixed(2)+"dB，高斯数 "+nGauss(iter)+"。损失快速下降后趋于平稳，PSNR 持续上升。密度控制使高斯数自适应增长。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>迭代步</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=MAXITER;inp.step=100;inp.value=0;
+  const val=document.createElement("span");val.className="val";val.textContent="0";
+  inp.addEventListener("input",()=>{iter=+inp.value;val.textContent=iter;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="训练动画";
+  anim.addEventListener("click",()=>{
+    animate(2500,p=>{iter=Math.round(MAXITER*easeIO(p));inp.value=iter;val.textContent=iter;draw();});
+  });
+  ctl.appendChild(anim);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{iter=0;inp.value=0;val.textContent=0;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   06 SfM 初始化
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  let stage=0;
+  const stages=[
+    {t:"第 1 步：输入图像集",d:"多视角图像输入 COLMAP。通过 SIFT 特征检测与匹配建立图像间对应关系。"},
+    {t:"第 2 步：SfM 稀疏点云",d:"束调整（Bundle Adjustment）联合优化相机位姿与 3D 点位置，输出稀疏点云。每个点带颜色。"},
+    {t:"第 3 步：初始化 3D 高斯",d:"每个 SfM 点 → 一个各向同性高斯：μ=点位置，Σ=I·d²（d 为最近 3 点平均距离），α=0.1，SH 由点颜色设定。从此开始优化。"}
+  ];
+  let imgs=[],pts=[];
+  function gen(){
+    imgs=[];pts=[];
+    for(let i=0;i<5;i++){
+      imgs.push({x:60+i*120,y:50,w:90,h:60,ang:-15+i*7});
+    }
+    for(let i=0;i<40;i++){
+      const a=Math.PI*2*i/40+Math.random()*0.3;
+      const r=60+Math.random()*50;
+      pts.push({x:360+Math.cos(a)*r,y:200+Math.sin(a)*r*0.7,col:["#34d399","#2dd4ff","#fbbf24","#7c5cff"][i%4]});
+    }
+  }
+  function draw(){
+    clearNode(svg);
+    if(stage===0){
+      // 输入图像
+      imgs.forEach((im,i)=>{
+        svg.appendChild(el("rect",{x:im.x,y:im.y,width:im.w,height:im.h,rx:5,fill:"#16181c",stroke:C_AMBER,"stroke-width":1.3,transform:"rotate("+im.ang+" "+(im.x+im.w/2)+" "+(im.y+im.h/2)+")"}));
+        for(let r=0;r<3;r++)for(let c=0;c<4;c++)svg.appendChild(el("rect",{x:im.x+8+c*18,y:im.y+8+r*15,width:14,height:10,rx:1,fill:C_AMBER,opacity:.1+.15*((r+c)%3),transform:"rotate("+im.ang+" "+(im.x+im.w/2)+" "+(im.y+im.h/2)+")"}));
+        const t=el("text",{x:im.x+im.w/2,y:im.y+im.h+18,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#fbbf24"});t.textContent="img "+(i+1);svg.appendChild(t);
+      });
+      const note=el("text",{x:360,y:200,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#9b9fa8"});note.textContent="多视角图像 → COLMAP";svg.appendChild(note);
+      // 流程箭头
+      svg.appendChild(el("line",{x1:360,y1:230,x2:360,y2:280,stroke:"#62666d","stroke-width":1.4,"marker-end":"url(#a06)"}));
+      const mk=el("marker",{id:"a06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+      mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#62666d"}));svg.appendChild(mk);
+      const fl=el("text",{x:380,y:265,"font-size":10,"font-family":MONO,fill:"#62666d"});fl.textContent="特征匹配 + 束调整";svg.appendChild(fl);
+    }else if(stage===1){
+      // SfM 点云
+      const tl=el("text",{x:360,y:60,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="SfM 稀疏点云";svg.appendChild(tl);
+      pts.forEach(p=>{
+        svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:2.5,fill:p.col,opacity:.85}));
+      });
+      // 相机位姿（简化为小三角形）
+      for(let i=0;i<5;i++){
+        const a=-15+i*7;
+        const cx=360+Math.cos(a*Math.PI/180)*180,cy=200+Math.sin(a*Math.PI/180)*120;
+        svg.appendChild(el("polygon",{points:(cx-6)+","+(cy+5)+" "+(cx+6)+","+(cy+5)+" "+cx+","+(cy-7),fill:"#16181c",stroke:C_AMBER,"stroke-width":1.2}));
+      }
+      const cl=el("text",{x:560,y:340,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#fbbf24"});cl.textContent="△ 相机位姿";svg.appendChild(cl);
+      const pl=el("text",{x:560,y:358,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#2dd4ff"});pl.textContent="● SfM 点 ("+pts.length+")";svg.appendChild(pl);
+    }else{
+      // 高斯初始化
+      const tl=el("text",{x:360,y:60,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="初始化 3D 高斯";svg.appendChild(tl);
+      pts.forEach(p=>{
+        // 点
+        svg.appendChild(el("circle",{cx:p.x,cy:p.y,r:2,fill:p.col,opacity:.4}));
+        // 高斯椭圆
+        const d=8+Math.random()*6;
+        const defs=el("defs");const gr=el("radialGradient",{id:"g6"+p.x.toFixed(0)});
+        gr.appendChild(el("stop",{offset:"0%","stop-color":p.col,"stop-opacity":"0.1"}));
+        gr.appendChild(el("stop",{offset:"100%","stop-color":p.col,"stop-opacity":"0"}));
+        defs.appendChild(gr);svg.appendChild(defs);
+        svg.appendChild(el("ellipse",{cx:p.x,cy:p.y,rx:d*1.5,ry:d,fill:"url(#g6"+p.x.toFixed(0)+")",stroke:p.col,"stroke-width":1,opacity:0.7}));
+      });
+      // 属性说明
+      const ax=520,ay=300;
+      svg.appendChild(el("rect",{x:ax,y:ay,width:180,height:80,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      const at=el("text",{x:ax+10,y:ay+18,"font-size":10,"font-family":MONO,fill:C_ACC});at.textContent="初始属性:";svg.appendChild(at);
+      const a1=el("text",{x:ax+10,y:ay+35,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});a1.textContent="μ = SfM 点位置";svg.appendChild(a1);
+      const a2=el("text",{x:ax+10,y:ay+50,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});a2.textContent="Σ = I·d² (各向同性)";svg.appendChild(a2);
+      const a3=el("text",{x:ax+10,y:ay+65,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});a3.textContent="α = 0.1, SH = 点颜色";svg.appendChild(a3);
+    }
+    $("st06stage").textContent=(stage+1)+" / 3";
+    $("st06pts").textContent=stage>=1?pts.length:"—";
+    $("st06g").textContent=stage>=2?pts.length:"—";
+    $("p06title").textContent=stages[stage].t;
+    $("p06detail").textContent=stages[stage].d;
+  }
+
+  gen();draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放流程";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    function next(){
+      if(stage>=2){playing=false;play.textContent="播放流程";return;}
+      setStage(stage+1);setTimeout(next,1600);
+    }
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="逐步 →";
+  stepBtn.addEventListener("click",()=>setStage((stage+1)%3));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{setStage(0);});
+  ctl.appendChild(play);ctl.appendChild(stepBtn);ctl.appendChild(rst);
+  function setStage(s){stage=s;draw();}
+  stages.forEach((s,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent="步骤"+(i+1);
+    b.addEventListener("click",()=>{setStage(i);document.querySelectorAll("#ctl06 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   07 3DGS vs NeRF
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  let metric=0;
+  const metrics=[
+    {n:"渲染速度",gs:134,nerf:0.1,unit:" FPS",gsWin:true,desc:"3DGS 实时渲染，NeRF 慢 1000+ 倍"},
+    {n:"训练时间",gs:41,nerf:600,unit:" min",gsWin:true,lowerBetter:true,desc:"3DGS 约 41 分钟，NeRF 数小时至数天"},
+    {n:"内存占用",gs:7.3,nerf:1.4,unit:" MB",gsWin:false,lowerBetter:true,desc:"3DGS 显式存储高斯，内存更大"},
+    {n:"PSNR 质量",gs:31.5,nerf:31.0,unit:" dB",gsWin:true,desc:"3DGS 略优，两者接近"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const m=metrics[metric];
+    const W=720,padL=140,padR=40,padT=60,padB=60;
+    const plotW=W-padL-padR,plotH=300;
+    // 标题
+    const tl=el("text",{x:W/2,y:30,"text-anchor":"middle","font-size":14,"font-family":MONO,fill:"#f7f8f8"});tl.textContent=m.n+(m.lowerBetter?" (越低越好)":" (越高越好)");svg.appendChild(tl);
+    // 基线
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // 计算条形（对数刻度处理大差异）
+    const maxV=Math.max(m.gs,m.nerf);
+    const useLog=maxV/m.nerf>20||maxV/m.gs>20;
+    function scaleVal(v){return useLog?(Math.log10(v+1)/Math.log10(maxV+1))*plotH:(v/maxV)*plotH;}
+    // 3DGS 条
+    const bw=80;
+    const gsH=scaleVal(m.gs);
+    const gsX=padL+plotW*0.25-bw/2;
+    svg.appendChild(el("rect",{x:gsX,y:padT+plotH-gsH,width:bw,height:gsH,rx:4,fill:C_ACC,opacity:.85}));
+    // 数值
+    const gv=el("text",{x:gsX+bw/2,y:padT+plotH-gsH-10,"text-anchor":"middle","font-size":16,"font-family":MONO,fill:C_ACC,transform:"translate(0,0)"});gv.textContent=m.gs+m.unit;svg.appendChild(gv);
+    const gl=el("text",{x:gsX+bw/2,y:padT+plotH+22,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:C_ACC});gl.textContent="3DGS";svg.appendChild(gl);
+    // NeRF 条
+    const nerfH=scaleVal(m.nerf);
+    const nerfX=padL+plotW*0.75-bw/2;
+    svg.appendChild(el("rect",{x:nerfX,y:padT+plotH-nerfH,width:bw,height:nerfH,rx:4,fill:C_ACC2,opacity:.85}));
+    const nv=el("text",{x:nerfX+bw/2,y:padT+plotH-nerfH-10,"text-anchor":"middle","font-size":16,"font-family":MONO,fill:C_ACC2});nv.textContent=m.nerf+m.unit;svg.appendChild(nv);
+    const nl=el("text",{x:nerfX+bw/2,y:padT+plotH+22,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:C_ACC2});nl.textContent="NeRF";svg.appendChild(nl);
+    // 倍数标注
+    if(useLog){
+      const ntl=el("text",{x:W/2,y:padT+plotH+46,"text-anchor":"middle","font-size":10.5,"font-family":MONO,fill:"#62666d"});ntl.textContent="(对数刻度)";svg.appendChild(ntl);
+    }
+    // 优势标记
+    const winCol=m.gsWin?C_ACC:C_ACC2;
+    const winTxt=m.gsWin?"3DGS 胜出":"NeRF 胜出";
+    svg.appendChild(el("rect",{x:padL+plotW/2-50,y:padT-10,width:100,height:22,rx:11,fill:"rgba(52,211,153,.14)",stroke:winCol,"stroke-width":1}));
+    const wt=el("text",{x:padL+plotW/2,y:padT+5,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:winCol});wt.textContent=winTxt;svg.appendChild(wt);
+
+    $("st07metric").textContent=m.n;
+    $("st07gs").textContent=m.gs+m.unit;
+    $("st07nerf").textContent=m.nerf+m.unit;
+    $("st07adv").textContent=winTxt;
+    $("p07detail").textContent=m.n+"："+m.desc+"。3DGS 用显式高斯实现实时渲染，NeRF 用隐式 MLP 体积渲染。3DGS 训练更快但内存占用更大。";
+  }
+
+  draw();
+  metrics.forEach((mt,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=mt.n;
+    b.addEventListener("click",()=>{metric=i;draw();document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="轮播指标";
+  let playing=false;
+  anim.addEventListener("click",()=>{
+    if(playing){playing=false;anim.textContent="轮播指标";return;}
+    playing=true;anim.textContent="停止";
+    function next(){
+      if(!playing)return;
+      metric=(metric+1)%metrics.length;
+      draw();
+      document.querySelectorAll("#ctl07 .small").forEach((x,i)=>x.classList.toggle("on",i===metric));
+      setTimeout(next,1800);
+    }
+    setTimeout(next,800);
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   08 场景编辑
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  let tx=0,rot=0,sc=1;
+  let gaussians=[];
+  function init(){
+    gaussians=[];
+    // 组成一个简单形状（如字母 G 或几何图案）
+    const pattern=[
+      [0,-1],[0.5,-0.8],[0.9,-0.4],[1,0],[0.9,0.4],[0.5,0.8],[0,1],[-0.5,0.8],[-0.9,0.4],[-1,0],[-0.9,-0.4],[-0.5,-0.8]
+    ];
+    pattern.forEach((p,i)=>{
+      gaussians.push({x:p[0]*70,y:p[1]*70,r:18,col:"#2dd4ff",op:0.7});
+    });
+    // 中心点
+    for(let i=0;i<12;i++){
+      const a=Math.PI*2*i/12;
+      gaussians.push({x:Math.cos(a)*30,y:Math.sin(a)*30,r:10,col:"#2dd4ff",op:0.5});
+    }
+  }
+  function draw(){
+    clearNode(svg);
+    const cx=360,cy=200;
+    // 场景框
+    svg.appendChild(el("rect",{x:60,y:40,width:600,height:320,rx:10,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const tl=el("text",{x:360,y:28,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});tl.textContent="高斯场景编辑";svg.appendChild(tl);
+    // 变换
+    const ang=rot*Math.PI/180;
+    const cos=Math.cos(ang),sin=Math.sin(ang);
+    // 原始（淡色参考）
+    gaussians.forEach(g=>{
+      svg.appendChild(el("circle",{cx:cx+g.x,cy:cy+g.y,r:g.r,fill:g.col,opacity:0.12,stroke:g.col,"stroke-width":0.8,"stroke-dasharray":"2 2"}));
+    });
+    // 变换后
+    gaussians.forEach(g=>{
+      const x2=g.x*sc,y2=g.y*sc;
+      const xr=x2*cos-y2*sin+tx;
+      const yr=x2*sin+y2*cos;
+      svg.appendChild(el("circle",{cx:cx+xr,cy:cy+yr,r:g.r*sc,fill:g.col,opacity:g.op,stroke:"#34d399","stroke-width":1.2}));
+    });
+    // 变换矩阵显示
+    const mx=480,my=270;
+    svg.appendChild(el("rect",{x:mx,y:my,width:200,height:76,rx:6,fill:"#16181c",stroke:C_AMBER,"stroke-width":1}));
+    const mt=el("text",{x:mx+10,y:my+18,"font-size":10,"font-family":MONO,fill:C_AMBER});mt.textContent="x' = R·S·x + t";svg.appendChild(mt);
+    const m1=el("text",{x:mx+10,y:my+38,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});
+    m1.textContent="R="+cos.toFixed(2)+","+(-sin).toFixed(2)+" / "+sin.toFixed(2)+","+cos.toFixed(2);svg.appendChild(m1);
+    const m2=el("text",{x:mx+10,y:my+54,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});m2.textContent="S="+sc.toFixed(2);svg.appendChild(m2);
+    const m3=el("text",{x:mx+10,y:my+70,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});m3.textContent="t=("+tx.toFixed(0)+",0)";svg.appendChild(m3);
+    // 平移箭头
+    if(Math.abs(tx)>2){
+      svg.appendChild(el("line",{x1:cx,y1:cy,x2:cx+tx,y2:cy,stroke:C_AMBER,"stroke-width":1.4,"marker-end":"url(#a08)","stroke-dasharray":"4 3"}));
+      const mk=el("marker",{id:"a08",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+      mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:C_AMBER}));svg.appendChild(mk);
+    }
+
+    $("st08tx").textContent=tx.toFixed(0);
+    $("st08r").textContent=Math.round(rot)+"°";
+    $("st08s").textContent=sc.toFixed(2);
+    $("st08n").textContent=gaussians.length;
+  }
+
+  init();draw();
+  function mkSlider(label,init,min,max,step,cb){
+    const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>'+label+'</span>';
+    const inp=document.createElement("input");inp.type="range";inp.min=min;inp.max=max;inp.step=step;inp.value=init;
+    const val=document.createElement("span");val.className="val";val.textContent=init;
+    inp.addEventListener("input",()=>{cb(+inp.value);val.textContent=(+inp.value).toFixed(step<1?2:0);draw();});
+    sg.appendChild(inp);sg.appendChild(val);return sg;
+  }
+  ctl.appendChild(mkSlider("平移 tx",0,-100,100,1,v=>tx=v));
+  ctl.appendChild(mkSlider("旋转 θ",0,-180,180,1,v=>rot=v));
+  ctl.appendChild(mkSlider("缩放 S",1,0.3,2,0.05,v=>sc=v));
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="动画演示";
+  anim.addEventListener("click",()=>{
+    animate(3000,p=>{
+      const c=easeIO(Math.sin(p*Math.PI*2));
+      tx=Math.sin(p*Math.PI*2)*60;
+      rot=p*360;
+      sc=0.7+0.6*Math.sin(p*Math.PI);
+      draw();
+    });
+  });
+  ctl.appendChild(anim);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{tx=0;rot=0;sc=1;draw();});
+  ctl.appendChild(rst);
+})();
+
+</script>
+</body>
+</html>

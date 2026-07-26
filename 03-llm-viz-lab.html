@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 可视化实验室 · Large Language Model Visualizer</title>
+<style>
+/* ===================== 设计系统变量 ===================== */
+:root{
+  --bg:#08090a; --surface:#101114; --surface-2:#16181c; --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07); --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8; --muted:#9b9fa8; --faint:#62666d;
+  --accent:#5e6ad2; --accent-2:#7c5cff; --cyan:#2dd4ff; --emerald:#34d399; --amber:#fbbf24; --rose:#fb7185;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px; --side-w:260px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 20px)}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--ink);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+ul{list-style:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+/* ===================== 进度条 ===================== */
+.progress-bar{position:fixed;top:0;left:0;height:2px;width:0;z-index:1000;background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--cyan));transition:width .1s linear;will-change:width;transform:translateZ(0)}
+/* ===================== 导航栏 ===================== */
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:900;background:rgba(8,9,10,.92);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px}
+.navbar .logo{font-weight:700;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.navbar .logo .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+.navbar .nav-links{margin-left:auto;display:flex;gap:24px;font-size:13px;color:var(--muted)}
+.navbar .nav-links a{transition:color .2s}
+.navbar .nav-links a:hover{color:var(--ink)}
+/* ===================== 侧边导航 ===================== */
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:800;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:24px 0}
+.sidebar .side-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 20px;margin-bottom:12px}
+.sidebar .side-nav li a{display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:all .2s}
+.sidebar .side-nav li a .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px}
+.sidebar .side-nav li a:hover{color:var(--ink);background:var(--surface-2)}
+.sidebar .side-nav li a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(94,106,210,.08)}
+.sidebar .side-nav li a.active .num{color:var(--accent)}
+/* ===================== 主内容区 ===================== */
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);min-height:calc(100vh - var(--nav-h))}
+/* ===================== Hero ===================== */
+.hero{min-height:calc(100vh - var(--nav-h));display:flex;flex-direction:column;justify-content:center;padding:0 64px;max-width:1100px;position:relative}
+.hero .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent);background:rgba(94,106,210,.1);border:1px solid rgba(94,106,210,.25);padding:4px 12px;border-radius:20px;width:fit-content;margin-bottom:24px}
+.hero .badge .pulse{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{font-size:clamp(36px,5vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-bottom:20px}
+.hero h1 .grad{background:linear-gradient(135deg,var(--accent),var(--accent-2),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .subtitle{font-size:18px;color:var(--muted);max-width:580px;margin-bottom:48px;line-height:1.7}
+.hero .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:680px}
+.hero .stat{border-left:2px solid var(--border-strong);padding-left:16px}
+.hero .stat .val{font-size:28px;font-weight:700;font-family:var(--font-mono);color:var(--ink)}
+.hero .stat .label{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+/* ===================== 模块区 ===================== */
+.module{min-height:100vh;padding:80px 64px;border-top:1px solid var(--border);display:flex;flex-direction:column;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-header{margin-bottom:40px}
+.module-header .num{font-family:var(--font-mono);font-size:13px;color:var(--accent);letter-spacing:.05em;display:block;margin-bottom:8px}
+.module-header h2{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.module-header .desc{color:var(--muted);font-size:15px;max-width:600px}
+.module-body{display:grid;grid-template-columns:1fr 380px;gap:48px;flex:1}
+/* ===================== 可视化区 ===================== */
+.viz-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:20px;overflow:hidden}
+.viz-svg{width:100%;height:auto;display:block}
+.viz-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{padding:8px 16px;font-size:13px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--muted);transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--surface-3);color:var(--ink);box-shadow:0 0 16px rgba(94,106,210,.15)}
+.btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 20px rgba(94,106,210,.3)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#6d78e0;box-shadow:0 0 20px rgba(94,106,210,.35)}
+.btn.danger{background:var(--rose);border-color:var(--rose);color:#fff}
+.btn-sm{padding:6px 12px;font-size:12px}
+.viz-stats{display:flex;gap:24px;font-size:12px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap}
+.viz-stats .stat-item{display:flex;align-items:center;gap:6px}
+.viz-stats .stat-item .dot{width:8px;height:8px;border-radius:2px}
+/* ===================== 信息面板 ===================== */
+.info-panel{display:flex;flex-direction:column;gap:24px}
+.info-block{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px}
+.info-block h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.info-block p{font-size:13px;color:var(--muted);line-height:1.7}
+.info-block ul{display:flex;flex-direction:column;gap:8px}
+.info-block ul li{font-size:13px;color:var(--muted);padding-left:16px;position:relative;line-height:1.6}
+.info-block ul li::before{content:'';position:absolute;left:0;top:8px;width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.info-block ul li strong{color:var(--ink);font-weight:600}
+/* ===================== 代码块 ===================== */
+.code-block{background:#0c0d10;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.code-block .code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.code-block .code-header .lang{font-size:11px;color:var(--faint);font-family:var(--font-mono)}
+.code-block .code-header .dots{display:flex;gap:5px}
+.code-block .code-header .dots span{width:8px;height:8px;border-radius:50%;background:var(--surface-3)}
+.code-block pre{padding:14px;overflow-x:auto;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:#c9d1d9}
+.code-block .kw{color:#ff7b72}
+.code-block .str{color:#a5d6ff}
+.code-block .com{color:#62666d}
+.code-block .fn{color:#d2a8ff}
+.code-block .num-l{color:#79c0ff}
+.code-block .var{color:#ffa657}
+/* ===================== SVG 样式 ===================== */
+.svg-node-rect{fill:var(--surface-2);stroke:var(--border-strong);stroke-width:1.5;rx:8}
+.svg-node-label{fill:var(--ink);font-size:12px;font-family:var(--font-sans);text-anchor:middle;dominant-baseline:middle}
+.svg-sub-label{fill:var(--muted);font-size:10px;font-family:var(--font-mono);text-anchor:middle;dominant-baseline:middle}
+.svg-line{stroke:var(--border-strong);stroke-width:1;fill:none}
+.svg-line-dash{stroke:var(--border);stroke-width:1;fill:none;stroke-dasharray:4,4}
+.svg-ball{transition:r .2s}
+.svg-tag{font-size:9px;fill:var(--faint);font-family:var(--font-mono)}
+/* ===================== Slider ===================== */
+.slider-wrap{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);font-family:var(--font-mono)}
+.slider-wrap input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--surface-3);border-radius:2px;outline:none;width:120px}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer}
+.slider-wrap .val{color:var(--accent);min-width:30px;text-align:right}
+/* ===================== Input ===================== */
+.text-input{background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--font-sans);width:100%;outline:none;transition:border-color .2s}
+.text-input:focus{border-color:var(--accent)}
+/* ===================== Footer ===================== */
+.footer{border-top:1px solid var(--border);padding:60px 64px;background:var(--surface)}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px;max-width:1100px}
+.footer h4{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:16px}
+.footer p,.footer li{font-size:13px;color:var(--muted);line-height:1.8}
+.footer .gh-link{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:13px}
+.footer .license{margin-top:32px;padding-top:24px;border-top:1px solid var(--border);font-size:12px;color:var(--faint)}
+/* ===================== 响应式 ===================== */
+@media(max-width:1100px){.module-body{grid-template-columns:1fr}}
+@media(max-width:768px){
+  :root{--side-w:0px}
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .navbar .nav-links{display:none}
+  .hero,.module,.footer{padding-left:24px;padding-right:24px}
+  .hero .stats{grid-template-columns:repeat(2,1fr)}
+  .footer-grid{grid-template-columns:1fr}
+  .module-header h2{font-size:24px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  .module{opacity:1!important;transform:none!important}
+}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav class="navbar">
+  <div class="logo"><span class="dot"></span> LLM Viz Lab</div>
+  <div class="nav-links">
+    <a href="#hero">首页</a>
+    <a href="#m1">模块</a>
+    <a href="#footer">关于</a>
+  </div>
+</nav>
+<aside class="sidebar">
+  <div class="side-title">可视化模块</div>
+  <ul class="side-nav" id="sideNav">
+    <li><a href="#hero"><span class="num">00</span> 首页</a></li>
+    <li><a href="#m1"><span class="num">01</span> Tokenizer 分词</a></li>
+    <li><a href="#m2"><span class="num">02</span> Embedding 嵌入</a></li>
+    <li><a href="#m3"><span class="num">03</span> Self-Attention</a></li>
+    <li><a href="#m4"><span class="num">04</span> Multi-Head</a></li>
+    <li><a href="#m5"><span class="num">05</span> 采样策略</a></li>
+    <li><a href="#m6"><span class="num">06</span> KV-Cache</a></li>
+    <li><a href="#m7"><span class="num">07</span> 训练过程</a></li>
+    <li><a href="#m8"><span class="num">08</span> 推理流程</a></li>
+  </ul>
+</aside>
+<main class="main">
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="badge"><span class="pulse"></span> 交互式大语言模型可视化实验室</div>
+  <h1>LLM<br><span class="grad">可视化实验室</span></h1>
+  <p class="subtitle">通过动画与交互深入理解大语言模型核心机制。从 Tokenization 到 Attention，从采样到推理，把 Transformer 黑箱拆成你能看见的零件。</p>
+  <div class="stats">
+    <div class="stat"><div class="val">8</div><div class="label">可视化模块</div></div>
+    <div class="stat"><div class="val">20+</div><div class="label">交互参数</div></div>
+    <div class="stat"><div class="val">100%</div><div class="label">面试覆盖</div></div>
+    <div class="stat"><div class="val">0</div><div class="label">外部依赖</div></div>
+  </div>
+</section>
+
+<!-- ===================== 模块1：Tokenizer 分词 ===================== -->
+<section class="module" id="m1">
+  <div class="module-header">
+    <span class="num">MODULE 01</span>
+    <h2>Tokenizer 分词 (Tokenization)</h2>
+    <p class="desc">将文本切分为 Token 序列。BPE / WordPiece / SentencePiece 是主流分词算法，分词粒度直接影响模型的词汇表大小与处理效率。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <input class="text-input" id="tokInput" type="text" value="Hello, 世界! Tokenization is fun." placeholder="输入文本...">
+      <svg class="viz-svg" id="svg1" viewBox="0 0 800 360"></svg>
+      <div class="viz-controls" id="ctrl1"></div>
+      <div class="viz-stats" id="stats1"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>输入文本被按不同算法切分为 Token。BPE 从字符级别开始，反复合并最高频字节对；WordPiece 类似但用似然度评分；SentencePiece 直接在原始文本上操作，不依赖空格。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>BPE：</strong>贪心合并最高频字节对，GPT 系列使用</li>
+          <li><strong>WordPiece：</strong>用似然度评分选择合并，BERT 使用</li>
+          <li><strong>SentencePiece：</strong>语言无关，支持中日韩等非空格语言</li>
+          <li><strong>词汇表大小：</strong>通常 30K-100K，影响模型参数量与 OOV 率</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · BPE</span></div>
+<pre><code><span class="kw">class</span> <span class="fn">BPETokenizer</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, vocab_size=<span class="num-l">32000</span>):
+        self.vocab_size = vocab_size
+        self.merges = {}
+
+    <span class="kw">def</span> <span class="fn">train</span>(self, corpus):
+        <span class="com"># 迭代合并最高频 pair</span>
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(self.vocab_size):
+            pairs = <span class="fn">get_pair_counts</span>(corpus)
+            <span class="kw">if</span> <span class="kw">not</span> pairs: <span class="kw">break</span>
+            best = <span class="fn">max</span>(pairs, key=pairs.<span class="fn">get</span>)
+            self.merges[best] = best[<span class="num-l">0</span>] + best[<span class="num-l">1</span>]</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块2：Embedding 嵌入 ===================== -->
+<section class="module" id="m2">
+  <div class="module-header">
+    <span class="num">MODULE 02</span>
+    <h2>Embedding 嵌入 (Token Embedding)</h2>
+    <p class="desc">将离散 Token ID 映射为稠密向量。向量空间中的几何关系编码了语义相似性，是连接符号世界与连续世界的桥梁。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg2" viewBox="0 0 800 400"></svg>
+      <div class="viz-controls" id="ctrl2"></div>
+      <div class="viz-stats" id="stats2"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>每个 Token ID 通过查找嵌入矩阵 E ∈ R^(V×d) 得到一个 d 维向量。高维空间中语义相近的词距离也相近，如 king - man + woman ≈ queen。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>嵌入矩阵：</strong>形状 [vocab_size, d_model]，是模型最大参数块</li>
+          <li><strong>位置编码：</strong>绝对 / 相对 / RoPE，注入序列顺序信息</li>
+          <li><strong>维度选择：</strong>7B 模型 d≈4096，70B 模型 d≈8192</li>
+          <li><strong>语义类比：</strong>vec(king) - vec(man) + vec(woman) ≈ vec(queen)</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Embedding</span></div>
+<pre><code><span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">class</span> <span class="fn">TokenEmbedding</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, vocab_size, d_model):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        <span class="com"># 嵌入矩阵 [V, d]</span>
+        self.embedding = nn.<span class="fn">Embedding</span>(vocab_size, d_model)
+        <span class="com"># 位置编码</span>
+        self.pos = <span class="fn">RoPE</span>(d_model)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, token_ids):
+        x = self.<span class="fn">embedding</span>(token_ids)
+        x = self.<span class="fn">pos</span>(x)
+        <span class="kw">return</span> x  <span class="com"># [batch, seq, d]</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块3：Self-Attention ===================== -->
+<section class="module" id="m3">
+  <div class="module-header">
+    <span class="num">MODULE 03</span>
+    <h2>Self-Attention 自注意力</h2>
+    <p class="desc">序列中每个位置关注所有位置，通过 Q·K^T 计算注意力权重，再用权重加权 V。这是 Transformer 的核心创新。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg3" viewBox="0 0 800 440"></svg>
+      <div class="viz-controls" id="ctrl3"></div>
+      <div class="viz-stats" id="stats3"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>Attention(Q,K,V) = softmax(QK^T/√d_k)V。Q 查询当前词需要什么信息，K 描述每个词能提供什么，V 是实际内容。缩放因子 √d_k 防止点积过大导致梯度消失。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>缩放因子：</strong>除以 √d_k 防止点积过大</li>
+          <li><strong>Causal Mask：</strong>下三角掩码，防止看到未来 token</li>
+          <li><strong>复杂度：</strong>O(n²·d)，序列长度平方级</li>
+          <li><strong>Softmax：</strong>将分数归一化为概率分布</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Attention</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">scaled_dot_product_attention</span>(Q, K, V, mask=<span class="kw">None</span>):
+    <span class="com"># Q,K,V: [batch, heads, seq, d]</span>
+    scores = Q @ K.<span class="fn">transpose</span>(-<span class="num-l">2</span>, -<span class="num-l">1</span>) / <span class="fn">sqrt</span>(d_k)
+    <span class="kw">if</span> mask <span class="kw">is not</span> <span class="kw">None</span>:
+        scores = scores.<span class="fn">masked_fill</span>(mask==<span class="num-l">0</span>, -<span class="fn">inf</span>)
+    attn = <span class="fn">softmax</span>(scores, dim=-<span class="num-l">1</span>)
+    <span class="kw">return</span> attn @ V  <span class="com"># [batch, heads, seq, d]</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块4：Multi-Head Attention ===================== -->
+<section class="module" id="m4">
+  <div class="module-header">
+    <span class="num">MODULE 04</span>
+    <h2>Multi-Head Attention 多头注意力</h2>
+    <p class="desc">将 Q/K/V 拆分为多个头，每个头独立计算注意力，使模型能同时关注不同子空间的信息。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg4" viewBox="0 0 800 420"></svg>
+      <div class="viz-controls" id="ctrl4"></div>
+      <div class="viz-stats" id="stats4"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>多头注意力将 d_model 维向量拆成 h 个 d_k=d/h 维子空间。每个头学习不同的注意力模式——有的关注语法，有的关注语义，有的关注长距离依赖。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>头数：</strong>GPT-3 用 96 头，Llama-2-7B 用 32 头</li>
+          <li><strong>维度拆分：</strong>d_k = d_model / n_heads</li>
+          <li><strong>输出合并：</strong>concat 后乘 W_O 回到 d_model</li>
+          <li><strong>并行性：</strong>各头完全并行，无信息交换</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · MultiHead</span></div>
+<pre><code><span class="kw">class</span> <span class="fn">MultiHeadAttention</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, n_heads):
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads
+        self.W_q = nn.<span class="fn">Linear</span>(d_model, d_model)
+        self.W_k = nn.<span class="fn">Linear</span>(d_model, d_model)
+        self.W_v = nn.<span class="fn">Linear</span>(d_model, d_model)
+        self.W_o = nn.<span class="fn">Linear</span>(d_model, d_model)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        B, S, D = x.shape
+        Q = self.<span class="fn">W_q</span>(x).<span class="fn">view</span>(B,S,H,D//H).<span class="fn">transpose</span>(<span class="num-l">1</span>,<span class="num-l">2</span>)
+        <span class="com"># Q: [B, H, S, d_k]</span>
+        <span class="kw">return</span> self.<span class="fn">W_o</span>(attn.<span class="fn">reshape</span>(B,S,D))</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块5：采样策略 ===================== -->
+<section class="module" id="m5">
+  <div class="module-header">
+    <span class="num">MODULE 05</span>
+    <h2>采样策略 (Sampling Strategies)</h2>
+    <p class="desc">模型输出 logits 后如何选择下一个 Token？Greedy、Temperature、Top-k、Top-p 各有取舍，决定生成的确定性与多样性。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg5" viewBox="0 0 800 380"></svg>
+      <div class="viz-controls" id="ctrl5"></div>
+      <div class="viz-stats" id="stats5"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>Greedy 直接选最高概率 token，输出确定但容易重复。Temperature 缩放 logits 控制锐度。Top-k 只在概率最高的 k 个中采样。Top-p (nucleus) 选择累积概率达 p 的最小集合。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>Temperature：</strong>T&lt;1 更确定，T&gt;1 更随机，T=0 退化为 Greedy</li>
+          <li><strong>Top-k：</strong>固定候选数量，忽略尾部但可能截断高概率区</li>
+          <li><strong>Top-p：</strong>自适应候选数量，保留长尾但上限不定</li>
+          <li><strong>典型配置：</strong>T=0.7, top_p=0.9 是常见平衡点</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Sampling</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">sample</span>(logits, temp=<span class="num-l">1.0</span>, top_k=<span class="num-l">0</span>, top_p=<span class="num-l">1.0</span>):
+    <span class="com"># Temperature 缩放</span>
+    logits = logits / temp
+    <span class="com"># Top-k 截断</span>
+    <span class="kw">if</span> top_k > <span class="num-l">0</span>:
+        vals, idx = logits.<span class="fn">topk</span>(top_k)
+        logits[logits &lt; vals[-<span class="num-l">1</span>]] = -<span class="fn">inf</span>
+    <span class="com"># Top-p 截断</span>
+    probs = <span class="fn">softmax</span>(logits)
+    sorted_p, sorted_i = probs.<span class="fn">sort</span>(descending=<span class="kw">True</span>)
+    cumsum = sorted_p.<span class="fn">cumsum</span>()
+    mask = cumsum - sorted_p &gt; top_p
+    sorted_p[mask] = <span class="num-l">0</span>
+    <span class="kw">return</span> <span class="fn">multinomial</span>(sorted_p, <span class="num-l">1</span>)</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块6：KV-Cache ===================== -->
+<section class="module" id="m6">
+  <div class="module-header">
+    <span class="num">MODULE 06</span>
+    <h2>KV-Cache 键值缓存</h2>
+    <p class="desc">自回归生成时缓存已计算的 K 和 V，避免重复计算，是推理加速的核心技术。将 O(n²) 降为 O(n)。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg6" viewBox="0 0 800 400"></svg>
+      <div class="viz-controls" id="ctrl6"></div>
+      <div class="viz-stats" id="stats6"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>每生成一个 token，只需计算新 token 的 Q 与缓存中所有 K 做注意力。K/V 增量追加到缓存中，无需重新计算前面所有 token。这使得每个解码步从 O(n²) 降为 O(n)。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>加速比：</strong>长序列推理可加速 10-50x</li>
+          <li><strong>显存开销：</strong>缓存大小 ∝ 2 × n_layers × seq × d × 精度</li>
+          <li><strong>PagedAttention：</strong>vLLM 的分页缓存管理，碎片化解决</li>
+          <li><strong>量化缓存：</strong>FP8/INT8 缓存减少显存占用</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · KV-Cache</span></div>
+<pre><code><span class="kw">class</span> <span class="fn">KVCache</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, n_layers, max_seq, d):
+        self.cache = [
+            (<span class="fn">zeros</span>(max_seq, d), <span class="fn">zeros</span>(max_seq, d))
+            <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n_layers)
+        ]
+        self.pos = <span class="num-l">0</span>
+
+    <span class="kw">def</span> <span class="fn">update</span>(self, layer, new_k, new_v):
+        <span class="com"># 追加新 K/V 到缓存末尾</span>
+        k_cache, v_cache = self.cache[layer]
+        k_cache[self.pos] = new_k
+        v_cache[self.pos] = new_v
+        <span class="kw">return</span> k_cache[:self.pos+<span class="num-l">1</span>]</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块7：训练过程 ===================== -->
+<section class="module" id="m7">
+  <div class="module-header">
+    <span class="num">MODULE 07</span>
+    <h2>训练过程 (Training Pipeline)</h2>
+    <p class="desc">大模型训练三阶段：预训练学语言、指令微调学对话、RLHF/DPO 对齐人类偏好。每阶段目标与数据截然不同。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg7" viewBox="0 0 800 420"></svg>
+      <div class="viz-controls" id="ctrl7"></div>
+      <div class="viz-stats" id="stats7"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>预训练用海量无标注文本做下一 token 预测，学习通用语言能力。SFT 用指令-回答对微调，学会遵循指令。RLHF 用奖励模型优化策略，使输出更符合人类偏好。DPO 跳过奖励模型直接优化。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>预训练：</strong>Next-token prediction, ~90% 计算量</li>
+          <li><strong>SFT：</strong>指令数据 10K-100K 条即可有效</li>
+          <li><strong>RLHF：</strong>Reward Model + PPO，三阶段最复杂</li>
+          <li><strong>DPO：</strong>无需 RM，直接偏好优化，更简单稳定</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · DPO Loss</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">dpo_loss</span>(policy_chosen, policy_rejected,
+             ref_chosen, ref_rejected, beta=<span class="num-l">0.1</span>):
+    <span class="com"># 策略模型与参考模型的 log-prob 差</span>
+    pi_logratios = policy_chosen - policy_rejected
+    ref_logratios = ref_chosen - ref_rejected
+
+    logits = pi_logratios - ref_logratios
+    <span class="com"># Bradley-Terry 损失</span>
+    loss = -<span class="fn">F.logsigmoid</span>(beta * logits).<span class="fn">mean</span>()
+    <span class="kw">return</span> loss</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 模块8：推理流程 ===================== -->
+<section class="module" id="m8">
+  <div class="module-header">
+    <span class="num">MODULE 08</span>
+    <h2>推理流程 (Inference Pipeline)</h2>
+    <p class="desc">自回归推理分两阶段：Prefill 并行处理 prompt，Decode 逐 token 生成。理解两阶段的资源特征是推理优化的基础。</p>
+  </div>
+  <div class="module-body">
+    <div class="viz-wrap">
+      <svg class="viz-svg" id="svg8" viewBox="0 0 800 400"></svg>
+      <div class="viz-controls" id="ctrl8"></div>
+      <div class="viz-stats" id="stats8"></div>
+    </div>
+    <div class="info-panel">
+      <div class="info-block">
+        <h3>说明</h3>
+        <p>Prefill 阶段并行处理整个 prompt，计算密集型，GPU 算力瓶颈。Decode 阶段逐 token 生成，访存密集型，显存带宽瓶颈。KV-Cache 在 Prefill 填充，Decode 增量读取。</p>
+      </div>
+      <div class="info-block">
+        <h3>面试要点</h3>
+        <ul>
+          <li><strong>Prefill：</strong>计算密集，parallel attention，高吞吐</li>
+          <li><strong>Decode：</strong>访存密集，逐 token，低吞吐</li>
+          <li><strong>Continuous Batching：</strong>动态拼批，提升 GPU 利用率</li>
+          <li><strong>Speculative Decoding：</strong>小模型草拟+大模型验证，加速 2-3x</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header"><div class="dots"><span></span><span></span><span></span></div><span class="lang">python · Inference</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">generate</span>(model, prompt_ids, max_tokens=<span class="num-l">100</span>):
+    <span class="com"># Phase 1: Prefill (并行处理 prompt)</span>
+    logits = model(prompt_ids)
+    next_token = <span class="fn">sample</span>(logits[:, -<span class="num-l">1</span>])
+    generated = [next_token]
+
+    <span class="com"># Phase 2: Decode (逐 token 生成)</span>
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(max_tokens - <span class="num-l">1</span>):
+        logits = model(next_token, use_cache=<span class="kw">True</span>)
+        next_token = <span class="fn">sample</span>(logits[:, -<span class="num-l">1</span>])
+        generated.<span class="fn">append</span>(next_token)
+        <span class="kw">if</span> next_token == EOS: <span class="kw">break</span>
+    <span class="kw">return</span> generated</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ===================== Footer ===================== -->
+<footer class="footer" id="footer">
+  <div class="footer-grid">
+    <div>
+      <h4>关于项目</h4>
+      <p>LLM 可视化实验室是一个开源的交互式教学项目，通过动画与可视化拆解大语言模型的核心机制。零外部依赖，单文件运行，适合面试复习与概念深入理解。</p>
+      <p style="margin-top:12px"><a class="gh-link" href="https://github.com/wangzifan396-wzf" target="_blank">→ 在 GitHub 上查看</a></p>
+    </div>
+    <div>
+      <h4>模块导航</h4>
+      <ul>
+        <li><a href="#m1">01 Tokenizer</a></li>
+        <li><a href="#m2">02 Embedding</a></li>
+        <li><a href="#m3">03 Self-Attention</a></li>
+        <li><a href="#m4">04 Multi-Head</a></li>
+        <li><a href="#m5">05 采样策略</a></li>
+        <li><a href="#m6">06 KV-Cache</a></li>
+        <li><a href="#m7">07 训练过程</a></li>
+        <li><a href="#m8">08 推理流程</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>技术栈</h4>
+      <ul>
+        <li>原生 HTML / CSS / JS</li>
+        <li>SVG 动画</li>
+        <li>IntersectionObserver</li>
+        <li>requestAnimationFrame</li>
+        <li>零外部依赖</li>
+      </ul>
+    </div>
+  </div>
+  <div class="license">MIT License · 2026 · Built for learners by learners</div>
+</footer>
+
+<script>
+/* ==================================================================== */
+/*  LLM Viz Lab — 全部交互逻辑                                          */
+/* ==================================================================== */
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var COLORS={accent:'#5e6ad2',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+var tokColors=[COLORS.accent,COLORS.cyan,COLORS.emerald,COLORS.amber,COLORS.rose,COLORS.accent2];
+
+/* ---------- 工具函数 ---------- */
+function el(tag,attrs){
+  var e=document.createElementNS(NS,tag);
+  if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]);
+  return e;
+}
+function rnd(min,max){return Math.random()*(max-min)+min;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function fmt(n,d){d=d||2;return Number(n).toFixed(d);}
+function svgEl(parent,tag,attrs){
+  var e=el(tag,attrs);
+  parent.appendChild(e);
+  return e;
+}
+function clearSvg(svg){while(svg.firstChild)svg.removeChild(svg.firstChild);}
+function makeBtn(label,active,onclick){
+  var b=document.createElement('button');
+  b.className='btn btn-sm'+(active?' active':'');
+  b.textContent=label;
+  b.onclick=function(){onclick(b);};
+  return b;
+}
+function makeSlider(label,min,max,step,val,unit,oninput){
+  var wrap=document.createElement('div');
+  wrap.className='slider-wrap';
+  var t=document.createElement('span');t.textContent=label;
+  var inp=document.createElement('input');
+  inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;
+  var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');
+  inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};
+  wrap.appendChild(t);wrap.appendChild(inp);wrap.appendChild(v);
+  return wrap;
+}
+function setStats(container,items){
+  container.innerHTML='';
+  items.forEach(function(it){
+    var d=document.createElement('div');d.className='stat-item';
+    var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;
+    var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;
+    d.appendChild(dot);d.appendChild(txt);container.appendChild(d);
+  });
+}
+function flatArr(m){var r=[];for(var i=0;i<m.length;i++)for(var j=0;j<m[i].length;j++)r.push(m[i][j]);return r;}
+
+/* ==================================================================== */
+/*  模块1：Tokenizer                                                    */
+/* ==================================================================== */
+var tokAlgo='bpe';
+var tokSamples={
+  bpe:['Hello',' ,',' 世界','!',' Token','ization',' is',' fun','.'],
+  wordpiece:['Hello',',','世','界','!','Token','##ization','is','fun','.'],
+  sentencepiece:['▁Hello',',','▁世界','!','▁Token','ization','▁is','▁fun','.'],
+  char:['H','e','l','l','o',',','世','界','!','.','T','o','k','e','n','i','z','a','t','i','o','n']
+};
+function initTokenizer(){
+  var svg=document.getElementById('svg1');
+  var ctrl=document.getElementById('ctrl1');
+  var stats=document.getElementById('stats1');
+  var input=document.getElementById('tokInput');
+  ['BPE','WordPiece','SentencePiece','Char'].forEach(function(name,i){
+    var key=['bpe','wordpiece','sentencepiece','char'][i];
+    ctrl.appendChild(makeBtn(name,i===0,function(btn){
+      ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      tokAlgo=key;drawTokenizer();
+    }));
+  });
+  ctrl.appendChild(makeBtn('▶ 重新分词',false,function(){drawTokenizer();}));
+  if(input)input.addEventListener('input',drawTokenizer);
+  function drawTokenizer(){
+    clearSvg(svg);
+    var text=input?input.value:'Hello World';
+    var tokens=tokSamples[tokAlgo];
+    var n=tokens.length;
+    var W=800,H=360;
+    var chipW=clamp(720/n,40,140);
+    var chipH=70;
+    var gap=8;
+    var totalW=n*chipW+(n-1)*gap;
+    var startX=(W-totalW)/2;
+    var y=60;
+    var title=svgEl(svg,'text',{x:W/2,y:30,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'});
+    title.textContent='算法: '+tokAlgo.toUpperCase()+' · 文本: "'+text.substring(0,30)+(text.length>30?'...':'')+'"';
+    tokens.forEach(function(tok,i){
+      var x=startX+i*(chipW+gap);
+      var color=tokColors[i%tokColors.length];
+      var r=svgEl(svg,'rect',{x:x,y:y,width:chipW,height:chipH,rx:8,
+        fill:COLORS.surface2,stroke:color,'stroke-width':'1.5','opacity':'0'});
+      var txt=svgEl(svg,'text',{x:x+chipW/2,y:y+28,'text-anchor':'middle',fill:COLORS.ink,'font-size':'14px','font-weight':'600','opacity':'0'});
+      txt.textContent=tok;
+      var id=svgEl(svg,'text',{x:x+chipW/2,y:y+50,'text-anchor':'middle',fill:color,'font-size':'11px','font-family':'monospace','opacity':'0'});
+      id.textContent='#'+(1000+i*137);
+      var delay=i*60;
+      r.style.transition='opacity .4s ease '+(delay)+'ms';
+      txt.style.transition='opacity .4s ease '+(delay+100)+'ms';
+      id.style.transition='opacity .4s ease '+(delay+200)+'ms';
+      requestAnimationFrame(function(){
+        r.style.opacity='1';txt.style.opacity='1';id.style.opacity='1';
+      });
+    });
+    var barY=y+chipH+50;
+    svgEl(svg,'text',{x:30,y:barY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='Token Count';
+    svgEl(svg,'text',{x:30,y:barY+22,fill:COLORS.accent,'font-size':'20px','font-weight':'700','font-family':'monospace'}).textContent=n;
+    svgEl(svg,'text',{x:200,y:barY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='Avg Length';
+    svgEl(svg,'text',{x:200,y:barY+22,fill:COLORS.cyan,'font-size':'20px','font-weight':'700','font-family':'monospace'}).textContent=fmt(text.length/n,1);
+    svgEl(svg,'text',{x:400,y:barY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='Vocab Hit';
+    svgEl(svg,'text',{x:400,y:barY+22,fill:COLORS.emerald,'font-size':'20px','font-weight':'700','font-family':'monospace'}).textContent='100%';
+    setStats(stats,[
+      {color:COLORS.accent,label:'Tokens',val:n},
+      {color:COLORS.cyan,label:'Chars',val:text.length},
+      {color:COLORS.emerald,label:'Ratio',val:fmt(text.length/n,1)+':1'},
+      {color:COLORS.amber,label:'Algo',val:tokAlgo}
+    ]);
+  }
+  drawTokenizer();
+}
+
+/* ==================================================================== */
+/*  模块2：Embedding                                                    */
+/* ==================================================================== */
+var embDim=16;
+var embTokens=['king','queen','man','woman','cat','dog'];
+var embVectors=[];
+function initEmbedding(){
+  var svg=document.getElementById('svg2');
+  var ctrl=document.getElementById('ctrl2');
+  var stats=document.getElementById('stats2');
+  ctrl.appendChild(makeSlider('维度 d =',4,32,4,embDim,'',function(v){
+    embDim=v;generateVectors();drawEmbedding();
+  }));
+  ctrl.appendChild(makeBtn('🔄 随机向量',false,function(){generateVectors();drawEmbedding();}));
+  function generateVectors(){
+    embVectors=embTokens.map(function(){
+      var v=[];for(var j=0;j<embDim;j++)v.push(rnd(-1,1));
+      return v;
+    });
+  }
+  generateVectors();
+  function drawEmbedding(){
+    clearSvg(svg);
+    var W=800,H=400;
+    var n=embTokens.length;
+    var chipW=70,chipH=30;
+    var gapV=10;
+    var startX=40,startY=50;
+    var matX=startX+chipW+40;
+    var cellW=clamp(600/embDim,12,40);
+    var cellH=clamp((H-100)/n,20,50);
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'12px'}).textContent=
+      'Token → Embedding Matrix E['+n+'×'+embDim+']';
+    embTokens.forEach(function(tok,i){
+      var y=startY+i*(chipH+gapV);
+      svgEl(svg,'rect',{x:startX,y:y,width:chipW,height:chipH,rx:6,
+        fill:COLORS.surface2,stroke:tokColors[i%tokColors.length],'stroke-width':'1.5'});
+      var t=svgEl(svg,'text',{x:startX+chipW/2,y:y+chipH/2+4,'text-anchor':'middle',fill:COLORS.ink,'font-size':'12px','font-weight':'600'});
+      t.textContent=tok;
+    });
+    svgEl(svg,'path',{d:'M'+(startX+chipW+5)+' '+(startY+chipH/2)+' L'+(matX-5)+' '+(startY+chipH/2)+' M'+(matX-10)+' '+(startY+chipH/2-4)+' L'+(matX-5)+' '+(startY+chipH/2)+' L'+(matX-10)+' '+(startY+chipH/2+4),
+      stroke:COLORS.faint,'stroke-width':'1.5',fill:'none'});
+    for(var i=0;i<n;i++){
+      var y=startY+i*(cellH+gapV);
+      for(var j=0;j<embDim;j++){
+        var val=embVectors[i][j];
+        var x=matX+j*cellW;
+        var intensity=Math.abs(val);
+        var color=val>0?COLORS.accent:COLORS.rose;
+        var op=clamp(intensity*0.8+0.1,0.1,0.9);
+        svgEl(svg,'rect',{x:x,y:y,width:cellW-1,height:cellH-1,rx:2,
+          fill:color,'opacity':op});
+      }
+    }
+    svgEl(svg,'text',{x:matX,y:startY-10,fill:COLORS.faint,'font-size':'10px','font-family':'monospace'}).textContent='d₀';
+    svgEl(svg,'text',{x:matX+(embDim-1)*cellW,y:startY-10,fill:COLORS.faint,'font-size':'10px','font-family':'monospace'}).textContent='d'+(embDim-1);
+    setStats(stats,[
+      {color:COLORS.accent,label:'d_model',val:embDim},
+      {color:COLORS.cyan,label:'Vocab',val:n},
+      {color:COLORS.emerald,label:'Params',val:n*embDim},
+      {color:COLORS.amber,label:'Range',val:'[-1,1]'}
+    ]);
+  }
+  drawEmbedding();
+}
+
+/* ==================================================================== */
+/*  模块3：Self-Attention                                               */
+/* ==================================================================== */
+var attnSeqLen=5;
+var attnTokens=['The','cat','sat','on','the'];
+var attnMatrix=[];
+var attnMaskCausal=true;
+function initAttention(){
+  var svg=document.getElementById('svg3');
+  var ctrl=document.getElementById('ctrl3');
+  var stats=document.getElementById('stats3');
+  function genMatrix(){
+    attnMatrix=[];
+    for(var i=0;i<attnSeqLen;i++){
+      var row=[];var sum=0;
+      for(var j=0;j<attnSeqLen;j++){
+        var mask=attnMaskCausal?(j<=i?1:0):1;
+        var v=rnd(0,1)*mask;sum+=v;row.push(v);
+      }
+      var exps=row.map(function(v){return Math.exp(v*3);});
+      var esum=exps.reduce(function(a,b){return a+b;},0);
+      attnMatrix.push(exps.map(function(e){return e/esum;}));
+    }
+  }
+  genMatrix();
+  ctrl.appendChild(makeBtn('▶ 播放',false,function(){
+    genMatrix();drawAttention(true);
+  }));
+  ctrl.appendChild(makeBtn('Causal Mask ✓',true,function(btn){
+    attnMaskCausal=!attnMaskCausal;
+    btn.classList.toggle('active',attnMaskCausal);
+    btn.textContent=attnMaskCausal?'Causal Mask ✓':'Causal Mask ✗';
+    genMatrix();drawAttention(true);
+  }));
+  ctrl.appendChild(makeSlider('Seq Len =',3,8,1,attnSeqLen,'',function(v){
+    attnSeqLen=v;
+    attnTokens=['The','cat','sat','on','the','mat','now','today'].slice(0,v);
+    genMatrix();drawAttention(true);
+  }));
+  function drawAttention(animate){
+    clearSvg(svg);
+    var W=800,H=440;
+    var n=attnSeqLen;
+    var matSize=clamp(360/n,30,60);
+    var matX=240,matY=80;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent=
+      'Attention Weights: softmax(Q·Kᵀ / √d)';
+    attnTokens.forEach(function(tok,i){
+      var y=matY+i*matSize;
+      svgEl(svg,'rect',{x:matX-matSize-10,y:y,width:matSize,height:matSize-2,rx:4,
+        fill:COLORS.surface2,stroke:COLORS.accent,'stroke-width':'1'});
+      var t=svgEl(svg,'text',{x:matX-matSize/2-10,y:y+matSize/2+3,'text-anchor':'middle',fill:COLORS.ink,'font-size':'11px'});
+      t.textContent=tok;
+    });
+    svgEl(svg,'text',{x:matX-matSize/2-10,y:matY-15,'text-anchor':'middle',fill:COLORS.cyan,'font-size':'11px','font-weight':'700'}).textContent='Query';
+    attnTokens.forEach(function(tok,j){
+      var x=matX+j*matSize;
+      svgEl(svg,'rect',{x:x,y:matY-matSize-10,width:matSize-2,height:matSize,rx:4,
+        fill:COLORS.surface2,stroke:COLORS.emerald,'stroke-width':'1'});
+      var t=svgEl(svg,'text',{x:x+matSize/2,y:matY-matSize/2-7,'text-anchor':'middle',fill:COLORS.ink,'font-size':'10px'});
+      t.textContent=tok.length>4?tok.substring(0,3):tok;
+    });
+    svgEl(svg,'text',{x:matX+n*matSize/2,y:matY-matSize-25,'text-anchor':'middle',fill:COLORS.emerald,'font-size':'11px','font-weight':'700'}).textContent='Key';
+    for(var i=0;i<n;i++){
+      for(var j=0;j<n;j++){
+        var val=attnMatrix[i][j];
+        var x=matX+j*matSize;
+        var y=matY+i*matSize;
+        var masked=attnMaskCausal&&j>i;
+        var op=masked?0.03:clamp(val*2,0.05,1);
+        var c=masked?'#222':(val>0.3?COLORS.accent:(val>0.1?COLORS.accent2:COLORS.surface3));
+        var cell=svgEl(svg,'rect',{x:x+1,y:y+1,width:matSize-3,height:matSize-3,rx:3,
+          fill:c,'opacity':animate?0:op});
+        if(animate){
+          var delay=(i*n+j)*40;
+          cell.style.transition='opacity .3s ease '+delay+'ms';
+          (function(c,op){requestAnimationFrame(function(){c.style.opacity=op;});})(cell,op);
+        }
+        if(!masked){
+          var vt=svgEl(svg,'text',{x:x+matSize/2,y:y+matSize/2+3,'text-anchor':'middle',
+            fill:val>0.2?'#fff':COLORS.muted,'font-size':matSize>35?'10px':'8px','font-family':'monospace'});
+          vt.textContent=fmt(val,2);
+        }
+      }
+    }
+    svgEl(svg,'text',{x:matX+n*matSize+30,y:matY+20,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='Q·Kᵀ';
+    svgEl(svg,'text',{x:matX+n*matSize+30,y:matY+45,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='──────';
+    svgEl(svg,'text',{x:matX+n*matSize+30,y:matY+68,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='√d_k';
+    var maxVal=Math.max.apply(null,flatArr(attnMatrix));
+    setStats(stats,[
+      {color:COLORS.accent,label:'Seq',val:n},
+      {color:COLORS.cyan,label:'Complexity',val:'O(n²)'},
+      {color:COLORS.emerald,label:'Masked',val:attnMaskCausal?'Yes':'No'},
+      {color:COLORS.amber,label:'Max Attn',val:fmt(maxVal,2)}
+    ]);
+  }
+  drawAttention(true);
+}
+
+/* ==================================================================== */
+/*  模块4：Multi-Head Attention                                         */
+/* ==================================================================== */
+var mhHeads=4;
+var mhSeq=4;
+function initMultiHead(){
+  var svg=document.getElementById('svg4');
+  var ctrl=document.getElementById('ctrl4');
+  var stats=document.getElementById('stats4');
+  ctrl.appendChild(makeSlider('Heads =',2,8,1,mhHeads,'',function(v){mhHeads=v;drawMH(true);}));
+  ctrl.appendChild(makeBtn('▶ 动画',false,function(){drawMH(true);}));
+  function genHeadPattern(){
+    var n=mhSeq;var m=[];
+    for(var i=0;i<n;i++){
+      var row=[];for(var j=0;j<n;j++){
+        row.push(j<=i?rnd(0.05,0.6):0);
+      }
+      var exps=row.map(function(v){return Math.exp(v*4);});
+      var esum=exps.reduce(function(a,b){return a+b;},0);
+      m.push(exps.map(function(e){return e/esum;}));
+    }
+    return m;
+  }
+  function drawMH(animate){
+    clearSvg(svg);
+    var W=800,H=420;
+    var n=mhSeq;
+    var nHeads=mhHeads;
+    var headColors=[COLORS.accent,COLORS.cyan,COLORS.emerald,COLORS.amber,COLORS.rose,COLORS.accent2,'#5eead4','#f472b6'];
+    var headSize=clamp(500/nHeads,50,120);
+    var cellSize=clamp(headSize/n-2,8,20);
+    var startY=70;
+    var startX=140;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent=
+      nHeads+' Heads · 每头独立注意力模式 (d_k=d_model/'+nHeads+')';
+    for(var h=0;h<nHeads;h++){
+      var hx=startX+h*headSize;
+      var hc=headColors[h%headColors.length];
+      var pattern=genHeadPattern();
+      svgEl(svg,'rect',{x:hx,y:startY-25,width:headSize-4,height:18,rx:4,fill:hc,'opacity':'0.2'});
+      var lt=svgEl(svg,'text',{x:hx+headSize/2-2,y:startY-12,'text-anchor':'middle',fill:hc,'font-size':'10px','font-weight':'600'});
+      lt.textContent='Head '+(h+1);
+      for(var i=0;i<n;i++){
+        for(var j=0;j<n;j++){
+          var val=pattern[i][j];
+          var masked=j>i;
+          var x=hx+j*cellSize;
+          var y=startY+i*cellSize;
+          var op=masked?0.02:clamp(val*1.8,0.05,1);
+          var cell=svgEl(svg,'rect',{x:x+1,y:y+1,width:cellSize-1,height:cellSize-1,rx:1.5,
+            fill:masked?'#222':hc,'opacity':animate?0:op});
+          if(animate){
+            var delay=(h*n*n+i*n+j)*15;
+            cell.style.transition='opacity .25s ease '+delay+'ms';
+            (function(c,o){requestAnimationFrame(function(){c.style.opacity=o;});})(cell,op);
+          }
+        }
+      }
+    }
+    var arrowY=startY+n*cellSize+30;
+    svgEl(svg,'line',{x1:startX,y1:arrowY,x2:startX+nHeads*headSize-4,y2:arrowY,stroke:COLORS.faint,'stroke-width':'1.5'});
+    for(var h=0;h<nHeads;h++){
+      var hx2=startX+h*headSize;
+      svgEl(svg,'line',{x1:hx2+headSize/2-2,y1:startY+n*cellSize,x2:hx2+headSize/2-2,y2:arrowY,stroke:COLORS.faint,'stroke-width':'1','stroke-dasharray':'3,3'});
+    }
+    var midX=startX+nHeads*headSize/2;
+    svgEl(svg,'path',{d:'M'+(midX-5)+' '+(arrowY-4)+' L'+midX+' '+arrowY+' L'+(midX+5)+' '+(arrowY-4),
+      stroke:COLORS.accent,'stroke-width':'2',fill:'none'});
+    svgEl(svg,'text',{x:midX,y:arrowY+18,'text-anchor':'middle',fill:COLORS.accent,'font-size':'11px','font-weight':'600'}).textContent='Concat → W_O → Output';
+    setStats(stats,[
+      {color:COLORS.accent,label:'Heads',val:nHeads},
+      {color:COLORS.cyan,label:'Seq',val:n},
+      {color:COLORS.emerald,label:'d_k',val:'d/'+nHeads},
+      {color:COLORS.amber,label:'Patterns',val:nHeads}
+    ]);
+  }
+  drawMH(true);
+}
+
+/* ==================================================================== */
+/*  模块5：采样策略                                                     */
+/* ==================================================================== */
+var sampTemp=0.8;
+var sampTopK=5;
+var sampTopP=0.9;
+var sampMode='temperature';
+var sampLogits=[2.1,1.8,1.5,1.2,0.9,0.6,0.3,0.1,-0.2,-0.5];
+var sampLabels=['the','cat','dog','sun','run','big','red','fast','code','data'];
+function initSampling(){
+  var svg=document.getElementById('svg5');
+  var ctrl=document.getElementById('ctrl5');
+  var stats=document.getElementById('stats5');
+  ['Greedy','Temperature','Top-k','Top-p'].forEach(function(name,i){
+    var key=['greedy','temperature','topk','topp'][i];
+    ctrl.appendChild(makeBtn(name,i===1,function(btn){
+      ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      sampMode=key;drawSampling();
+    }));
+  });
+  ctrl.appendChild(makeBtn('🎲',false,function(){sampLogits=sampLogits.map(function(){return rnd(-1,2.5);});drawSampling();}));
+  ctrl.appendChild(makeSlider('T=',0.1,2,0.1,sampTemp,'',function(v){sampTemp=v;drawSampling();}));
+  ctrl.appendChild(makeSlider('k=',1,10,1,sampTopK,'',function(v){sampTopK=v;drawSampling();}));
+  ctrl.appendChild(makeSlider('p=',0.1,1,0.05,sampTopP,'',function(v){sampTopP=v;drawSampling();}));
+  function softmax(logits,temp){
+    var scaled=logits.map(function(l){return l/temp;});
+    var max=Math.max.apply(null,scaled);
+    var exps=scaled.map(function(l){return Math.exp(l-max);});
+    var sum=exps.reduce(function(a,b){return a+b;},0);
+    return exps.map(function(e){return e/sum;});
+  }
+  function drawSampling(){
+    clearSvg(svg);
+    var W=800,H=380;
+    var n=sampLogits.length;
+    var barW=clamp(600/n,30,60);
+    var barH=200;
+    var startX=100;
+    var baseY=260;
+    var probs=softmax(sampLogits,sampMode==='greedy'?0.01:sampTemp);
+    var modeLabel=sampMode.toUpperCase();
+    if(sampMode==='temperature')modeLabel+=' (T='+sampTemp+')';
+    else if(sampMode==='topk')modeLabel+=' (k='+sampTopK+')';
+    else if(sampMode==='topp')modeLabel+=' (p='+sampTopP+')';
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent='Mode: '+modeLabel;
+    var selectedIdx=[];
+    if(sampMode==='greedy'){
+      var maxIdx=0;for(var i=1;i<n;i++)if(probs[i]>probs[maxIdx])maxIdx=i;
+      selectedIdx=[maxIdx];
+    }else if(sampMode==='topk'){
+      var indexed=probs.map(function(p,i){return{p:p,i:i};}).sort(function(a,b){return b.p-a.p;});
+      for(var i=0;i<Math.min(sampTopK,n);i++)selectedIdx.push(indexed[i].i);
+    }else if(sampMode==='topp'){
+      var indexed=probs.map(function(p,i){return{p:p,i:i};}).sort(function(a,b){return b.p-a.p;});
+      var cum=0;
+      for(var i=0;i<n;i++){cum+=indexed[i].p;selectedIdx.push(indexed[i].i);if(cum>=sampTopP)break;}
+    }else{
+      for(var i=0;i<n;i++)selectedIdx.push(i);
+    }
+    var selSet={};selectedIdx.forEach(function(i){selSet[i]=true;});
+    probs.forEach(function(p,i){
+      var x=startX+i*(barW+4);
+      var h=p*barH;
+      var selected=selSet[i];
+      var color=selected?(i%3===0?COLORS.accent:i%3===1?COLORS.cyan:COLORS.emerald):COLORS.surface3;
+      var op=selected?0.9:0.25;
+      svgEl(svg,'rect',{x:x,y:baseY-h,width:barW-2,height:h,rx:3,fill:color,'opacity':op});
+      if(selected||p>0.03){
+        svgEl(svg,'text',{x:x+barW/2-1,y:baseY-h-6,'text-anchor':'middle',fill:selected?color:COLORS.faint,'font-size':'10px','font-family':'monospace'}).textContent=fmt(p,2);
+      }
+      svgEl(svg,'text',{x:x+barW/2-1,y:baseY+14,'text-anchor':'middle',fill:selected?COLORS.ink:COLORS.faint,'font-size':'11px'}).textContent=sampLabels[i];
+      if(selected){
+        svgEl(svg,'rect',{x:x-2,y:baseY-h-2,width:barW+2,height:h+4,rx:4,fill:'none',stroke:color,'stroke-width':'1.5','stroke-dasharray':'3,2'});
+      }
+    });
+    var infoY=300;
+    svgEl(svg,'text',{x:startX,y:infoY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='候选: '+selectedIdx.length+'/'+n;
+    var probMass=selectedIdx.reduce(function(s,i){return s+probs[i];},0);
+    svgEl(svg,'text',{x:startX+180,y:infoY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='概率质量: '+fmt(probMass,2);
+    var entropy=-probs.reduce(function(s,p){return s+(p>0?p*Math.log(p):0);},0);
+    setStats(stats,[
+      {color:COLORS.accent,label:'Mode',val:sampMode},
+      {color:COLORS.cyan,label:'Candidates',val:selectedIdx.length},
+      {color:COLORS.emerald,label:'Prob Mass',val:fmt(probMass,2)},
+      {color:COLORS.amber,label:'Entropy',val:fmt(entropy,2)}
+    ]);
+  }
+  drawSampling();
+}
+
+/* ==================================================================== */
+/*  模块6：KV-Cache                                                     */
+/* ==================================================================== */
+var kvStep=0;
+var kvMaxStep=6;
+var kvAnimTimer=null;
+function initKVCache(){
+  var svg=document.getElementById('svg6');
+  var ctrl=document.getElementById('ctrl6');
+  var stats=document.getElementById('stats6');
+  ctrl.appendChild(makeBtn('▶ 播放',false,function(){
+    kvStep=0;runKVAnim();
+  }));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){
+    if(kvAnimTimer){clearInterval(kvAnimTimer);kvAnimTimer=null;}
+  }));
+  ctrl.appendChild(makeBtn('⏭ 下一步',false,function(){
+    if(kvStep<kvMaxStep){kvStep++;drawKV();}
+  }));
+  ctrl.appendChild(makeBtn('🔄 重置',false,function(){
+    if(kvAnimTimer){clearInterval(kvAnimTimer);kvAnimTimer=null;}
+    kvStep=0;drawKV();
+  }));
+  function runKVAnim(){
+    if(kvAnimTimer)clearInterval(kvAnimTimer);
+    kvStep=0;drawKV();
+    kvAnimTimer=setInterval(function(){
+      kvStep++;
+      if(kvStep>kvMaxStep){clearInterval(kvAnimTimer);kvAnimTimer=null;return;}
+      drawKV();
+    },1200);
+  }
+  function drawKV(){
+    clearSvg(svg);
+    var W=800,H=400;
+    var tokens=['The','AI','model','gen','erates','text','now'];
+    var cellW=80,cellH=50;
+    var startX=40,startY=60;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent=
+      'Step '+(kvStep+1)+'/'+(kvMaxStep+1)+' · 生成第 '+(kvStep+1)+' 个 Token';
+    for(var i=0;i<=kvStep;i++){
+      var x=startX+i*(cellW+8);
+      var isNew=i===kvStep;
+      var color=isNew?COLORS.amber:tokColors[i%tokColors.length];
+      svgEl(svg,'rect',{x:x,y:startY,width:cellW,height:cellH,rx:6,
+        fill:COLORS.surface2,stroke:color,'stroke-width':isNew?'2.5':'1.5'});
+      var t=svgEl(svg,'text',{x:x+cellW/2,y:startY+cellH/2+4,'text-anchor':'middle',fill:COLORS.ink,'font-size':'13px','font-weight':'600'});
+      t.textContent=tokens[i]||'?';
+      if(isNew){
+        svgEl(svg,'text',{x:x+cellW/2,y:startY-8,'text-anchor':'middle',fill:COLORS.amber,'font-size':'10px','font-weight':'700'}).textContent='▼ NEW';
+      }
+      var ky=startY+cellH+30;
+      svgEl(svg,'rect',{x:x,y:ky,width:cellW,height:30,rx:4,
+        fill:COLORS.emerald,'opacity':isNew?0.5:0.15,
+        stroke:COLORS.emerald,'stroke-width':'1'});
+      svgEl(svg,'text',{x:x+cellW/2,y:ky+19,'text-anchor':'middle',fill:COLORS.emerald,'font-size':'10px','font-family':'monospace'}).textContent='K['+i+']';
+      var vy=ky+40;
+      svgEl(svg,'rect',{x:x,y:vy,width:cellW,height:30,rx:4,
+        fill:COLORS.cyan,'opacity':isNew?0.5:0.15,
+        stroke:COLORS.cyan,'stroke-width':'1'});
+      svgEl(svg,'text',{x:x+cellW/2,y:vy+19,'text-anchor':'middle',fill:COLORS.cyan,'font-size':'10px','font-family':'monospace'}).textContent='V['+i+']';
+    }
+    svgEl(svg,'text',{x:startX,y:300,fill:COLORS.faint,'font-size':'11px'}).textContent='无缓存: 需重新计算 '+(kvStep+1)+' 个 Q,K,V → O(n²)  ·  有缓存: 仅计算 1 个 Q → O(n)';
+    setStats(stats,[
+      {color:COLORS.accent,label:'Step',val:(kvStep+1)+'/'+(kvMaxStep+1)},
+      {color:COLORS.emerald,label:'Cache Hit',val:kvStep},
+      {color:COLORS.amber,label:'New Calc',val:1},
+      {color:COLORS.cyan,label:'Speedup',val:(kvStep+1)+'x'}
+    ]);
+  }
+  drawKV();
+}
+
+/* ==================================================================== */
+/*  模块7：训练过程                                                     */
+/* ==================================================================== */
+var trainAnimTimer=null;
+function initTraining(){
+  var svg=document.getElementById('svg7');
+  var ctrl=document.getElementById('ctrl7');
+  var stats=document.getElementById('stats7');
+  ctrl.appendChild(makeBtn('▶ 播放流程',false,function(){
+    runTrainAnim();
+  }));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){
+    if(trainAnimTimer){clearInterval(trainAnimTimer);trainAnimTimer=null;}
+  }));
+  function runTrainAnim(){
+    if(trainAnimTimer)clearInterval(trainAnimTimer);
+    var step=0;
+    drawTraining(step);
+    trainAnimTimer=setInterval(function(){
+      step=(step+1)%4;
+      drawTraining(step);
+      if(step===0){clearInterval(trainAnimTimer);trainAnimTimer=null;}
+    },1500);
+  }
+  function drawTraining(activeStep){
+    clearSvg(svg);
+    var W=800,H=420;
+    var stages=[
+      {name:'预训练',en:'Pretraining',color:COLORS.accent,x:80,y:120,w:180,h:100,
+       desc:'Next-token prediction',data:'万亿 Token 无标注文本',compute:'~90%',method:'AdamW + Cosine LR',output:'Base Model'},
+      {name:'指令微调',en:'SFT',color:COLORS.cyan,x:310,y:120,w:180,h:100,
+       desc:'指令-回答 监督学习',data:'10K-100K 指令对',compute:'~5%',method:'Cross-entropy Loss',output:'SFT Model'},
+      {name:'RLHF/DPO',en:'Alignment',color:COLORS.emerald,x:540,y:120,w:180,h:100,
+       desc:'人类偏好 对齐优化',data:'偏好排序数据对',compute:'~5%',method:'PPO / DPO / KTO',output:'Aligned Model'}
+    ];
+    var titleText=activeStep>=0&&activeStep<3?'大模型训练三阶段 · 当前: '+stages[activeStep].name:'大模型训练三阶段 · 点击播放查看流程';
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent=titleText;
+    stages.forEach(function(s,i){
+      var isActive=i===activeStep;
+      var r=svgEl(svg,'rect',{x:s.x,y:s.y,width:s.w,height:s.h,rx:10,
+        fill:COLORS.surface2,stroke:s.color,'stroke-width':isActive?'2.5':'1.5',
+        'opacity':isActive?'1':'0.6'});
+      if(isActive){r.style.filter='drop-shadow(0 0 12px '+s.color+')';}
+      svgEl(svg,'text',{x:s.x+s.w/2,y:s.y+24,'text-anchor':'middle',fill:s.color,'font-size':'15px','font-weight':'700'}).textContent=s.name;
+      svgEl(svg,'text',{x:s.x+s.w/2,y:s.y+42,'text-anchor':'middle',fill:COLORS.faint,'font-size':'10px','font-family':'monospace'}).textContent=s.en;
+      svgEl(svg,'line',{x1:s.x+20,y1:s.y+52,x2:s.x+s.w-20,y2:s.y+52,stroke:COLORS.border,'stroke-width':'1'});
+      svgEl(svg,'text',{x:s.x+s.w/2,y:s.y+70,'text-anchor':'middle',fill:COLORS.muted,'font-size':'11px'}).textContent=s.desc;
+      svgEl(svg,'text',{x:s.x+s.w/2,y:s.y+88,'text-anchor':'middle',fill:COLORS.faint,'font-size':'10px'}).textContent=s.data;
+      if(i<stages.length-1){
+        var ax=s.x+s.w+5;
+        var ay=s.y+s.h/2;
+        var pulse=i<activeStep;
+        svgEl(svg,'path',{d:'M'+ax+' '+ay+' L'+(ax+25)+' '+ay+' M'+(ax+20)+' '+(ay-4)+' L'+(ax+25)+' '+ay+' L'+(ax+20)+' '+(ay+4),
+          stroke:pulse?s.color:COLORS.faint,'stroke-width':pulse?'2':'1.5',fill:'none',
+          opacity:pulse?1:0.5});
+      }
+    });
+    var detailY=260;
+    if(activeStep>=0&&activeStep<3){
+      var s=stages[activeStep];
+      svgEl(svg,'rect',{x:80,y:detailY,width:640,height:120,rx:8,fill:COLORS.surface,stroke:COLORS.border});
+      svgEl(svg,'text',{x:100,y:detailY+24,fill:s.color,'font-size':'13px','font-weight':'700'}).textContent='▸ '+s.name+' ('+s.en+')';
+      var info=[
+        {label:'目标',val:s.desc},
+        {label:'数据',val:s.data},
+        {label:'计算占比',val:s.compute+' 总训练量'},
+        {label:'典型方法',val:s.method},
+        {label:'输出',val:s.output}
+      ];
+      info.forEach(function(it,i){
+        svgEl(svg,'text',{x:100,y:detailY+50+i*16,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent=it.label+':';
+        svgEl(svg,'text',{x:180,y:detailY+50+i*16,fill:COLORS.muted,'font-size':'11px'}).textContent=it.val;
+      });
+    }
+    var stageVal=activeStep>=0&&activeStep<3?(activeStep+1)+'/3':'-/3';
+    var computeVal=activeStep===0?'90%':activeStep===1?'5%':activeStep===2?'5%':'-';
+    var outputVal=activeStep===0?'Base':activeStep===1?'SFT':activeStep===2?'Aligned':'-';
+    setStats(stats,[
+      {color:COLORS.accent,label:'Stage',val:stageVal},
+      {color:COLORS.cyan,label:'Data',val:activeStep===0?'TB':activeStep===1?'10K+':activeStep===2?'1K+':'-'},
+      {color:COLORS.emerald,label:'Compute',val:computeVal},
+      {color:COLORS.amber,label:'Output',val:outputVal}
+    ]);
+  }
+  drawTraining(-1);
+}
+
+/* ==================================================================== */
+/*  模块8：推理流程                                                     */
+/* ==================================================================== */
+var infAnimTimer=null;
+function initInference(){
+  var svg=document.getElementById('svg8');
+  var ctrl=document.getElementById('ctrl8');
+  var stats=document.getElementById('stats8');
+  ctrl.appendChild(makeBtn('▶ 播放推理',false,function(){
+    runInfAnim();
+  }));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){
+    if(infAnimTimer){clearInterval(infAnimTimer);infAnimTimer=null;}
+  }));
+  function runInfAnim(){
+    if(infAnimTimer)clearInterval(infAnimTimer);
+    var step=0;
+    drawInference(step);
+    infAnimTimer=setInterval(function(){
+      step=(step+1)%8;
+      drawInference(step);
+      if(step===0){clearInterval(infAnimTimer);infAnimTimer=null;}
+    },800);
+  }
+  function drawBar(x,y,w,h,pct,color,label,valText){
+    svgEl(svg,'rect',{x:x,y:y,width:w,height:h,rx:h/2,fill:COLORS.surface3});
+    var fillW=w*pct/100;
+    svgEl(svg,'rect',{x:x,y:y,width:fillW,height:h,rx:h/2,fill:color,opacity:0.8});
+    svgEl(svg,'text',{x:x+w+8,y:y+h-4,fill:COLORS.faint,'font-size':'10px','font-family':'monospace'}).textContent=label;
+    svgEl(svg,'text',{x:x+8,y:y+h-4,fill:'#fff','font-size':'10px','font-family':'monospace','font-weight':'600'}).textContent=valText;
+  }
+  function drawInference(step){
+    clearSvg(svg);
+    var W=800,H=400;
+    var promptTokens=['The','future','of','AI','is'];
+    var genTokens=['here','now','!'];
+    var phaseColor=step<5?COLORS.accent:COLORS.amber;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:COLORS.muted,'font-size':'13px'}).textContent=
+      step<5?'Phase 1: Prefill (并行处理 prompt)':'Phase 2: Decode (逐 Token 生成)';
+    svgEl(svg,'rect',{x:30,y:45,width:120,height:22,rx:11,fill:phaseColor,opacity:0.2});
+    svgEl(svg,'text',{x:90,y:60,'text-anchor':'middle',fill:phaseColor,'font-size':'11px','font-weight':'700'}).textContent=step<5?'PREFILL':'DECODE';
+    var cellW=60,cellH=40;
+    var startX=50,startY=90;
+    for(var i=0;i<promptTokens.length;i++){
+      var x=startX+i*(cellW+6);
+      var active=step===i||(step>=5&&i<5);
+      svgEl(svg,'rect',{x:x,y:startY,width:cellW,height:cellH,rx:6,
+        fill:COLORS.surface2,stroke:active?COLORS.accent:COLORS.border,
+        'stroke-width':active?'2':'1','opacity':step>=5?0.5:(i<=step?1:0.3)});
+      svgEl(svg,'text',{x:x+cellW/2,y:startY+cellH/2+4,'text-anchor':'middle',
+        fill:i<=step||step>=5?COLORS.ink:COLORS.faint,'font-size':'11px'}).textContent=promptTokens[i];
+      if(step===i){
+        svgEl(svg,'text',{x:x+cellW/2,y:startY-6,'text-anchor':'middle',fill:COLORS.accent,'font-size':'9px','font-weight':'700'}).textContent='▼';
+      }
+    }
+    var genStartX=startX+promptTokens.length*(cellW+6);
+    for(var i=0;i<genTokens.length;i++){
+      var x=genStartX+i*(cellW+6);
+      var activeStep=5+i;
+      var visible=step>=activeStep;
+      var isCurrent=step===activeStep;
+      svgEl(svg,'rect',{x:x,y:startY,width:cellW,height:cellH,rx:6,
+        fill:COLORS.surface2,stroke:isCurrent?COLORS.amber:(visible?COLORS.emerald:COLORS.border),
+        'stroke-width':isCurrent?'2.5':'1','opacity':visible?1:0.2});
+      if(visible){
+        svgEl(svg,'text',{x:x+cellW/2,y:startY+cellH/2+4,'text-anchor':'middle',
+          fill:isCurrent?COLORS.amber:COLORS.ink,'font-size':'11px'}).textContent=genTokens[i];
+      }
+      if(isCurrent){
+        svgEl(svg,'text',{x:x+cellW/2,y:startY-6,'text-anchor':'middle',fill:COLORS.amber,'font-size':'9px','font-weight':'700'}).textContent='▼ gen';
+      }
+    }
+    var monY=180;
+    svgEl(svg,'text',{x:50,y:monY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='GPU 资源使用';
+    var computeBar=step<5?clamp(30+step*12,30,90):20+rnd(-5,5);
+    drawBar(50,monY+15,300,16,computeBar,COLORS.accent,'Compute',fmt(computeBar,0)+'%');
+    var memBar=step>=5?clamp(70+rnd(-10,10),50,95):40+rnd(-5,5);
+    drawBar(420,monY+15,300,16,memBar,COLORS.cyan,'Mem BW',fmt(memBar,0)+'%');
+    var cacheY=monY+60;
+    svgEl(svg,'text',{x:50,y:cacheY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='KV-Cache';
+    var cacheTokens=step<5?step+1:5+(step-4);
+    var cacheBar=clamp(cacheTokens/8*100,10,100);
+    drawBar(50,cacheY+15,670,16,cacheBar,COLORS.emerald,'Cache Size',cacheTokens+' tokens');
+    var tpY=cacheY+60;
+    svgEl(svg,'text',{x:50,y:tpY,fill:COLORS.faint,'font-size':'11px','font-family':'monospace'}).textContent='吞吐特征';
+    svgEl(svg,'text',{x:50,y:tpY+20,fill:step<5?COLORS.accent:COLORS.muted,'font-size':'12px'}).textContent=step<5?'Prefill: 计算密集型 · 高吞吐 · 并行处理':'Decode: 访存密集型 · 低吞吐 · 逐 token';
+    svgEl(svg,'text',{x:50,y:tpY+38,fill:COLORS.faint,'font-size':'11px'}).textContent=step<5?'→ GPU 算力是瓶颈':'→ 显存带宽是瓶颈';
+    setStats(stats,[
+      {color:step<5?COLORS.accent:COLORS.amber,label:'Phase',val:step<5?'Prefill':'Decode'},
+      {color:COLORS.cyan,label:'Compute',val:fmt(computeBar,0)+'%'},
+      {color:COLORS.emerald,label:'KV-Cache',val:cacheTokens+' tok'},
+      {color:COLORS.amber,label:'Bottleneck',val:step<5?'GPU FLOPS':'Mem BW'}
+    ]);
+  }
+  drawInference(0);
+}
+
+/* ==================================================================== */
+/*  全局：进度条 + 滚动监听 + 侧边栏高亮 + 模块入场                      */
+/* ==================================================================== */
+function initGlobal(){
+  var progressBar=document.getElementById('progressBar');
+  var modules=document.querySelectorAll('.module');
+  var sideLinks=document.querySelectorAll('#sideNav a');
+  var sections=document.querySelectorAll('section[id]');
+  function updateProgress(){
+    var scrollTop=window.pageYOffset||document.documentElement.scrollTop;
+    var docHeight=document.documentElement.scrollHeight-window.innerHeight;
+    var pct=docHeight>0?(scrollTop/docHeight)*100:0;
+    progressBar.style.width=pct+'%';
+  }
+  window.addEventListener('scroll',updateProgress,{passive:true});
+  updateProgress();
+  var observer=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+      }
+    });
+  },{threshold:0.1});
+  modules.forEach(function(m){observer.observe(m);});
+  var scrollSpy=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        var id=entry.target.id;
+        sideLinks.forEach(function(link){
+          link.classList.toggle('active',link.getAttribute('href')==='#'+id);
+        });
+      }
+    });
+  },{rootMargin:'-30% 0px -60% 0px'});
+  sections.forEach(function(s){scrollSpy.observe(s);});
+  if(sideLinks.length>0)sideLinks[0].classList.add('active');
+}
+
+/* ==================================================================== */
+/*  初始化                                                              */
+/* ==================================================================== */
+function initAll(){
+  initTokenizer();
+  initEmbedding();
+  initAttention();
+  initMultiHead();
+  initSampling();
+  initKVCache();
+  initTraining();
+  initInference();
+  initGlobal();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',initAll);
+}else{
+  initAll();
+}
+})();
+</script>
+</body>
+</html>

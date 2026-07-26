@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>diffusion-advanced-viz-lab · 扩散模型进阶可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fb7185;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,113,133,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,113,133,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,113,133,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a0610;border-color:transparent}
+.btn.primary:hover{background:#fc8da0}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.rose{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>diffusion-advanced</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">advanced diffusion models</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/diffusion-advanced-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>ControlNet</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>IP-Adapter</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>LoRA 微调</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>潜空间插值</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>CFG Scale</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>采样器对比</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>Img2Img</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>超分辨率</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/diffusion-advanced-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>扩散模型进阶 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 ControlNet、IP-Adapter、LoRA 微调、采样器对比等可控生成生态。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 ControlNet ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>ControlNet · 条件控制引导</h2>
+      <p>将条件信号（Canny 边缘、Depth 深度、Pose 姿态）通过可训练副本 + zero convolution 注入 U-Net。调节控制强度，观察条件对生成结果的引导程度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">controlnet-inject.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>条件信号</span>
+          <span><i style="background:#7c5cff"></i>ControlNet 副本</span>
+          <span><i style="background:#34d399"></i>zero conv</span>
+          <span><i style="background:#fbbf24"></i>U-Net 主干</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">ControlNet 注入原理</h4>
+          <p id="p01detail">克隆 U-Net 编码层得到可训练副本，输入端接入条件图。输出经 zero convolution（初始权重为 0）加回主网络。训练初期不影响原模型，逐步学习条件引导。控制强度 <code>scale</code> 调节注入幅度。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">控制类型</div><div class="v rose" id="st01type">Canny</div></div>
+          <div class="stat"><div class="k">控制强度</div><div class="v purple" id="st01scale">0.8</div></div>
+          <div class="stat"><div class="k">zero conv</div><div class="v rose" id="st01zero">0 → 训练</div></div>
+          <div class="stat"><div class="k">注入层数</div><div class="v" id="st01layers">4</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 IP-Adapter ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>IP-Adapter · 图像提示注入</h2>
+      <p>将参考图像编码为图像 prompt，通过独立的 cross-attention 适配器注入 U-Net，实现风格迁移与图像提示。调节权重观察参考图像的影响。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ip-adapter.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>参考图像</span>
+          <span><i style="background:#7c5cff"></i>图像 encoder</span>
+          <span><i style="background:#34d399"></i>独立 cross-attn</span>
+          <span><i style="background:#fbbf24"></i>文本 cross-attn</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">解耦 cross-attention</h4>
+          <p id="p02detail">IP-Adapter 为图像 prompt 建立独立 K/V 投影，与文本 prompt 的 K/V 并行注入同一 attention 层，仅新增 ~20M 参数。权重 <code>w</code> 控制图像 prompt 占比，1.0 时图像提示主导。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">IP 权重</div><div class="v rose" id="st02w">0.6</div></div>
+          <div class="stat"><div class="k">新增参数</div><div class="v purple" id="st02param">~20M</div></div>
+          <div class="stat"><div class="k">K/V 投影</div><div class="v rose" id="st02kv">独立</div></div>
+          <div class="stat"><div class="k">风格相似</div><div class="v" style="color:#34d399" id="st02sim">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 LoRA ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>LoRA · 低秩适配器微调</h2>
+      <p>冻结原权重 W₀，仅训练低秩矩阵 B×A。W = W₀ + BA。调节 rank 与多 LoRA 合并权重，观察参数效率与生成效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">lora-decompose.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>W₀（冻结）</span>
+          <span><i style="background:#fb7185"></i>B (d×r)</span>
+          <span><i style="background:#7c5cff"></i>A (r×d)</span>
+          <span><i style="background:#34d399"></i>多 LoRA 合并</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">低秩分解 W = W₀ + BA</h4>
+          <p id="p03detail">原权重 d×d = n² 参数；LoRA 分解为 B(d×r)+A(r×d)=2dr 参数，当 r≪d 时大幅降低。多个 LoRA 可按权重线性合并：<code>W = W₀ + Σ αᵢ BᵢAᵢ</code>，实现风格混搭。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">rank r</div><div class="v rose" id="st03rank">16</div></div>
+          <div class="stat"><div class="k">维度 d</div><div class="v purple" id="st03d">1024</div></div>
+          <div class="stat"><div class="k">参数量</div><div class="v rose" id="st03param">—</div></div>
+          <div class="stat"><div class="k">压缩比</div><div class="v" id="st03ratio">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 潜空间插值 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>潜空间插值 · Latent Walk</h2>
+      <p>在两个 prompt 的 latent 之间线性插值，观察生成图像的平滑过渡。拖动 α 滑块或播放动画，体验潜空间的结构。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">latent-walk.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>latent A（prompt 1）</span>
+          <span><i style="background:#7c5cff"></i>latent B（prompt 2）</span>
+          <span><i style="background:#34d399"></i>插值路径</span>
+          <span><i style="background:#fbbf24"></i>当前生成</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">球面线性插值 slerp</h4>
+          <p id="p04detail">高维 latent 直接线性插值会偏离分布流形。<code>slerp(z_A, z_B, α) = sin((1−α)θ)/sinθ · z_A + sin(αθ)/sinθ · z_B</code> 沿大圆弧插值，保持生成质量。θ 为两 latent 夹角。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">插值 α</div><div class="v rose" id="st04alpha">0.50</div></div>
+          <div class="stat"><div class="k">夹角 θ</div><div class="v purple" id="st04theta">—</div></div>
+          <div class="stat"><div class="k">插值方式</div><div class="v rose" id="st04mode">slerp</div></div>
+          <div class="stat"><div class="k">过渡平滑</div><div class="v" style="color:#34d399" id="st04smooth">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 CFG Scale ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>CFG Scale · Classifier-Free Guidance</h2>
+      <p>同时预测条件 εθ(xt, c) 与无条件 εθ(xt, ∅)，按 guidance scale 放大条件方向。调节 w 观察采样轨迹偏离无条件路径的程度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">cfg-scale.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>条件路径</span>
+          <span><i style="background:#7c5cff"></i>无条件路径</span>
+          <span><i style="background:#34d399"></i>CFG 合成轨迹</span>
+          <span><i style="background:#fbbf24"></i>guidance w</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">CFG 公式</h4>
+          <p id="p05detail"><code class="formula">ε̃ = εθ(xt,∅) + w·(εθ(xt,c) − εθ(xt,∅))</code>。w=1 时退化为普通条件采样；w&gt;1 放大条件方向，提升 prompt 相关性但减少多样性；w 过高导致过饱和与伪影。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">CFG w</div><div class="v rose" id="st05w">7.5</div></div>
+          <div class="stat"><div class="k">prompt 相关</div><div class="v purple" id="st05rel">—</div></div>
+          <div class="stat"><div class="k">多样性</div><div class="v rose" id="st05div">—</div></div>
+          <div class="stat"><div class="k">过饱和风险</div><div class="v" style="color:#f87171" id="st05risk">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 采样器对比 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>采样器对比 · 步数-质量曲线</h2>
+      <p>DDIM、DPM++ 2M、Euler a、UniPC 在不同步数下的收敛质量。调节步数观察各采样器的收敛速度与最终质量差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sampler-compare.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>DDIM</span>
+          <span><i style="background:#7c5cff"></i>DPM++ 2M</span>
+          <span><i style="background:#a3e635"></i>Euler a</span>
+          <span><i style="background:#fbbf24"></i>UniPC</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">采样器特性</h4>
+          <p id="p06detail">DDIM 是确定性老牌采样器，需较多步数；DPM++ 2M 二阶求解器，20 步即可收敛；Euler a 带祖先采样，引入随机性、适合创意；UniPC 统一预测-校正，10-15 步高质量收敛。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">步数</div><div class="v rose" id="st06steps">20</div></div>
+          <div class="stat"><div class="k">DDIM 质量</div><div class="v" style="color:#fb7185" id="st06ddim">—</div></div>
+          <div class="stat"><div class="k">DPM++ 质量</div><div class="v purple" id="st06dpm">—</div></div>
+          <div class="stat"><div class="k">最佳采样器</div><div class="v rose" id="st06best">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 Img2Img ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>Img2Img · 图像到图像生成</h2>
+      <p>输入图像加噪到 denoise strength 对应的步数，再用扩散模型去噪重绘。调节 strength 控制保留原图与重绘的比例。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">img2img.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>原图信息</span>
+          <span><i style="background:#7c5cff"></i>噪声</span>
+          <span><i style="background:#34d399"></i>重绘生成</span>
+          <span><i style="background:#fbbf24"></i>denoise</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">denoise strength 含义</h4>
+          <p id="p07detail">strength=0 时完全保留原图；strength=1 时加满噪声、等同于 text2img；0.3-0.6 适合风格转换与局部重绘。实际加噪步数 = <code>round(T · strength)</code>，从该步开始反向去噪。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">strength</div><div class="v rose" id="st07str">0.5</div></div>
+          <div class="stat"><div class="k">加噪步数</div><div class="v purple" id="st07step">25</div></div>
+          <div class="stat"><div class="k">保留原图</div><div class="v rose" id="st07keep">—</div></div>
+          <div class="stat"><div class="k">重绘幅度</div><div class="v" id="st07redraw">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 超分辨率 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>超分辨率 · 低清到高清</h2>
+      <p>T2I-Adapter 与 Upscaler 将低分辨率生成提升至高清。调节放大倍数，对比双三次插值与扩散超分的细节恢复能力。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">upscale.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>低清输入</span>
+          <span><i style="background:#7c5cff"></i>双三次插值</span>
+          <span><i style="background:#34d399"></i>扩散超分</span>
+          <span><i style="background:#fbbf24"></i>新增细节</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">扩散超分原理</h4>
+          <p id="p08detail">双三次插值仅放大像素、无法补充高频细节；扩散超分将低清图作为条件，在 latent 空间加噪去噪，生成符合语义的高频纹理。T2I-Adapter 注入结构条件，Upscaler 直接预测残差。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">放大倍数</div><div class="v rose" id="st08scale">4×</div></div>
+          <div class="stat"><div class="k">输入分辨率</div><div class="v purple" id="st08in">512²</div></div>
+          <div class="stat"><div class="k">输出分辨率</div><div class="v rose" id="st08out">2048²</div></div>
+          <div class="stat"><div class="k">PSNR 提升</div><div class="v" style="color:#34d399" id="st08psnr">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>diffusion-advanced-viz-lab · 扩散模型进阶可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/diffusion-advanced-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function txt(s,x,y,opts){
+  const t=el("text",Object.assign({x:x,y:y},opts||{}));
+  t.textContent=s;return t;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 ControlNet
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let ctype="Canny";
+  let strength=0.8;
+  const types=["Canny","Depth","Pose"];
+
+  function drawControl(cx,cy,w,h){
+    // 绘制条件信号可视化
+    if(ctype==="Canny"){
+      // 边缘线条
+      for(let i=0;i<5;i++){
+        const y=cy+8+i*(h-16)/4;
+        const path=el("path",{d:"M"+(cx+4)+" "+y+" Q"+(cx+w/2)+" "+(y-8)+" "+(cx+w-4)+" "+y,stroke:"#fb7185","stroke-width":1.4,fill:"none"});
+        svg.appendChild(path);
+      }
+    }else if(ctype==="Depth"){
+      // 深度渐变
+      for(let i=0;i<6;i++){
+        svg.appendChild(el("rect",{x:cx+4+i*(w-8)/6,y:cy+4,width:(w-8)/6-1,height:h-8,fill:"rgba(251,113,133,"+(0.15+i*0.12)+")"}));
+      }
+    }else{
+      // Pose 骨架点
+      const pts=[[0.5,0.15],[0.5,0.4],[0.35,0.45],[0.65,0.45],[0.4,0.7],[0.6,0.7],[0.35,0.9],[0.65,0.9]];
+      const links=[[0,1],[1,2],[1,3],[2,4],[3,5],[4,6],[5,7]];
+      links.forEach(l=>{
+        const a=pts[l[0]],b=pts[l[1]];
+        svg.appendChild(el("line",{x1:cx+a[0]*w,y1:cy+a[1]*h,x2:cx+b[0]*w,y2:cy+b[1]*h,stroke:"#fb7185","stroke-width":1.4}));
+      });
+      pts.forEach(p=>{
+        svg.appendChild(el("circle",{cx:cx+p[0]*w,cy:cy+p[1]*h,r:4,fill:"#fb7185"}));
+      });
+    }
+  }
+
+  function draw(){
+    clearNode(svg);
+    const padT=50;
+    // 条件图（左上）
+    const cw=140,ch=110;
+    drawControl(40,padT,cw,ch);
+    svg.appendChild(el("rect",{x:40,y:padT,width:cw,height:ch,fill:"none",stroke:"#fb7185","stroke-width":1.3,rx:4}));
+    svg.appendChild(txt("条件信号 · "+ctype,40+cw/2,padT-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fb7185"}));
+
+    // U-Net 主干（中间）
+    const unetX=300,unetY=padT,unetW=180,unetH=300;
+    svg.appendChild(el("rect",{x:unetX,y:unetY,width:unetW,height:unetH,rx:10,fill:"rgba(251,191,36,.08)",stroke:"#fbbf24","stroke-width":1.4}));
+    svg.appendChild(txt("U-Net 主干",unetX+unetW/2,unetY-8,{"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fbbf24"}));
+    // U-Net 层
+    const layers=4;
+    for(let i=0;i<layers;i++){
+      const ly=unetY+20+i*65;
+      svg.appendChild(el("rect",{x:unetX+20,y:ly,width:unetW-40,height:42,rx:6,fill:"#1c1f24",stroke:"rgba(255,255,255,.14)"}));
+      svg.appendChild(txt("block "+i,unetX+unetW/2,ly+25,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+    }
+
+    // ControlNet 副本（右）
+    const cnX=560,cnY=padT,cnW=120,cnH=300;
+    svg.appendChild(el("rect",{x:cnX,y:cnY,width:cnW,height:cnH,rx:10,fill:"rgba(124,92,255,.1)",stroke:"#7c5cff","stroke-width":1.4}));
+    svg.appendChild(txt("ControlNet 副本",cnX+cnW/2,cnY-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#7c5cff"}));
+    for(let i=0;i<layers;i++){
+      const ly=cnY+20+i*65;
+      svg.appendChild(el("rect",{x:cnX+15,y:ly,width:cnW-30,height:42,rx:6,fill:"#1c1f24",stroke:"rgba(124,92,255,.4)"}));
+    }
+
+    // 条件 → ControlNet 箭头
+    svg.appendChild(el("path",{d:"M"+(40+cw)+" "+(padT+ch/2)+" Q"+(350)+" "+(padT+ch/2)+" "+cnX+" "+(cnY+30),stroke:"#fb7185","stroke-width":1.4,fill:"none",opacity:.7,"marker-end":"url(#ar01)"}));
+
+    // zero conv 注入箭头 (ControlNet → U-Net 各层)
+    const defs=el("defs");
+    const mk=el("marker",{id:"ar01",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(mk);svg.appendChild(defs);
+    for(let i=0;i<layers;i++){
+      const ly=padT+20+i*65+21;
+      const op=0.3+strength*0.7;
+      svg.appendChild(el("line",{x1:cnX,y1:ly,x2:unetX+unetW,y2:ly,stroke:"#34d399","stroke-width":1+strength*2,opacity:op,"marker-end":"url(#ar01)"}));
+      // zero conv 小方块
+      svg.appendChild(el("rect",{x:unetX+unetW+2,y:ly-7,width:14,height:14,rx:2,fill:"rgba(52,211,153,"+op+")",stroke:"#34d399","stroke-width":1}));
+    }
+    svg.appendChild(txt("zero conv × scale "+strength.toFixed(2),unetX+unetW+22,padT+unetH+18,{"font-size":11,"font-family":MONO,fill:"#34d399"}));
+
+    // 强度条
+    const sbX=40,sbY=padT+ch+30,sbW=200;
+    svg.appendChild(el("rect",{x:sbX,y:sbY,width:sbW,height:10,rx:5,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:sbX,y:sbY,width:sbW*strength,height:10,rx:5,fill:"#fb7185"}));
+    svg.appendChild(txt("control strength "+strength.toFixed(2),sbX,sbY-6,{"font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // 统计
+    $("st01type").textContent=ctype;
+    $("st01scale").textContent=strength.toFixed(2);
+    $("st01zero").textContent=strength<0.1?"≈ 0":"训练中";
+    $("st01layers").textContent=layers;
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>控制强度</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=150;inp.value=Math.round(strength*100);
+  const val=document.createElement("span");val.className="val";val.textContent=strength.toFixed(2);
+  inp.addEventListener("input",()=>{strength=+inp.value/100;val.textContent=strength.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  types.forEach(t=>{
+    const b=document.createElement("button");b.className="btn small"+(t===ctype?" on":"");b.textContent=t;
+    b.addEventListener("click",()=>{ctype=t;document.querySelectorAll("#ctl01 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="强度扫描";
+  anim.addEventListener("click",()=>{animate(1800,p=>{strength=ease(p);inp.value=Math.round(strength*100);val.textContent=strength.toFixed(2);draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   02 IP-Adapter
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  let w=0.6;
+
+  function draw(){
+    clearNode(svg);
+    const padT=40;
+    // 参考图像（左）
+    const rX=40,rY=padT+10,rW=120,rH=120;
+    svg.appendChild(el("rect",{x:rX,y:rY,width:rW,height:rH,rx:6,fill:"rgba(251,113,133,.15)",stroke:"#fb7185","stroke-width":1.4}));
+    // 模拟图像内容（色块）
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+      svg.appendChild(el("rect",{x:rX+8+i*36,y:rY+8+j*36,width:32,height:32,fill:"rgba(251,113,133,"+(0.2+((i+j)%3)*0.2)+")",rx:2}));
+    }
+    svg.appendChild(txt("参考图像",rX+rW/2,rY-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fb7185"}));
+
+    // 图像 encoder
+    const eX=200,eY=padT+50;
+    svg.appendChild(el("rect",{x:eX,y:eY,width:90,height:50,rx:8,fill:"#1c1f24",stroke:"#7c5cff","stroke-width":1.4}));
+    svg.appendChild(txt("image encoder",eX+45,eY+30,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#7c5cff"}));
+    svg.appendChild(el("line",{x1:rX+rW,y1:rY+rH/2,x2:eX,y2:eY+25,stroke:"#7c5cff","stroke-width":1.4,"marker-end":"url(#ar02)"}));
+    // CLIP image embedding
+    svg.appendChild(txt("→ image emb",eX+45,eY+70,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // U-Net cross-attention（右）
+    const aX=360,aY=padT,aW=320,aH=300;
+    svg.appendChild(el("rect",{x:aX,y:aY,width:aW,height:aH,rx:10,fill:"rgba(251,191,36,.06)",stroke:"#fbbf24","stroke-width":1.2}));
+    svg.appendChild(txt("U-Net Cross-Attention 层",aX+aW/2,aY-8,{"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fbbf24"}));
+
+    // 文本 cross-attn（上）
+    const tY=aY+30;
+    svg.appendChild(el("rect",{x:aX+30,y:tY,width:aW-60,height:60,rx:6,fill:"#1c1f24",stroke:"#fbbf24","stroke-width":1}));
+    svg.appendChild(txt("文本 cross-attn  (text K/V)",aX+aW/2,tY+35,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fbbf24"}));
+    // 文本 prompt 输入
+    svg.appendChild(txt("text prompt →",aX-10,tY+35,{"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // 图像 cross-attn（下）
+    const iY=aY+120;
+    const op=0.3+w*0.7;
+    svg.appendChild(el("rect",{x:aX+30,y:iY,width:aW-60,height:60,rx:6,fill:"rgba(52,211,153,"+op*0.3+")",stroke:"#34d399","stroke-width":1+w*1.5}));
+    svg.appendChild(txt("图像 cross-attn  (image K/V)  w="+w.toFixed(2),aX+aW/2,iY+35,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"}));
+    // image emb → 图像 cross-attn
+    svg.appendChild(el("path",{d:"M"+(eX+90)+" "+(eY+25)+" Q"+(aX)+" "+(iY+30)+" "+(aX+30)+" "+(iY+30),stroke:"#34d399","stroke-width":1+w*1.5,fill:"none",opacity:op,"marker-end":"url(#ar02g)"}));
+
+    // 输出合并
+    const oY=aY+220;
+    svg.appendChild(el("rect",{x:aX+60,y:oY,width:aW-120,height:50,rx:6,fill:"#1c1f24",stroke:"rgba(255,255,255,.2)"}));
+    svg.appendChild(txt("out = text_attn + w · image_attn",aX+aW/2,oY+30,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#f7f8f8"}));
+    svg.appendChild(el("line",{x1:aX+aW/2,y1:tY+60,x2:aX+aW/2,y2:oY,stroke:"rgba(255,255,255,.2)"}));
+    svg.appendChild(el("line",{x1:aX+aW/2,y1:iY+60,x2:aX+aW/2,y2:oY,stroke:"#34d399","stroke-width":1,opacity:op}));
+
+    const defs=el("defs");
+    let mk=el("marker",{id:"ar02",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(mk);
+    mk=el("marker",{id:"ar02g",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(mk);
+    svg.appendChild(defs);
+
+    // 统计
+    $("st02w").textContent=w.toFixed(2);
+    $("st02sim").textContent=(w*100).toFixed(0)+"%";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>IP 权重</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=150;inp.value=Math.round(w*100);
+  const val=document.createElement("span");val.className="val";val.textContent=w.toFixed(2);
+  inp.addEventListener("input",()=>{w=+inp.value/100;val.textContent=w.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const scan=document.createElement("button");scan.className="btn primary";scan.textContent="权重扫描";
+  scan.addEventListener("click",()=>{animate(1800,p=>{w=ease(p);inp.value=Math.round(w*100);val.textContent=w.toFixed(2);draw();});});
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   03 LoRA
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let rank=16;
+  let d=1024;
+  let numLora=1;
+
+  function draw(){
+    clearNode(svg);
+    const padT=40;
+    // W0 (d x d) 大方块
+    const w0X=60,w0Y=padT+20,sz=180;
+    svg.appendChild(el("rect",{x:w0X,y:w0Y,width:sz,height:sz,rx:6,fill:"rgba(251,191,36,.1)",stroke:"#fbbf24","stroke-width":1.4}));
+    svg.appendChild(txt("W₀  (d×d)",w0X+sz/2,w0Y+sz/2,{"text-anchor":"middle","font-size":14,"font-family":MONO,fill:"#fbbf24"}));
+    svg.appendChild(txt("d="+d,w0X+sz/2,w0Y+sz+18,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+    svg.appendChild(txt("冻结 ❄",w0X+sz/2,w0Y-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fbbf24"}));
+
+    // + 号
+    svg.appendChild(txt("+",w0X+sz+20,w0Y+sz/2+5,{"text-anchor":"middle","font-size":22,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // BA 分解 (B: d x r, A: r x d)
+    const bX=w0X+sz+50,bY=padT+20;
+    const bH=sz,bW=18+rank*0.8;
+    // B 矩阵 (高瘦)
+    svg.appendChild(el("rect",{x:bX,y:bY,width:bW,height:bH,rx:4,fill:"rgba(251,113,133,.15)",stroke:"#fb7185","stroke-width":1.4}));
+    svg.appendChild(txt("B",bX+bW/2,bY+bH/2,{"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fb7185"}));
+    svg.appendChild(txt("d×r",bX+bW/2,bY-8,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#fb7185"}));
+    // x 号
+    svg.appendChild(txt("×",bX+bW+12,bY+bH/2+5,{"text-anchor":"middle","font-size":18,"font-family":MONO,fill:"#9b9fa8"}));
+    // A 矩阵 (矮宽)
+    const aX=bX+bW+24,aW=sz,aH=18+rank*0.8;
+    svg.appendChild(el("rect",{x:aX,y:bY+bH/2-aH/2,width:aW,height:aH,rx:4,fill:"rgba(124,92,255,.15)",stroke:"#7c5cff","stroke-width":1.4}));
+    svg.appendChild(txt("A",aX+aW/2,bY+bH/2+4,{"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#7c5cff"}));
+    svg.appendChild(txt("r×d",aX+aW/2,bY+bH/2+aH/2+14,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#7c5cff"}));
+
+    // = 号
+    svg.appendChild(txt("=",aX+aW+20,bY+bH/2+5,{"text-anchor":"middle","font-size":22,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // 结果 W
+    const rX=aX+aW+40,rY=padT+20;
+    svg.appendChild(el("rect",{x:rX,y:rY,width:sz,height:sz,rx:6,fill:"rgba(52,211,153,.1)",stroke:"#34d399","stroke-width":1.4}));
+    svg.appendChild(txt("W = W₀ + BA",rX+sz/2,rY+sz/2,{"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#34d399"}));
+
+    // 多 LoRA 合并（下方）
+    const mLoraY=padT+sz+50;
+    svg.appendChild(txt("多 LoRA 合并：W = W₀ + Σ αᵢ BᵢAᵢ",60,mLoraY,{"font-size":11,"font-family":MONO,fill:"#9b9fa8"}));
+    for(let i=0;i<3;i++){
+      const lx=60+i*180,ly=mLoraY+20;
+      const active=i<numLora;
+      svg.appendChild(el("rect",{x:lx,y:ly,width:160,height:40,rx:6,fill:active?"rgba(52,211,153,.14)":"#1c1f24",stroke:active?"#34d399":"rgba(255,255,255,.1)"}));
+      svg.appendChild(txt("LoRA "+(i+1)+(active?"  α="+(0.8-i*0.2).toFixed(1):"  off"),lx+80,ly+25,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:active?"#34d399":"#62666d"}));
+    }
+
+    // 统计
+    const paramFull=d*d;
+    const paramLora=2*d*rank*numLora;
+    $("st03rank").textContent=rank;
+    $("st03d").textContent=d;
+    $("st03param").textContent=formatN(paramLora);
+    $("st03ratio").textContent=(paramFull/Math.max(1,paramLora)).toFixed(0)+"×";
+  }
+  function formatN(v){if(v<1e6)return(v/1e3).toFixed(1)+"K";if(v<1e9)return(v/1e6).toFixed(1)+"M";return(v/1e9).toFixed(2)+"B";}
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>rank r</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=64;inp.value=rank;
+  const val=document.createElement("span");val.className="val";val.textContent=rank;
+  inp.addEventListener("input",()=>{rank=+inp.value;val.textContent=rank;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>维度 d</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=256;inp2.max=4096;inp2.value=d;inp2.step=256;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=d;
+  inp2.addEventListener("input",()=>{d=+inp2.value;val2.textContent=d;draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+
+  const addBtn=document.createElement("button");addBtn.className="btn primary";addBtn.textContent="切换 LoRA 数 ("+numLora+"/3)";
+  addBtn.addEventListener("click",()=>{numLora=numLora%3+1;addBtn.textContent="切换 LoRA 数 ("+numLora+"/3)";draw();});
+  ctl.appendChild(addBtn);
+})();
+
+/* ============================================================
+   04 潜空间插值
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let alpha=0.5;
+
+  function draw(){
+    clearNode(svg);
+    const padT=30;
+    // 2D 投影 latent 空间
+    const cx=360,cy=padT+150,r=110;
+    // latent A, B 两点
+    const angle=Math.PI*0.6;
+    const ax=cx-Math.cos(angle)*r,ay=cy-Math.sin(angle)*r;
+    const bx=cx+Math.cos(angle)*r,by=cy+Math.sin(angle)*r;
+    // 边界圆
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:r*1.4,fill:"none",stroke:"rgba(255,255,255,.07)","stroke-width":1,"stroke-dasharray":"3 3"}));
+    svg.appendChild(txt("latent 空间 (2D 投影)",cx,padT-4,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // slerp 路径（大圆弧）
+    const theta=Math.acos(Math.min(1,Math.cos(angle)*2));
+    // 简化为圆弧
+    const mx=(ax+bx)/2,my=(ay+by)/2;
+    const sweep=el("path",{d:"M"+ax+","+ay+" A"+r+" "+r+" 0 0 1 "+bx+","+by,fill:"none",stroke:"#34d399","stroke-width":1.6,"stroke-dasharray":"4 3"});
+    svg.appendChild(sweep);
+
+    // 当前插值点
+    const ix=ax+(bx-ax)*alpha,iy=ay+(by-ay)*alpha;
+    // 投影到弧上
+    const angL=Math.atan2(ay-cy,ax-cx),angR=Math.atan2(by-cy,bx-cx);
+    let curAng=angL+(angR-angL)*alpha;
+    const px=cx+Math.cos(curAng)*r,py=cy+Math.sin(curAng)*r;
+    svg.appendChild(el("circle",{cx:px,cy:py,r:8,fill:"#fbbf24",stroke:"#0b0b0c","stroke-width":1.6}));
+    svg.appendChild(txt("α="+alpha.toFixed(2),px,py-14,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fbbf24"}));
+
+    // A, B 点
+    svg.appendChild(el("circle",{cx:ax,cy:ay,r:7,fill:"#fb7185",stroke:"#0b0b0c","stroke-width":1.3}));
+    svg.appendChild(txt("latent A",ax,ay-14,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fb7185"}));
+    svg.appendChild(txt("prompt 1",ax,ay+22,{"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"}));
+    svg.appendChild(el("circle",{cx:bx,cy:by,r:7,fill:"#7c5cff",stroke:"#0b0b0c","stroke-width":1.3}));
+    svg.appendChild(txt("latent B",bx,by-14,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#7c5cff"}));
+    svg.appendChild(txt("prompt 2",bx,by+22,{"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"}));
+
+    // 生成图像序列（底部）
+    const nFrames=7;
+    const fY=padT+280,fW=70,fH=70,gap=14;
+    const totalW=nFrames*fW+(nFrames-1)*gap;
+    const fX0=(W-totalW)/2;
+    for(let i=0;i<nFrames;i++){
+      const a=i/(nFrames-1);
+      const fx=fX0+i*(fW+gap);
+      const isCur=Math.abs(a-alpha)<1/(nFrames-1)/2;
+      // 模拟生成图像（渐变色块）
+      const ca=Math.round(251+(124-251)*a);
+      const cb2=Math.round(113+(92-113)*a);
+      const cc=Math.round(133+(255-133)*a);
+      const col="rgba("+ca+","+cb2+","+cc+",.6)";
+      svg.appendChild(el("rect",{x:fx,y:fY,width:fW,height:fH,rx:6,fill:col,stroke:isCur?"#fbbf24":"rgba(255,255,255,.14)","stroke-width":isCur?2:1}));
+      // 内容色块
+      for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+        const v=(a*0.5+((r+c)%3)*0.15)%1;
+        svg.appendChild(el("rect",{x:fx+6+c*(fW-12)/3,y:fY+6+r*(fH-12)/3,width:(fW-12)/3-2,height:(fH-12)/3-2,fill:"rgba(255,255,255,"+(0.05+v*0.25)+")",rx:1}));
+      }
+      svg.appendChild(txt("α="+a.toFixed(2),fx+fW/2,fY+fH+14,{"text-anchor":"middle","font-size":9,"font-family":MONO,fill:isCur?"#fbbf24":"#62666d"}));
+    }
+
+    // 统计
+    $("st04alpha").textContent=alpha.toFixed(2);
+    $("st04theta").textContent=(theta*180/Math.PI).toFixed(0)+"°";
+    $("st04smooth").textContent=(100-Math.abs(alpha-0.5)*40).toFixed(0)+"%";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>α</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=100;inp.value=Math.round(alpha*100);
+  const val=document.createElement("span");val.className="val";val.textContent=alpha.toFixed(2);
+  inp.addEventListener("input",()=>{alpha=+inp.value/100;val.textContent=alpha.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const walk=document.createElement("button");walk.className="btn primary";walk.textContent="latent walk";
+  walk.addEventListener("click",()=>{animate(2400,p=>{alpha=ease(p);inp.value=Math.round(alpha*100);val.textContent=alpha.toFixed(2);draw();});});
+  ctl.appendChild(walk);
+})();
+
+/* ============================================================
+   05 CFG Scale
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let w=7.5;
+
+  function draw(){
+    clearNode(svg);
+    const padL=54,padR=24,padT=24,padB=42;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // x 轴：采样步数
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});
+      t.textContent=(i*8);svg.appendChild(t);
+    }
+    svg.appendChild(txt("采样步数 t →",padL+plotW/2,H-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"}));
+    svg.appendChild(txt("latent 维度",14,padT+plotH/2,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"}));
+
+    // 无条件轨迹（直线，从噪声到普通点）
+    const startX=padL,startY=padT+plotH*0.1;
+    const endUncondX=padL+plotW,endUncondY=padT+plotH*0.6;
+    svg.appendChild(el("line",{x1:startX,y1:startY,x2:endUncondX,y2:endUncondY,stroke:"#7c5cff","stroke-width":1.6,"stroke-dasharray":"5 3"}));
+    svg.appendChild(txt("无条件 εθ(xt,∅)",endUncondX-4,endUncondY-6,{"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#7c5cff"}));
+
+    // 条件轨迹（曲线，偏向目标）
+    const endCondX=padL+plotW,endCondY=padT+plotH*0.85;
+    let cd="M"+startX+","+startY;
+    for(let i=1;i<=20;i++){
+      const t=i/20;
+      const x=startX+t*plotW;
+      const baseY=startY+(endUncondY-startY)*t;
+      const condY=startY+(endCondY-startY)*t;
+      const y=baseY+(condY-baseY)*Math.min(1,w*0.3)*t;
+      cd+=" L"+x+","+y;
+    }
+    svg.appendChild(el("path",{d:cd,fill:"none",stroke:"#fb7185","stroke-width":1.8,"stroke-linecap":"round"}));
+    svg.appendChild(txt("条件 εθ(xt,c)",endCondX-4,endCondY-6,{"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#fb7185"}));
+
+    // CFG 合成轨迹（在两者之间，按 w 偏向条件）
+    const cfgY=startY+((endUncondY-startY)+(endCondY-endUncondY)*Math.min(1,(w-1)/8))*0.5+plotH*0.1*Math.min(1,(w-1)/8);
+    let cfgd="M"+startX+","+startY;
+    for(let i=1;i<=20;i++){
+      const t=i/20;
+      const x=startX+t*plotW;
+      const baseY=startY+(endUncondY-startY)*t;
+      const condY=startY+(endCondY-startY)*t;
+      const y=baseY+(condY-baseY)*Math.min(1,w*0.35)*t;
+      cfgd+=" L"+x+","+y;
+    }
+    svg.appendChild(el("path",{d:cfgd,fill:"none",stroke:"#34d399","stroke-width":2.4,"stroke-linecap":"round"}));
+    svg.appendChild(txt("CFG 轨迹 w="+w.toFixed(1),endUncondX-4,startY+plotH*0.3,{"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#34d399"}));
+
+    // guidance 向量箭头（示意）
+    const midX=padL+plotW*0.5;
+    const midUncond=startY+(endUncondY-startY)*0.5;
+    const midCond=startY+(endCondY-startY)*0.5;
+    const midCFG=midUncond+(midCond-midUncond)*Math.min(1,w*0.35)*0.5;
+    svg.appendChild(el("line",{x1:midX,y1:midUncond,x2:midX,y2:midCond,stroke:"#fbbf24","stroke-width":1.4,"marker-end":"url(#ar05)","opacity":.7}));
+    svg.appendChild(txt("w·(c−∅)",midX+6,midUncond+plotH*0.05,{"font-size":10,"font-family":MONO,fill:"#fbbf24"}));
+
+    const defs=el("defs");
+    const mk=el("marker",{id:"ar05",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(mk);svg.appendChild(defs);
+
+    // 统计
+    $("st05w").textContent=w.toFixed(1);
+    $("st05rel").textContent=Math.min(99,40+w*6).toFixed(0)+"%";
+    $("st05div").textContent=Math.max(5,80-w*7).toFixed(0)+"%";
+    $("st05risk").textContent=w>15?"高":w>8?"中":"低";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>CFG w</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=10;inp.max=200;inp.value=Math.round(w*10);
+  const val=document.createElement("span");val.className="val";val.textContent=w.toFixed(1);
+  inp.addEventListener("input",()=>{w=+inp.value/10;val.textContent=w.toFixed(1);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const scan=document.createElement("button");scan.className="btn primary";scan.textContent="w 扫描";
+  scan.addEventListener("click",()=>{animate(2200,p=>{w=1+19*ease(p);inp.value=Math.round(w*10);val.textContent=w.toFixed(1);draw();});});
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   06 采样器对比
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let steps=20;
+  const padL=54,padR=24,padT=24,padB=42;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const samplers=[
+    {n:"DDIM",f:s=>1-Math.exp(-s/12),c:"#fb7185"},
+    {n:"DPM++ 2M",f:s=>1-Math.exp(-s/4),c:"#7c5cff"},
+    {n:"Euler a",f:s=>1-Math.exp(-s/7)*1.1,c:"#a3e635"},
+    {n:"UniPC",f:s=>1-Math.exp(-s/3),c:"#fbbf24"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#62666d"});
+      t.textContent=(i*20);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});
+      t.textContent=Math.round(i*50/5);svg.appendChild(t);
+    }
+    svg.appendChild(txt("步数 →",padL+plotW/2,H-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"}));
+    svg.appendChild(txt("质量 (%)",14,padT+plotH/2,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"}));
+
+    let best=null,bestQ=-1;
+    samplers.forEach(sm=>{
+      let d="";
+      for(let i=0;i<=plotW;i+=3){
+        const s=1+49*i/plotW;
+        const q=Math.max(0,Math.min(1,sm.f(s)))*100;
+        const x=padL+i,y=padT+plotH-q/100*plotH;
+        d+=(i===0?"M":"L")+x+","+y+" ";
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:sm.c,"stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.92}));
+      // 当前步数标记点
+      const q=Math.max(0,Math.min(1,sm.f(steps)))*100;
+      const qx=padL+(steps-1)/49*plotW,qy=padT+plotH-q/100*plotH;
+      svg.appendChild(el("circle",{cx:qx,cy:qy,r:4,fill:sm.c,stroke:"#0b0b0c","stroke-width":1.3}));
+      if(q>bestQ){bestQ=q;best=sm;}
+    });
+
+    // 图例
+    let lx=padL+8,ly=padT+6;
+    samplers.forEach(sm=>{
+      const g=el("g",{transform:"translate("+lx+","+ly+")"});
+      g.appendChild(el("rect",{x:0,y:-9,width:11,height:3,fill:sm.c}));
+      const t=el("text",{x:16,y:-5,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});t.textContent=sm.n;g.appendChild(t);
+      svg.appendChild(g);ly+=17;
+    });
+
+    // 当前步数竖线
+    const sx=padL+(steps-1)/49*plotW;
+    svg.appendChild(el("line",{x1:sx,y1:padT,x2:sx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,"stroke-dasharray":"3 3",opacity:.4}));
+
+    // 统计
+    $("st06steps").textContent=steps;
+    $("st06ddim").textContent=(Math.max(0,Math.min(1,samplers[0].f(steps)))*100).toFixed(0)+"%";
+    $("st06dpm").textContent=(Math.max(0,Math.min(1,samplers[1].f(steps)))*100).toFixed(0)+"%";
+    $("st06best").textContent=best?best.n:"—";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>步数</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=50;inp.value=steps;
+  const val=document.createElement("span");val.className="val";val.textContent=steps;
+  inp.addEventListener("input",()=>{steps=+inp.value;val.textContent=steps;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const scan=document.createElement("button");scan.className="btn primary";scan.textContent="步数扫描";
+  scan.addEventListener("click",()=>{animate(2200,p=>{steps=1+Math.round(49*ease(p));inp.value=steps;val.textContent=steps;draw();});});
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   07 Img2Img
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let strength=0.5;
+  const T=50; // 总步数
+
+  function draw(){
+    clearNode(svg);
+    const padT=40;
+    const fY=padT+20,fW=110,fH=110,gap=30;
+    const total=3*fW+2*gap;
+    const fX0=(W-total)/2;
+
+    // 图 1：原图
+    drawImg(fX0,fY,fW,fH,"原图","#fb7185",0.5);
+    svg.appendChild(txt("输入图像",fX0+fW/2,fY+fH+18,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fb7185"}));
+
+    // 图 2：加噪（按 strength 加噪步数）
+    const noiseStep=Math.round(T*strength);
+    drawNoisy(fX0+fW+gap,fY,fW,fH,strength);
+    svg.appendChild(txt("加噪 t="+noiseStep+"/"+T,fX0+fW+gap+fW/2,fY+fH+18,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#7c5cff"}));
+
+    // 图 3：去噪重绘
+    drawImg(fX0+2*(fW+gap),fY,fW,fH,"重绘","#34d399",0.5+strength*0.3);
+    svg.appendChild(txt("重绘生成",fX0+2*(fW+gap)+fW/2,fY+fH+18,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"}));
+
+    // 箭头
+    svg.appendChild(el("line",{x1:fX0+fW,y1:fY+fH/2,x2:fX0+fW+gap-4,y2:fY+fH/2,stroke:"#9b9fa8","stroke-width":1.4,"marker-end":"url(#ar07)"}));
+    svg.appendChild(el("line",{x1:fX0+fW+gap+fW,y1:fY+fH/2,x2:fX0+2*(fW+gap)-4,y2:fY+fH/2,stroke:"#9b9fa8","stroke-width":1.4,"marker-end":"url(#ar07)"}));
+    const defs=el("defs");const mk=el("marker",{id:"ar07",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#9b9fa8"}));defs.appendChild(mk);svg.appendChild(defs);
+
+    // 噪声-去噪曲线（下方）
+    const cY=padT+170,cH=160;
+    const cPadL=60,cPadR=30,cPadT=20,cPadB=30;
+    const cW=W-cPadL-cPadR,cH2=cH-cPadT-cPadB;
+    svg.appendChild(el("line",{x1:cPadL,y1:cPadT+padT+150,x2:cPadL+cW,y2:cPadT+padT+150,class:"axis"}));
+    svg.appendChild(el("line",{x1:cPadL,y1:cPadT+padT+150,x2:cPadL,y2:cPadT+150-cH2,class:"axis"}));
+    svg.appendChild(txt("噪声水平",cPadL+cW/2,cPadT+150+18,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+    // 噪声曲线（前向）
+    let nd="M"+cPadL+","+(cPadT+150);
+    for(let i=0;i<=cW;i+=3){
+      const t=i/cW;
+      const y=cPadT+150-cH2*Math.sqrt(t);
+      nd+=" L"+(cPadL+i)+","+y;
+    }
+    svg.appendChild(el("path",{d:nd,fill:"none",stroke:"#7c5cff","stroke-width":1.6}));
+    // 当前加噪点
+    const curX=cPadL+strength*cW;
+    const curY=cPadT+150-cH2*Math.sqrt(strength);
+    svg.appendChild(el("circle",{cx:curX,cy:curY,r:5,fill:"#fbbf24",stroke:"#0b0b0c","stroke-width":1.3}));
+    svg.appendChild(el("line",{x1:curX,y1:cPadT+150,x2:curX,y2:curY,stroke:"#fbbf24","stroke-width":1,"stroke-dasharray":"3 3",opacity:.5}));
+    svg.appendChild(txt("strength="+strength.toFixed(2),curX,curY-8,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#fbbf24"}));
+    // 去噪箭头（反向）
+    svg.appendChild(el("path",{d:"M"+(curX+30)+","+(curY-10)+" Q"+(curX-10)+" "+(curY-30)+" "+(curX-30)+" "+(curY-5),stroke:"#34d399","stroke-width":1.4,fill:"none","marker-end":"url(#ar07g)",opacity:.7}));
+    let mk2=el("marker",{id:"ar07g",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk2.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(mk2);
+
+    // 统计
+    $("st07str").textContent=strength.toFixed(2);
+    $("st07step").textContent=noiseStep;
+    $("st07keep").textContent=((1-strength)*100).toFixed(0)+"%";
+    $("st07redraw").textContent=(strength*100).toFixed(0)+"%";
+  }
+  function drawImg(x,y,w,h,label,col,intensity){
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6,fill:"rgba("+hex2rgb(col)+","+intensity*0.3+")",stroke:col,"stroke-width":1.2}));
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+      const v=((i+j)%3)*0.2*intensity+0.1;
+      svg.appendChild(el("rect",{x:x+8+i*(w-16)/3,y:y+8+j*(h-16)/3,width:(w-16)/3-2,height:(h-16)/3-2,fill:"rgba(255,255,255,"+v+")",rx:2}));
+    }
+    svg.appendChild(txt(label,x+w/2,y+h/2+4,{"text-anchor":"middle","font-size":12,"font-family":MONO,fill:col}));
+  }
+  function drawNoisy(x,y,w,h,s){
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6,fill:"#16181c",stroke:"#7c5cff","stroke-width":1.2}));
+    // 噪声点
+    const n=Math.round(40+s*200);
+    for(let i=0;i<n;i++){
+      const px=x+Math.random()*w,py=y+Math.random()*h;
+      const v=Math.random()*0.6+0.1;
+      svg.appendChild(el("rect",{x:px,y:py,width:3,height:3,fill:"rgba(124,92,255,"+v+")"}));
+    }
+    svg.appendChild(txt("noise "+(s*100).toFixed(0)+"%",x+w/2,y+h-8,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#7c5cff"}));
+  }
+  function hex2rgb(h){h=h.replace("#","");return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)].join(",");}
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>denoise</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=100;inp.value=Math.round(strength*100);
+  const val=document.createElement("span");val.className="val";val.textContent=strength.toFixed(2);
+  inp.addEventListener("input",()=>{strength=+inp.value/100;val.textContent=strength.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="加噪动画";
+  anim.addEventListener("click",()=>{animate(2000,p=>{strength=ease(p);inp.value=Math.round(strength*100);val.textContent=strength.toFixed(2);draw();});});
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   08 超分辨率
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  let scale=4;
+  let mode="diffusion";
+
+  function draw(){
+    clearNode(svg);
+    const padT=40;
+    const fY=padT+20,fH=180;
+    // 低清输入（左）
+    const inW=80,inH=80;
+    const inX=40,inY=fY+50;
+    drawLowRes(inX,inY,inW,inH);
+    svg.appendChild(txt("低清输入 "+(512/scale)+"²",inX+inW/2,inY+inH+18,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fb7185"}));
+
+    // 放大箭头
+    const arrX=inX+inW+20;
+    svg.appendChild(el("path",{d:"M"+arrX+","+(inY+inH/2)+" L"+(arrX+40)+","+(inY+inH/2),stroke:"#9b9fa8","stroke-width":1.4,"marker-end":"url(#ar08)"}));
+    svg.appendChild(txt(scale+"×",arrX+20,inY+inH/2-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fbbf24"}));
+
+    // 输出（右大图）
+    const outW=inW*scale,outH=inH*scale;
+    const outX=arrX+60,outY=inY-(outH-inH)/2;
+    const defs=el("defs");const mk=el("marker",{id:"ar08",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#9b9fa8"}));defs.appendChild(mk);svg.appendChild(defs);
+
+    if(mode==="bilinear"){
+      drawBilinear(outX,outY,outW,outH);
+      svg.appendChild(txt("双三次插值",outX+outW/2,outY-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#7c5cff"}));
+    }else{
+      drawDiffusion(outX,outY,outW,outH);
+      svg.appendChild(txt("扩散超分",outX+outW/2,outY-8,{"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"}));
+    }
+
+    // PSNR 对比柱（下方）
+    const bY=padT+240,bH=90;
+    const items=[["双三次","#7c5cff",28],["扩散超分","#34d399",34]];
+    items.forEach((it,i)=>{
+      const bx=60+i*300,bw=240;
+      svg.appendChild(el("rect",{x:bx,y:bY,width:bw,height:bH,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+      const fillH=(it[2]-24)/14*bH;
+      svg.appendChild(el("rect",{x:bx+10,y:bY+bH-fillH-10,width:30,height:fillH,fill:it[1],rx:2}));
+      svg.appendChild(txt(it[0],bx+50,bY+24,{"font-size":11,"font-family":MONO,fill:"#9b9fa8"}));
+      svg.appendChild(txt("PSNR "+it[2]+" dB",bx+50,bY+44,{"font-size":13,"font-family":MONO,fill:it[1]}));
+      const active=(mode==="bilinear"&&i===0)||(mode==="diffusion"&&i===1);
+      if(active){
+        svg.appendChild(el("rect",{x:bx,y:bY,width:bw,height:bH,rx:6,fill:"none",stroke:it[1],"stroke-width":2}));
+      }
+    });
+
+    // 统计
+    $("st08scale").textContent=scale+"×";
+    $("st08in").textContent=(512/scale)+"²";
+    $("st08out").textContent="512²";
+    $("st08psnr").textContent=(mode==="diffusion"?34:28)+" dB";
+  }
+  function drawLowRes(x,y,w,h){
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:4,fill:"#1c1f24",stroke:"#fb7185","stroke-width":1.4}));
+    // 大像素块（模糊）
+    const n=4;
+    const cw=w/n,ch=h/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const v=((i*3+j*5)%7)/7*0.5+0.2;
+      svg.appendChild(el("rect",{x:x+i*cw+1,y:y+j*ch+1,width:cw-2,height:ch-2,fill:"rgba(251,113,133,"+v+")"}));
+    }
+  }
+  function drawBilinear(x,y,w,h){
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6,fill:"#1c1f24",stroke:"#7c5cff","stroke-width":1.4}));
+    const n=4;
+    const cw=w/n,ch=h/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const v=((i*3+j*5)%7)/7*0.5+0.2;
+      svg.appendChild(el("rect",{x:x+i*cw+1,y:y+j*ch+1,width:cw-2,height:ch-2,fill:"rgba(124,92,255,"+v+")"}));
+    }
+    svg.appendChild(txt("仅放大像素，无新细节",x+w/2,y+h+18,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"}));
+  }
+  function drawDiffusion(x,y,w,h){
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6,fill:"#1c1f24",stroke:"#34d399","stroke-width":1.4}));
+    const n=4;
+    const cw=w/n,ch=h/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const base=((i*3+j*5)%7)/7*0.5+0.2;
+      // 增加高频纹理（新增细节）
+      for(let si=0;si<3;si++)for(let sj=0;sj<3;sj++){
+        const hv=base+(Math.sin(i*7+si)+Math.cos(j*5+sj))*0.12+0.1;
+        svg.appendChild(el("rect",{x:x+i*cw+si*(cw/3)+1,y:y+j*ch+sj*(ch/3)+1,width:cw/3-1,height:ch/3-1,fill:"rgba(52,211,153,"+Math.max(0.1,Math.min(0.7,hv))+")"}));
+      }
+    }
+    svg.appendChild(txt("生成符合语义的高频纹理",x+w/2,y+h+18,{"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#34d399"}));
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>放大倍数</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=8;inp.value=scale;inp.step=1;
+  const val=document.createElement("span");val.className="val";val.textContent=scale+"×";
+  inp.addEventListener("input",()=>{scale=+inp.value;val.textContent=scale+"×";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  [["bilinear","双三次"],["diffusion","扩散超分"]].forEach(([k,v])=>{
+    const b=document.createElement("button");b.className="btn small"+(mode===k?" on":"");b.textContent=v;
+    b.addEventListener("click",()=>{mode=k;document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+</script>
+</body>
+</html>

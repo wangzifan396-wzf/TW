@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concurrency Viz Lab — 并发理论与同步可视化</title>
+<meta name="description" content="并发理论与同步机制的可视化实验室：互斥锁、生产者消费者、哲学家就餐、读者写者、死锁检测、信号量、管程、CAS 与无锁编程。">
+<style>
+/* ============ Design Tokens ============ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fbbf24;
+  --accent-2:#7c5cff;
+  --green:#34d399;
+  --red:#f87171;
+  --blue:#60a5fa;
+  --pink:#f472b6;
+  --orange:#fb923c;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --nav-h:56px;
+  --side-w:240px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+.mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:var(--accent);color:#08090a}
+
+/* scrollbar */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:6px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+
+/* ============ Progress Bar ============ */
+.progress{
+  position:fixed;top:0;left:0;height:2px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  z-index:1000;transition:width .08s linear;
+}
+
+/* ============ Nav ============ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);
+  background:rgba(8,9,10,.82);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;
+  padding:0 20px;z-index:900;
+}
+.menu-btn{
+  display:none;width:36px;height:36px;border-radius:8px;
+  align-items:center;justify-content:center;color:var(--muted);
+  border:1px solid var(--border);
+}
+.menu-btn:hover{color:var(--ink);border-color:var(--border-strong)}
+.menu-btn svg{width:18px;height:18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.brand-logo{width:26px;height:26px;flex:none}
+.brand-name{font-size:15px}
+.brand-name b{color:var(--accent)}
+.nav-spacer{flex:1}
+.nav-link{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:13px;color:var(--muted);padding:7px 12px;border-radius:8px;
+  border:1px solid var(--border);transition:all .15s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong);background:var(--surface)}
+.nav-link svg{width:15px;height:15px}
+
+/* ============ Sidebar ============ */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;width:var(--side-w);
+  height:calc(100vh - var(--nav-h));
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 12px 40px;z-index:850;
+  transition:transform .22s ease;
+}
+.side-head{
+  font-size:11px;color:var(--faint);letter-spacing:1.5px;
+  text-transform:uppercase;padding:4px 12px 10px;
+}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:8px;font-size:13px;color:var(--muted);
+  transition:all .15s;border:1px solid transparent;
+}
+.side-link:hover{color:var(--ink);background:var(--surface-2)}
+.side-link.active{color:var(--ink);background:var(--surface-3);border-color:var(--border)}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--accent);
+  background:rgba(251,191,36,.08);padding:2px 6px;border-radius:5px;
+}
+.side-link.active .side-num{background:rgba(251,191,36,.16)}
+.side-foot{margin-top:18px;padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--faint);line-height:1.6}
+
+.overlay{display:none;position:fixed;inset:var(--nav-h) 0 0 0;background:rgba(0,0,0,.5);z-index:840}
+
+/* ============ Main ============ */
+.main{margin-left:var(--side-w);padding:32px 36px 80px;padding-top:calc(var(--nav-h) + 28px);max-width:1280px}
+
+/* Hero */
+.hero{padding:28px 0 44px;border-bottom:1px solid var(--border);margin-bottom:48px}
+.hero-tag{
+  display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--accent);
+  font-family:var(--mono);padding:5px 11px;border-radius:999px;
+  border:1px solid rgba(251,191,36,.25);background:rgba(251,191,36,.05);margin-bottom:18px;
+}
+.hero-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin-bottom:14px}
+.hero h1 span{background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:15px;color:var(--muted);max-width:640px;margin-bottom:22px}
+.hero-meta{display:flex;flex-wrap:wrap;gap:18px;font-size:12px;color:var(--faint);font-family:var(--mono)}
+.hero-meta b{color:var(--ink);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px}
+.legend-item{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.legend-sw{width:11px;height:11px;border-radius:3px}
+
+/* ============ Module ============ */
+.module{margin-bottom:64px;opacity:0;transform:translateY(22px);transition:opacity .5s ease,transform .5s ease}
+.module.in{opacity:1;transform:none}
+.module-head{margin-bottom:20px}
+.kicker{
+  font-family:var(--mono);font-size:12px;color:var(--accent);
+  letter-spacing:.5px;margin-bottom:8px;
+}
+.module-title{font-size:24px;font-weight:650;letter-spacing:-.015em;margin-bottom:8px}
+.module-desc{font-size:14px;color:var(--muted);max-width:720px}
+
+.module-grid{display:grid;grid-template-columns:1fr;gap:18px}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  transition:border-color .2s;
+}
+.card.is-running{border-color:rgba(251,191,36,.3)}
+.card.is-running .viz-status{color:var(--green)}
+
+.viz-box{padding:18px 18px 8px;border-bottom:1px solid var(--border)}
+.viz-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.viz-tag{font-size:10px;color:var(--accent);background:rgba(251,191,36,.08);padding:3px 7px;border-radius:5px;letter-spacing:1px}
+.viz-title{font-size:13px;color:var(--ink);font-weight:600;flex:1}
+.viz-status{font-size:11px;color:var(--faint);padding:3px 8px;border:1px solid var(--border);border-radius:5px;transition:color .2s}
+.viz{width:100%;height:auto;display:block;border-radius:10px;background:
+  radial-gradient(circle at 50% 0%,rgba(124,92,255,.04),transparent 60%),var(--surface-2)}
+
+.card-mid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.card-mid > *{padding:18px}
+.card-mid > *:first-child{border-right:1px solid var(--border)}
+
+/* Controls */
+.controls{border-bottom:1px solid var(--border)}
+.ctrl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-row:last-child{margin-bottom:0}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:all .14s;
+}
+.btn:hover{background:var(--surface-3);border-color:rgba(255,255,255,.22)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#08090a;border-color:var(--accent);font-weight:600}
+.btn-primary:hover{background:#fcd34d;border-color:#fcd34d}
+.btn-primary:disabled{background:var(--surface-3);color:var(--faint);border-color:var(--border)}
+.btn-ghost{background:transparent;border-color:var(--border)}
+.btn svg{width:14px;height:14px}
+
+.slider-wrap{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
+.slider-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.slider-label .mono{color:var(--ink)}
+.slider{
+  -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
+  background:var(--surface-3);outline:none;
+}
+.slider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);transition:transform .1s;
+}
+.slider::-webkit-slider-thumb:hover{transform:scale(1.18)}
+.slider::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+
+.select{
+  padding:7px 28px 7px 11px;border-radius:8px;font-size:13px;color:var(--ink);
+  background:var(--surface-2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239b9fa8' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 9px center;
+  border:1px solid var(--border-strong);cursor:pointer;
+}
+.select:focus{outline:none;border-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
+.seg button{padding:7px 12px;font-size:12px;color:var(--muted);border-right:1px solid var(--border);transition:all .14s}
+.seg button:last-child{border-right:none}
+.seg button.active{background:var(--surface-3);color:var(--accent)}
+.seg button:hover{color:var(--ink)}
+
+/* Detail */
+.detail-box{}
+.detail-title{font-size:11px;color:var(--faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.detail-text{font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+.detail-list{list-style:none;display:flex;flex-direction:column;gap:7px}
+.detail-list li{font-size:12.5px;color:var(--muted);padding-left:16px;position:relative;line-height:1.5}
+.detail-list li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:var(--accent-2)}
+.detail-list code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);padding:1px 5px;border-radius:4px;color:var(--accent)}
+
+/* Stats */
+.stats-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--border);
+}
+.stat{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.stat-label{font-size:11px;color:var(--faint);letter-spacing:.3px}
+.stat-val{font-size:20px;font-weight:600;color:var(--ink);line-height:1}
+.stat-val.accent{color:var(--accent)}
+.stat-val.green{color:var(--green)}
+.stat-val.red{color:var(--red)}
+.stat-val.blue{color:var(--blue)}
+
+/* Footer */
+.foot{margin-top:60px;padding-top:28px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;font-size:12px;color:var(--faint)}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--accent)}
+
+/* ============ Responsive ============ */
+@media (max-width:960px){
+  .card-mid{grid-template-columns:1fr}
+  .card-mid > *:first-child{border-right:none;border-bottom:1px solid var(--border)}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:760px){
+  .menu-btn{display:inline-flex}
+  .sidebar{transform:translateX(-100%);width:280px}
+  .sidebar.open{transform:translateX(0)}
+  .overlay.show{display:block}
+  .main{margin-left:0;padding:24px 18px 60px;padding-top:calc(var(--nav-h) + 20px)}
+  .hero h1{font-size:28px}
+  .module-title{font-size:20px}
+}
+
+/* ============ Reduced Motion ============ */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important;animation:none !important;scroll-behavior:auto !important}
+  .module{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- Nav -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="切换菜单">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="brand" href="#top">
+    <svg class="brand-logo" viewBox="0 0 32 32" fill="none">
+      <circle cx="12" cy="16" r="9" stroke="#fbbf24" stroke-width="2.4"/>
+      <circle cx="20" cy="16" r="9" stroke="#7c5cff" stroke-width="2.4"/>
+    </svg>
+    <span class="brand-name">Concurrency<b>·</b>Viz Lab</span>
+  </a>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/concurrency-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-1.8c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17 5 18 5.3 18 5.3c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="side-head">模块导航</div>
+  <nav class="side-nav" id="sideNav">
+    <a class="side-link" href="#m1"><span class="side-num">01</span>互斥与锁</a>
+    <a class="side-link" href="#m2"><span class="side-num">02</span>生产者消费者</a>
+    <a class="side-link" href="#m3"><span class="side-num">03</span>哲学家就餐</a>
+    <a class="side-link" href="#m4"><span class="side-num">04</span>读者写者</a>
+    <a class="side-link" href="#m5"><span class="side-num">05</span>死锁检测</a>
+    <a class="side-link" href="#m6"><span class="side-num">06</span>信号量</a>
+    <a class="side-link" href="#m7"><span class="side-num">07</span>管程</a>
+    <a class="side-link" href="#m8"><span class="side-num">08</span>CAS 与无锁</a>
+  </nav>
+  <div class="side-foot">
+    单文件 · 零依赖<br>纯 HTML / CSS / JS + SVG<br>MIT License
+  </div>
+</aside>
+<div class="overlay" id="overlay"></div>
+
+<!-- Main -->
+<main class="main" id="top">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-tag"><span class="dot"></span>CONCURRENCY THEORY · SYNCHRONIZATION</div>
+    <h1>并发理论与同步机制的<span>可视化实验室</span></h1>
+    <p>八个交互式模块，将抽象的并发原语——锁、信号量、管程、CAS——转化为可观察、可操控的动态系统。每个模块包含 SVG 可视化、实时控制器与统计指标，帮助你建立对竞争、死锁与无锁编程的直觉。</p>
+    <div class="hero-meta">
+      <span><b>8</b> 个模块</span>
+      <span><b>0</b> 外部依赖</span>
+      <span>纯 <b>HTML/CSS/JS</b></span>
+      <span><b>SVG</b> 矢量可视化</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-sw" style="background:#62666d"></span>空闲/思考</span>
+      <span class="legend-item"><span class="legend-sw" style="background:#fbbf24"></span>请求/就绪</span>
+      <span class="legend-item"><span class="legend-sw" style="background:#fb923c"></span>等待/阻塞</span>
+      <span class="legend-item"><span class="legend-sw" style="background:#34d399"></span>持有/工作</span>
+      <span class="legend-item"><span class="legend-sw" style="background:#60a5fa"></span>读取</span>
+      <span class="legend-item"><span class="legend-sw" style="background:#f87171"></span>写入</span>
+    </div>
+  </section>
+
+  <!-- ============ 01 Mutex ============ -->
+  <section class="module" id="m1">
+    <div class="module-head">
+      <div class="kicker">01 — Mutex &amp; Lock</div>
+      <h2 class="module-title">互斥与锁</h2>
+      <p class="module-desc">多个线程竞争同一把互斥锁进入临界区。同一时刻仅允许一个线程持有锁，其余线程进入等待队列，直至锁被释放后按序唤醒。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m1-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">线程竞争临界区</span>
+            <span class="viz-status mono" id="m1-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m1-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m1-start">运行</button>
+              <button class="btn" id="m1-stop">暂停</button>
+              <button class="btn btn-ghost" id="m1-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m1-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m1-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">互斥锁（Mutex）保证临界区的互斥访问。线程执行 <code>lock()</code> 请求所有权：若锁空闲则获取并进入；若已被占用则阻塞于等待队列。<code>unlock()</code> 释放锁并唤醒一个等待者。</p>
+            <ul class="detail-list">
+              <li>思考（空闲）→ 请求 → 等待/持有</li>
+              <li>持有者执行临界区后释放，唤醒队首</li>
+              <li>竞争次数反映锁的争用程度</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">获取次数</div><div class="stat-val accent mono" id="m1-acq">0</div></div>
+          <div class="stat"><div class="stat-label">等待次数</div><div class="stat-val mono" id="m1-wait">0</div></div>
+          <div class="stat"><div class="stat-label">竞争次数</div><div class="stat-val red mono" id="m1-cont">0</div></div>
+          <div class="stat"><div class="stat-label">释放次数</div><div class="stat-val green mono" id="m1-rel">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 Producer-Consumer ============ -->
+  <section class="module" id="m2">
+    <div class="module-head">
+      <div class="kicker">02 — Producer / Consumer</div>
+      <h2 class="module-title">生产者消费者</h2>
+      <p class="module-desc">有界缓冲区上的经典同步问题。生产者在缓冲区满时阻塞，消费者在空时阻塞，通过信号量 empty/full 协调两者速率。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m2-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">有界缓冲区与信号量同步</span>
+            <span class="viz-status mono" id="m2-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m2-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m2-start">运行</button>
+              <button class="btn" id="m2-stop">暂停</button>
+              <button class="btn btn-ghost" id="m2-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>生产速率（项/秒）</span><span class="mono" id="m2-pr-v">1.0</span></div>
+                <input type="range" class="slider" id="m2-pr" min="0.2" max="4" step="0.1" value="1">
+              </div>
+              <div class="slider-wrap">
+                <div class="slider-label"><span>消费速率（项/秒）</span><span class="mono" id="m2-cr-v">1.0</span></div>
+                <input type="range" class="slider" id="m2-cr" min="0.2" max="4" step="0.1" value="1">
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>缓冲容量</span><span class="mono" id="m2-cap-v">6</span></div>
+                <input type="range" class="slider" id="m2-cap" min="3" max="10" step="1" value="6">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">使用三个信号量：<code>empty</code>（空槽位）、<code>full</code>（已填充）、<code>mutex</code>（缓冲区互斥）。生产者 P(empty)→P(mutex)→放入→V(mutex)→V(full)；消费者对称。</p>
+            <ul class="detail-list">
+              <li>满时生产者阻塞于 empty，空时消费者阻塞于 full</li>
+              <li>mutex 保护缓冲区数据一致性</li>
+              <li>速率失配导致一方持续阻塞</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">已生产</div><div class="stat-val green mono" id="m2-prod">0</div></div>
+          <div class="stat"><div class="stat-label">已消费</div><div class="stat-val blue mono" id="m2-cons">0</div></div>
+          <div class="stat"><div class="stat-label">阻塞（满）</div><div class="stat-val red mono" id="m2-rej">0</div></div>
+          <div class="stat"><div class="stat-label">缓冲填充</div><div class="stat-val accent mono" id="m2-fill">0%</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 Dining Philosophers ============ -->
+  <section class="module" id="m3">
+    <div class="module-head">
+      <div class="kicker">03 — Dining Philosophers</div>
+      <h2 class="module-title">哲学家就餐</h2>
+      <p class="module-desc">五位哲学家围坐圆桌，需同时拿起左右两把叉子才能进餐。朴素策略会引发死锁，资源分级与超时回退是两种经典解法。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m3-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">死锁场景与解决方案</span>
+            <span class="viz-status mono" id="m3-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 360 360" preserveAspectRatio="xMidYMid meet"><g id="m3-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m3-start">运行</button>
+              <button class="btn" id="m3-stop">暂停</button>
+              <button class="btn btn-ghost" id="m3-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <span style="font-size:12px;color:var(--muted)">策略</span>
+              <div class="seg" id="m3-mode">
+                <button data-m="naive" class="active">朴素</button>
+                <button data-m="hierarchy">资源分级</button>
+                <button data-m="timeout">超时回退</button>
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m3-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m3-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">朴素策略：每人先拿左叉再拿右叉，若同时拿左叉则循环等待——死锁。<b>资源分级</b>：始终先取编号较小的叉子，打破循环等待；<b>超时回退</b>：拿不到右叉则释放左叉并重试。</p>
+            <ul class="detail-list">
+              <li>死锁四条件：互斥、持有等待、不剥夺、循环等待</li>
+              <li>分级破坏循环等待，超时破坏持有等待</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">用餐次数</div><div class="stat-val green mono" id="m3-meals">0</div></div>
+          <div class="stat"><div class="stat-label">死锁次数</div><div class="stat-val red mono" id="m3-dl">0</div></div>
+          <div class="stat"><div class="stat-label">等待中</div><div class="stat-val mono" id="m3-wait">0</div></div>
+          <div class="stat"><div class="stat-label">状态</div><div class="stat-val accent mono" id="m3-state" style="font-size:13px">就绪</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 Reader-Writer ============ -->
+  <section class="module" id="m4">
+    <div class="module-head">
+      <div class="kicker">04 — Reader / Writer</div>
+      <h2 class="module-title">读者写者</h2>
+      <p class="module-desc">共享数据的读写锁：多读者可并发读，写者必须独占。读者优先可能饿死写者，写者优先则抑制新读者。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m4-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">读写锁与优先级策略</span>
+            <span class="viz-status mono" id="m4-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m4-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m4-start">运行</button>
+              <button class="btn" id="m4-stop">暂停</button>
+              <button class="btn btn-ghost" id="m4-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <span style="font-size:12px;color:var(--muted)">策略</span>
+              <div class="seg" id="m4-mode">
+                <button data-m="reader" class="active">读者优先</button>
+                <button data-m="writer">写者优先</button>
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m4-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m4-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">读写锁维护一个读计数与写标志。<b>读者优先</b>：读者无需等待其他读者，仅当有写者时阻塞——可能饿死写者。<b>写者优先</b>：只要有写者在等待，新读者必须阻塞——保证写者最终执行。</p>
+            <ul class="detail-list">
+              <li>读-读兼容，读-写/写-写互斥</li>
+              <li>优先级策略决定公平性与吞吐权衡</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">活跃读者</div><div class="stat-val blue mono" id="m4-ar">0</div></div>
+          <div class="stat"><div class="stat-label">活跃写者</div><div class="stat-val red mono" id="m4-aw">0</div></div>
+          <div class="stat"><div class="stat-label">等待写者</div><div class="stat-val mono" id="m4-ww">0</div></div>
+          <div class="stat"><div class="stat-label">完成次数</div><div class="stat-val green mono" id="m4-done">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 Deadlock Detection ============ -->
+  <section class="module" id="m5">
+    <div class="module-head">
+      <div class="kicker">05 — Deadlock Detection</div>
+      <h2 class="module-title">死锁检测</h2>
+      <p class="module-desc">资源分配图中，进程请求资源、资源分配给进程。通过等待图（wait-for graph）检测环——环中的进程即处于死锁状态。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m5-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">资源分配图与环检测</span>
+            <span class="viz-status mono" id="m5-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 340" preserveAspectRatio="xMidYMid meet"><g id="m5-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m5-gen">重新生成图</button>
+              <button class="btn" id="m5-detect">检测死锁</button>
+              <button class="btn btn-ghost" id="m5-step">单步推理</button>
+            </div>
+            <div class="ctrl-row">
+              <span style="font-size:12px;color:var(--muted)">资源数</span>
+              <div class="seg" id="m5-rn">
+                <button data-n="3">3</button>
+                <button data-n="4" class="active">4</button>
+                <button data-n="5">5</button>
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">单实例资源系统中，将"进程 P 请求被进程 Q 占有的资源"化简为等待边 P→Q。若等待图存在环，则环上进程死锁。算法通过 DFS 染色（白/灰/黑）发现回边即定位环。</p>
+            <ul class="detail-list">
+              <li>请求边：进程 → 资源（虚线）</li>
+              <li>分配边：资源 → 进程（实线）</li>
+              <li>等待图环 ⟺ 死锁</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">进程数</div><div class="stat-val mono" id="m5-pn">4</div></div>
+          <div class="stat"><div class="stat-label">资源数</div><div class="stat-val mono" id="m5-rnv">4</div></div>
+          <div class="stat"><div class="stat-label">死锁进程</div><div class="stat-val red mono" id="m5-cyc">0</div></div>
+          <div class="stat"><div class="stat-label">结论</div><div class="stat-val accent mono" id="m5-conc" style="font-size:13px">未检测</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 Semaphore ============ -->
+  <section class="module" id="m6">
+    <div class="module-head">
+      <div class="kicker">06 — Semaphore</div>
+      <h2 class="module-title">信号量</h2>
+      <p class="module-desc">计数信号量用整数控制资源许可数：P 操作减一，为零则阻塞；V 操作加一或唤醒一个等待者。二元信号量退化为互斥锁。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m6-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">计数/二元信号量与等待队列</span>
+            <span class="viz-status mono" id="m6-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m6-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m6-start">运行</button>
+              <button class="btn" id="m6-stop">暂停</button>
+              <button class="btn btn-ghost" id="m6-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <button class="btn" id="m6-p">P（wait）</button>
+              <button class="btn" id="m6-v">V（signal）</button>
+              <span style="font-size:12px;color:var(--muted)">类型</span>
+              <div class="seg" id="m6-mode">
+                <button data-m="count" class="active">计数</button>
+                <button data-m="binary">二元</button>
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>初始许可数</span><span class="mono" id="m6-init-v">3</span></div>
+                <input type="range" class="slider" id="m6-init" min="1" max="6" step="1" value="3">
+              </div>
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m6-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m6-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">信号量 S 是带等待队列的整数。<code>P(S)</code>：若 S&gt;0 则 S-- 否则阻塞入队；<code>V(S)</code>：若有等待者则唤醒一个，否则 S++。计数信号量可管理多实例资源，二元信号量取值 0/1 等价于互斥锁。</p>
+            <ul class="detail-list">
+              <li>P/V 是原子原语（通常由硬件或内核保证）</li>
+              <li>可用于同步（事件计数）与互斥</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">当前值</div><div class="stat-val accent mono" id="m6-val">3</div></div>
+          <div class="stat"><div class="stat-label">等待线程</div><div class="stat-val red mono" id="m6-waiters">0</div></div>
+          <div class="stat"><div class="stat-label">P 次数</div><div class="stat-val mono" id="m6-pc">0</div></div>
+          <div class="stat"><div class="stat-label">V 次数</div><div class="stat-val green mono" id="m6-vc">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 07 Monitor ============ -->
+  <section class="module" id="m7">
+    <div class="module-head">
+      <div class="kicker">07 — Monitor</div>
+      <h2 class="module-title">管程</h2>
+      <p class="module-desc">管程把共享数据与对其的操作封装在一起，内置互斥。条件变量配合 wait/signal 实现同步：满则生产者 wait，空则消费者 wait。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m7-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">条件变量与 wait/signal</span>
+            <span class="viz-status mono" id="m7-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m7-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m7-start">运行</button>
+              <button class="btn" id="m7-stop">暂停</button>
+              <button class="btn btn-ghost" id="m7-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <button class="btn" id="m7-prod">生产</button>
+              <button class="btn" id="m7-cons">消费</button>
+            </div>
+            <div class="ctrl-row">
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m7-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m7-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text">管程内同一时刻仅一个线程活跃。条件变量 cv 提供 <code>wait(cv)</code>（释放锁、阻塞）与 <code>signal(cv)</code>（唤醒一个等待者）。生产者-消费者用 <code>notFull</code>、<code>notEmpty</code> 两个条件变量协调。</p>
+            <ul class="detail-list">
+              <li>wait 自动释放管程锁并进入 cv 队列</li>
+              <li>signal 唤醒后唤醒者/被唤醒者之一继续</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">缓冲填充</div><div class="stat-val accent mono" id="m7-fill">0/5</div></div>
+          <div class="stat"><div class="stat-label">等待生产者</div><div class="stat-val red mono" id="m7-wp">0</div></div>
+          <div class="stat"><div class="stat-label">等待消费者</div><div class="stat-val blue mono" id="m7-wc">0</div></div>
+          <div class="stat"><div class="stat-label">完成次数</div><div class="stat-val green mono" id="m7-done">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 CAS ============ -->
+  <section class="module" id="m8">
+    <div class="module-head">
+      <div class="kicker">08 — CAS &amp; Lock-Free</div>
+      <h2 class="module-title">CAS 与无锁</h2>
+      <p class="module-desc">Compare-And-Swap 是无锁编程的硬件原语：比较内存值与预期，相等则写入新值。CAS 循环实现无锁计数器，但存在 ABA 问题。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card" id="m8-card">
+        <div class="viz-box">
+          <div class="viz-head">
+            <span class="viz-tag mono">VIZ</span>
+            <span class="viz-title">原子比较交换与 ABA 问题</span>
+            <span class="viz-status mono" id="m8-status">就绪</span>
+          </div>
+          <svg class="viz" viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet"><g id="m8-stage"></g></svg>
+        </div>
+        <div class="card-mid">
+          <div class="controls">
+            <div class="ctrl-row">
+              <button class="btn btn-primary" id="m8-start">运行</button>
+              <button class="btn" id="m8-stop">暂停</button>
+              <button class="btn btn-ghost" id="m8-reset">重置</button>
+            </div>
+            <div class="ctrl-row">
+              <span style="font-size:12px;color:var(--muted)">场景</span>
+              <div class="seg" id="m8-mode">
+                <button data-m="contention" class="active">CAS 竞争</button>
+                <button data-m="aba">ABA 演示</button>
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <label style="font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;cursor:pointer">
+                <input type="checkbox" id="m8-ver" style="accent-color:var(--accent)"> 版本号防护（解决 ABA）
+              </label>
+              <div class="slider-wrap">
+                <div class="slider-label"><span>模拟速度</span><span class="mono" id="m8-speed-v">1.00x</span></div>
+                <input type="range" class="slider" id="m8-speed" min="0.25" max="3" step="0.05" value="1">
+              </div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-title">原理说明</div>
+            <p class="detail-text"><code>CAS(addr, expected, new)</code> 原子地：若 *addr==expected 则 *addr=new 并返回成功，否则返回失败。ABA：值 A→B→A 后，CAS 误以为未变化而成功。引入版本号（tag）使每次写入版本递增即可检测。</p>
+            <ul class="detail-list">
+              <li>无锁计数器：循环重试直至 CAS 成功</li>
+              <li>ABA 危害：栈/链表的悬空指针复用</li>
+              <li>版本号 / hazard pointer / RCU 解决 ABA</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="stat-label">成功</div><div class="stat-val green mono" id="m8-succ">0</div></div>
+          <div class="stat"><div class="stat-label">失败/重试</div><div class="stat-val red mono" id="m8-fail">0</div></div>
+          <div class="stat"><div class="stat-label">ABA 事件</div><div class="stat-val accent mono" id="m8-aba">0</div></div>
+          <div class="stat"><div class="stat-label">当前值</div><div class="stat-val blue mono" id="m8-val">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <div>Concurrency Viz Lab · 单文件零依赖并发可视化实验室</div>
+    <div>
+      <a href="https://github.com/wangzifan396-wzf/concurrency-viz-lab" target="_blank" rel="noopener">GitHub Repo</a>
+      &nbsp;·&nbsp; MIT License
+    </div>
+  </footer>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ Constants & Helpers ============ */
+var NS='http://www.w3.org/2000/svg';
+var TC=['#fbbf24','#7c5cff','#34d399','#f472b6','#60a5fa','#f87171','#a78bfa','#fb923c'];
+var SC={think:'#62666d',idle:'#62666d',want:'#fbbf24',wait:'#fb923c',work:'#34d399',
+  hold:'#7c5cff',read:'#60a5fa',write:'#f87171',hungry:'#fb923c',eat:'#34d399',
+  acquire:'#34d399',ok:'#34d399',fail:'#f87171'};
+var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function svgEl(tag,attrs,parent){
+  var e=document.createElementNS(NS,tag);
+  if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]);
+  if(parent)parent.appendChild(e);
+  return e;
+}
+function clear(g){while(g.firstChild)g.removeChild(g.firstChild);}
+function rand(a,b){return a+Math.random()*(b-a);}
+function ri(a,b){return Math.floor(rand(a,b+1));}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function mono(el){el.style.fontFamily='var(--mono)';return el;}
+
+/* ============ Runner ============ */
+function makeRunner(update,render,onState){
+  var running=false,raf=null,last=0,acc=0,speed=1;
+  var STEP=0.05;
+  function loop(){
+    if(!running)return;
+    var now=performance.now();
+    var dt=(now-last)/1000; if(dt>0.25)dt=0.25; last=now;
+    acc+=dt*speed; var g=0;
+    while(acc>=STEP&&g<12){update(STEP);acc-=STEP;g++;}
+    render();
+    raf=requestAnimationFrame(loop);
+  }
+  return {
+    start:function(){if(running)return;running=true;last=performance.now();acc=0;loop();if(onState)onState(true);},
+    stop:function(){if(!running){if(onState)onState(false);return;}running=false;if(raf)cancelAnimationFrame(raf);raf=null;render();if(onState)onState(false);},
+    isRunning:function(){return running;},
+    setSpeed:function(s){speed=s;},
+    step:function(){update(STEP);render();},
+    render:function(){render();}
+  };
+}
+function bindRun(runner,ids,resetFn){
+  var start=ids.start?document.getElementById(ids.start):null;
+  var stop=ids.stop?document.getElementById(ids.stop):null;
+  var reset=ids.reset?document.getElementById(ids.reset):null;
+  var step=ids.step?document.getElementById(ids.step):null;
+  var card=ids.card?document.getElementById(ids.card):null;
+  var status=ids.status?document.getElementById(ids.status):null;
+  function sync(){
+    if(start)start.disabled=runner.isRunning();
+    if(stop)stop.disabled=!runner.isRunning();
+    if(card)card.classList.toggle('is-running',runner.isRunning());
+  }
+  if(start)start.addEventListener('click',function(){runner.start();if(status)status.textContent='运行中';sync();});
+  if(stop)stop.addEventListener('click',function(){runner.stop();if(status)status.textContent='已暂停';sync();});
+  if(reset)reset.addEventListener('click',function(){runner.stop();if(status)status.textContent='就绪';if(resetFn)resetFn();runner.render();sync();});
+  if(step)step.addEventListener('click',function(){runner.step();});
+  sync();
+}
+function wireSpeed(runner,sliderId,labelId){
+  var s=document.getElementById(sliderId);if(!s)return;
+  var l=labelId?document.getElementById(labelId):null;
+  s.addEventListener('input',function(){runner.setSpeed(parseFloat(s.value));if(l)l.textContent=parseFloat(s.value).toFixed(2)+'x';});
+}
+function seg(segId,onSelect){
+  var segEl=document.getElementById(segId);if(!segEl)return;
+  var btns=segEl.querySelectorAll('button');
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      btns.forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      onSelect(b.getAttribute('data-m')||b.getAttribute('data-n'));
+    });
+  });
+}
+
+/* ============ 01 Mutex ============ */
+function setupM1(){
+  var stage=document.getElementById('m1-stage');
+  var N=4;
+  var threads=[];for(var i=0;i<N;i++)threads.push({id:i,st:'think',t:rand(1,2.5),wd:0,wt:0,color:TC[i]});
+  var lockFree=true,holder=-1;
+  var stat={acq:0,wait:0,cont:0,rel:0};
+  var T=threads.map(function(t,i){
+    var y=58+i*54;
+    svgEl('rect',{x:40,y:y-22,width:560,height:44,rx:8,fill:'#101114',stroke:'rgba(255,255,255,.05)'},stage);
+    var c=svgEl('circle',{cx:74,cy:y,r:16,fill:'#62666d',stroke:'rgba(255,255,255,.18)','stroke-width':1.5},stage);
+    var lab=mono(svgEl('text',{x:74,y:y+4,'text-anchor':'middle','font-size':11,fill:'#08090a','font-weight':700},stage));lab.textContent='T'+i;
+    var st=mono(svgEl('text',{x:100,y:y+4,'font-size':11,fill:'#9b9fa8'},stage));
+    var bar=svgEl('rect',{x:170,y:y-6,width:200,height:12,rx:3,fill:'#16181c'},stage);
+    var fill_=svgEl('rect',{x:170,y:y-6,width:0,height:12,rx:3,fill:t.color},stage);
+    var pct=mono(svgEl('text',{x:380,y:y+4,'font-size':10,fill:'#62666d'},stage));
+    return {c:c,st:st,bar:fill_,pct:pct,y:y};
+  });
+  var lx=440,ly=24,lw=160,lh=252;
+  var lp=svgEl('rect',{x:lx,y:ly,width:lw,height:lh,rx:14,fill:'#16181c',stroke:'rgba(255,255,255,.14)','stroke-width':1.5},stage);
+  mono(svgEl('text',{x:lx+lw/2,y:ly+26,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='MUTEX';
+  var lState=mono(svgEl('text',{x:lx+lw/2,y:ly+66,'text-anchor':'middle','font-size':20,fill:'#34d399','font-weight':700},stage));
+  var lSub=mono(svgEl('text',{x:lx+lw/2,y:ly+90,'text-anchor':'middle','font-size':11,fill:'#9b9fa8'},stage));
+  var kh=svgEl('g',{transform:'translate('+(lx+lw/2)+','+(ly+150)+')'},stage);
+  var khRing=svgEl('circle',{cx:0,cy:-8,r:13,fill:'none',stroke:'#62666d','stroke-width':3},kh);
+  svgEl('rect',{x:-3.5,y:-8,width:7,height:24,rx:2,fill:'#62666d'},kh);
+  var hl=svgEl('line',{x1:0,y1:0,x2:0,y2:0,stroke:'#fbbf24','stroke-width':2,'stroke-dasharray':'4 4',opacity:0},stage);
+  var E={acq:document.getElementById('m1-acq'),wait:document.getElementById('m1-wait'),cont:document.getElementById('m1-cont'),rel:document.getElementById('m1-rel')};
+
+  function update(dt){
+    for(var i=0;i<N;i++){
+      var t=threads[i];t.t-=dt;
+      if(t.st==='think'){if(t.t<=0){t.st='want';t.t=0;}}
+      else if(t.st==='work'){if(t.t<=0){lockFree=true;holder=-1;t.st='think';t.t=rand(1,2.5);t.wd=0;stat.rel++;}}
+      else if(t.st==='wait'){t.wt+=dt;}
+    }
+    for(var j=0;j<N;j++){
+      var p=threads[j];
+      if((p.st==='wait'||p.st==='want')&&lockFree){
+        lockFree=false;holder=p.id;p.st='work';p.wd=rand(1.2,2.4);p.t=p.wd;p.wt=0;stat.acq++;
+      }else if(p.st==='want'&&!lockFree){
+        p.st='wait';p.wt=0;stat.wait++;stat.cont++;
+      }
+    }
+  }
+  function render(){
+    for(var i=0;i<N;i++){
+      var t=threads[i],e=T[i];
+      e.c.setAttribute('fill',SC[t.st]||'#62666d');
+      var lbl={think:'思考',want:'请求',wait:'等待',work:'持有'}[t.st];
+      e.st.textContent=lbl;
+      var w=0;
+      if(t.st==='work')w=200*clamp(1-t.t/(t.wd||1),0,1);
+      e.bar.setAttribute('width',w);
+      e.pct.textContent=t.st==='work'?Math.round((1-t.t/(t.wd||1))*100)+'%':(t.st==='wait'?'等待 '+t.wt.toFixed(1)+'s':'');
+    }
+    if(lockFree){lState.textContent='FREE';lState.setAttribute('fill','#34d399');lSub.textContent='无持有者';lp.setAttribute('stroke','rgba(255,255,255,.14)');khRing.setAttribute('stroke','#62666d');hl.setAttribute('opacity',0);}
+    else{var h=threads[holder];lState.textContent='HELD';lState.setAttribute('fill',h.color);lSub.textContent='by T'+holder;lp.setAttribute('stroke',h.color);khRing.setAttribute('stroke',h.color);
+      var hy=T[holder].y;hl.setAttribute('x1',90);hl.setAttribute('y1',hy);hl.setAttribute('x2',lx);hl.setAttribute('y2',hy);hl.setAttribute('stroke',h.color);hl.setAttribute('opacity',.55);}
+    E.acq.textContent=stat.acq;E.wait.textContent=stat.wait;E.cont.textContent=stat.cont;E.rel.textContent=stat.rel;
+  }
+  function reset(){for(var i=0;i<N;i++){threads[i].st='think';threads[i].t=rand(1,2.5);threads[i].wd=0;threads[i].wt=0;}lockFree=true;holder=-1;stat.acq=stat.wait=stat.cont=stat.rel=0;}
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m1-start',stop:'m1-stop',reset:'m1-reset',card:'m1-card',status:'m1-status'},reset);
+  wireSpeed(runner,'m1-speed','m1-speed-v');
+  render();
+}
+
+/* ============ 02 Producer-Consumer ============ */
+function setupM2(){
+  var stage=document.getElementById('m2-stage');
+  var cap=6,buf=[],items=[];
+  var prodT=0,consT=0,prodRate=1,consRate=1;
+  var stat={prod:0,cons:0,rej:0};
+  var pPulse=0,cPulse=0;
+  var slotG=svgEl('g',{},stage);
+  var bufG=svgEl('g',{},stage);
+  var itemG=svgEl('g',{},stage);
+  svgEl('rect',{x:24,y:110,width:80,height:70,rx:10,fill:'#101114',stroke:'rgba(255,255,255,.14)'},stage);
+  mono(svgEl('text',{x:64,y:100,'text-anchor':'middle','font-size':11,fill:'#34d399'},stage)).textContent='生产者';
+  var pDot=svgEl('circle',{cx:64,cy:145,r:11,fill:'#34d399'},stage);
+  svgEl('rect',{x:536,y:110,width:80,height:70,rx:10,fill:'#101114',stroke:'rgba(255,255,255,.14)'},stage);
+  mono(svgEl('text',{x:576,y:100,'text-anchor':'middle','font-size':11,fill:'#60a5fa'},stage)).textContent='消费者';
+  var cDot=svgEl('circle',{cx:576,cy:145,r:11,fill:'#60a5fa'},stage);
+  mono(svgEl('text',{x:320,y:62,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='BOUNDED BUFFER';
+  var semE=mono(svgEl('text',{x:120,y:230,'font-size':11,fill:'#9b9fa8'},stage));
+  var semF=mono(svgEl('text',{x:430,y:230,'font-size':11,fill:'#9b9fa8'},stage));
+  var E={prod:document.getElementById('m2-prod'),cons:document.getElementById('m2-cons'),rej:document.getElementById('m2-rej'),fill:document.getElementById('m2-fill')};
+
+  function slotW(){return 440/cap;}
+  function slotCx(i){return 130+i*slotW()+slotW()/2;}
+  function rebuild(){buf=new Array(cap).fill(null);clear(slotG);for(var i=0;i<cap;i++){var x=130+i*slotW();svgEl('rect',{x:x+2,y:118,width:slotW()-8,height:54,rx:6,fill:'#16181c',stroke:'rgba(255,255,255,.1)'},slotG);}}
+  rebuild();
+
+  function spawnItem(x0,y0,tx,ty,color,slot,kind){
+    var el=svgEl('circle',{cx:0,cy:0,r:9,fill:color,stroke:'rgba(0,0,0,.3)','stroke-width':1},itemG);
+    items.push({el:el,x:x0,y:y0,x0:x0,y0:y0,tx:tx,ty:ty,t:0,dur:0.5,color:color,slot:slot,kind:kind});
+  }
+  function update(dt){
+    prodT-=dt;consT-=dt;
+    if(prodT<=0){
+      prodT=1/prodRate;
+      var empty=-1;for(var i=0;i<cap;i++){if(buf[i]===null){empty=i;break;}}
+      if(empty>=0){var col=TC[ri(0,5)];spawnItem(64,145,slotCx(empty),145,col,empty,'p');pPulse=0.3;}
+      else stat.rej++;
+    }
+    if(consT<=0){
+      consT=1/consRate;
+      var full=-1;for(var j=0;j<cap;j++){if(buf[j]!==null){full=j;break;}}
+      if(full>=0){var c=buf[full];buf[full]=null;spawnItem(slotCx(full),145,576,145,c,full,'c');stat.cons++;cPulse=0.3;}
+    }
+    for(var k=items.length-1;k>=0;k--){
+      var it=items[k];it.t+=dt;var p=clamp(it.t/it.dur,0,1);
+      it.x=lerp(it.x0,it.tx,p);it.y=lerp(it.y0,it.ty,p);
+      it.el.setAttribute('transform','translate('+it.x+','+it.y+')');
+      if(p>=1){it.el.remove();items.splice(k,1);if(it.kind==='p'){buf[it.slot]=it.color;stat.prod++;}}
+    }
+    if(pPulse>0)pPulse-=dt;if(cPulse>0)cPulse-=dt;
+  }
+  function render(){
+    clear(bufG);
+    for(var i=0;i<cap;i++){if(buf[i]!==null){svgEl('circle',{cx:slotCx(i),cy:145,r:11,fill:buf[i],stroke:'rgba(0,0,0,.3)','stroke-width':1},bufG);}}
+    var filled=0;for(var j2=0;j2<cap;j2++)if(buf[j2]!==null)filled++;
+    pDot.setAttribute('r',11+(pPulse>0?5:0));cDot.setAttribute('r',11+(cPulse>0?5:0));
+    semE.textContent='empty = '+(cap-filled);semF.textContent='full = '+filled;
+    E.prod.textContent=stat.prod;E.cons.textContent=stat.cons;E.rej.textContent=stat.rej;
+    E.fill.textContent=Math.round(filled/cap*100)+'%';
+  }
+  function reset(){buf=new Array(cap).fill(null);items.forEach(function(it){it.el.remove();});items=[];stat.prod=stat.cons=stat.rej=0;prodT=consT=0;}
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m2-start',stop:'m2-stop',reset:'m2-reset',card:'m2-card',status:'m2-status'},reset);
+  wireSpeed(runner,'m2-speed','m2-speed-v');
+  var pr=document.getElementById('m2-pr'),cr=document.getElementById('m2-cr'),capEl=document.getElementById('m2-cap');
+  pr.addEventListener('input',function(){prodRate=parseFloat(pr.value);document.getElementById('m2-pr-v').textContent=prodRate.toFixed(1);});
+  cr.addEventListener('input',function(){consRate=parseFloat(cr.value);document.getElementById('m2-cr-v').textContent=consRate.toFixed(1);});
+  capEl.addEventListener('input',function(){cap=parseInt(capEl.value);document.getElementById('m2-cap-v').textContent=cap;rebuild();reset();runner.render();});
+  render();
+}
+
+/* ============ 03 Dining Philosophers ============ */
+function setupM3(){
+  var stage=document.getElementById('m3-stage');
+  var N=5;
+  var cx=180,cy=180;
+  var ph=[],forks=new Array(N).fill(-1);
+  for(var i=0;i<N;i++)ph.push({id:i,st:'think',t:rand(1,2.5),firstGot:false,tryT:0});
+  var mode='naive';
+  var stat={meals:0,deadlocks:0};
+  var stuckT=0,dlFlag=false;
+  var pos=[];for(var j=0;j<N;j++){var a=(-90+j*72)*Math.PI/180;pos.push({x:cx+130*Math.cos(a),y:cy+130*Math.sin(a),a:a});}
+  var forkPos=[];for(var k=0;k<N;k++){var ma=(-90+k*72+36)*Math.PI/180;forkPos.push({x:cx+100*Math.cos(ma),y:cy+100*Math.sin(ma),a:ma});}
+  var pEls=ph.map(function(p,i){
+    var c=svgEl('circle',{cx:pos[i].x,cy:pos[i].y,r:24,fill:'#62666d',stroke:'rgba(255,255,255,.18)','stroke-width':1.5},stage);
+    var l=mono(svgEl('text',{x:pos[i].x,y:pos[i].y+4,'text-anchor':'middle','font-size':12,fill:'#08090a','font-weight':700},stage));l.textContent='P'+i;
+    var st=mono(svgEl('text',{x:pos[i].x,y:pos[i].y+42,'text-anchor':'middle','font-size':10,fill:'#9b9fa8'},stage));
+    return {c:c,st:st};
+  });
+  var fEls=forkPos.map(function(f){
+    var g=svgEl('g',{transform:'translate('+f.x+','+f.y+') rotate('+(f.a*180/Math.PI+90)+')'},stage);
+    var r=svgEl('rect',{x:-2.5,y:-12,width:5,height:24,rx:2,fill:'#3a3e45'},g);
+    return r;
+  });
+  svgEl('circle',{cx:cx,cy:cy,r:62,fill:'none',stroke:'rgba(255,255,255,.06)','stroke-width':1},stage);
+  mono(svgEl('text',{x:cx,y:cy-4,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'1px'},stage)).textContent='TABLE';
+  var E={meals:document.getElementById('m3-meals'),dl:document.getElementById('m3-dl'),wait:document.getElementById('m3-wait'),state:document.getElementById('m3-state')};
+
+  function forksFor(i){var a=i,b=(i-1+N)%N;if(mode==='hierarchy'){return a<b?[a,b]:[b,a];}return [i,(i-1+N)%N];}
+  function release(i){var fr=forksFor(i);forks[fr[0]]=-1;forks[fr[1]]=-1;ph[i].firstGot=false;}
+  function update(dt){
+    var anyActive=false;
+    for(var i=0;i<N;i++){
+      var p=ph[i];p.t-=dt;
+      if(p.st==='think'){if(p.t<=0){p.st='hungry';p.firstGot=false;p.tryT=0;}}
+      else if(p.st==='hungry'){
+        var fr=forksFor(i);
+        if(!p.firstGot){
+          if(forks[fr[0]]===-1){forks[fr[0]]=i;p.firstGot=true;p.tryT=0;anyActive=true;}
+        }else{
+          if(forks[fr[1]]===-1){forks[fr[1]]=i;p.st='eat';p.t=rand(1.5,3);anyActive=true;}
+          else{p.tryT+=dt;if(mode==='timeout'&&p.tryT>1.8){forks[fr[0]]=-1;p.firstGot=false;p.t=rand(0.4,1.2);anyActive=true;}}
+        }
+      }else if(p.st==='eat'){if(p.t<=0){release(i);p.st='think';p.t=rand(1,2.5);stat.meals++;anyActive=true;}}
+    }
+    if(anyActive)stuckT=0;else stuckT+=dt;
+    if(mode==='naive'&&!dlFlag&&stuckT>3){
+      var allHungry=true;for(var m=0;m<N;m++){if(ph[m].st!=='hungry'||!ph[m].firstGot){allHungry=false;break;}}
+      var allHeld=true;for(var n=0;n<N;n++){if(forks[n]===-1){allHeld=false;break;}}
+      if(allHungry&&allHeld){stat.deadlocks++;dlFlag=true;}
+    }
+  }
+  function render(){
+    var waiting=0;
+    for(var i=0;i<N;i++){
+      var p=ph[i];
+      pEls[i].c.setAttribute('fill',SC[p.st]||'#62666d');
+      pEls[i].st.textContent={think:'思考',hungry:'饥饿',eat:'进餐'}[p.st];
+      if(p.st==='hungry')waiting++;
+    }
+    for(var f=0;f<N;f++){fEls[f].setAttribute('fill',forks[f]===-1?'#3a3e45':TC[forks[f]]);}
+    E.meals.textContent=stat.meals;E.dl.textContent=stat.deadlocks;E.wait.textContent=waiting;
+    if(dlFlag)E.state.textContent='死锁!';else E.state.textContent=runner&&runner.isRunning()?'运行中':'就绪';
+  }
+  function reset(){for(var i=0;i<N;i++){ph[i].st='think';ph[i].t=rand(1,2.5);ph[i].firstGot=false;ph[i].tryT=0;}forks=new Array(N).fill(-1);stat.meals=0;stat.deadlocks=0;stuckT=0;dlFlag=false;}
+  var runner=makeRunner(update,render,function(r){if(!r&&E.state)E.state.textContent='已暂停';});
+  bindRun(runner,{start:'m3-start',stop:'m3-stop',reset:'m3-reset',card:'m3-card',status:'m3-status'},reset);
+  wireSpeed(runner,'m3-speed','m3-speed-v');
+  seg('m3-mode',function(m){mode=m;reset();runner.render();});
+  render();
+}
+
+/* ============ 04 Reader-Writer ============ */
+function setupM4(){
+  var stage=document.getElementById('m4-stage');
+  var mode='reader';
+  var threads=[
+    {kind:'r',st:'think',t:rand(.5,2)},{kind:'r',st:'think',t:rand(.5,2)},{kind:'r',st:'think',t:rand(.5,2)},{kind:'r',st:'think',t:rand(.5,2)},
+    {kind:'w',st:'think',t:rand(.8,2.5)},{kind:'w',st:'think',t:rand(.8,2.5)},{kind:'w',st:'think',t:rand(.8,2.5)}
+  ];
+  var activeR=0,activeW=0,done=0;
+  var rx=250,ry=70,rw=140,rh=150;
+  svgEl('rect',{x:rx,y:ry,width:rw,height:rh,rx:12,fill:'#101114',stroke:'rgba(255,255,255,.14)','stroke-width':1.5},stage);
+  mono(svgEl('text',{x:rx+rw/2,y:ry+22,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='SHARED DATA';
+  var resVal=mono(svgEl('text',{x:rx+rw/2,y:ry+rh/2+8,'text-anchor':'middle','font-size':22,fill:'#fbbf24','font-weight':700},stage));resVal.textContent='42';
+  var arTxt=mono(svgEl('text',{x:rx+rw/2,y:ry+rh-14,'text-anchor':'middle','font-size':11,fill:'#60a5fa'},stage));
+  mono(svgEl('text',{x:50,y:50,'font-size':10,fill:'#62666d','letter-spacing':'1px'},stage)).textContent='等待队列';
+  var qG=svgEl('g',{},stage);
+  var actG=svgEl('g',{},stage);
+  var E={ar:document.getElementById('m4-ar'),aw:document.getElementById('m4-aw'),ww:document.getElementById('m4-ww'),done:document.getElementById('m4-done')};
+
+  function counts(){var ar=0,aw=0,wr=0,ww=0;for(var i=0;i<threads.length;i++){var t=threads[i];if(t.st==='read')ar++;else if(t.st==='write')aw++;else if(t.st==='wread')wr++;else if(t.st==='wwrite')ww++;}return{ar:ar,aw:aw,wr:wr,ww:ww};}
+
+  function update(dt){
+    for(var i=0;i<threads.length;i++){
+      var t=threads[i];t.t-=dt;
+      if(t.st==='think'){if(t.t<=0){t.st=t.kind==='r'?'wread':'wwrite';t.t=0;}}
+      else if(t.st==='wread'){if(activeW===0&&(mode==='reader'||counts().ww===0)){activeR++;t.st='read';t.t=rand(1,2.5);}}
+      else if(t.st==='wwrite'){if(activeR===0&&activeW===0){activeW++;t.st='write';t.t=rand(1.2,2.5);}}
+      else if(t.st==='read'){if(t.t<=0){activeR--;t.st='think';t.t=rand(.5,2);done++;}}
+      else if(t.st==='write'){if(t.t<=0){activeW--;t.st='think';t.t=rand(.8,2.5);done++;}}
+    }
+    // promote waiters
+    if(activeR===0&&activeW===0){
+      for(var j=0;j<threads.length;j++){if(threads[j].kind==='w'&&threads[j].st==='wwrite'){activeW++;threads[j].st='write';threads[j].t=rand(1.2,2.5);break;}}
+    }
+    if(activeW===0){
+      for(var k=0;k<threads.length;k++){if(threads[k].kind==='r'&&threads[k].st==='wread'){activeR++;threads[k].st='read';threads[k].t=rand(1,2.5);}}
+    }
+  }
+  function render(){
+    clear(qG);clear(actG);
+    var c=counts();
+    // waiting queue on left
+    var qi=0;for(var i=0;i<threads.length;i++){var t=threads[i];if(t.st==='wread'||t.st==='wwrite'){var col=t.kind==='r'?'#60a5fa':'#f87171';svgEl('circle',{cx:50,cy:80+qi*26,r:9,fill:'none',stroke:col,'stroke-width':2},qG);qi++;}}
+    // active inside resource
+    var ai=0;for(var i2=0;i2<threads.length;i2++){var t2=threads[i2];if(t2.st==='read'){svgEl('circle',{cx:rx+22+ai*22,cy:ry+rh-40,r:9,fill:'#60a5fa'},actG);ai++;}else if(t2.st==='write'){svgEl('circle',{cx:rx+rw/2,cy:ry+rh/2-18,r:11,fill:'#f87171',stroke:'#fff','stroke-width':1},actG);}}
+    arTxt.textContent=c.ar>0?'× '+c.ar+' 读取':'';
+    E.ar.textContent=c.ar;E.aw.textContent=c.aw;E.ww.textContent=c.ww;E.done.textContent=done;
+  }
+  function reset(){activeR=0;activeW=0;done=0;for(var i=0;i<threads.length;i++){threads[i].st='think';threads[i].t=rand(.5,2);}clear(qG);clear(actG);}
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m4-start',stop:'m4-stop',reset:'m4-reset',card:'m4-card',status:'m4-status'},reset);
+  wireSpeed(runner,'m4-speed','m4-speed-v');
+  seg('m4-mode',function(m){mode=m;});
+  render();
+}
+
+/* ============ 05 Deadlock Detection ============ */
+function setupM5(){
+  var stage=document.getElementById('m5-stage');
+  var NP=4,NR=4;
+  var alloc=[],req=[],inCycle=[],wfEdges=[];
+  var detected=false,stepMode=false,stepIdx=0;
+  var edgeG=svgEl('g',{},stage);
+  var nodeG=svgEl('g',{},stage);
+  var wfG=svgEl('g',{},stage);
+  var E={pn:document.getElementById('m5-pn'),rn:document.getElementById('m5-rnv'),cyc:document.getElementById('m5-cyc'),conc:document.getElementById('m5-conc')};
+  var status=document.getElementById('m5-status');
+
+  function pPos(i){return{x:110,y:50+i*70};}
+  function rPos(i){return{x:530,y:50+i*70};}
+
+  function gen(){
+    alloc=[];req=[];inCycle=[];wfEdges=[];detected=false;stepMode=false;stepIdx=0;
+    for(var i=0;i<NR;i++)alloc[i]=ri(0,NP-1);
+    for(var j=0;j<NP;j++){var r=ri(0,NR-1);req[j]=r;}
+    // build wait-for
+    var wf=[];for(var k=0;k<NP;k++){wf[k]=(req[k]!==-1&&alloc[req[k]]!==undefined)?alloc[req[k]]:-1;}
+    // detect cycles
+    inCycle=findCycles(NP,wf);
+    wfEdges=wf;
+    status.textContent='已生成';
+    render();
+  }
+  function findCycles(n,adj){
+    var color=[],stack=[],inc=[];for(var i=0;i<n;i++){color[i]=0;inc[i]=false;}
+    function dfs(u){color[u]=1;stack.push(u);var v=adj[u];if(v!==-1){if(color[v]===1){var idx=stack.indexOf(v);for(var k=idx;k<stack.length;k++)inc[stack[k]]=true;}else if(color[v]===0)dfs(v);}color[u]=2;stack.pop();}
+    for(var i2=0;i2<n;i2++)if(color[i2]===0)dfs(i2);
+    return inc;
+  }
+  function detect(){
+    detected=true;stepMode=false;
+    var cnt=0;for(var i=0;i<NP;i++)if(inCycle[i])cnt++;
+    E.cyc.textContent=cnt;
+    status.textContent=cnt>0?'检测到死锁':'无死锁';
+    render();
+  }
+  function step(){
+    stepMode=true;detected=true;
+    stepIdx=(stepIdx+1)%(NP+1);
+    if(stepIdx===0){status.textContent='推理完成';}
+    else{status.textContent='考察 P'+(stepIdx-1)+' 的等待';}
+    render();
+  }
+  function render(){
+    clear(edgeG);clear(nodeG);clear(wfG);
+    // edges
+    for(var i=0;i<NP;i++){
+      var p=pPos(i);
+      // request edge p->r
+      var rr=rPos(req[i]);
+      var cyc=inCycle[i]&&detected;
+      svgEl('line',{x1:p.x+22,y1:p.y,x2:rr.x-18,y2:rr.y,stroke:cyc?'#f87171':'rgba(251,191,36,.45)','stroke-width':cyc?2.4:1.4,'stroke-dasharray':'5 4'},edgeG);
+      // alloc edge r->p
+      var pa=pPos(alloc[req[i]]);
+      svgEl('line',{x1:rr.x-18,y1:rr.y,x2:pa.x+22,y2:pa.y,stroke:detected&&inCycle[alloc[req[i]]]?'#f87171':'rgba(52,211,153,.5)','stroke-width':detected&&inCycle[alloc[req[i]]]?2.4:1.4},edgeG);
+    }
+    // wait-for arrows (curved) on cycle
+    if(detected){
+      for(var j=0;j<NP;j++){
+        if(inCycle[j]&&wfEdges[j]!==-1&&inCycle[wfEdges[j]]){
+          var a=pPos(j),b=pPos(wfEdges[j]);
+          var mx=(a.x+b.x)/2-60;
+          var path='M'+(a.x+22)+','+a.y+' Q'+mx+','+((a.y+b.y)/2)+' '+(b.x+22)+','+b.y;
+          svgEl('path',{d:path,fill:'none',stroke:'#f87171','stroke-width':2.2,opacity:.8,'stroke-dasharray':'2 3'},wfG);
+        }
+      }
+    }
+    // nodes
+    for(var i2=0;i2<NP;i2++){
+      var pp=pPos(i2);var h=inCycle[i2]&&detected;
+      var c=svgEl('circle',{cx:pp.x,cy:pp.y,r:22,fill:h?'rgba(248,113,113,.16)':'#101114',stroke:h?'#f87171':'rgba(255,255,255,.22)','stroke-width':h?2.2:1.5},nodeG);
+      var l=mono(svgEl('text',{x:pp.x,y:pp.y+4,'text-anchor':'middle','font-size':12,fill:h?'#f87171':'#f7f8f8','font-weight':700},nodeG));l.textContent='P'+i2;
+      if(stepMode&&stepIdx>0&&stepIdx-1===i2){svgEl('circle',{cx:pp.x,cy:pp.y,r:28,fill:'none',stroke:'#fbbf24','stroke-width':1.5,'stroke-dasharray':'3 3'},nodeG);}
+    }
+    for(var j2=0;j2<NR;j2++){
+      var rp=rPos(j2);
+      svgEl('rect',{x:rp.x-18,y:rp.y-16,width:36,height:32,rx:5,fill:'#16181c',stroke:'rgba(124,92,255,.5)','stroke-width':1.5},nodeG);
+      var rl=mono(svgEl('text',{x:rp.x,y:rp.y+4,'text-anchor':'middle','font-size':11,fill:'#7c5cff','font-weight':700},nodeG));rl.textContent='R'+j2;
+    }
+    E.pn.textContent=NP;E.rn.textContent=NR;
+    if(!detected){E.cyc.textContent='—';E.conc.textContent='未检测';}
+    else{var cnt=0;for(var m=0;m<NP;m++)if(inCycle[m])cnt++;E.cyc.textContent=cnt;E.conc.textContent=cnt>0?'存在死锁':'无死锁';E.conc.style.color=cnt>0?'var(--red)':'var(--green)';}
+  }
+  document.getElementById('m5-gen').addEventListener('click',gen);
+  document.getElementById('m5-detect').addEventListener('click',detect);
+  document.getElementById('m5-step').addEventListener('click',step);
+  seg('m5-rn',function(n){NR=parseInt(n);gen();});
+  gen();
+}
+
+/* ============ 06 Semaphore ============ */
+function setupM6(){
+  var stage=document.getElementById('m6-stage');
+  var initVal=3,value=3,mode='count';
+  var waiters=[]; // {id,el}
+  var stat={pc:0,vc:0};
+  var nextId=0;
+  var autoT=0;
+  // value box
+  var vx=320,vy=70;
+  svgEl('rect',{x:vx-70,y:vy-10,width:140,height:90,rx:12,fill:'#101114',stroke:'rgba(255,255,255,.14)','stroke-width':1.5},stage);
+  mono(svgEl('text',{x:vx,y:vy+14,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='SEMAPHORE';
+  var valTxt=mono(svgEl('text',{x:vx,y:vy+62,'text-anchor':'middle','font-size':34,fill:'#fbbf24','font-weight':700},stage));
+  // permits bar
+  var permBar=svgEl('rect',{x:vx-60,y:vy+86,width:120,height:6,rx:3,fill:'#16181c'},stage);
+  // waiter queue
+  mono(svgEl('text',{x:70,y:50,'font-size':10,fill:'#62666d','letter-spacing':'1px'},stage)).textContent='等待队列 (P 阻塞)';
+  var qG=svgEl('g',{},stage);
+  // working threads (passed P)
+  mono(svgEl('text',{x:520,y:50,'font-size':10,fill:'#62666d','letter-spacing':'1px'},stage)).textContent='已通过 (临界区)';
+  var wG=svgEl('g',{},stage);
+  var workers=[]; // {id,el,t,dur}
+  var E={val:document.getElementById('m6-val'),waiters:document.getElementById('m6-waiters'),pc:document.getElementById('m6-pc'),vc:document.getElementById('m6-vc')};
+
+  function P(){
+    stat.pc++;
+    if(value>0){value--;spawnWorker();}
+    else{waiters.push({id:nextId++});}
+  }
+  function V(){
+    stat.vc++;
+    if(waiters.length>0){waiters.shift();spawnWorker();}
+    else if(value<(mode==='binary'?1:initVal)){value++;}
+  }
+  function spawnWorker(){workers.push({id:nextId++,t:rand(1.2,2.5),dur:0});var last=workers[workers.length-1];last.dur=rand(1.2,2.5);last.t=last.dur;}
+  function update(dt){
+    autoT-=dt;
+    if(autoT<=0){autoT=rand(0.6,1.4);P();}
+    // workers finish -> V
+    for(var i=workers.length-1;i>=0;i--){workers[i].t-=dt;if(workers[i].t<=0){workers.splice(i,1);V();}}
+  }
+  function render(){
+    valTxt.textContent=value;valTxt.setAttribute('fill',value>0?'#fbbf24':'#f87171');
+    var max=mode==='binary'?1:initVal;permBar.setAttribute('width',120*clamp(value/Math.max(1,max),0,1));permBar.setAttribute('fill',value>0?'#fbbf24':'#f87171');
+    clear(qG);
+    for(var i=0;i<waiters.length;i++){svgEl('circle',{cx:70+i*24,cy:80,r:9,fill:'#fb923c',stroke:'rgba(0,0,0,.3)'},qG);mono(svgEl('text',{x:70+i*24,y:84,'text-anchor':'middle','font-size':9,fill:'#08090a','font-weight':700},qG)).textContent=waiters[i].id;}
+    clear(wG);
+    for(var j=0;j<workers.length;j++){svgEl('circle',{cx:520+j*24,cy:80,r:9,fill:'#34d399',stroke:'rgba(0,0,0,.3)'},wG);mono(svgEl('text',{x:520+j*24,y:84,'text-anchor':'middle','font-size':9,fill:'#08090a','font-weight':700},wG)).textContent=workers[j].id;}
+    E.val.textContent=value;E.waiters.textContent=waiters.length;E.pc.textContent=stat.pc;E.vc.textContent=stat.vc;
+  }
+  function reset(){value=mode==='binary'?1:initVal;waiters=[];workers=[];stat.pc=stat.vc=0;autoT=0;}
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m6-start',stop:'m6-stop',reset:'m6-reset',card:'m6-card',status:'m6-status'},reset);
+  wireSpeed(runner,'m6-speed','m6-speed-v');
+  document.getElementById('m6-p').addEventListener('click',function(){P();runner.render();});
+  document.getElementById('m6-v').addEventListener('click',function(){V();runner.render();});
+  var initEl=document.getElementById('m6-init');
+  initEl.addEventListener('input',function(){initVal=parseInt(initEl.value);document.getElementById('m6-init-v').textContent=initVal;reset();runner.render();});
+  seg('m6-mode',function(m){mode=m;reset();runner.render();});
+  reset();render();
+}
+
+/* ============ 07 Monitor ============ */
+function setupM7(){
+  var stage=document.getElementById('m7-stage');
+  var cap=5,buf=[],notFullQ=[],notEmptyQ=[];
+  var prodT=0,consT=0;
+  var stat={prod:0,cons:0};
+  var lockBusy=false,lockFlash=0;
+  // monitor box
+  var mx=150,my=60,mw=340,mh=160;
+  svgEl('rect',{x:mx,y:my,width:mw,height:mh,rx:12,fill:'#101114',stroke:'rgba(255,255,255,.14)','stroke-width':1.5},stage);
+  mono(svgEl('text',{x:mx+mw/2,y:my+20,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='MONITOR (mutex)';
+  // buffer slots
+  var slotG=svgEl('g',{},stage);
+  // lock indicator
+  var lockCircle=svgEl('circle',{cx:mx+mw-22,cy:my+22,r:9,fill:'#34d399'},stage);
+  // CV boxes
+  svgEl('rect',{x:20,y:230,width:140,height:60,rx:8,fill:'#101114',stroke:'rgba(248,113,113,.3)'},stage);
+  mono(svgEl('text',{x:90,y:250,'text-anchor':'middle','font-size':10,fill:'#f87171'},stage)).textContent='cv: notFull';
+  var nfG=svgEl('g',{},stage);
+  svgEl('rect',{x:480,y:230,width:140,height:60,rx:8,fill:'#101114',stroke:'rgba(96,165,250,.3)'},stage);
+  mono(svgEl('text',{x:550,y:250,'text-anchor':'middle','font-size':10,fill:'#60a5fa'},stage)).textContent='cv: notEmpty';
+  var neG=svgEl('g',{},stage);
+  var E={fill:document.getElementById('m7-fill'),wp:document.getElementById('m7-wp'),wc:document.getElementById('m7-wc'),done:document.getElementById('m7-done')};
+
+  function rebuild(){buf=new Array(cap).fill(null);clear(slotG);for(var i=0;i<cap;i++){var x=mx+18+i*((mw-36)/cap);svgEl('rect',{x:x,y:my+70,width:((mw-36)/cap)-6,height:50,rx:5,fill:'#16181c',stroke:'rgba(255,255,255,.1)'},slotG);}}
+  rebuild();
+  function slotCx(i){return mx+18+i*((mw-36)/cap)+(((mw-36)/cap)-6)/2;}
+
+  function produce(){
+    lockBusy=true;lockFlash=0.25;
+    if(buf.length<cap){buf.push(TC[ri(0,5)]);stat.prod++;if(notEmptyQ.length){notEmptyQ.shift();stat.cons++;}}
+    else{notFullQ.push({});}
+    lockBusy=false;
+  }
+  function consume(){
+    lockBusy=true;lockFlash=0.25;
+    if(buf.length>0){buf.shift();stat.cons++;if(notFullQ.length){notFullQ.shift();stat.prod++;buf.push(TC[ri(0,5)]);}}
+    else{notEmptyQ.push({});}
+    lockBusy=false;
+  }
+  function update(dt){
+    prodT-=dt;consT-=dt;
+    if(prodT<=0){prodT=rand(0.7,1.6);produce();}
+    if(consT<=0){consT=rand(0.7,1.6);consume();}
+    if(lockFlash>0)lockFlash-=dt;
+  }
+  function render(){
+    clear(slotG);for(var i2=0;i2<cap;i2++){var x=mx+18+i2*((mw-36)/cap);svgEl('rect',{x:x,y:my+70,width:((mw-36)/cap)-6,height:50,rx:5,fill:'#16181c',stroke:'rgba(255,255,255,.1)'},slotG);if(i2<buf.length){svgEl('circle',{cx:slotCx(i2),cy:my+95,r:11,fill:buf[i2],stroke:'rgba(0,0,0,.3)'},slotG);}}
+    lockCircle.setAttribute('fill',lockBusy||lockFlash>0?'#fbbf24':'#34d399');
+    clear(nfG);for(var j=0;j<notFullQ.length;j++){svgEl('circle',{cx:40+j*20,cy:275,r:8,fill:'#f87171'},nfG);}
+    clear(neG);for(var k=0;k<notEmptyQ.length;k++){svgEl('circle',{cx:500+k*20,cy:275,r:8,fill:'#60a5fa'},neG);}
+    E.fill.textContent=buf.length+'/'+cap;E.wp.textContent=notFullQ.length;E.wc.textContent=notEmptyQ.length;E.done.textContent=stat.prod+stat.cons;
+  }
+  function reset(){buf=[];notFullQ=[];notEmptyQ=[];stat.prod=stat.cons=0;prodT=consT=0;rebuild();}
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m7-start',stop:'m7-stop',reset:'m7-reset',card:'m7-card',status:'m7-status'},reset);
+  wireSpeed(runner,'m7-speed','m7-speed-v');
+  document.getElementById('m7-prod').addEventListener('click',function(){produce();runner.render();});
+  document.getElementById('m7-cons').addEventListener('click',function(){consume();runner.render();});
+  render();
+}
+
+/* ============ 08 CAS ============ */
+function setupM8(){
+  var stage=document.getElementById('m8-stage');
+  var mode='contention',versioning=false;
+  var mem={val:0,tag:0};
+  var stat={succ:0,fail:0,aba:0};
+  // memory cell
+  var cellX=260,cellY=90;
+  svgEl('rect',{x:cellX,y:cellY,width:120,height:90,rx:10,fill:'#101114',stroke:'rgba(255,255,255,.14)','stroke-width':1.5},stage);
+  mono(svgEl('text',{x:cellX+60,y:cellY+18,'text-anchor':'middle','font-size':10,fill:'#62666d','letter-spacing':'2px'},stage)).textContent='MEMORY';
+  var valTxt=mono(svgEl('text',{x:cellX+60,y:cellY+58,'text-anchor':'middle','font-size':26,fill:'#fbbf24','font-weight':700},stage));
+  var tagTxt=mono(svgEl('text',{x:cellX+60,y:cellY+80,'text-anchor':'middle','font-size':10,fill:'#7c5cff'},stage));
+  // threads (contention)
+  var threads=[
+    {id:0,st:'read',t:0,exp:0,expTag:0,color:TC[0]},
+    {id:1,st:'read',t:0,exp:0,expTag:0,color:TC[1]},
+    {id:2,st:'read',t:0,exp:0,expTag:0,color:TC[2]}
+  ];
+  var tEls=threads.map(function(t,i){
+    var cy=90+i*55;
+    var c=svgEl('circle',{cx:90,cy:cy,r:15,fill:'#62666d',stroke:'rgba(255,255,255,.18)','stroke-width':1.5},stage);
+    var l=mono(svgEl('text',{x:90,y:cy+4,'text-anchor':'middle','font-size':10,fill:'#08090a','font-weight':700},stage));l.textContent='T'+i;
+    return {c:c,l:l,cy:cy};
+  });
+  var stTxt=mono(svgEl('text',{x:140,y:94,'font-size':11,fill:'#9b9fa8'},stage));
+  // ABA narration
+  var abaStep=0,abaT=0;
+  var abaLog=mono(svgEl('text',{x:430,y:120,'font-size':11,fill:'#9b9fa8'},stage));
+  var E={succ:document.getElementById('m8-succ'),fail:document.getElementById('m8-fail'),aba:document.getElementById('m8-aba'),val:document.getElementById('m8-val')};
+
+  function contentionUpdate(dt){
+    for(var i=0;i<threads.length;i++){
+      var t=threads[i];t.t-=dt;
+      if(t.st==='read'){t.exp=mem.val;t.expTag=mem.tag;t.st='cas';t.t=rand(0.3,0.8);}
+      else if(t.st==='cas'){
+        if(t.t>0)return;
+        if(mem.val===t.exp&&(!versioning||mem.tag===t.expTag)){
+          mem.val=t.exp+1;mem.tag++;stat.succ++;t.st='read';t.t=rand(0.4,1);
+        }else{stat.fail++;t.st='read';t.t=rand(0.1,0.3);}
+      }
+    }
+  }
+  function abaUpdate(dt){
+    abaT-=dt;
+    if(abaT>0)return;
+    abaT=1.1;
+    if(abaStep===0){mem.val='A';mem.tag=0;abaLog.textContent='T0 读取 A (tag 0)，欲 CAS(A→C)';threads[0].st='cas';}
+    else if(abaStep===1){mem.val='B';mem.tag=1;abaLog.textContent='T1 CAS(A→B) 成功';stat.succ++;}
+    else if(abaStep===2){mem.val='A';mem.tag=2;abaLog.textContent='T2 CAS(B→A) 成功（A 复现）';stat.succ++;}
+    else if(abaStep===3){
+      if(!versioning){
+        if(mem.val==='A'){mem.val='C';mem.tag++;abaLog.textContent='T0 CAS(A→C) 成功 — ABA 漏洞!';stat.succ++;stat.aba++;}
+      }else{
+        abaLog.textContent='T0 CAS 失败：tag 0≠'+mem.tag+'，版本号检测到 ABA';stat.fail++;
+      }
+      threads[0].st='read';
+    }
+    else if(abaStep===4){abaLog.textContent='重置...';}
+    abaStep=(abaStep+1)%5;
+  }
+  function update(dt){
+    if(mode==='contention')contentionUpdate(dt);else abaUpdate(dt);
+  }
+  function render(){
+    valTxt.textContent=mem.val;tagTxt.textContent='tag: '+mem.tag;
+    if(mode==='contention'){
+      for(var i=0;i<threads.length;i++){
+        var t=threads[i];
+        tEls[i].c.setAttribute('fill',t.st==='cas'?'#fb923c':'#34d399');
+      }
+      stTxt.textContent=threads[0].st==='cas'?'T0: CAS('+threads[0].exp+'→'+(threads[0].exp+1)+')':'T0: 读取';
+      abaLog.textContent=versioning?'版本号防护：开':'版本号防护：关';
+    }else{
+      for(var j=0;j<threads.length;j++){tEls[j].c.setAttribute('fill',j===0?'#fbbf24':'#62666d');}
+      stTxt.textContent='ABA 场景';
+    }
+    E.succ.textContent=stat.succ;E.fail.textContent=stat.fail;E.aba.textContent=stat.aba;E.val.textContent=mem.val;
+  }
+  function reset(){
+    if(mode==='contention'){mem.val=0;mem.tag=0;}else{mem.val='A';mem.tag=0;abaStep=0;abaT=0;}
+    stat.succ=stat.fail=stat.aba=0;
+    for(var i=0;i<threads.length;i++){threads[i].st='read';threads[i].t=rand(0.3,0.8);}
+  }
+  var runner=makeRunner(update,render);
+  bindRun(runner,{start:'m8-start',stop:'m8-stop',reset:'m8-reset',card:'m8-card',status:'m8-status'},reset);
+  wireSpeed(runner,'m8-speed','m8-speed-v');
+  seg('m8-mode',function(m){mode=m;reset();runner.render();});
+  document.getElementById('m8-ver').addEventListener('change',function(){versioning=document.getElementById('m8-ver').checked;runner.render();});
+  reset();render();
+}
+
+/* ============ Layout: progress, sidebar, observer ============ */
+function setupLayout(){
+  var progress=document.getElementById('progress');
+  function onScroll(){
+    var h=document.documentElement;
+    var sc=h.scrollTop||document.body.scrollTop;
+    var max=h.scrollHeight-h.clientHeight;
+    progress.style.width=(max>0?(sc/max*100):0)+'%';
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // sidebar toggle
+  var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay');
+  function closeSide(){sidebar.classList.remove('open');overlay.classList.remove('show');}
+  menuBtn.addEventListener('click',function(){sidebar.classList.toggle('open');overlay.classList.toggle('show');});
+  overlay.addEventListener('click',closeSide);
+  document.querySelectorAll('.side-link').forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=760)closeSide();});});
+
+  // fade-in observer
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){if(en.isIntersecting)en.target.classList.add('in');});
+  },{threshold:0.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.module').forEach(function(m){
+    if(reduced)m.classList.add('in');else io.observe(m);
+  });
+
+  // active sidebar link
+  var links=document.querySelectorAll('.side-link');
+  var sections=Array.prototype.map.call(links,function(l){return document.getElementById(l.getAttribute('href').slice(1));});
+  var io2=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        links.forEach(function(l){l.classList.remove('active');});
+        var idx=sections.indexOf(en.target);
+        if(idx>=0)links[idx].classList.add('active');
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  sections.forEach(function(s){if(s)io2.observe(s);});
+}
+
+/* ============ Init ============ */
+function init(){
+  setupLayout();
+  var setups=[setupM1,setupM2,setupM3,setupM4,setupM5,setupM6,setupM7,setupM8];
+  setups.forEach(function(fn,i){
+    try{fn();}catch(e){console.error('Module setup failed at index '+i,e);}
+  });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+
+})();
+</script>
+</body>
+</html>

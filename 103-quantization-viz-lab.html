@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quantization-viz-lab · 模型量化与推理加速可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fbbf24;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,191,36,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,191,36,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,191,36,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1503;border-color:transparent}
+.btn.primary:hover{background:#fcc73d}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>quantization</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">model quantization</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/quantization-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>量化基础</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>GPTQ 量化</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>AWQ 量化</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>GGUF 格式</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>K-V Cache 量化</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>混合精度</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>量化误差</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>端侧部署</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/quantization-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>模型量化推理加速 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 INT4/INT8 量化、GPTQ、AWQ、GGUF、KV-Cache 量化等大模型部署核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 量化基础 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>量化基础 · FP32 → INT8 映射</h2>
+      <p>FP32 浮点张量如何映射到 INT8 整数。对称量化以零为中心，非对称量化引入 zero-point 偏移。拖动滑块改变真实值，观察 scale、zero-point 与量化误差。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">quant-basics.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>FP32 真实值</span>
+          <span><i style="background:#7c5cff"></i>INT8 量化桶</span>
+          <span><i style="background:#f87171"></i>反量化误差</span>
+          <span><i style="background:#34d399"></i>zero-point</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">量化公式</h4>
+          <p id="p01detail">对称量化：<code>q = round(x / scale)</code>，范围 [-127, 127]。非对称量化：<code>q = round(x / scale + zero_point)</code>，范围 [0, 255]。拖动滑块或切换模式查看映射。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">scale</div><div class="v amber" id="st01scale">—</div></div>
+          <div class="stat"><div class="k">zero-point</div><div class="v purple" id="st01zp">—</div></div>
+          <div class="stat"><div class="k">量化值 q</div><div class="v amber" id="st01q">—</div></div>
+          <div class="stat"><div class="k">绝对误差</div><div class="v" style="color:#f87171" id="st01err">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 GPTQ ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>GPTQ · 二阶 Hessian 逐层量化</h2>
+      <p>GPTQ 利用 Hessian 矩阵的逆，逐列量化权重并补偿误差到剩余列。OBITS 控制目标位宽。播放动画观察误差补偿的层层传递过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">gptq-hessian.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>已量化列</span>
+          <span><i style="background:#7c5cff"></i>当前量化列</span>
+          <span><i style="background:#f87171"></i>误差补偿</span>
+          <span><i style="background:#34d399"></i>Hessian 对角</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">GPTQ 算法步骤</h4>
+          <p id="p02detail">GPTQ 基于 OBQ（Optimal Brain Quantization），将二阶信息压缩为逐列更新：量化第 j 列后，把量化误差 <code>Δ = ŵ_j − w_j</code> 按 <code>H⁻¹</code> 反向补偿到未量化列，从而最小化整体输出误差。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">OBITS</div><div class="v amber" id="st02bits">4</div></div>
+          <div class="stat"><div class="k">量化列</div><div class="v purple" id="st02col">0 / 6</div></div>
+          <div class="stat"><div class="k">累计误差</div><div class="v" style="color:#f87171" id="st02err">0</div></div>
+          <div class="stat"><div class="k">压缩比</div><div class="v" id="st02ratio">8×</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 AWQ ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>AWQ · 激活感知权重保护</h2>
+      <p>AWQ 发现仅约 1% 的“显著通道”对激活影响最大。通过对这些通道的权重等比缩放，降低其量化误差。调节保护比例，观察显著通道与缩放因子的变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">awq-channels.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>显著通道（高激活）</span>
+          <span><i style="background:#7c5cff"></i>普通通道</span>
+          <span><i style="background:#34d399"></i>缩放因子 s</span>
+          <span><i style="background:#f87171"></i>量化误差</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">AWQ 缩放原理</h4>
+          <p id="p03detail">对显著权重通道乘以缩放因子 <code>s</code>（s&gt;1），使量化前的有效幅度增大，从而相对降低量化误差；推理时对应激活除以 s 还原。等比例缩放保持了原模型的数值关系。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">保护比例</div><div class="v amber" id="st03ratio">1%</div></div>
+          <div class="stat"><div class="k">显著通道</div><div class="v purple" id="st03sig">1</div></div>
+          <div class="stat"><div class="k">平均缩放</div><div class="v amber" id="st03scale">—</div></div>
+          <div class="stat"><div class="k">PPL 改善</div><div class="v" style="color:#34d399" id="st03ppl">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 GGUF ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>GGUF 格式 · llama.cpp 量化块</h2>
+      <p>GGUF 采用分块量化策略：Q4_K_M / Q5_K_S / Q8_0 等使用不同位宽与分组结构。切换格式观察块结构与内存占用的差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">gguf-blocks.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>4-bit 权重</span>
+          <span><i style="background:#7c5cff"></i>5/6-bit 权重</span>
+          <span><i style="background:#a3e635"></i>8-bit 权重</span>
+          <span><i style="background:#34d399"></i>scale (FP16)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">GGUF 量化格式对比</h4>
+          <p id="p04detail">Q4_K_M：32 权重共用一组 scale，部分用 6-bit 提升关键层；Q5_K_S：5-bit 主块 + 4-bit 备份；Q8_0：8-bit 块量化，几乎无损。K-quant 通过混合位宽在精度与体积间取得平衡。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前格式</div><div class="v amber" id="st04fmt">Q4_K_M</div></div>
+          <div class="stat"><div class="k">位宽</div><div class="v purple" id="st04bpw">4.5</div></div>
+          <div class="stat"><div class="k">7B 模型体积</div><div class="v amber" id="st04size">4.4 GB</div></div>
+          <div class="stat"><div class="k">相对 FP16</div><div class="v" id="st04rel">26%</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 K-V Cache 量化 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>K-V Cache 量化 · 注意力压缩</h2>
+      <p>长上下文推理中 K-V Cache 是显存瓶颈。INT8/INT4 量化可大幅压缩，但会引入注意力分数误差。调节位宽观察显存节省与精度损失。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">kv-cache-quant.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>FP16 cache</span>
+          <span><i style="background:#7c5cff"></i>INT8 cache</span>
+          <span><i style="background:#f87171"></i>INT4 cache</span>
+          <span><i style="background:#34d399"></i>注意力分数</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">K-V Cache 量化影响</h4>
+          <p id="p05detail">K-V Cache 按 head 分组量化通常优于整体量化；Key 对量化更敏感（因 softmax 放大），常保留更高精度。INT8 cache 几乎无损，INT4 长序列注意力分数会出现偏差。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">Cache 精度</div><div class="v amber" id="st05prec">FP16</div></div>
+          <div class="stat"><div class="k">显存占用</div><div class="v purple" id="st05mem">2.0 GB</div></div>
+          <div class="stat"><div class="k">压缩比</div><div class="v amber" id="st05ratio">1×</div></div>
+          <div class="stat"><div class="k">注意力误差</div><div class="v" style="color:#34d399" id="st05err">0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 混合精度 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>混合精度 · 敏感层检测</h2>
+      <p>不同层对量化敏感度不同。通过逐层 PPL 扰动检测，对敏感层保留高精度，对不敏感层激进量化。调节阈值观察逐层量化策略的变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">mixed-precision.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>FP16（敏感）</span>
+          <span><i style="background:#fbbf24"></i>INT8</span>
+          <span><i style="background:#7c5cff"></i>INT4</span>
+          <span><i style="background:#34d399"></i>敏感度</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">敏感度检测策略</h4>
+          <p id="p06detail">对每层在固定种子下做 INT4 量化，测量验证集 PPL 变化 Δ。Δ 超过阈值则判定为敏感层。常见规律：首尾层、attention 投影层更敏感；FFN 中间层不敏感。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">敏感阈值</div><div class="v amber" id="st06th">0.5</div></div>
+          <div class="stat"><div class="k">FP16 层数</div><div class="v" style="color:#f87171" id="st06fp">—</div></div>
+          <div class="stat"><div class="k">INT8 层数</div><div class="v amber" id="st06i8">—</div></div>
+          <div class="stat"><div class="k">INT4 层数</div><div class="v purple" id="st06i4">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 量化误差 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>量化误差 · PPL 曲线对比</h2>
+      <p>不同位宽与量化方法对困惑度（PPL）的影响。RTN 简单截断误差大；GPTQ/AWQ 通过补偿显著降低误差。拖动 bits 滑块查看 PPL 演化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">quant-ppl.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>RTN（简单量化）</span>
+          <span><i style="background:#fbbf24"></i>GPTQ</span>
+          <span><i style="background:#7c5cff"></i>AWQ</span>
+          <span><i style="background:#34d399"></i>FP16 基线</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">PPL 与位宽关系</h4>
+          <p id="p07detail">PPL 随 bit 数下降而上升。4-bit 是关键拐点：RTN 在 4-bit 以下 PPL 急剧恶化；GPTQ 与 AWQ 在 3-bit 仍能保持接近 FP16 的 PPL。2-bit 几乎所有方法都崩溃。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前 bits</div><div class="v amber" id="st07bits">4</div></div>
+          <div class="stat"><div class="k">RTN PPL</div><div class="v" style="color:#f87171" id="st07rtm">—</div></div>
+          <div class="stat"><div class="k">GPTQ PPL</div><div class="v amber" id="st07gptq">—</div></div>
+          <div class="stat"><div class="k">AWQ PPL</div><div class="v purple" id="st07awq">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 端侧部署 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>端侧部署 · 推理延迟对比</h2>
+      <p>移动端、TFLite、ONNX Runtime 在不同量化策略下的推理延迟。调节模型规模，对比 INT8 量化带来的加速比与内存下降。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">edge-latency.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>FP32 基线</span>
+          <span><i style="background:#fbbf24"></i>INT8 量化</span>
+          <span><i style="background:#7c5cff"></i>INT4 量化</span>
+          <span><i style="background:#34d399"></i>加速比</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">端侧推理加速</h4>
+          <p id="p08detail">移动 NPU 对 INT8 有专门加速单元，INT8 量化可获得 2-4× 加速。INT4 在多数移动硬件上无原生支持，需 dequantize 后计算，加速有限。ONNX Runtime 提供跨平台 INT8 算子。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模型规模</div><div class="v amber" id="st08size">1.4B</div></div>
+          <div class="stat"><div class="k">FP32 延迟</div><div class="v" style="color:#f87171" id="st08fp">—</div></div>
+          <div class="stat"><div class="k">INT8 延迟</div><div class="v amber" id="st08i8">—</div></div>
+          <div class="stat"><div class="k">加速比</div><div class="v purple" id="st08speed">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>quantization-viz-lab · 模型量化与推理加速可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/quantization-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 量化基础 FP32 → INT8
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let mode="asym"; // sym | asym
+  let bits=8;
+  let val=-0.35; // 真实值 (相对范围)
+  const WMIN=-1.2, WMAX=1.2; // 权重张量范围（演示）
+
+  function levels(){return Math.pow(2,bits);}
+  function scaleZP(){
+    if(mode==="sym"){
+      const maxAbs=Math.max(Math.abs(WMIN),Math.abs(WMAX));
+      const s=maxAbs/(levels()/2-1);
+      return {scale:s,zp:0,qmin:-(levels()/2-1),qmax:levels()/2-1};
+    }else{
+      const s=(WMAX-WMIN)/(levels()-1);
+      const zp=Math.round(-WMIN/s);
+      return {scale:s,zp:zp,qmin:0,qmax:levels()-1};
+    }
+  }
+  function quantize(x){
+    const {scale,zp,qmin,qmax}=scaleZP();
+    let q=Math.round(x/scale)+zp;
+    q=Math.max(qmin,Math.min(qmax,q));
+    const deq=(q-zp)*scale;
+    return {q:q,deq:deq,err:deq-x};
+  }
+
+  function draw(){
+    clearNode(svg);
+    const {scale,zp,qmin,qmax}=scaleZP();
+    const padL=60,padR=30,padT=40,padB=70;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    const xToPx=x=>padL+((x-WMIN)/(WMAX-WMIN))*plotW;
+    // 网格
+    for(let i=0;i<=6;i++){
+      const x=padL+(i/6)*plotW;
+      svg.appendChild(el("line",{x1:x,y1:padT,x2:x,y2:padT+plotH,class:"gridline"}));
+      const v=WMIN+(WMAX-WMIN)*i/6;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=v.toFixed(1);svg.appendChild(t);
+    }
+    for(let i=0;i<=4;i++){
+      const y=padT+(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // 零线
+    const zx=xToPx(0);
+    svg.appendChild(el("line",{x1:zx,y1:padT,x2:zx,y2:padT+plotH,stroke:"#62666d","stroke-width":1,"stroke-dasharray":"3 3"}));
+
+    // INT8 桶
+    const nBuckets=Math.min(levels(),64);
+    const barH=plotH*0.42;
+    const barY=padT+plotH-barH;
+    for(let i=0;i<nBuckets;i++){
+      const qv=qmin+Math.floor(i*(qmax-qmin)/(nBuckets-1));
+      const xv=(qv-zp)*scale;
+      const bx=xToPx(xv);
+      const w=plotW/nBuckets-1;
+      svg.appendChild(el("rect",{x:bx-w/2,y:barY,width:Math.max(1,w),height:barH,fill:"rgba(124,92,255,.18)",stroke:"rgba(124,92,255,.4)","stroke-width":.5}));
+    }
+    // 桶标签
+    const blbl=el("text",{x:padL+plotW/2,y:barY-8,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#7c5cff"});
+    blbl.textContent="INT"+bits+" 量化桶 ("+qmin+" … "+qmax+")";svg.appendChild(blbl);
+
+    // zero-point 标记（非对称）
+    if(mode==="asym"){
+      const zpx=xToPx((-zp)*scale);
+      svg.appendChild(el("line",{x1:zpx,y1:padT,x2:zpx,y2:padT+plotH,stroke:"#34d399","stroke-width":1.4,"stroke-dasharray":"5 3"}));
+      const zl=el("text",{x:zpx,y:padT-6,"text-anchor":"middle","font-size":10.5,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+      zl.textContent="zero-point="+zp;svg.appendChild(zl);
+    }
+
+    // 当前值
+    const {q,deq,err}=quantize(val);
+    const vx=xToPx(val);
+    const dx=xToPx(deq);
+    // 真实值竖线
+    svg.appendChild(el("line",{x1:vx,y1:padT+10,x2:vx,y2:padT+plotH,stroke:"#fbbf24","stroke-width":2}));
+    const vlbl=el("text",{x:vx,y:padT+8,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+    vlbl.textContent="x="+val.toFixed(3);svg.appendChild(vlbl);
+    // 反量化点
+    svg.appendChild(el("circle",{cx:dx,cy:barY+barH/2,r:5,fill:"#7c5cff",stroke:"#0b0b0c","stroke-width":1.4}));
+    // 误差箭头
+    if(Math.abs(dx-vx)>2){
+      svg.appendChild(el("line",{x1:vx,y1:barY+barH/2,x2:dx,y2:barY+barH/2,stroke:"#f87171","stroke-width":1.8,"marker-end":"url(#arr01)"}));
+    }
+    const defs=el("defs");
+    const mk=el("marker",{id:"arr01",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#f87171"}));defs.appendChild(mk);svg.appendChild(defs);
+
+    // 误差柱
+    const ebY=padT+plotH+30;
+    const ebH=Math.min(20,Math.abs(err)*40);
+    svg.appendChild(el("rect",{x:Math.min(vx,dx)-2,y:ebH>0?ebY-ebH:ebY,width:4,height:Math.max(2,ebH),fill:"#f87171",opacity:.8}));
+    const elb=el("text",{x:padL,y:ebY+14,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    elb.textContent="误差 |x−x̂| = "+Math.abs(err).toFixed(4);svg.appendChild(elb);
+
+    // 公式
+    const fy=H-12;
+    const fl=el("text",{x:padL,y:fy,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+    fl.textContent=mode==="sym"?"对称: q = round(x/scale),  scale = max|x|/(2^(b-1)−1)":"非对称: q = round(x/scale)+zp,  zp = round(−min/scale)";
+    svg.appendChild(fl);
+
+    // 统计
+    $("st01scale").textContent=scale.toFixed(4);
+    $("st01zp").textContent=zp;
+    $("st01q").textContent=q;
+    $("st01err").textContent=Math.abs(err).toFixed(4);
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>真实值 x</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=-120;inp.max=120;inp.value=Math.round(val*100);
+  const val2=document.createElement("span");val2.className="val";val2.textContent=val.toFixed(2);
+  inp.addEventListener("input",()=>{val=+inp.value/100;val2.textContent=val.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val2);ctl.appendChild(sg);
+
+  const symBtn=document.createElement("button");symBtn.className="btn small"+(mode==="sym"?" on":"");symBtn.textContent="对称量化";
+  symBtn.addEventListener("click",()=>{mode="sym";symBtn.classList.add("on");asymBtn.classList.remove("on");draw();});
+  const asymBtn=document.createElement("button");asymBtn.className="btn small"+(mode==="asym"?" on":"");asymBtn.textContent="非对称量化";
+  asymBtn.addEventListener("click",()=>{mode="asym";asymBtn.classList.add("on");symBtn.classList.remove("on");draw();});
+  ctl.appendChild(symBtn);ctl.appendChild(asymBtn);
+
+  const bitsBtns=[4,8].forEach(b=>{
+    const btn=document.createElement("button");btn.className="btn small"+(b===bits?" on":"");btn.textContent="INT"+b;
+    btn.addEventListener("click",()=>{bits=b;document.querySelectorAll("#ctl01 .small").forEach(x=>{if(x.textContent.startsWith("INT"))x.classList.remove("on");});btn.classList.add("on");draw();});
+    ctl.appendChild(btn);
+  });
+
+  const scan=document.createElement("button");scan.className="btn";scan.textContent="扫描动画";
+  scan.addEventListener("click",()=>{
+    animate(2200,p=>{
+      const t=p*2*Math.PI;
+      val=Math.sin(t)*1.1;
+      inp.value=Math.round(val*100);val2.textContent=val.toFixed(2);draw();
+    });
+  });
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   02 GPTQ
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  let bits=4, step=0;
+  const N=6; // 矩阵列数
+  // 权重矩阵（演示固定值）
+  const Wmat=[
+    [0.42,-0.11,0.85,-0.33,0.07,0.61],
+    [-0.55,0.29,0.14,-0.72,0.44,-0.18],
+    [0.33,0.68,-0.21,0.59,-0.41,0.12],
+    [0.19,-0.47,0.73,-0.08,0.55,-0.39],
+    [-0.66,0.22,0.51,0.37,-0.19,0.74],
+    [0.48,-0.34,-0.62,0.15,0.69,-0.27]
+  ];
+  // Hessian 对角（演示）
+  const Hdiag=[1.2,0.8,1.5,0.9,1.1,1.3];
+
+  function quantW(w){
+    const scale=Math.max(0.01,Math.max.apply(null,Wmat.map(r=>Math.max.apply(null,r.map(Math.abs))))/(Math.pow(2,bits-1)-1));
+    return Math.round(w/scale)*scale;
+  }
+  function fmt(v){return (v>=0?" ":"")+v.toFixed(2);}
+
+  function draw(){
+    clearNode(svg);
+    const cell=70,startX=140,startY=30;
+    // 标题
+    const tl=el("text",{x:startX+N*cell/2,y:startY-12,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    tl.textContent="权重矩阵 W (逐列量化) · OBITS="+bits;svg.appendChild(tl);
+    // Hessian 条
+    const hY=startY+N*cell+14;
+    const hl=el("text",{x:startX-8,y:hY+10,"text-anchor":"end","font-size":10.5,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    hl.textContent="H diag";svg.appendChild(hl);
+    for(let j=0;j<N;j++){
+      const cx=startX+j*cell+cell/2;
+      const hh=Math.max(4,Hdiag[j]*16);
+      svg.appendChild(el("rect",{x:cx-22,y:hY+18-hh,width:44,height:hh,fill:"rgba(52,211,153,.3)",stroke:"#34d399","stroke-width":1}));
+      const ht=el("text",{x:cx,y:hY+26,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+      ht.textContent=Hdiag[j].toFixed(1);svg.appendChild(ht);
+    }
+
+    // 矩阵单元
+    for(let i=0;i<N;i++){
+      for(let j=0;j<N;j++){
+        const x=startX+j*cell,y=startY+i*cell;
+        const quantized=j<step;
+        const cur=j===step;
+        const w=Wmat[i][j];
+        const qw=quantized?quantW(w):w;
+        let fill="#16181c",stroke="rgba(255,255,255,.07)",txtColor="#9b9fa8";
+        if(quantized){fill="rgba(251,191,36,.14)";stroke="rgba(251,191,36,.3)";txtColor="#fbbf24";}
+        if(cur){fill="rgba(124,92,255,.22)";stroke="#7c5cff";txtColor="#7c5cff";}
+        svg.appendChild(el("rect",{x:x,y:y,width:cell-4,height:cell-4,rx:6,fill:fill,stroke:stroke,"stroke-width":cur?1.8:1}));
+        const t=el("text",{x:x+cell/2-2,y:y+cell/2+5,"text-anchor":"middle","font-size":13,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:txtColor});
+        t.textContent=fmt(qw);svg.appendChild(t);
+        // 行列标
+        if(i===0){
+          const cl=el("text",{x:x+cell/2-2,y:y-8,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+          cl.textContent="w[:, "+(j)+"]";svg.appendChild(cl);
+        }
+        if(j===0){
+          const rl=el("text",{x:x-8,y:y+cell/2+4,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+          rl.textContent="row "+i;svg.appendChild(rl);
+        }
+      }
+    }
+
+    // 误差补偿箭头（当前列量化后误差流向下一列）
+    if(step>0&&step<N){
+      const from=startX+(step-1)*cell+cell/2-2;
+      const to=startX+step*cell+cell/2-2;
+      const ay=startY+cell/2;
+      const path=el("path",{d:"M"+from+","+(ay)+" Q"+(from+to)/2+","+(ay+50)+" "+to+","+ay,stroke:"#f87171","stroke-width":1.6,fill:"none","stroke-dasharray":"4 3","marker-end":"url(#arr02)"});
+      svg.appendChild(path);
+      const defs=el("defs");const mk=el("marker",{id:"arr02",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+      mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#f87171"}));defs.appendChild(mk);svg.appendChild(defs);
+      const el2=el("text",{x:(from+to)/2,y:ay+62,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+      el2.textContent="Δ · H⁻¹ → 补偿";svg.appendChild(el2);
+    }
+
+    // 当前列说明
+    $("st02col").textContent=step+" / "+N;
+    $("st02bits").textContent=bits;
+    const ratio=(32/bits).toFixed(1);
+    $("st02ratio").textContent=ratio+"×";
+    // 累计误差
+    let err=0;
+    for(let j=0;j<step;j++)for(let i=0;i<N;i++)err+=Math.abs(quantW(Wmat[i][j])-Wmat[i][j]);
+    $("st02err").textContent=err.toFixed(3);
+  }
+
+  function setStep(s){step=s;draw();}
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    function next(){
+      if(step>=N){playing=false;play.textContent="播放";return;}
+      setStep(step+1);setTimeout(next,1100);
+    }
+    setTimeout(next,300);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>setStep((step+1)%(N+1)));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{playing=false;setStep(0);play.textContent="播放";});
+  ctl.appendChild(play);ctl.appendChild(stepBtn);ctl.appendChild(rst);
+
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>OBITS</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=8;inp.value=bits;
+  const val=document.createElement("span");val.className="val";val.textContent=bits;
+  inp.addEventListener("input",()=>{bits=+inp.value;val.textContent=bits;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   03 AWQ
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let protect=0.15; // 保护比例
+  let awqOn=true;
+  const N=16; // 通道数
+  // 激活幅度（演示）
+  const acts=[0.12,0.08,0.94,0.05,0.11,0.07,0.81,0.09,0.13,0.06,0.88,0.10,0.14,0.07,0.76,0.11];
+  // 权重幅度（演示）
+  const weights=acts.map((a,i)=>0.3+0.4*Math.abs(Math.sin(i*1.3))+0.2*a);
+
+  function draw(){
+    clearNode(svg);
+    const padL=50,padR=30,padT=30,padB=60;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // 排序找显著通道
+    const order=acts.map((a,i)=>[a,i]).sort((x,y)=>y[0]-x[0]);
+    const sigCount=Math.max(1,Math.round(N*protect));
+    const sigSet=new Set(order.slice(0,sigCount).map(x=>x[1]));
+
+    // 激活幅度条（上方）
+    const barH=plotH*0.45;
+    const bw=plotW/N-6;
+    for(let i=0;i<N;i++){
+      const x=padL+i*(plotW/N)+3;
+      const h=acts[i]/1.0*barH;
+      const sig=sigSet.has(i);
+      const fill=sig?"#fbbf24":"rgba(124,92,255,.5)";
+      svg.appendChild(el("rect",{x:x,y:padT+barH-h,width:bw,height:h,fill:fill,rx:2}));
+      if(sig){
+        const sl=el("text",{x:x+bw/2,y:padT-6,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+        sl.textContent="★";svg.appendChild(sl);
+      }
+    }
+    const al=el("text",{x:padL,y:padT-12,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    al.textContent="通道激活幅度 (s 排序 ★ = 显著)";svg.appendChild(al);
+
+    // 权重条 + 缩放因子（下方）
+    const wY=padT+barH+30;
+    const wH=plotH*0.35;
+    for(let i=0;i<N;i++){
+      const x=padL+i*(plotW/N)+3;
+      const h=weights[i]/0.9*wH;
+      const sig=sigSet.has(i);
+      const s=awqOn&&sig?2.2:1.0;
+      // 缩放后有效权重（更高）
+      svg.appendChild(el("rect",{x:x,y:wY+wH-h*s,width:bw,height:Math.min(h*s,wH),fill:sig?"rgba(251,191,36,.5)":"rgba(124,92,255,.3)",rx:2}));
+      // 缩放因子标记
+      if(awqOn&&sig){
+        svg.appendChild(el("line",{x1:x+bw/2,y1:wY-4,x2:x+bw/2,y2:wY+wH+4,stroke:"#34d399","stroke-width":1.4}));
+        const sl=el("text",{x:x+bw/2,y:wY-7,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+        sl.textContent="s="+s.toFixed(1);svg.appendChild(sl);
+      }
+      // 误差线
+      const err=awqOn?Math.abs(0.04*(1-s/2.2)):0.08;
+      const ey=wY+wH+8+err*30;
+      svg.appendChild(el("line",{x1:x+bw/2,y1:wY+wH+8,x2:x+bw/2,y2:ey,stroke:"#f87171","stroke-width":1.5}));
+    }
+    const wl=el("text",{x:padL,y:wY-12,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    wl.textContent="权重幅度"+(awqOn?"（绿色 = 缩放因子 s，显著通道放大）":"");svg.appendChild(wl);
+    const wl2=el("text",{x:padL,y:wY+wH+50,"font-size":10.5,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+    wl2.textContent="↓ 红色短线 = 量化误差";svg.appendChild(wl2);
+
+    // 统计
+    $("st03ratio").textContent=Math.round(protect*100)+"%";
+    $("st03sig").textContent=sigCount;
+    const avgS=awqOn?sigCount>0?1+1.2*protect:1:1;
+    $("st03scale").textContent=avgS.toFixed(2);
+    const pplImprove=awqOn?(0.8*protect*100/0.3).toFixed(1):0;
+    $("st03ppl").textContent=awqOn?"−"+pplImprove+"%":"0%";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>保护比例</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=60;inp.value=Math.round(protect*100);
+  const val=document.createElement("span");val.className="val";val.textContent=Math.round(protect*100)+"%";
+  inp.addEventListener("input",()=>{protect=+inp.value/100;val.textContent=Math.round(protect*100)+"%";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  const toggle=document.createElement("button");toggle.className="btn primary";toggle.textContent=awqOn?"AWQ: ON":"AWQ: OFF";
+  toggle.addEventListener("click",()=>{awqOn=!awqOn;toggle.textContent=awqOn?"AWQ: ON":"AWQ: OFF";toggle.classList.toggle("on",awqOn);draw();});
+  ctl.appendChild(toggle);
+
+  const scan=document.createElement("button");scan.className="btn small";scan.textContent="扫描比例";
+  scan.addEventListener("click",()=>{
+    animate(1800,p=>{protect=0.01+0.59*ease(p);inp.value=Math.round(protect*100);val.textContent=Math.round(protect*100)+"%";draw();});
+  });
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   04 GGUF
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let fmt="Q4_K_M";
+  const formats={
+    "Q4_K_M":{bpw:4.5,size:4.4,blocks:[{b:4,n:14,c:"#fbbf24"},{b:6,n:2,c:"#7c5cff"}]},
+    "Q5_K_S":{bpw:5.0,size:4.9,blocks:[{b:5,n:16,c:"#7c5cff"}]},
+    "Q8_0":{bpw:8.5,size:8.3,blocks:[{b:8,n:16,c:"#a3e635"}]},
+    "F16":{bpw:16,size:15.6,blocks:[{b:16,n:16,c:"#34d399"}]}
+  };
+
+  function draw(){
+    clearNode(svg);
+    const f=formats[fmt];
+    const padL=40,padR=40,padT=50,padB=80;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // 块结构
+    const blockW=plotW/8-8;
+    const blockH=plotH*0.6;
+    const bY=padT+30;
+    for(let bi=0;bi<8;bi++){
+      const bx=padL+bi*(plotW/8)+4;
+      // block 边框
+      svg.appendChild(el("rect",{x:bx,y:bY,width:blockW,height:blockH,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.14)","stroke-width":1}));
+      // 内部权重位宽
+      let yo=bY+8;
+      f.blocks.forEach(bl=>{
+        const segH=(blockH-16)*bl.n/16;
+        // 用小格子表示
+        const cols=4;
+        for(let c=0;c<cols;c++){
+          const cw=(blockW-12)/cols-2;
+          for(let r=0;r<Math.min(bl.n/4,4);r++){
+            svg.appendChild(el("rect",{x:bx+6+c*(cw+2),y:yo+r*((segH/Math.min(bl.n/4,4))-1),width:cw,height:segH/Math.min(bl.n/4,4)-1,fill:bl.c,opacity:.85,rx:1}));
+          }
+        }
+        yo+=segH;
+      });
+      // scale
+      svg.appendChild(el("rect",{x:bx+blockW-12,y:bY+4,width:8,height:blockH-8,fill:"#34d399",opacity:.9,rx:1}));
+      const sl=el("text",{x:bx+blockW/2,y:bY+blockH+14,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      sl.textContent="block "+(bi+1);svg.appendChild(sl);
+    }
+    // scale 标注
+    const sc=el("text",{x:padL+plotW-20,y:bY-8,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    sc.textContent="右侧绿条 = FP16 scale";svg.appendChild(sc);
+
+    // 体积对比条
+    const sizes=["Q4_K_M","Q5_K_S","Q8_0","F16"];
+    const maxY=16;
+    const mbY=padT+plotH+10;
+    const mbH=40;
+    sizes.forEach((s,i)=>{
+      const x=padL+i*(plotW/4)+8;
+      const w=plotW/4-16;
+      const sz=formats[s].size;
+      const h=sz/maxY*mbH;
+      svg.appendChild(el("rect",{x:x,y:mbY+mbH-h,width:w,height:h,fill:s===fmt?"#fbbf24":"#1c1f24",stroke:s===fmt?"#fbbf24":"rgba(255,255,255,.14)","stroke-width":1,rx:3}));
+      const t=el("text",{x:x+w/2,y:mbY+mbH+12,"text-anchor":"middle","font-size":9.5,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:s===fmt?"#fbbf24":"#9b9fa8"});
+      t.textContent=s+" "+sz+"GB";svg.appendChild(t);
+    });
+
+    // 统计
+    $("st04fmt").textContent=fmt;
+    $("st04bpw").textContent=f.bpw.toFixed(1);
+    $("st04size").textContent=f.size+" GB";
+    $("st04rel").textContent=Math.round(f.size/15.6*100)+"%";
+  }
+
+  draw();
+  Object.keys(formats).forEach(k=>{
+    const b=document.createElement("button");b.className="btn small"+(k===fmt?" on":"");b.textContent=k;
+    b.addEventListener("click",()=>{fmt=k;document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   05 K-V Cache 量化
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let prec="FP16"; // FP16 | INT8 | INT4
+  const seqLen=8, nHeads=4;
+
+  function draw(){
+    clearNode(svg);
+    const padL=40,padR=40,padT=30,padB=70;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    const bpw=prec==="FP16"?16:prec==="INT8"?8:4;
+    const ratio=16/bpw;
+    // K cache 张量
+    const kX=padL+20, kY=padT+10;
+    const kW=plotW*0.42, kH=plotH*0.5;
+    drawTensor(kX,kY,kW,kH,"K cache",seqLen,nHeads,bpw,ratio);
+    // V cache 张量
+    const vX=padL+plotW*0.52, vY=padT+10;
+    const vW=plotW*0.42, vH=plotH*0.5;
+    drawTensor(vX,vY,vW,vH,"V cache",seqLen,nHeads,bpw,ratio);
+
+    // 注意力分数矩阵
+    const aY=padT+plotH*0.6;
+    const aH=plotH*0.3;
+    drawAttn(padL+plotW*0.15,aY,plotW*0.7,aH,bpw);
+
+    // 统计
+    const baseMem=2.0; // GB (FP16 假设)
+    const mem=(baseMem/bpw*16).toFixed(2);
+    $("st05prec").textContent=prec;
+    $("st05mem").textContent=mem+" GB";
+    $("st05ratio").textContent=ratio.toFixed(1)+"×";
+    const err=prec==="FP16"?0:prec==="INT8"?0.02:0.11;
+    $("st05err").textContent=err.toFixed(3);
+  }
+  function drawTensor(x,y,w,h,name,sq,hh,bpw,ratio){
+    // 外框
+    const fillCol=bpw===16?"rgba(251,191,36,.2)":bpw===8?"rgba(124,92,255,.22)":"rgba(248,113,113,.22)";
+    const strokeCol=bpw===16?"#fbbf24":bpw===8?"#7c5cff":"#f87171";
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6,fill:fillCol,stroke:strokeCol,"stroke-width":1.4}));
+    // 网格
+    const cw=w/sq, ch=h/hh;
+    for(let i=0;i<sq;i++)for(let j=0;j<hh;j++){
+      const cx=x+i*cw, cy=y+j*ch;
+      svg.appendChild(el("rect",{x:cx+1,y:cy+1,width:cw-2,height:ch-2,fill:strokeCol,opacity:.18+Math.random()*0.1*Math.sin(i+j),rx:1}));
+    }
+    // 名称 + 位宽
+    const nl=el("text",{x:x+w/2,y:y-8,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:strokeCol});
+    nl.textContent=name+" · "+bpw+"-bit";svg.appendChild(nl);
+    // 压缩比例标注
+    const rl=el("text",{x:x+w/2,y:y+h+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    rl.textContent="压缩 "+ratio.toFixed(1)+"×";svg.appendChild(rl);
+  }
+  function drawAttn(x,y,w,h,bpw){
+    const nl=el("text",{x:x+w/2,y:y-8,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    nl.textContent="注意力分数 (softmax(QKᵀ/√d))";svg.appendChild(nl);
+    const n=8;
+    const cw=w/n, ch=h/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      // 基线分数
+      let v=Math.exp(-Math.abs(i-j)*0.6);
+      if(bpw===8)v*=(1+(Math.random()-0.5)*0.05);
+      if(bpw===4)v*=(1+(Math.random()-0.5)*0.22);
+      v=Math.min(1,Math.max(0,v));
+      const col=bpw===16?"#34d399":bpw===8?"#7c5cff":"#f87171";
+      svg.appendChild(el("rect",{x:x+j*cw+1,y:y+i*ch+1,width:cw-2,height:ch-2,fill:col,opacity:0.2+v*0.7,rx:1}));
+    }
+    svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,fill:"none",stroke:"rgba(255,255,255,.14)","stroke-width":1,rx:4}));
+  }
+
+  draw();
+  [["FP16","FP16"],["INT8","INT8"],["INT4","INT4"]].forEach(([k,v])=>{
+    const b=document.createElement("button");b.className="btn small"+(prec===k?" on":"");b.textContent=v;
+    b.addEventListener("click",()=>{prec=k;document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");draw();});
+    ctl.appendChild(b);
+  });
+  const scan=document.createElement("button");scan.className="btn";scan.textContent="精度扫描";
+  scan.addEventListener("click",()=>{
+    const seq=["FP16","INT8","INT4","FP16"];let i=0;
+    function next(){
+      if(i>=seq.length)return;
+      prec=seq[i];document.querySelectorAll("#ctl05 .small").forEach(x=>{x.classList.toggle("on",x.textContent===prec);});draw();
+      i++;setTimeout(next,900);
+    }
+    next();
+  });
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   06 混合精度
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let threshold=0.5;
+  const L=12; // 层数
+  // 敏感度（演示）：首尾高，中间低
+  const sens=[0.82,0.31,0.18,0.12,0.09,0.07,0.08,0.11,0.14,0.21,0.45,0.78];
+
+  function strategy(s){
+    if(s>threshold*1.4)return "FP16";
+    if(s>threshold*0.6)return "INT8";
+    return "INT4";
+  }
+  function colOf(str){return str==="FP16"?"#f87171":str==="INT8"?"#fbbf24":"#7c5cff";}
+
+  function draw(){
+    clearNode(svg);
+    const padL=50,padR=30,padT=40,padB=60;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=(1-i/5).toFixed(1);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="敏感度 ΔPPL";svg.appendChild(yl);
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="层 index →";svg.appendChild(xl);
+
+    // 阈值线
+    const ty=padT+plotH-threshold*plotH;
+    svg.appendChild(el("line",{x1:padL,y1:ty,x2:padL+plotW,y2:ty,stroke:"#34d399","stroke-width":1.4,"stroke-dasharray":"5 3"}));
+    const tl=el("text",{x:padL+plotW-4,y:ty-4,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    tl.textContent="阈值 "+threshold.toFixed(2);svg.appendChild(tl);
+
+    // 敏感度折线
+    let d="";
+    const bw=plotW/L;
+    sens.forEach((s,i)=>{
+      const x=padL+i*bw+bw/2;
+      const y=padT+plotH-s*plotH;
+      d+=(i===0?"M":"L")+x+","+y+" ";
+    });
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":1.6,"stroke-linecap":"round","stroke-linejoin":"round"}));
+
+    // 每层策略条
+    let cFP=0,cI8=0,cI4=0;
+    sens.forEach((s,i)=>{
+      const x=padL+i*bw+6;
+      const str=strategy(s);
+      const col=colOf(str);
+      if(str==="FP16")cFP++;else if(str==="INT8")cI8++;else cI4++;
+      const bh=plotH*0.22;
+      const by=padT+plotH-bh;
+      svg.appendChild(el("rect",{x:x,y:by,width:bw-12,height:bh,fill:col,opacity:.85,rx:3}));
+      const st=el("text",{x:x+(bw-12)/2,y:by+bh/2+3,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#0b0b0c"});
+      st.textContent=str;svg.appendChild(st);
+      // 敏感度点
+      const px=padL+i*bw+bw/2,py=padT+plotH-s*plotH;
+      svg.appendChild(el("circle",{cx:px,cy:py,r:3.5,fill:col,stroke:"#0b0b0c","stroke-width":1.2}));
+    });
+
+    $("st06th").textContent=threshold.toFixed(2);
+    $("st06fp").textContent=cFP;
+    $("st06i8").textContent=cI8;
+    $("st06i4").textContent=cI4;
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>敏感阈值</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=5;inp.max=85;inp.value=Math.round(threshold*100);
+  const val=document.createElement("span");val.className="val";val.textContent=threshold.toFixed(2);
+  inp.addEventListener("input",()=>{threshold=+inp.value/100;val.textContent=threshold.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  const auto=document.createElement("button");auto.className="btn primary";auto.textContent="自动调参";
+  auto.addEventListener("click",()=>{
+    animate(1600,p=>{threshold=0.05+0.8*ease(p);inp.value=Math.round(threshold*100);val.textContent=threshold.toFixed(2);draw();});
+  });
+  ctl.appendChild(auto);
+})();
+
+/* ============================================================
+   07 量化误差 PPL
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let bits=4;
+  const padL=54,padR=24,padT=24,padB=42;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  // PPL 模型：bits 越低 PPL 越高；RTN 最差，GPTQ/AWQ 更好
+  function ppl(method,b){
+    const fp16=5.5;
+    if(b>=12)return fp16;
+    if(b<=1)return 999;
+    if(method==="RTN"){
+      return fp16+Math.pow(2,(6-b)*1.1);
+    }
+    if(method==="GPTQ"){
+      return fp16+Math.pow(2,(5-b)*0.85)*(b<4?1.5:1);
+    }
+    // AWQ
+    return fp16+Math.pow(2,(5-b)*0.8)*(b<4?1.3:1);
+  }
+
+  function draw(){
+    clearNode(svg);
+    const yMax=60;
+    const yScale=v=>Math.min(plotH,(Math.log10(Math.max(1,v))/Math.log10(yMax))*plotH);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const v=Math.pow(10,Math.log10(yMax)*i/5);
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=v.toFixed(v<10?1:0);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // x 轴
+    for(let b=2;b<=12;b+=2){
+      const x=padL+((b-2)/10)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=b+"-bit";svg.appendChild(t);
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="量化位宽 (bits)";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="PPL (log)";svg.appendChild(yl);
+
+    // FP16 基线
+    const fpY=padT+plotH-yScale(5.5);
+    svg.appendChild(el("line",{x1:padL,y1:fpY,x2:padL+plotW,y2:fpY,stroke:"#34d399","stroke-width":1.3,"stroke-dasharray":"4 4"}));
+    const fpl=el("text",{x:padL+plotW-6,y:fpY-5,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    fpl.textContent="FP16 基线 (5.5)";svg.appendChild(fpl);
+
+    // 三条曲线
+    const methods=[["RTN","#f87171"],["GPTQ","#fbbf24"],["AWQ","#7c5cff"]];
+    methods.forEach(([m,c])=>{
+      let d="";
+      for(let i=0;i<=plotW;i+=4){
+        const b=2+10*i/plotW;
+        const v=ppl(m,b);
+        const x=padL+i,y=padT+plotH-yScale(v);
+        d+=(i===0?"M":"L")+x+","+y+" ";
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:c,"stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.92}));
+    });
+
+    // 当前 bits 竖线
+    const bx=padL+((bits-2)/10)*plotW;
+    svg.appendChild(el("line",{x1:bx,y1:padT,x2:bx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,"stroke-dasharray":"3 3",opacity:.5}));
+    // 标记点
+    methods.forEach(([m,c])=>{
+      const v=ppl(m,bits);
+      const y=padT+plotH-yScale(v);
+      svg.appendChild(el("circle",{cx:bx,cy:y,r:4.5,fill:c,stroke:"#0b0b0c","stroke-width":1.3}));
+    });
+
+    // 图例
+    let lx=padL+8,ly=padT+8;
+    methods.forEach(([m,c])=>{
+      const g=el("g",{transform:"translate("+lx+","+ly+")"});
+      g.appendChild(el("rect",{x:0,y:-9,width:11,height:3,fill:c}));
+      const t=el("text",{x:16,y:-5,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});t.textContent=m;g.appendChild(t);
+      svg.appendChild(g);ly+=17;
+    });
+
+    // 统计
+    $("st07bits").textContent=bits;
+    $("st07rtm").textContent=ppl("RTN",bits).toFixed(2);
+    $("st07gptq").textContent=ppl("GPTQ",bits).toFixed(2);
+    $("st07awq").textContent=ppl("AWQ",bits).toFixed(2);
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>bits</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=12;inp.value=bits;
+  const val=document.createElement("span");val.className="val";val.textContent=bits;
+  inp.addEventListener("input",()=>{bits=+inp.value;val.textContent=bits;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  const scan=document.createElement("button");scan.className="btn small";scan.textContent="位宽扫描";
+  scan.addEventListener("click",()=>{
+    animate(2200,p=>{bits=2+10*ease(p);inp.value=Math.round(bits);val.textContent=Math.round(bits);draw();});
+  });
+  ctl.appendChild(scan);
+})();
+
+/* ============================================================
+   08 端侧部署延迟
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  let size=1.4; // 模型规模 B
+  const devices=[
+    {n:"Mobile CPU",fp:f=>f*420, i8:f=>f*150, i4:f=>f*180},
+    {n:"TFLite (NPU)",fp:f=>f*260, i8:f=>f*70, i4:f=>f*120},
+    {n:"ONNX Runtime",fp:f=>f*310, i8:f=>f*95, i4:f=>f*140},
+    {n:"Desktop GPU",fp:f=>f*85, i8:f=>f*38, i4:f=>f*52}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const padL=140,padR=30,padT=30,padB=50;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    const yMax=Math.max(...devices.map(d=>d.fp(size)))*1.1;
+    const yScale=v=>(v/yMax)*plotH;
+    // 网格
+    for(let i=0;i<=4;i++){
+      const y=padT+(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const v=yMax*(1-i/4);
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=v.toFixed(0)+"ms";svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // 设备分组柱
+    const groupW=plotW/devices.length;
+    const barW=groupW/3-6;
+    devices.forEach((d,i)=>{
+      const gx=padL+i*groupW;
+      const fp=d.fp(size), i8=d.i8(size), i4=d.i4(size);
+      const vals=[["FP32",fp,"#f87171"],["INT8",i8,"#fbbf24"],["INT4",i4,"#7c5cff"]];
+      vals.forEach(([nm,v,c],j)=>{
+        const bx=gx+j*(barW+6)+8;
+        const bh=yScale(v);
+        const by=padT+plotH-bh;
+        svg.appendChild(el("rect",{x:bx,y:by,width:barW,height:bh,fill:c,opacity:.88,rx:3}));
+        const t=el("text",{x:bx+barW/2,y:by-4,"text-anchor":"middle","font-size":9,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:c});
+        t.textContent=v.toFixed(0);svg.appendChild(t);
+      });
+      // 设备标签
+      const dl=el("text",{x:gx+groupW/2,y:padT+plotH+16,"text-anchor":"middle","font-size":10.5,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f7f8f8"});
+      dl.textContent=d.n;svg.appendChild(dl);
+    });
+    // y 轴标题
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="推理延迟 (ms / token)";svg.appendChild(yl);
+
+    // 统计（以 Mobile CPU 为基准）
+    const fp=devices[0].fp(size), i8=devices[0].i8(size);
+    $("st08size").textContent=size.toFixed(1)+"B";
+    $("st08fp").textContent=fp.toFixed(0)+" ms";
+    $("st08i8").textContent=i8.toFixed(0)+" ms";
+    $("st08speed").textContent=(fp/i8).toFixed(2)+"×";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>模型规模</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=5;inp.max=70;inp.value=Math.round(size*10);
+  const val=document.createElement("span");val.className="val";val.textContent=size.toFixed(1)+"B";
+  inp.addEventListener("input",()=>{size=+inp.value/10;val.textContent=size.toFixed(1)+"B";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+
+  const scan=document.createElement("button");scan.className="btn primary";scan.textContent="规模扫描";
+  scan.addEventListener("click",()=>{
+    animate(1800,p=>{size=0.5+6.5*ease(p);inp.value=Math.round(size*10);val.textContent=size.toFixed(1)+"B";draw();});
+  });
+  ctl.appendChild(scan);
+})();
+
+</script>
+</body>
+</html>

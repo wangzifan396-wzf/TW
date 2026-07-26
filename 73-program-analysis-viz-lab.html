@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>程序分析可视化实验室 · Program Analysis Viz Lab</title>
+<meta name="description" content="一个零依赖的单文件程序分析可视化实验室：控制流图、数据流分析、指针分析、抽象解释、SSA、过程间分析、符号执行与污点分析。">
+<style>
+/* ============ 基础变量与重置 ============ */
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#34d399;--accent-2:#7c5cff;
+  --nav-h:56px;--side-w:240px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --r:12px;--r-sm:8px;
+  --shadow:0 1px 0 rgba(255,255,255,.03),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--sans);
+  line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  background-image:
+    radial-gradient(900px 500px at 12% -8%,rgba(52,211,153,.07),transparent 60%),
+    radial-gradient(900px 600px at 92% 0%,rgba(124,92,255,.07),transparent 60%);
+  background-attachment:fixed;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:rgba(52,211,153,.28)}
+
+/* ============ 顶部进度条 ============ */
+.progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:300;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(52,211,153,.5);transition:width .08s linear}
+
+/* ============ 导航栏 ============ */
+.nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:200;
+  background:#0b0c0e;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;padding:0 18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:.2px}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 12px rgba(52,211,153,.7)}
+.brand small{color:var(--faint);font-family:var(--mono);font-size:11px;font-weight:400}
+.nav-spacer{flex:1}
+.nav-link-gh{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+  border:1px solid var(--border);padding:6px 12px;border-radius:999px;transition:transform .15s,border-color .15s,color .15s}
+.nav-link-gh:hover{color:var(--ink);border-color:var(--border-strong);transform:translateY(-1px)}
+.menu-btn{display:none;width:38px;height:38px;border-radius:var(--r-sm);border:1px solid var(--border);
+  align-items:center;justify-content:center}
+.menu-btn span{display:block;width:16px;height:2px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:2px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============ 侧边栏 ============ */
+.side{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:150;
+  background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;
+  padding:18px 12px;display:flex;flex-direction:column;gap:4px;transition:transform .25s}
+.side h4{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+  padding:6px 12px;margin-bottom:4px;font-family:var(--mono)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);
+  color:var(--muted);font-size:13.5px;transition:background .15s,color .15s,transform .15s;position:relative}
+.nav-item .idx{font-family:var(--mono);font-size:11px;color:var(--faint);width:22px}
+.nav-item:hover{background:var(--surface-2);color:var(--ink);transform:translateX(2px)}
+.nav-item.active{background:var(--surface-3);color:var(--ink)}
+.nav-item.active .idx{color:var(--accent)}
+.nav-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;
+  border-radius:3px;background:var(--accent)}
+.side-foot{margin-top:auto;padding:12px;font-size:11px;color:var(--faint);font-family:var(--mono);
+  border-top:1px solid var(--border)}
+
+/* ============ 主内容 ============ */
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0 clamp(16px,4vw,48px) 80px;max-width:1280px}
+
+/* hero */
+.hero{padding:64px 0 40px;position:relative}
+.hero .tag{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;
+  color:var(--accent);border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.06);
+  padding:5px 12px;border-radius:999px}
+.hero h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:18px 0 12px;font-weight:760;letter-spacing:-.02em}
+.hero h1 .g{background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.hero p.lead{font-size:clamp(15px,1.8vw,18px);color:var(--muted);max-width:680px}
+.hero-cta{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--r-sm);
+  font-size:14px;font-weight:550;transition:transform .15s,box-shadow .15s,background .15s}
+.btn-pri{background:var(--accent);color:#04130d;box-shadow:0 6px 20px rgba(52,211,153,.25)}
+.btn-pri:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(52,211,153,.34)}
+.btn-ghost{border:1px solid var(--border-strong);color:var(--ink)}
+.btn-ghost:hover{background:var(--surface-2);transform:translateY(-2px)}
+.hero-canvas{position:absolute;right:-40px;top:30px;width:340px;height:260px;opacity:.5;pointer-events:none}
+.hero-stats{display:flex;gap:32px;margin-top:34px;flex-wrap:wrap}
+.hero-stats .hs b{font-size:26px;font-family:var(--mono);color:var(--ink)}
+.hero-stats .hs span{display:block;font-size:12px;color:var(--faint)}
+
+/* module */
+.module{padding:46px 0 10px;scroll-margin-top:72px}
+.module-head{margin-bottom:20px}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--accent);
+  display:inline-flex;align-items:center;gap:8px}
+.kicker::before{content:"";width:24px;height:1px;background:var(--accent);display:inline-block}
+.module-head h2{font-size:clamp(22px,3vw,30px);margin:8px 0 6px;font-weight:720;letter-spacing:-.01em}
+.module-head .desc{color:var(--muted);max-width:760px;font-size:14.5px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden}
+.card-row{display:grid;grid-template-columns:1.55fr 1fr;gap:0}
+.viz-box{background:var(--surface-2);border-right:1px solid var(--border);padding:18px;min-height:380px;
+  display:flex;flex-direction:column}
+.viz-box .vtitle{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.viz-box svg{width:100%;height:auto;display:block;flex:1;min-height:300px}
+.side-panel{padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--surface)}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl{font-size:12.5px;padding:7px 12px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
+  background:var(--surface-2);color:var(--ink);transition:transform .12s,background .15s,border-color .15s}
+.ctl:hover{transform:translateY(-1px);border-color:var(--accent)}
+.ctl.on{background:rgba(52,211,153,.14);border-color:var(--accent);color:var(--accent)}
+.ctl:disabled{opacity:.4;cursor:not-allowed;transform:none}
+select.ctl{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+  linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 14px) 52%,calc(100% - 9px) 52%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:28px}
+.label{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.05em}
+
+.detail-box{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:12px 14px;font-family:var(--mono);font-size:12.5px;color:var(--muted);min-height:96px;
+  max-height:170px;overflow:auto;white-space:pre-wrap;line-height:1.7}
+.detail-box b{color:var(--ink)}
+.detail-box .k-accent{color:var(--accent)}
+.detail-box .k-purple{color:var(--accent-2)}
+.detail-box .k-warn{color:#fbbf24}
+
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);
+  border-top:1px solid var(--border)}
+.stat{background:var(--surface);padding:14px 16px}
+.stat .v{font-family:var(--mono);font-size:20px;color:var(--ink);font-weight:600}
+.stat .v.acc{color:var(--accent)}
+.stat .v.pur{color:var(--accent-2)}
+.stat .l{font-size:11px;color:var(--faint);margin-top:2px;letter-spacing:.04em}
+
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* footer */
+.foot{margin-top:60px;padding-top:28px;border-top:1px solid var(--border);color:var(--faint);
+  font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+
+/* svg common */
+.node-rect{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1;transition:fill .2s,stroke .2s}
+.node-rect.entry{stroke:var(--accent)}
+.node-rect.exit{stroke:#f472b6}
+.edge{fill:none;stroke:var(--faint);stroke-width:1.4;transition:stroke .2s,stroke-width .2s}
+.edge.active{stroke:var(--accent);stroke-width:2.2}
+.edge.flow{stroke:var(--accent-2)}
+.node-text{fill:var(--ink);font-family:var(--mono);font-size:11px}
+.node-lbl{fill:var(--muted);font-family:var(--mono);font-size:10px}
+.cap{fill:var(--muted);font-family:var(--mono);font-size:10px}
+
+/* responsive */
+@media(max-width:1024px){
+  .card-row{grid-template-columns:1fr}
+  .viz-box{border-right:none;border-bottom:1px solid var(--border);min-height:320px}
+}
+@media(max-width:860px){
+  :root{--side-w:0px}
+  .side{width:240px;transform:translateX(-100%);box-shadow:var(--shadow)}
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:0 16px 70px}
+  .menu-btn{display:inline-flex}
+  .hero-canvas{display:none}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .nav-link-gh span{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progressBar"></div>
+
+<!-- 导航栏 -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="brand">
+    <span class="dot"></span>
+    <span>程序分析可视化实验室</span>
+    <small>/ viz-lab</small>
+  </div>
+  <div class="nav-spacer"></div>
+  <a class="nav-link-gh" href="https://github.com/wangzifan396-wzf/program-analysis-viz-lab" target="_blank" rel="noopener">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <span>GitHub</span>
+  </a>
+</nav>
+
+<!-- 侧边栏 -->
+<aside class="side" id="side">
+  <h4>分析模块</h4>
+  <a class="nav-item" href="#m01"><span class="idx">01</span>控制流图 CFG</a>
+  <a class="nav-item" href="#m02"><span class="idx">02</span>数据流分析</a>
+  <a class="nav-item" href="#m03"><span class="idx">03</span>指针分析</a>
+  <a class="nav-item" href="#m04"><span class="idx">04</span>抽象解释</a>
+  <a class="nav-item" href="#m05"><span class="idx">05</span>静态单赋值 SSA</a>
+  <a class="nav-item" href="#m06"><span class="idx">06</span>过程间分析</a>
+  <a class="nav-item" href="#m07"><span class="idx">07</span>符号执行</a>
+  <a class="nav-item" href="#m08"><span class="idx">08</span>污点分析</a>
+  <div class="side-foot">zero-dependency · single file<br>HTML / CSS / JS + SVG</div>
+</aside>
+
+<!-- 主内容 -->
+<main class="main">
+
+  <!-- HERO -->
+  <section class="hero">
+    <svg class="hero-canvas" id="heroCanvas" viewBox="0 0 340 260" aria-hidden="true"></svg>
+    <span class="tag">● 8 个核心模块 · 交互式可视化</span>
+    <h1>用图形理解<br><span class="g">程序分析的本质</span></h1>
+    <p class="lead">从控制流图到污点分析，本实验室以零依赖的单文件形式，将编译器与静态分析的核心算法可视化为可交互的图形。点击、迭代、观察不动点如何在图上收敛。</p>
+    <div class="hero-cta">
+      <a class="btn btn-pri" href="#m01">开始探索 →</a>
+      <a class="btn btn-ghost" href="https://github.com/wangzifan396-wzf/program-analysis-viz-lab" target="_blank" rel="noopener">查看源码</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hs"><b>8</b><span>分析模块</span></div>
+      <div class="hs"><b>0</b><span>外部依赖</span></div>
+      <div class="hs"><b>SVG</b><span>原生渲染</span></div>
+      <div class="hs"><b>MIT</b><span>开源协议</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 01 控制流图 ============ -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <span class="kicker">01 / CONTROL FLOW GRAPH</span>
+      <h2>控制流图 (CFG)</h2>
+      <p class="desc">将程序划分为基本块 (Basic Block)，用有向边刻画控制转移，并计算支配关系 (Dominators) 与直接支配者 (idom)，构成支配树。点击节点查看其支配集。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>CFG · DOMINATOR TREE</span><span class="legend" id="cfgLegend"></span></div>
+          <svg id="cfgSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl on" id="cfgViewFlow">流图视图</button>
+            <button class="ctl" id="cfgViewDom">支配树视图</button>
+            <button class="ctl" id="cfgReset">重置</button>
+          </div>
+          <div class="label">选中基本块的支配集</div>
+          <div class="detail-box" id="cfgDetail">点击任意基本块以查看其支配关系与直接支配者。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="cfgStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 02 数据流分析 ============ -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <span class="kicker">02 / DATA-FLOW ANALYSIS</span>
+      <h2>数据流分析</h2>
+      <p class="desc">通过工作表 (Worklist) 反复迭代，直至 IN/OUT 集合达到不动点 (Fixpoint)。切换到达定义、活跃变量与可用表达式，观察前向/后向、并集/交集的不同收敛行为。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>ITERATIVE FIXPOINT</span><span class="legend" id="dfLegend"></span></div>
+          <svg id="dfSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <select class="ctl" id="dfMode">
+              <option value="reach">到达定义 Reaching Defs</option>
+              <option value="live">活跃变量 Live Vars</option>
+              <option value="avail">可用表达式 Available Expr</option>
+            </select>
+          </div>
+          <div class="controls">
+            <button class="ctl" id="dfStep">单步迭代 →</button>
+            <button class="ctl" id="dfRun">跑到不动点</button>
+            <button class="ctl" id="dfReset">重置</button>
+          </div>
+          <div class="label">迭代状态</div>
+          <div class="detail-box" id="dfDetail">选择分析类型并点击“单步迭代”观察集合变化。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="dfStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 03 指针分析 ============ -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <span class="kicker">03 / POINTER ANALYSIS · ANDERSEN</span>
+      <h2>指针分析</h2>
+      <p class="desc">基于 Andersen 包含约束 (p ⊇ q, p ⊇ {o})，通过迭代求解各指针的指向集 (points-to set)，直至约束闭包不再变化。逐步应用约束，观察指向集的传播。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>POINTS-TO SETS</span><span class="legend" id="ptrLegend"></span></div>
+          <svg id="ptrSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl" id="ptrStep">应用一轮约束 →</button>
+            <button class="ctl" id="ptrRun">求解到不动点</button>
+            <button class="ctl" id="ptrReset">重置</button>
+          </div>
+          <div class="label">约束与求解日志</div>
+          <div class="detail-box" id="ptrDetail">约束已加载。点击“应用一轮约束”开始求解。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="ptrStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 04 抽象解释 ============ -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <span class="kicker">04 / ABSTRACT INTERPRETATION</span>
+      <h2>抽象解释</h2>
+      <p class="desc">在具体域与抽象域之间建立伽罗瓦连接 (Galois Connection)，用区间 [a,b] 近似变量取值。对循环使用加宽 (Widening) 算子加速收敛，避免无限迭代。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>INTERVAL ABSTRACTION · WIDENING</span><span class="legend" id="aiLegend"></span></div>
+          <svg id="aiSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl" id="aiStep">迭代一步 →</button>
+            <button class="ctl" id="aiWiden">应用 widening ▲</button>
+            <button class="ctl" id="aiNarrow">narrow 收敛 ▼</button>
+            <button class="ctl" id="aiReset">重置</button>
+          </div>
+          <div class="label">伽罗瓦连接 · 区间演化</div>
+          <div class="detail-box" id="aiDetail">模拟循环 x=x+1 (x∈[0,100]) 的区间抽象。点击迭代观察区间如何加宽到 ⊤ 后再收敛。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="aiStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 05 SSA ============ -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <span class="kicker">05 / STATIC SINGLE ASSIGNMENT</span>
+      <h2>静态单赋值 (SSA)</h2>
+      <p class="desc">在每个合并点的支配边界 (Dominance Frontier) 处插入 φ 函数，并对变量重命名，使每个变量仅被赋值一次。切换查看 φ 插入与重命名后的 SSA 形式。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>DOMINANCE FRONTIER · PHI</span><span class="legend" id="ssaLegend"></span></div>
+          <svg id="ssaSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl on" id="ssaViewPhi">φ 插入</button>
+            <button class="ctl" id="ssaViewRename">SSA 重命名</button>
+            <button class="ctl" id="ssaReset">重置</button>
+          </div>
+          <div class="label">支配边界与 φ 函数</div>
+          <div class="detail-box" id="ssaDetail">高亮显示各基本块的支配边界 DF(B)。在 DF 处插入 φ 函数。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="ssaStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 06 过程间分析 ============ -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <span class="kicker">06 / INTERPROCEDURAL ANALYSIS</span>
+      <h2>过程间分析</h2>
+      <p class="desc">构造调用图 (Call Graph)，区分上下文不敏感 (CI) 与上下文敏感 (CS) 分析。开启上下文敏感后，被调函数按调用上下文克隆，精度提升但开销增长。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>CALL GRAPH</span><span class="legend" id="ipLegend"></span></div>
+          <svg id="ipSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl on" id="ipModeCI">上下文不敏感 CI</button>
+            <button class="ctl" id="ipModeCS">上下文敏感 CS</button>
+            <button class="ctl" id="ipReset">重置</button>
+          </div>
+          <div class="label">调用图构造日志</div>
+          <div class="detail-box" id="ipDetail">函数调用关系已分析。切换上下文敏感模式观察克隆数量变化。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="ipStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 07 符号执行 ============ -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <span class="kicker">07 / SYMBOLIC EXECUTION</span>
+      <h2>符号执行</h2>
+      <p class="desc">以符号变量探索程序路径，累积路径条件 (Path Condition) 并交由约束求解器判定可达性。展开执行树，直观感受路径爆炸 (Path Explosion) 问题。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>EXECUTION TREE · PATH CONDITIONS</span><span class="legend" id="seLegend"></span></div>
+          <svg id="seSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl" id="seStep">展开一层 →</button>
+            <button class="ctl" id="seRun">自动展开</button>
+            <button class="ctl" id="seReset">重置</button>
+          </div>
+          <div class="label">路径条件与求解结果</div>
+          <div class="detail-box" id="seDetail">点击“展开一层”生成分支路径。绿色=可满足(SAT)，红色=不可满足(UNSAT)，黄色=未求解。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="seStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 08 污点分析 ============ -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <span class="kicker">08 / TAINT ANALYSIS</span>
+      <h2>污点分析</h2>
+      <p class="desc">标记不可信 Source（如用户输入），沿数据流追踪污点传播，检测是否到达危险 Sink（如 SQL/exec）。逐步传播，观察 Source → Sink 的污点路径。</p>
+    </div>
+    <div class="card">
+      <div class="card-row">
+        <div class="viz-box">
+          <div class="vtitle"><span>SOURCE → SINK TAINT FLOW</span><span class="legend" id="taintLegend"></span></div>
+          <svg id="taintSvg" viewBox="0 0 560 420"></svg>
+        </div>
+        <div class="side-panel">
+          <div class="controls">
+            <button class="ctl" id="taintStep">传播一步 →</button>
+            <button class="ctl" id="taintRun">完整传播</button>
+            <button class="ctl" id="taintReset">重置</button>
+          </div>
+          <div class="label">污点传播日志</div>
+          <div class="detail-box" id="taintDetail">source=getInput() 已标记。点击“传播一步”追踪污点流向 sink。</div>
+        </div>
+      </div>
+      <div class="stats-row" id="taintStats"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>程序分析可视化实验室 · 单文件 · 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf/program-analysis-viz-lab" target="_blank" rel="noopener" style="color:var(--accent)">GitHub Repository</a> · MIT License</span>
+  </footer>
+</main>
+
+<script>
+(function(){
+'use strict';
+/* ============================================================
+   公共工具
+   ============================================================ */
+var SVGNS='http://www.w3.org/2000/svg';
+var $=function(s,r){return (r||document).querySelector(s);};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function E(tag,attrs,txt){
+  var e=document.createElementNS(SVGNS,tag);
+  if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]);
+  if(txt!=null)e.textContent=txt;
+  return e;
+}
+function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
+function setHTML(node,html){node.innerHTML=html;}
+function statsRender(node,items){
+  clear(node);
+  items.forEach(function(it){
+    var d=document.createElement('div');d.className='stat';
+    d.innerHTML='<div class="v '+(it.c||'')+'">'+it.v+'</div><div class="l">'+it.l+'</div>';
+    node.appendChild(d);
+  });
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+/* 顶部进度条 */
+var pbar=$('#progressBar');
+function onScroll(){
+  var h=document.documentElement;
+  var max=h.scrollHeight-h.clientHeight;
+  var p=max>0?(h.scrollTop/max)*100:0;
+  pbar.style.width=p+'%';
+}
+window.addEventListener('scroll',onScroll,{passive:true});
+onScroll();
+
+/* 滚入动画 */
+var io=new IntersectionObserver(function(es){
+  es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}});
+},{threshold:0.1});
+$$('.reveal').forEach(function(e){io.observe(e);});
+
+/* 侧边栏激活态 + 移动端菜单 */
+var navItems=$$('.nav-item');
+var moduleEls=$$('.module');
+var spy=new IntersectionObserver(function(es){
+  es.forEach(function(en){
+    if(en.isIntersecting){
+      var id=en.target.id;
+      navItems.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+id);});
+    }
+  });
+},{rootMargin:'-25% 0px -65% 0px'});
+moduleEls.forEach(function(s){spy.observe(s);});
+var side=$('#side');
+$('#menuBtn').addEventListener('click',function(){side.classList.toggle('open');});
+navItems.forEach(function(l){l.addEventListener('click',function(){side.classList.remove('open');});});
+
+/* HERO 动画：飘动的程序图节点（transform + rAF） */
+(function heroAnim(){
+  var svg=$('#heroCanvas');
+  if(reduced){return;}
+  var nodes=[];
+  var N=10,i,x,y;
+  for(i=0;i<N;i++){
+    x=30+Math.random()*280;y=30+Math.random()*200;
+    nodes.push({x:x,y:y,ox:x,oy:y,ph:Math.random()*Math.PI*2,sp:0.3+Math.random()*0.5});
+    svg.appendChild(E('circle',{cx:x,cy:y,r:3.5,fill:'#34d399',opacity:0.8}));
+  }
+  var lines=[];
+  for(i=0;i<N-1;i++){
+    var ln=E('line',{x1:nodes[i].x,y1:nodes[i].y,x2:nodes[i+1].x,y2:nodes[i+1].y,stroke:'#7c5cff','stroke-width':1,opacity:0.35});
+    svg.insertBefore(ln,svg.firstChild);
+    lines.push(ln);
+  }
+  var circles=$$('circle',svg);
+  var t0=performance.now();
+  function frame(now){
+    var t=(now-t0)/1000;
+    for(i=0;i<N;i++){
+      var n=nodes[i];
+      n.x=n.ox+Math.sin(t*n.sp+n.ph)*14;
+      n.y=n.oy+Math.cos(t*n.sp*0.8+n.ph)*10;
+      circles[i].setAttribute('transform','translate('+(n.x-n.ox)+','+(n.y-n.oy)+')');
+    }
+    for(i=0;i<lines.length;i++){
+      lines[i].setAttribute('x1',nodes[i].x);lines[i].setAttribute('y1',nodes[i].y);
+      lines[i].setAttribute('x2',nodes[i+1].x);lines[i].setAttribute('y2',nodes[i+1].y);
+    }
+    raf=requestAnimationFrame(frame);
+  }
+  var raf=requestAnimationFrame(frame);
+})();
+
+/* ============================================================
+   01 控制流图 CFG
+   ============================================================ */
+(function cfgModule(){
+  var svg=$('#cfgSvg');
+  var detail=$('#cfgDetail'),legend=$('#cfgLegend');
+  var blocks=[
+    {id:'B0',x:220,y:24,w:120,h:44,code:'x = 1',succ:['B1'],type:'entry'},
+    {id:'B1',x:220,y:110,w:120,h:44,code:'if x<10',succ:['B2','B3']},
+    {id:'B2',x:90,y:210,w:120,h:44,code:'x = x+1',succ:['B4']},
+    {id:'B3',x:350,y:210,w:120,h:44,code:'x = x-1',succ:['B4']},
+    {id:'B4',x:220,y:316,w:120,h:44,code:'print x',succ:[],type:'exit'}
+  ];
+  var doms={B0:['B0'],B1:['B0','B1'],B2:['B0','B1','B2'],B3:['B0','B1','B3'],B4:['B0','B1','B4']};
+  var idom={B0:null,B1:'B0',B2:'B1',B3:'B1',B4:'B1'};
+  var byId={};blocks.forEach(function(b){byId[b.id]=b;});
+  var view='flow',sel=null;
+
+  function edgePath(a,b){
+    var ax=a.x+a.w/2, ay=a.y+a.h, bx=b.x+b.w/2, by=b.y;
+    var my=(ay+by)/2;
+    return 'M'+ax+','+ay+' C'+ax+','+my+' '+bx+','+my+' '+bx+','+by;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>入口 <i style="background:#f472b6"></i>出口 <i style="background:#1c1f24;border:1px solid #9b9fa8"></i>基本块 <i style="background:#7c5cff"></i>支配边';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#62666d"/></marker>'+
+      '<marker id="arrA" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#34d399"/></marker>'+
+      '<marker id="arrD" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7c5cff"/></marker>';
+    svg.appendChild(defs);
+
+    if(view==='flow'){
+      blocks.forEach(function(b){
+        b.succ.forEach(function(s){
+          var p=E('path',{d:edgePath(b,byId[s]),class:((sel&&(doms[sel].indexOf(s)>=0&&doms[sel].indexOf(b.id)>=0))?'edge active':'edge')});
+          p.setAttribute('marker-end',((sel&&doms[sel].indexOf(s)>=0)?'url(#arrA)':'url(#arr)'));
+          svg.appendChild(p);
+        });
+      });
+    }else{
+      // 支配树：idom 边
+      blocks.forEach(function(b){
+        if(idom[b.id]){
+          var p=byId[idom[b.id]];
+          var path=E('path',{d:edgePath(p,b),class:'edge flow'});
+          path.setAttribute('marker-end','url(#arrD)');
+          svg.appendChild(path);
+        }
+      });
+    }
+    // 节点
+    blocks.forEach(function(b){
+      var hi=(sel&&doms[sel].indexOf(b.id)>=0);
+      var g=E('g',{class:'cfg-node',style:'cursor:pointer'});
+      var r=E('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:8,class:'node-rect'+(b.type?(' '+b.type):'')});
+      if(b.id===sel){r.setAttribute('stroke','#34d399');r.setAttribute('stroke-width','2.4');}
+      else if(hi){r.setAttribute('fill','rgba(52,211,153,.16)');}
+      g.appendChild(r);
+      g.appendChild(E('text',{x:b.x+10,y:b.y+17,class:'node-lbl',fill:'#62666d'},b.id));
+      g.appendChild(E('text',{x:b.x+b.w/2,y:b.y+32,class:'node-text','text-anchor':'middle'},b.code));
+      g.addEventListener('click',function(){sel=(sel===b.id?null:b.id);render();updateDetail();});
+      svg.appendChild(g);
+    });
+    // 边标签
+    var cap1=E('text',{x:150,y:170,class:'cap'},'T');
+    var cap2=E('text',{x:398,y:170,class:'cap'},'F');
+    svg.appendChild(cap1);svg.appendChild(cap2);
+  }
+  function updateDetail(){
+    if(!sel){detail.innerHTML='点击任意基本块以查看其支配关系与直接支配者。';return;}
+    var d=doms[sel],im=idom[sel];
+    detail.innerHTML='<b>'+sel+'</b> 的支配集 Dom('+sel+') = {<span class="k-accent">'+d.join(', ')+'</span>}\n'+
+      '直接支配者 idom('+sel+') = '+(im?'<span class="k-purple">'+im+'</span>':'(入口，无)')+'\n'+
+      '即：所有从入口到 '+sel+' 的路径都必经 {'+d.join(', ')+'}。';
+  }
+  function stats(){
+    var edges=0;blocks.forEach(function(b){edges+=b.succ.length;});
+    var domCount=0;for(var k in doms)domCount+=doms[k].length;
+    statsRender($('#cfgStats'),[
+      {v:blocks.length,l:'基本块',c:'acc'},
+      {v:edges,l:'控制流边'},
+      {v:domCount,l:'支配关系'},
+      {v:blocks.length-1,l:'支配树边',c:'pur'}
+    ]);
+  }
+  $('#cfgViewFlow').addEventListener('click',function(){view='flow';toggle([this,$('#cfgViewDom')]);render();});
+  $('#cfgViewDom').addEventListener('click',function(){view='dom';toggle([this,$('#cfgViewFlow')]);render();});
+  $('#cfgReset').addEventListener('click',function(){sel=null;view='flow';toggle([$('#cfgViewFlow'),$('#cfgViewDom')]);render();updateDetail();});
+  function toggle(arr){arr.forEach(function(b){b.classList.add('on');});arr.forEach(function(b,i){if(i>0)b.classList.remove('on');});}
+  // text helper
+  function E2(tag,attrs,txt){var e=E(tag,attrs);if(txt!=null)e.textContent=txt;return e;}
+  // patch E for text content
+  render();stats();
+})();
+
+/* ============================================================
+   02 数据流分析
+   ============================================================ */
+(function dfModule(){
+  var svg=$('#dfSvg'),detail=$('#dfDetail'),legend=$('#dfLegend');
+  var mode='reach';
+  var blocks=[
+    {id:'B1',x:60,y:40,w:120,h:50,succ:['B2','B3'],pred:[]},
+    {id:'B2',x:230,y:150,w:120,h:50,succ:['B4'],pred:['B1']},
+    {id:'B3',x:60,y:150,w:120,h:50,succ:['B4'],pred:['B1']},
+    {id:'B4',x:145,y:270,w:120,h:50,succ:[],pred:['B2','B3']}
+  ];
+  var byId={};blocks.forEach(function(b){byId[b.id]=b;});
+
+  // 三种分析的 gen/kill 或 use/def
+  var defs={reach:{
+    B1:{gen:['d1:x=1','d2:y=2'],kill:[]},
+    B2:{gen:['d3:x=3'],kill:['d1:x=1']},
+    B3:{gen:['d4:y=4'],kill:['d2:y=2']},
+    B4:{gen:[],kill:[]},
+    dir:'fwd',merge:'union',universe:['d1:x=1','d2:y=2','d3:x=3','d4:y=4'],init:[]
+  },live:{
+    B1:{use:[],def:['x','y']},
+    B2:{use:['x'],def:['x']},
+    B3:{use:['x'],def:['x']},
+    B4:{use:['x','y'],def:[]},
+    dir:'bwd',merge:'union',universe:['x','y'],init:[]
+  },avail:{
+    B1:{gen:[],kill:['e1:x+y','e2:x-1']},
+    B2:{gen:['e1:x+y'],kill:[]},
+    B3:{gen:['e2:x-1'],kill:[]},
+    B4:{gen:[],kill:[]},
+    dir:'fwd',merge:'inter',universe:['e1:x+y','e2:x-1'],init:['e1:x+y','e2:x-1']
+  }};
+  var IN={},OUT={},iter=0,changed=true,converged=false;
+
+  function fresh(){IN={};OUT={};blocks.forEach(function(b){IN[b.id]=[];OUT[b.id]=[];});iter=0;changed=true;converged=false;}
+  function setEq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length;i++)if(b.indexOf(a[i])<0)return false;return true;}
+  function union(a,b){var r=a.slice();b.forEach(function(x){if(r.indexOf(x)<0)r.push(x);});return r;}
+  function inter(a,b){return a.filter(function(x){return b.indexOf(x)>=0;});}
+  function diff(a,b){return a.filter(function(x){return b.indexOf(x)<0;});}
+
+  function step(){
+    if(converged)return;
+    changed=false;iter++;
+    var order=mode==='live'?blocks.slice().reverse():blocks.slice();
+    order.forEach(function(b){
+      var info=defs[mode][b.id];
+      var preds=mode==='live'?b.succ:b.pred;
+      var newIn=preds.length===0?[]:(mode==='live'?[]:[]);
+      if(mode==='live'){
+        // live: IN = use ∪ (OUT - def); OUT = ∪ IN[succ]
+        var outS=b.succ.length===0?[]:b.succ.map(function(s){return IN[s];}).reduce(function(a,c){return union(a,c);},[]);
+        OUT[b.id]=outS.slice().sort();
+        var ni=union(info.use,diff(outS,info.def)).sort();
+        if(!setEq(ni,IN[b.id])){changed=true;IN[b.id]=ni;}
+      }else if(mode==='reach'){
+        var inP=b.pred.length===0?[]:b.pred.map(function(p){return OUT[p];}).reduce(function(a,c){return union(a,c);},[]);
+        IN[b.id]=inP.slice().sort();
+        var no=union(info.gen,diff(inP,info.kill)).sort();
+        if(!setEq(no,OUT[b.id])){changed=true;OUT[b.id]=no;}
+      }else{ // avail: forward, intersection
+        var inP2=[];
+        if(b.pred.length===0){inP2=[];}
+        else{
+          inP2=b.pred.map(function(p){return OUT[p];}).reduce(function(a,c,i){
+            if(i===0)return c.slice(); return inter(a,c);
+          },[]);
+        }
+        IN[b.id]=inP2.slice().sort();
+        var no2=union(info.gen,diff(inP2,info.kill)).sort();
+        if(!setEq(no2,OUT[b.id])){changed=true;OUT[b.id]=no2;}
+      }
+    });
+    if(!changed)converged=true;
+  }
+
+  function edgePath(a,b){
+    var ax=a.x+a.w/2,ay=a.y+a.h,bx=b.x+b.w/2,by=b.y;
+    var my=(ay+by)/2;
+    return 'M'+ax+','+ay+' C'+ax+','+my+' '+bx+','+my+' '+bx+','+by;
+  }
+  function fmt(set){return set.length?'{'+set.join(', ')+'}':'∅';}
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>IN集 <i style="background:#7c5cff"></i>OUT集';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="dfa" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#62666d"/></marker>';
+    svg.appendChild(defs);
+    blocks.forEach(function(b){
+      b.succ.forEach(function(s){
+        svg.appendChild(E('path',{d:edgePath(b,byId[s]),class:'edge','marker-end':'url(#dfa)'}));
+      });
+    });
+    blocks.forEach(function(b){
+      var g=E('g');
+      g.appendChild(E('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:8,class:'node-rect'}));
+      var t=E('text',{x:b.x+b.w/2,y:b.y+18,class:'node-text','text-anchor':'middle'},b.id);
+      g.appendChild(t);
+      svg.appendChild(g);
+      // IN / OUT 标签框
+      var inSet=IN[b.id]||[],outSet=OUT[b.id]||[];
+      var boxW=b.w+40,boxX=b.x-20;
+      // IN box above, OUT box below depending on dir
+      var inY=b.y-34,outY=b.y+b.h+8;
+      if(mode==='live'){inY=b.y+b.h+8;outY=b.y-34;}
+      drawSet(svg,boxX,inY,boxW,'IN',inSet,'#34d399');
+      drawSet(svg,boxX,outY,boxW,'OUT',outSet,'#7c5cff');
+    });
+  }
+  function drawSet(svg,x,y,w,label,set,col){
+    var g=E('g');
+    g.appendChild(E('rect',{x:x,y:y,width:w,height:24,rx:5,fill:'#16181c',stroke:col,'stroke-width':1,'stroke-opacity':0.5}));
+    g.appendChild(E('text',{x:x+6,y:y+15,class:'node-lbl',fill:col},label));
+    var txt=set.length>3?set.slice(0,3).join(',')+'…':set.join(',');
+    g.appendChild(E('text',{x:x+34,y:y+15,class:'node-lbl',fill:'#9b9fa8'},txt||'∅'));
+    svg.appendChild(g);
+  }
+  function E3(tag,attrs,txt){var e=E(tag,attrs);if(txt!=null)e.textContent=txt;return e;}
+  function updateDetail(){
+    var names={reach:'到达定义 Reaching Definitions',live:'活跃变量 Live Variables',avail:'可用表达式 Available Expressions'};
+    var dirN={fwd:'前向',bwd:'后向'};
+    var mergeN={union:'并集 ∪',inter:'交集 ∩'};
+    var info=defs[mode];
+    var html='<b>'+names[mode]+'</b>  ['+dirN[info.dir]+' · '+mergeN[info.merge]+']\n';
+    html+='迭代轮次: <span class="k-accent">'+iter+'</span>   状态: '+(converged?'<span class="k-accent">已收敛 (不动点)</span>':(iter===0?'<span class="k-warn">未开始</span>':'<span class="k-purple">传播中…</span>'))+'\n';
+    if(converged)html+='集合不再变化，到达不动点 ✓\n';
+    html+='\n';
+    blocks.forEach(function(b){
+      html+=b.id+'  IN='+fmt((IN[b.id]||[]))+'   OUT='+fmt((OUT[b.id]||[]))+'\n';
+    });
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var total=0;blocks.forEach(function(b){total+=(IN[b.id]||[]).length+(OUT[b.id]||[]).length;});
+    statsRender($('#dfStats'),[
+      {v:iter,l:'迭代轮次',c:'acc'},
+      {v:converged?'是':'否',l:'是否收敛',c:converged?'acc':'pur'},
+      {v:blocks.length,l:'基本块'},
+      {v:total,l:'集合元素总数',c:'pur'}
+    ]);
+  }
+  function full(){
+    var guard=0;
+    while(!converged&&guard<50){step();guard++;}
+    render();updateDetail();stats();
+  }
+  $('#dfMode').addEventListener('change',function(e){mode=e.target.value;fresh();render();updateDetail();stats();});
+  $('#dfStep').addEventListener('click',function(){step();render();updateDetail();stats();});
+  $('#dfRun').addEventListener('click',full);
+  $('#dfReset').addEventListener('click',function(){fresh();render();updateDetail();stats();});
+  fresh();render();updateDetail();stats();
+})();
+
+/* ============================================================
+   03 指针分析 Andersen
+   ============================================================ */
+(function ptrModule(){
+  var svg=$('#ptrSvg'),detail=$('#ptrDetail'),legend=$('#ptrLegend');
+  var stmts=[
+    'p = &a',
+    'q = &b',
+    'r = &c',
+    'p = q',
+    'r = p',
+    '*p = &d'
+  ];
+  // 变量: p q r ; 对象: a b c d
+  var vars=['p','q','r'];var objs=['a','b','c','d'];
+  var pts={p:[],q:[],r:[]};
+  // 解析约束
+  var cons=[];
+  stmts.forEach(function(s){
+    s=s.replace(/\s+/g,'');
+    if(/=&/.test(s)){var m=s.split('=&');cons.push({t:m[0],op:'addr',o:m[1]});}
+    else if(/^\*=/.test(s)){var m=s.slice(1).split('=');cons.push({t:m[0],op:'store',o:m[1].slice(1)});}
+    else{var m=s.split('=');cons.push({t:m[0],op:'copy',s:m[1]});}
+  });
+  var iter=0,changed=true,converged=false;
+
+  function fresh(){pts={p:[],q:[],r:[]};iter=0;changed=true;converged=false;}
+  function add(t,o){if(pts[t].indexOf(o)<0){pts[t].push(o);changed=true;}}
+  function step(){
+    if(converged)return;changed=false;iter++;
+    cons.forEach(function(c){
+      if(c.op==='addr'){add(c.t,c.o);}
+      else if(c.op==='copy'){pts[c.s].forEach(function(o){add(c.t,o);});}
+      else if(c.op==='store'){ // *p = &o  =>  for all x in pts(p): pts(x) += o
+        pts[c.t].forEach(function(x){add(x,c.o);});
+      }
+    });
+    if(!changed)converged=true;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>指针变量 <i style="background:#7c5cff"></i>堆对象 <i style="background:#fbbf24"></i>指向边';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="pta" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#fbbf24"/></marker>';
+    svg.appendChild(defs);
+    // 变量在左，对象在右
+    var vY={p:60,q:160,r:260};
+    vars.forEach(function(v){
+      var g=E('g');
+      g.appendChild(E('rect',{x:40,y:vY[v]-18,width:80,height:36,rx:8,class:'node-rect'}));
+      g.appendChild(E('text',{x:80,y:vY[v]+5,class:'node-text','text-anchor':'middle','font-weight':'600'},v));
+      svg.appendChild(g);
+    });
+    var oPos={a:[420,50],b:[470,130],c:[420,210],d:[470,290]};
+    objs.forEach(function(o){
+      var p=oPos[o];
+      var g=E('g');
+      g.appendChild(E('circle',{cx:p[0],cy:p[1],r:18,fill:'#16181c',stroke:'#7c5cff','stroke-width':1.4}));
+      g.appendChild(E('text',{x:p[0],y:p[1]+4,class:'node-text','text-anchor':'middle'},o));
+      svg.appendChild(g);
+    });
+    // 指向边
+    vars.forEach(function(v){
+      pts[v].forEach(function(o){
+        var p=oPos[o];
+        svg.appendChild(E('path',{d:'M120,'+vY[v]+' C250,'+vY[v]+' '+p[0]+','+vY[v]+' '+p[0]+','+(p[1]-18),class:'edge','stroke':'#fbbf24','stroke-width':1.6,'marker-end':'url(#pta)'}));
+      });
+    });
+    // 语句列表
+    var i;
+    for(i=0;i<stmts.length;i++){
+      svg.appendChild(E('text',{x:40,y:330+i*15,class:'cap',fill:'#62666d'},(i+1)+'. '+stmts[i]));
+    }
+  }
+  function updateDetail(){
+    var html='<b>Andersen 约束求解</b>   轮次: <span class="k-accent">'+iter+'</span>   '+
+      (converged?'<span class="k-accent">已收敛 ✓</span>':'<span class="k-purple">求解中…</span>')+'\n';
+    html+='约束类型: 地址取址(&) / 复制(p=q) / 存储(*p=&o)\n\n';
+    vars.forEach(function(v){
+      html+=v+' → '+((pts[v].length)?'{'+pts[v].join(', ')+'}':'∅')+'\n';
+    });
+    if(converged)html+='\n指向集不再增长，约束闭包求解完成。';
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var total=0;vars.forEach(function(v){total+=pts[v].length;});
+    statsRender($('#ptrStats'),[
+      {v:cons.length,l:'约束数量',c:'acc'},
+      {v:iter,l:'求解轮次'},
+      {v:total,l:'指向关系',c:'pur'},
+      {v:converged?'是':'否',l:'是否收敛',c:converged?'acc':''}
+    ]);
+  }
+  function full(){var g=0;while(!converged&&g<50){step();g++;}render();updateDetail();stats();}
+  $('#ptrStep').addEventListener('click',function(){step();render();updateDetail();stats();});
+  $('#ptrRun').addEventListener('click',full);
+  $('#ptrReset').addEventListener('click',function(){fresh();render();updateDetail();stats();});
+  fresh();render();updateDetail();stats();
+})();
+
+/* ============================================================
+   04 抽象解释
+   ============================================================ */
+(function aiModule(){
+  var svg=$('#aiSvg'),detail=$('#aiDetail'),legend=$('#aiLegend');
+  // 模拟循环: x=0; while(x<100) x=x+1;  抽象为区间
+  var interval=[0,0]; // 当前抽象区间
+  var concLo=0,concHi=0; // 具体域范围 (运行实际可能值)
+  var phase='init'; // init -> iter -> widened -> narrowed -> done
+  var iter=0,steps=[];
+  var TOP='⊤';
+  function fresh(){interval=[0,0];iter=0;phase='init';steps=[];}
+  function widen(a,b){
+    // 加宽: 若上界增长则到 ⊤ (+∞)
+    if(b[1]>a[1])return [a[0],Infinity];
+    return [Math.min(a[0],b[0]),Math.max(a[1],b[1])];
+  }
+  function narrow(a,b){
+    // 窄化: 用更精确的 b 修正
+    if(a[1]===Infinity&&b[1]!==Infinity)return [a[0],b[1]];
+    return [Math.max(a[0],b[0]),Math.min(a[1],b[1])];
+  }
+  function step(){
+    iter++;
+    if(phase==='init'||phase==='iter'){
+      var next=[interval[0],interval[1]+1];
+      if(next[1]>100){phase='done';steps.push('退出循环，x 最终区间 = [100,100]');interval=[100,100];return;}
+      var w=widen(interval,next);
+      if(w[1]===Infinity){
+        interval=w;phase='widened';
+        steps.push('迭代'+iter+': 区间 ['+next[0]+','+next[1]+'] → widening ▲ → [0, +∞)');
+      }else{
+        interval=next;phase='iter';
+        steps.push('迭代'+iter+': 区间 ← ['+next[0]+','+next[1]+']');
+      }
+    }else if(phase==='widened'){
+      // 用循环条件 x<100 窄化上界
+      interval=narrow(interval,[0,99]);
+      phase='narrowed';
+      steps.push('narrow ▼: 利用 x<100 → [0, 99]');
+    }else if(phase==='narrowed'){
+      interval=[100,100];phase='done';
+      steps.push('循环结束 → x ∈ [100,100]');
+    }
+  }
+  function fmtI(a){return a[1]===Infinity?'['+a[0]+', +∞)':('['+a[0]+', '+a[1]+']');}
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>具体域 <i style="background:#7c5cff"></i>抽象区间 <i style="background:#fbbf24"></i>widening';
+    // 伽罗瓦连接示意：左具体，右抽象，中间映射线
+    var defs=E('defs');
+    defs.innerHTML='<marker id="aia" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#34d399"/></marker><marker id="aib" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7c5cff"/></marker>';
+    svg.appendChild(defs);
+    // 坐标轴：x 轴 0..110
+    var x0=70,x1=480,yb=300;
+    svg.appendChild(E('text',{x:70,y:40,class:'node-text','font-weight':'600'},'伽罗瓦连接 Galois Connection'));
+    svg.appendChild(E('text',{x:70,y:58,class:'cap'},'γ (具体化) ↓   ↑ α (抽象化)'));
+    // 抽象域轴 (上)
+    var axY=110;
+    svg.appendChild(E('line',{x1:x0,y1:axY,x2:x1,y2:axY,stroke:'#7c5cff','stroke-width':1.4,'marker-end':'url(#aib)'}));
+    svg.appendChild(E('text',{x:x0-10,y:axY-8,class:'cap',fill:'#7c5cff'},'抽象域 Interval'));
+    // 具体域轴 (下)
+    svg.appendChild(E('line',{x1:x0,y1:yb,x2:x1,y2:yb,stroke:'#34d399','stroke-width':1.4,'marker-end':'url(#aia)'}));
+    svg.appendChild(E('text',{x:x0-10,y:yb+22,class:'cap',fill:'#34d399'},'具体域 Concrete'));
+    // 刻度
+    var ticks=[0,25,50,75,100];
+    ticks.forEach(function(t){
+      var px=x0+t*4.1;
+      svg.appendChild(E('line',{x1:px,y1:axY-4,x2:px,y2:axY+4,stroke:'#7c5cff'}));
+      svg.appendChild(E('text',{x:px,y:axY+18,class:'cap','text-anchor':'middle'},t));
+      svg.appendChild(E('line',{x1:px,y1:yb-4,x2:px,y2:yb+4,stroke:'#34d399'}));
+      svg.appendChild(E('text',{x:px,y:yb+18,class:'cap','text-anchor':'middle'},t));
+    });
+    // 当前抽象区间 (上轴)
+    var lo=interval[0],hi=interval[1];
+    var loX=x0+lo*4.1;
+    var hiX=hi===Infinity?x1:x0+hi*4.1;
+    svg.appendChild(E('rect',{x:loX,y:axY-26,width:Math.max(4,hiX-loX),height:14,rx:3,fill:'rgba(124,92,255,.3)',stroke:'#7c5cff'}));
+    svg.appendChild(E('text',{x:(loX+hiX)/2,y:axY-14,class:'cap','text-anchor':'middle',fill:'#7c5cff'},fmtI(interval)));
+    // 具体范围 (下轴) - 显示循环内 x 的实际可能值
+    var cLo,cHi;
+    if(phase==='init'){cLo=0;cHi=0;}
+    else if(phase==='iter'){cLo=0;cHi=interval[1];}
+    else if(phase==='widened'){cLo=0;cHi=100;}
+    else if(phase==='narrowed'){cLo=0;cHi=99;}
+    else{cLo=100;cHi=100;}
+    var cloX=x0+cLo*4.1,chiX=x0+cHi*4.1;
+    svg.appendChild(E('rect',{x:cloX,y:yb-26,width:Math.max(4,chiX-cloX),height:14,rx:3,fill:'rgba(52,211,153,.3)',stroke:'#34d399'}));
+    svg.appendChild(E('text',{x:(cloX+chiX)/2,y:yb-14,class:'cap','text-anchor':'middle',fill:'#34d399'},'['+cLo+', '+cHi+']'));
+    // 映射线
+    svg.appendChild(E('line',{x1:loX,y1:axY,x2:cloX,y2:yb-26,stroke:'#62666d','stroke-width':0.8,'stroke-dasharray':'3 3'}));
+    svg.appendChild(E('line',{x1:hiX,y1:axY,x2:chiX,y2:yb-26,stroke:'#62666d','stroke-width':0.8,'stroke-dasharray':'3 3'}));
+    // 状态文字
+    var phaseN={init:'初始',iter:'普通迭代',widened:'已 widening',narrowed:'已 narrowing',done:'收敛完成'};
+    svg.appendChild(E('text',{x:70,y:380,class:'node-text',fill:'#f7f8f8'},'当前阶段: '+phaseN[phase]));
+    svg.appendChild(E('text',{x:70,y:400,class:'cap'},'while(x<100) x=x+1;   x 当前抽象 = '+fmtI(interval)));
+  }
+  function updateDetail(){
+    var html='<b>抽象解释 · 区间抽象 + widening</b>\n';
+    html+='阶段: <span class="k-accent">'+phase+'</span>   轮次: '+iter+'\n';
+    html+='当前抽象区间 x = <span class="k-purple">'+fmtI(interval)+'</span>\n\n';
+    html+='操作日志:\n';
+    var last=steps.slice(-6);
+    last.forEach(function(s){html+='  • '+s+'\n';});
+    if(phase==='done')html+='\n<span class="k-accent">已收敛：</span>widening 避免了对 0..100 的逐次迭代。';
+    detail.innerHTML=html;
+  }
+  function stats(){
+    statsRender($('#aiStats'),[
+      {v:iter,l:'迭代步数',c:'acc'},
+      {v:fmtI(interval),l:'当前区间',c:'pur'},
+      {v:phase,l:'当前阶段'},
+      {v:phase==='done'?'是':'否',l:'是否收敛',c:phase==='done'?'acc':''}
+    ]);
+  }
+  $('#aiStep').addEventListener('click',function(){step();render();updateDetail();stats();});
+  $('#aiWiden').addEventListener('click',function(){
+    if(phase!=='done'){interval=[interval[0],Infinity];phase='widened';steps.push('手动 widening ▲ → [0, +∞)');render();updateDetail();stats();}
+  });
+  $('#aiNarrow').addEventListener('click',function(){
+    if(phase==='widened'){interval=narrow(interval,[0,99]);phase='narrowed';steps.push('手动 narrow ▼ → [0, 99]');render();updateDetail();stats();}
+  });
+  $('#aiReset').addEventListener('click',function(){fresh();render();updateDetail();stats();});
+  fresh();render();updateDetail();stats();
+})();
+
+/* ============================================================
+   05 SSA
+   ============================================================ */
+(function ssaModule(){
+  var svg=$('#ssaSvg'),detail=$('#ssaDetail'),legend=$('#ssaLegend');
+  var view='phi';
+  var blocks=[
+    {id:'B1',x:210,y:20,w:130,h:50,code:'x = 1',succ:['B2','B3'],def:['x']},
+    {id:'B2',x:80,y:120,w:130,h:50,code:'x = 2',succ:['B4'],def:['x']},
+    {id:'B3',x:340,y:120,w:130,h:50,code:'x = 3',succ:['B4'],def:['x']},
+    {id:'B4',x:210,y:230,w:130,h:50,code:'y = x + 1',succ:['B5'],def:['y'],use:['x']},
+    {id:'B5',x:210,y:330,w:130,h:50,code:'return y',succ:[],use:['y']}
+  ];
+  var byId={};blocks.forEach(function(b){byId[b.id]=b;});
+  // 支配边界 DF
+  var DF={B1:[],B2:[],B3:[],B4:['B4'],B5:[]};
+  // phi 插入位置: B4 (因为 x 在 B1,B2,B3 定义，DF 包含 B4)
+  var phiAt={B4:['x']};
+  var idom={B1:null,B2:'B1',B3:'B1',B4:'B1',B5:'B4'};
+  function edgePath(a,b){
+    var ax=a.x+a.w/2,ay=a.y+a.h,bx=b.x+b.w/2,by=b.y;
+    var my=(ay+by)/2;
+    return 'M'+ax+','+ay+' C'+ax+','+my+' '+bx+','+my+' '+bx+','+by;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML=view==='phi'?
+      '<i style="background:#fbbf24"></i>支配边界 DF <i style="background:#34d399"></i>φ插入点':
+      '<i style="background:#34d399"></i>SSA变量 <i style="background:#7c5cff"></i>φ函数';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="ssa" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#62666d"/></marker>';
+    svg.appendChild(defs);
+    // DF 高亮
+    blocks.forEach(function(b){
+      if(view==='phi'&&DF[b.id].length){
+        svg.appendChild(E('rect',{x:b.x-6,y:b.y-6,width:b.w+12,height:b.h+12,rx:10,fill:'none',stroke:'#fbbf24','stroke-width':1.4,'stroke-dasharray':'4 3'}));
+      }
+    });
+    // 边
+    blocks.forEach(function(b){
+      b.succ.forEach(function(s){
+        var isDF=view==='phi'&&DF[b.id].indexOf(s)>=0;
+        svg.appendChild(E('path',{d:edgePath(b,byId[s]),class:'edge',stroke:isDF?'#fbbf24':'#62666d','stroke-width':isDF?2:1.4,'marker-end':'url(#ssa)'}));
+      });
+    });
+    // 节点
+    blocks.forEach(function(b){
+      var g=E('g');
+      var r=E('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:8,class:'node-rect'});
+      if(view==='phi'&&phiAt[b.id]){r.setAttribute('stroke','#34d399');r.setAttribute('stroke-width','2');}
+      g.appendChild(r);
+      g.appendChild(E('text',{x:b.x+8,y:b.y+17,class:'node-lbl',fill:'#62666d'},b.id));
+      var code=b.code;
+      if(view==='rename'){
+        // SSA 重命名
+        var rename={B1:'x₁ = 1',B2:'x₂ = 2',B3:'x₃ = 3',B5:'return y₁'};
+        if(rename[b.id])code=rename[b.id];
+        if(b.id==='B4')code='y₁ = φ(x₁,x₂,x₃)+1';
+      }
+      g.appendChild(E('text',{x:b.x+b.w/2,y:b.y+32,class:'node-text','text-anchor':'middle'},code));
+      svg.appendChild(g);
+      // phi 标记
+      if(view==='phi'&&phiAt[b.id]){
+        g.appendChild(E('text',{x:b.x+b.w+8,y:b.y+20,class:'cap',fill:'#34d399'},'φ('+phiAt[b.id].join(',')+')'));
+      }
+    });
+  }
+  function updateDetail(){
+    var html='';
+    if(view==='phi'){
+      html='<b>支配边界 (Dominance Frontier) 与 φ 插入</b>\n';
+      html+='x 在 B1,B2,B3 被定义，DF({B1,B2,B3}) = {<span class="k-accent">B4</span>}\n';
+      html+='因此在 B4 插入 φ(x)，合并来自 B2/B3 的 x 定义。\n\n';
+      blocks.forEach(function(b){
+        html+='DF('+b.id+') = '+(DF[b.id].length?'{'+DF[b.id].join(', ')+'}':'∅')+(phiAt[b.id]?'  → 插入 φ':'')+'\n';
+      });
+    }else{
+      html='<b>SSA 重命名结果</b>\n';
+      html+='每个变量定义赋予唯一下标，φ 函数选择对应路径的版本：\n\n';
+      html+='  B1: x₁ = 1\n  B2: x₂ = 2\n  B3: x₃ = 3\n';
+      html+='  B4: y₁ = <span class="k-accent">φ(x₁,x₂,x₃)</span> + 1\n  B5: return y₁\n\n';
+      html+='每个变量恰被静态赋值一次 (Single Assignment)。';
+    }
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var phiCount=0;for(var k in phiAt)phiCount+=phiAt[k].length;
+    var dfCount=0;for(var k in DF)dfCount+=DF[k].length;
+    statsRender($('#ssaStats'),[
+      {v:blocks.length,l:'基本块',c:'acc'},
+      {v:phiCount,l:'φ 函数',c:'pur'},
+      {v:dfCount,l:'支配边界',c:'acc'},
+      {v:5,l:'SSA版本数',c:'pur'}
+    ]);
+  }
+  function set(v){view=v;$('#ssaViewPhi').classList.toggle('on',v==='phi');$('#ssaViewRename').classList.toggle('on',v==='rename');render();updateDetail();}
+  $('#ssaViewPhi').addEventListener('click',function(){set('phi');});
+  $('#ssaViewRename').addEventListener('click',function(){set('rename');});
+  $('#ssaReset').addEventListener('click',function(){set('phi');});
+  render();updateDetail();stats();
+})();
+
+/* ============================================================
+   06 过程间分析
+   ============================================================ */
+(function ipModule(){
+  var svg=$('#ipSvg'),detail=$('#ipDetail'),legend=$('#ipLegend');
+  var mode='ci';
+  // 函数: main, a, b, c  调用: main->a, main->b, a->c, b->c
+  var funcs=[
+    {id:'main',x:60,y:180,w:90,h:40},
+    {id:'a',x:230,y:80,w:90,h:40},
+    {id:'b',x:230,y:280,w:90,h:40},
+    {id:'c',x:400,y:180,w:90,h:40}
+  ];
+  var calls=[['main','a'],['main','b'],['a','c'],['b','c']];
+  var byId={};funcs.forEach(function(f){byId[f.id]=f;});
+  function clones(f){return mode==='cs'&&f==='c'?2:1;}
+  function edgePath(a,b,ay,by){
+    var ax=a.x+a.w/2,bx=b.x+b.w/2;
+    ay=ay!=null?ay:a.y+a.h/2;by=by!=null?by:b.y+b.h/2;
+    var my=(ay+by)/2;
+    return 'M'+ax+','+ay+' C'+ax+','+my+' '+bx+','+my+' '+bx+','+by;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>函数 <i style="background:#7c5cff"></i>调用边 <i style="background:#fbbf24"></i>克隆(上下文敏感)';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="ipa" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7c5cff"/></marker>';
+    svg.appendChild(defs);
+    // 绘制调用边
+    calls.forEach(function(c){
+      var a=byId[c[0]],b=byId[c[1]];
+      if(mode==='cs'&&c[1]==='c'){
+        // 两条边到两个克隆
+        svg.appendChild(E('path',{d:edgePath(a,b,a.y+a.h/2,b.y-14),class:'edge',stroke:'#7c5cff','stroke-width':1.6,'marker-end':'url(#ipa)'}));
+        svg.appendChild(E('path',{d:edgePath(a,b,a.y+a.h/2,b.y+14),class:'edge',stroke:'#7c5cff','stroke-width':1.6,'marker-end':'url(#ipa)'}));
+      }else{
+        svg.appendChild(E('path',{d:edgePath(a,b),class:'edge',stroke:'#7c5cff','stroke-width':1.6,'marker-end':'url(#ipa)'}));
+      }
+    });
+    // 节点
+    funcs.forEach(function(f){
+      var n=clones(f.id);
+      var g=E('g');
+      if(n>1){
+        // 两个堆叠的克隆
+        g.appendChild(E('rect',{x:f.x+6,y:f.y+6,width:f.w,height:f.h,rx:8,fill:'#1c1f24',stroke:'#fbbf24','stroke-width':1}));
+        var r=E('rect',{x:f.x,y:f.y,width:f.w,height:f.h,rx:8,class:'node-rect'});r.setAttribute('stroke','#fbbf24');
+        g.appendChild(r);
+        g.appendChild(E('text',{x:f.x+f.w/2,y:f.y+18,class:'node-text','text-anchor':'middle','font-weight':'600'},f.id));
+        g.appendChild(E('text',{x:f.x+f.w/2,y:f.y+32,class:'cap','text-anchor':'middle',fill:'#fbbf24'},'×'+n+' ctx'));
+      }else{
+        g.appendChild(E('rect',{x:f.x,y:f.y,width:f.w,height:f.h,rx:8,class:'node-rect'}));
+        g.appendChild(E('text',{x:f.x+f.w/2,y:f.y+18,class:'node-text','text-anchor':'middle','font-weight':'600'},f.id));
+        g.appendChild(E('text',{x:f.x+f.w/2,y:f.y+32,class:'cap','text-anchor':'middle'},'func'));
+      }
+      svg.appendChild(g);
+    });
+    svg.appendChild(E('text',{x:60,y:40,class:'node-text','font-weight':'600'},mode==='ci'?'上下文不敏感 (Context-Insensitive)':'上下文敏感 (Context-Sensitive)'));
+    svg.appendChild(E('text',{x:60,y:58,class:'cap'},mode==='ci'?'c 的所有调用上下文被合并':'c 按调用上下文克隆，区分 a→c 与 b→c'));
+  }
+  function updateDetail(){
+    var totalNodes=0;funcs.forEach(function(f){totalNodes+=clones(f.id);});
+    var html='<b>调用图构造</b>   模式: <span class="k-accent">'+(mode==='ci'?'CI 上下文不敏感':'CS 上下文敏感')+'</span>\n';
+    html+='调用关系: main→a, main→b, a→c, b→c\n\n';
+    if(mode==='ci'){
+      html+='所有对 c 的调用共享一个分析结点，\n';
+      html+='可能丢失精度（a 与 b 的上下文混叠）。\n';
+    }else{
+      html+='c 被克隆为 2 个上下文版本：\n';
+      html+='  c@ctx1 (来自 a)   c@ctx2 (来自 b)\n';
+      html+='精度提升，但结点数与开销增长。\n';
+    }
+    html+='\n函数结点数: '+totalNodes+'   调用边数: '+(mode==='cs'?calls.length+1:calls.length);
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var totalNodes=0;funcs.forEach(function(f){totalNodes+=clones(f.id);});
+    var edges=mode==='cs'?calls.length+1:calls.length;
+    statsRender($('#ipStats'),[
+      {v:funcs.length,l:'原始函数',c:'acc'},
+      {v:totalNodes,l:'分析结点',c:mode==='cs'?'pur':''},
+      {v:edges,l:'调用边',c:'pur'},
+      {v:mode==='cs'?'CS':'CI',l:'分析模式',c:'acc'}
+    ]);
+  }
+  function set(m){mode=m;$('#ipModeCI').classList.toggle('on',m==='ci');$('#ipModeCS').classList.toggle('on',m==='cs');render();updateDetail();stats();}
+  $('#ipModeCI').addEventListener('click',function(){set('ci');});
+  $('#ipModeCS').addEventListener('click',function(){set('cs');});
+  $('#ipReset').addEventListener('click',function(){set('ci');});
+  render();updateDetail();stats();
+})();
+
+/* ============================================================
+   07 符号执行
+   ============================================================ */
+(function seModule(){
+  var svg=$('#seSvg'),detail=$('#seDetail'),legend=$('#seLegend');
+  var layers=[{nodes:[{id:0,pc:'x=sym()',sat:'sat',parent:null}]}];
+  var depth=0,maxDepth=5,rafId=null,nid=1;
+  function fresh(){
+    layers=[{nodes:[{id:0,pc:'x=sym()',sat:'sat',parent:null}]}];depth=0;nid=1;stop();
+  }
+  function stop(){if(rafId){cancelAnimationFrame(rafId);rafId=null;}$('#seRun').textContent='自动展开';}
+  function branchesFor(n,d){
+    if(d===0){
+      return [{pc:'x>0',sat:'sat'},{pc:'x≤0',sat:'sat'}];
+    }else if(d===1){
+      if(n.pc==='x>0'){
+        return [{pc:'x>0 ∧ x>100',sat:'sat'},{pc:'x>0 ∧ x≤100',sat:'sat'}];
+      }else{
+        return [{pc:'x≤0 ∧ x<-50',sat:'unsat'},{pc:'x≤0 ∧ x≥-50',sat:'sat'}];
+      }
+    }else{
+      return [{pc:n.pc+' → sink',sat:'sat'},{pc:n.pc+' → sink',sat:'sat'}];
+    }
+  }
+  function expand(){
+    if(depth>=maxDepth)return;
+    var cur=layers[depth].nodes;
+    var next=[];
+    cur.forEach(function(n){
+      if(n.sat==='unsat')return;
+      branchesFor(n,depth).forEach(function(br){
+        next.push({id:nid++,pc:br.pc,sat:br.sat,parent:n});
+      });
+    });
+    layers.push({nodes:next});
+    depth++;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#34d399"></i>SAT 可达 <i style="background:#f472b6"></i>UNSAT 不可达 <i style="background:#7c5cff"></i>路径条件';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="sea" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#62666d"/></marker>';
+    svg.appendChild(defs);
+    var W=560,H=420;
+    layers.forEach(function(layer,li){
+      var y=30+li*72;
+      var ns=layer.nodes;
+      ns.forEach(function(n,i){
+        var x=W/2;
+        if(li>0){x=((i+0.5)/ns.length)*W;}
+        n.x=x;n.y=y;
+      });
+    });
+    // 边 (基于 parent 指针，避免不可达节点导致的索引错位)
+    layers.forEach(function(layer){
+      layer.nodes.forEach(function(n){
+        if(n.parent){
+          var p=n.parent;
+          var col=n.sat==='unsat'?'#f472b6':'#62666d';
+          svg.appendChild(E('path',{d:'M'+p.x+','+(p.y+16)+' L'+n.x+','+(n.y-16),class:'edge',stroke:col,'stroke-width':n.sat==='unsat'?1.2:1.6,'marker-end':'url(#sea)'}));
+        }
+      });
+    });
+    // 节点
+    layers.forEach(function(layer){
+      layer.nodes.forEach(function(n){
+        var col=n.sat==='unsat'?'#f472b6':(n.sat==='sat'?'#34d399':'#fbbf24');
+        var g=E('g');
+        g.appendChild(E('circle',{cx:n.x,cy:n.y,r:16,fill:'#16181c',stroke:col,'stroke-width':1.6}));
+        g.appendChild(E('text',{x:n.x,y:n.y+4,class:'cap','text-anchor':'middle',fill:col},n.sat==='unsat'?'✗':'✓'));
+        // 路径条件
+        var lbl=n.pc.length>16?n.pc.slice(0,15)+'…':n.pc;
+        svg.appendChild(E('text',{x:n.x,y:n.y+30,class:'cap','text-anchor':'middle',fill:'#9b9fa8','font-size':9},lbl));
+      });
+    });
+    svg.appendChild(E('text',{x:20,y:400,class:'cap'},'执行树深度: '+depth+'/'+maxDepth+'   路径数(叶子): '+layers[depth].nodes.length));
+  }
+  function updateDetail(){
+    var sat=0,unsat=0;
+    layers[depth].nodes.forEach(function(n){if(n.sat==='unsat')unsat++;else sat++;});
+    var html='<b>符号执行 · 路径条件求解</b>\n';
+    html+='程序: x=sym(); if(x>0){ if(x>100)sink1; else sink2; } else { if(x<-50)…; else sink3; }\n\n';
+    html+='执行树深度: <span class="k-accent">'+depth+'</span> / '+maxDepth+'\n';
+    html+='当前叶子路径: '+layers[depth].nodes.length+'\n';
+    html+='  可达 (SAT): <span class="k-accent">'+sat+'</span>\n';
+    html+='  不可达 (UNSAT): <span class="k-warn" style="color:#f472b6">'+unsat+'</span>\n\n';
+    html+='每条路径累积一个路径条件 PC，交由 SMT 求解器判定可满足性。\n';
+    html+'路径数随分支指数增长 → <span class="k-purple">路径爆炸</span>。';
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var sat=0,unsat=0;layers[depth].nodes.forEach(function(n){if(n.sat==='unsat')unsat++;else sat++;});
+    var total=0;layers.forEach(function(l){total+=l.nodes.length;});
+    statsRender($('#seStats'),[
+      {v:depth,l:'执行深度',c:'acc'},
+      {v:sat,l:'可达路径 SAT',c:'acc'},
+      {v:unsat,l:'不可达 UNSAT',c:'pur'},
+      {v:total,l:'总节点数',c:'pur'}
+    ]);
+  }
+  function step(){expand();render();updateDetail();stats();}
+  function autorun(){
+    if(rafId){stop();return;}
+    $('#seRun').textContent='停止';
+    var cnt=depth;
+    function loop(){
+      if(depth>=maxDepth){stop();return;}
+      step();
+      rafId=requestAnimationFrame(loop);
+    }
+    rafId=requestAnimationFrame(loop);
+  }
+  $('#seStep').addEventListener('click',function(){stop();step();});
+  $('#seRun').addEventListener('click',autorun);
+  $('#seReset').addEventListener('click',function(){fresh();render();updateDetail();stats();});
+  fresh();render();updateDetail();stats();
+})();
+
+/* ============================================================
+   08 污点分析
+   ============================================================ */
+(function taintModule(){
+  var svg=$('#taintSvg'),detail=$('#taintDetail'),legend=$('#taintLegend');
+  // 数据流: source(getInput) -> u -> v -> sink(exec)
+  var nodes=[
+    {id:'src',x:40,y:200,w:110,h:40,label:'getInput()',type:'source'},
+    {id:'u',x:200,y:120,w:90,h:40,label:'u = src',type:'var'},
+    {id:'v',x:200,y:280,w:90,h:40,label:'v = src',type:'var'},
+    {id:'w',x:360,y:200,w:90,h:40,label:'w = u+v',type:'var'},
+    {id:'sink',x:480,y:200,w:90,h:40,label:'exec(w)',type:'sink'}
+  ];
+  var edges=[['src','u'],['src','v'],['u','w'],['v','w'],['w','sink']];
+  var byId={};nodes.forEach(function(n){byId[n.id]=n;});
+  var tainted={};var stepN=0,done=false;
+  // 传播顺序
+  var order=[['src','u'],['src','v'],['u','w'],['v','w'],['w','sink']];
+  function fresh(){tainted={src:true};stepN=0;done=false;}
+  function step(){
+    if(done)return;
+    if(stepN>=order.length){done=true;return;}
+    var e=order[stepN];stepN++;
+    tainted[e[1]]=true;
+  }
+  function full(){while(!done&&stepN<order.length)step();}
+  function edgePath(a,b){
+    var ax=a.x+a.w,ay=a.y+a.h/2,bx=b.x,by=b.y+b.h/2;
+    var mx=(ax+bx)/2;
+    return 'M'+ax+','+ay+' C'+mx+','+ay+' '+mx+','+by+' '+bx+','+by;
+  }
+  function render(){
+    clear(svg);
+    legend.innerHTML='<i style="background:#f472b6"></i>Source <i style="background:#34d399"></i>Sink <i style="background:#fbbf24"></i>污点 <i style="background:#62666d"></i>干净';
+    var defs=E('defs');
+    defs.innerHTML='<marker id="ta" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#fbbf24"/></marker><marker id="tac" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#62666d"/></marker>';
+    svg.appendChild(defs);
+    // 边
+    edges.forEach(function(e){
+      var a=byId[e[0]],b=byId[e[1]];
+      var t=tainted[e[1]];
+      var p=E('path',{d:edgePath(a,b),class:'edge',stroke:t?'#fbbf24':'#62666d','stroke-width':t?2.2:1.4,'marker-end':t?'url(#ta)':'url(#tac)'});
+      svg.appendChild(p);
+    });
+    // 节点
+    nodes.forEach(function(n){
+      var g=E('g');
+      var col='#62666d',fill='#1c1f24';
+      if(n.type==='source'){col='#f472b6';}
+      else if(n.type==='sink'){col='#34d399';}
+      if(tainted[n.id]){col='#fbbf24';fill='rgba(251,191,36,.12)';}
+      var r=E('rect',{x:n.x,y:n.y,width:n.w,height:n.h,rx:8,fill:fill,stroke:col,'stroke-width':1.6});
+      g.appendChild(r);
+      g.appendChild(E('text',{x:n.x+n.w/2,y:n.y+n.h/2+4,class:'node-text','text-anchor':'middle','font-size':11},n.label));
+      if(n.type==='source')g.appendChild(E('text',{x:n.x+n.w/2,y:n.y-6,class:'cap','text-anchor':'middle',fill:'#f472b6'},'SOURCE'));
+      if(n.type==='sink')g.appendChild(E('text',{x:n.x+n.w/2,y:n.y+n.h+14,class:'cap','text-anchor':'middle',fill:'#34d399'},'SINK'));
+      svg.appendChild(g);
+    });
+    svg.appendChild(E('text',{x:40,y:40,class:'node-text','font-weight':'600'},'污点传播: source → sink'));
+  }
+  function updateDetail(){
+    var html='<b>污点分析 · Source→Sink</b>\n';
+    html+='传播步数: <span class="k-accent">'+stepN+'</span> / '+order.length+'   '+
+      (done?'<span class="k-accent">传播完成 ✓</span>':'<span class="k-purple">传播中…</span>')+'\n\n';
+    html+='已污染: ';
+    var tlist=[];nodes.forEach(function(n){if(tainted[n.id])tlist.push(n.id);});
+    html+='<span class="k-warn">'+(tlist.length?'{'+tlist.join(', ')+'}':'∅')+'</span>\n\n';
+    if(tainted['sink']){
+      html+='<span class="k-warn">⚠ 检测到漏洞:</span> 污点从 source 流入 sink！\n';
+      html+='路径: getInput() → u/v → w → exec(w)\n';
+      html+='建议: 对 w 进行净化/参数化处理。';
+    }else if(done){
+      html+='污点未到达 sink，本次传播安全。';
+    }else{
+      html+='点击“传播一步”继续追踪污点流向。';
+    }
+    detail.innerHTML=html;
+  }
+  function stats(){
+    var tc=0;nodes.forEach(function(n){if(tainted[n.id])tc++;});
+    statsRender($('#taintStats'),[
+      {v:stepN,l:'传播步数',c:'acc'},
+      {v:tc,l:'污染节点',c:'pur'},
+      {v:edges.length,l:'数据流边'},
+      {v:tainted['sink']?'是':'否',l:'到达Sink',c:tainted['sink']?'acc':''}
+    ]);
+  }
+  $('#taintStep').addEventListener('click',function(){step();render();updateDetail();stats();});
+  $('#taintRun').addEventListener('click',function(){full();render();updateDetail();stats();});
+  $('#taintReset').addEventListener('click',function(){fresh();render();updateDetail();stats();});
+  fresh();render();updateDetail();stats();
+})();
+
+})();
+</script>
+</body>
+</html>

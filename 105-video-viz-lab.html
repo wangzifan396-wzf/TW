@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>video-viz-lab · 视频理解与生成可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#a78bfa;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(167,139,250,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(167,139,250,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(167,139,250,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1033;border-color:transparent}
+.btn.primary:hover{background:#b89dff}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>video</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">video understanding & generation</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/video-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>动作识别</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>Video Transformer</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>视频目标跟踪</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>文本到视频生成</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>视频插帧</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>视频分割</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>时序特征提取</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>视频编码</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/video-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>视频理解与生成 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现动作识别、时空注意力、视频生成、光流估计等视频 AI 核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 动作识别 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>动作识别 · 3D CNN / I3D / SlowFast</h2>
+      <p>时序卷积核在视频体（T×H×W）上滑动提取时空特征。3D CNN 用核 (kT×kH×kW)，I3D 将 2D 权重膨胀为 3D，SlowFast 双通道分别以低/高帧率建模语义与运动。拖动滑块改变核位置，观察感受野。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">action-recognition.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>3D CNN</span>
+          <span><i style="background:#7c5cff"></i>I3D (inflated)</span>
+          <span><i style="background:#34d399"></i>SlowFast 慢通道</span>
+          <span><i style="background:#fbbf24"></i>SlowFast 快通道</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">时序卷积核</h4>
+          <p id="p01detail">3D 卷积核同时在时间与空间维度滑动，输出时空特征图。I3D 通过将预训练 2D 权重沿时间维膨胀（重复 kT 次）获得 3D 初始化。SlowFast 双通道：慢通道低帧率捕获语义，快通道高帧率捕获运动细节，二者横向融合。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">核尺寸</div><div class="v amber" id="st01kernel">3×3×3</div></div>
+          <div class="stat"><div class="k">时间感受野</div><div class="v purple" id="st01rf">3 帧</div></div>
+          <div class="stat"><div class="k">FPS 比例</div><div class="v" id="st01fps">—</div></div>
+          <div class="stat"><div class="k">当前模型</div><div class="v" id="st01model">3D CNN</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 Video Transformer ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>Video Transformer · 时空注意力</h2>
+      <p>视频被切分为时空 Tubelet（t×p×p），线性投影为 token 序列。时空注意力让每个 tubelet 沿空间与时间维度聚合信息。点击选择 query tubelet，切换注意力类型观察连接范围。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">video-transformer.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>Query tubelet</span>
+          <span><i style="background:#7c5cff"></i>空间注意力</span>
+          <span><i style="background:#34d399"></i>时间注意力</span>
+          <span><i style="background:#fbbf24"></i>时空联合</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">Tubelet Embedding</h4>
+          <p id="p02detail">ViViT / TimeSformer 将视频拆为 (T/t)×(H/p)×(W/p) 个 tubelet，每个映射为 D 维向量。分注意力（Factorised）先空间后时间复杂度 O(T·N² + N·T²)，远低于联合注意力 O((T·N)²)。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">Tubelet 数</div><div class="v amber" id="st02n">—</div></div>
+          <div class="stat"><div class="k">序列长度</div><div class="v purple" id="st02seq">—</div></div>
+          <div class="stat"><div class="k">注意力类型</div><div class="v" id="st02type">空间</div></div>
+          <div class="stat"><div class="k">复杂度</div><div class="v" id="st02comp">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 视频目标跟踪 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>视频目标跟踪 · SORT / DeepSORT</h2>
+      <p>卡尔曼滤波预测目标下一帧位置，检测器给出观测，用匈牙利算法基于 IoU/ReID 距离完成数据关联。实线为观测框，虚线为预测框，连线表示同一轨迹的关联。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">multi-object-tracking.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>观测框</span>
+          <span><i style="background:#7c5cff"></i>预测框</span>
+          <span><i style="background:#34d399"></i>关联连线</span>
+          <span><i style="background:#f87171"></i>未匹配检测</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">卡尔曼滤波 + 数据关联</h4>
+          <p id="p03detail">SORT 仅用 IoU 关联；DeepSORT 在马氏距离基础上加入外观特征（ReID）距离，更好应对遮挡。状态向量含 [x,y,s,r,vx,vy]，预测步骤用匀速模型，更新步骤用检测框修正。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前帧</div><div class="v amber" id="st03frame">0</div></div>
+          <div class="stat"><div class="k">活跃轨迹</div><div class="v purple" id="st03tracks">—</div></div>
+          <div class="stat"><div class="k">关联成功</div><div class="v" id="st03assoc">—</div></div>
+          <div class="stat"><div class="k">模式</div><div class="v" id="st03mode">SORT</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 文本到视频生成 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>文本到视频生成 · 扩散模型</h2>
+      <p>视频扩散模型从纯噪声逐步去噪生成视频帧，帧间注意力保证时序一致性，文本 token 通过交叉注意力注入语义。拖动滑块改变去噪步数 t，观察噪声逐步被去除、画面逐渐清晰。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">text-to-video-diffusion.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>视频潜帧</span>
+          <span><i style="background:#7c5cff"></i>帧间自注意力</span>
+          <span><i style="background:#34d399"></i>文本交叉注意力</span>
+          <span><i style="background:#f87171"></i>噪声</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">视频潜扩散</h4>
+          <p id="p04detail">模型在潜空间逐帧去噪：x_t = √α̅_t·x_0 + √(1-α̅_t)·ε。帧间自注意力约束时序连贯，文本 token 的交叉注意力引导内容生成。大 t 时帧充满噪声，小 t 时趋于清晰。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">去噪步 t</div><div class="v amber" id="st04t">—</div></div>
+          <div class="stat"><div class="k">噪声强度</div><div class="v purple" id="st04noise">—</div></div>
+          <div class="stat"><div class="k">帧间注意力</div><div class="v" id="st04temporal">on</div></div>
+          <div class="stat"><div class="k">提示词</div><div class="v" id="st04prompt" style="font-size:12px">宇航员</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 视频插帧 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>视频插帧 · 光流估计</h2>
+      <p>由相邻两帧 I₀、I₁ 估计双向光流，按时间 t 双向 warped 后融合得到中间帧 I_t。拖动 t 滑块观察插值帧在两帧间的过渡，切换显示前向/后向流箭头。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">frame-interpolation.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>帧 I₀</span>
+          <span><i style="background:#7c5cff"></i>帧 I₁</span>
+          <span><i style="background:#34d399"></i>中间帧 I_t</span>
+          <span><i style="background:#fbbf24"></i>前向光流</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">双向光流合成</h4>
+          <p id="p05detail">前向流 F₀→₁ 与后向流 F₁→₀ 分别将两帧 warp 到时刻 t，再按可见性权重融合：I_t = (1-t)·W(I₀,F₀→t) + t·W(I₁,F₁→t)。RIFE / FILM 用网络直接预测中间流以避免遮挡伪影。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">插值时刻 t</div><div class="v amber" id="st05t">0.50</div></div>
+          <div class="stat"><div class="k">前向流幅值</div><div class="v purple" id="st05fwd">—</div></div>
+          <div class="stat"><div class="k">后向流幅值</div><div class="v" id="st05bwd">—</div></div>
+          <div class="stat"><div class="k">显示流</div><div class="v" id="st05show">双向</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 视频分割 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>视频分割 · SAM Video</h2>
+      <p>SAM Video 在首帧给定 mask 提示，通过记忆机制与时序注意力将 mask 传播到后续帧。点击帧中的目标对象选择分割对象，播放观察 mask 在时间上的传播与置信度变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sam-video-mask.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>Mask (对象 A)</span>
+          <span><i style="background:#7c5cff"></i>Mask (对象 B)</span>
+          <span><i style="background:#34d399"></i>记忆帧</span>
+          <span><i style="background:#fbbf24"></i>传播方向</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">时序 Mask 传播</h4>
+          <p id="p06detail">SAM 2 引入流增强的记忆注意力：当前帧图像特征查询过去帧的记忆（含 mask、特征、位置编码），输出当前帧 mask。首帧 prompt 可为点/框/掩码；随帧推进，遮挡会让置信度下降，新记忆帧注入可恢复精度。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前帧</div><div class="v amber" id="st06frame">0</div></div>
+          <div class="stat"><div class="k">对象</div><div class="v purple" id="st06obj">A</div></div>
+          <div class="stat"><div class="k">Mask 置信度</div><div class="v" id="st06conf">—</div></div>
+          <div class="stat"><div class="k">记忆帧数</div><div class="v" id="st06mem">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 时序特征提取 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>时序特征提取 · I3D / TimeSformer / VideoMAE</h2>
+      <p>三种主流视频骨干的特征对比：I3D 是 3D 卷积特征图，TimeSformer 是 Transformer token 序列，VideoMAE 经掩码自编码重建。切换架构与特征层，观察时序特征管的形态差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">temporal-features.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>特征激活</span>
+          <span><i style="background:#7c5cff"></i>时间轴</span>
+          <span><i style="background:#34d399"></i>掩码 token</span>
+          <span><i style="background:#fbbf24"></i>重建目标</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">骨干特征对比</h4>
+          <p id="p07detail">I3D 输出 (T',H',W',C) 的 4D 特征图，保留空间结构；TimeSformer 输出 (T·N, C) token 序列，含 CLS；VideoMAE 仅编码可见 token（~25%），解码器重建被掩码像素，自监督预训练对下游更鲁棒。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">骨干</div><div class="v amber" id="st07arch">I3D</div></div>
+          <div class="stat"><div class="k">特征层</div><div class="v purple" id="st07layer">—</div></div>
+          <div class="stat"><div class="k">输出形状</div><div class="v" id="st07shape">—</div></div>
+          <div class="stat"><div class="k">掩码率</div><div class="v" id="st07mask">0%</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 视频编码 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>视频编码 · GOP / IBP 与运动补偿</h2>
+      <p>视频编码以 GOP 为单位组织帧：I 帧独立编码，P 帧前向预测，B 帧双向预测。运动补偿用运动矢量指向参考帧的块。调整 GOP 大小与量化参数，观察码率分配与运动矢量。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">video-coding-gop.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>I 帧 (帧内)</span>
+          <span><i style="background:#7c5cff"></i>P 帧 (前向)</span>
+          <span><i style="background:#34d399"></i>B 帧 (双向)</span>
+          <span><i style="background:#fbbf24"></i>运动矢量</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">GOP 与码率分配</h4>
+          <p id="p08detail">I 帧码率最高（仅帧内压缩），P/B 帧通过运动补偿与残差编码大幅节省码率。GOP 越长压缩率越高但抗误码与随机访问能力下降；QP 越大质量越低码率越小。B 帧双向参考能进一步压缩但增加延迟。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">GOP 长度</div><div class="v amber" id="st08gop">—</div></div>
+          <div class="stat"><div class="k">QP</div><div class="v purple" id="st08qp">—</div></div>
+          <div class="stat"><div class="k">总码率</div><div class="v" id="st08rate">—</div></div>
+          <div class="stat"><div class="k">压缩比</div><div class="v" id="st08ratio">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>video-viz-lab · 视频理解与生成可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/video-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function sub(i){return ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"][i]||i;}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 动作识别 (3D CNN / I3D / SlowFast)
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let model="3dcnn"; // 3dcnn | i3d | slowfast
+  let kpos=0.5; // 核时间位置 0..1
+
+  function draw(){
+    clearNode(svg);
+    const T=8,cols=6;
+    const frameW=46,frameH=58,gap=8;
+    const startX=70,startY=70;
+    // 视频体：T 帧，每帧 cols 个色块表示空间
+    const palette=["#7c5cff","#a78bfa","#34d399","#fbbf24","#f87171","#38bdf8"];
+    for(let t=0;t<T;t++){
+      const fx=startX+t*(frameW+gap);
+      // 帧边框
+      svg.appendChild(el("rect",{x:fx,y:startY,width:frameW,height:frameH,rx:4,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+      // 帧内色块（伪像素）
+      const r=4,cw=(frameW-6)/3,ch=(frameH-6)/4;
+      for(let i=0;i<r;i++)for(let j=0;j<3;j++){
+        const seed=(t*7+i*3+j)%6;
+        svg.appendChild(el("rect",{x:fx+3+j*cw,y:startY+3+i*ch,width:cw-1,height:ch-1,rx:1,fill:palette[seed],opacity:.55}));
+      }
+      // 帧编号
+      const tl=el("text",{x:fx+frameW/2,y:startY+frameH+14,"text-anchor":"middle","font-size":9.5,fill:"#62666d","font-family":"ui-monospace,monospace"});tl.textContent="t"+t;svg.appendChild(tl);
+    }
+    // 时间轴
+    svg.appendChild(el("line",{x1:startX,y1:startY+frameH+24,x2:startX+(T-1)*(frameW+gap)+frameW,y2:startY+frameH+24,stroke:"rgba(255,255,255,.14)","stroke-width":1}));
+    const al=el("text",{x:startX,y:startY+frameH+38,"font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});al.textContent="时间 →";svg.appendChild(al);
+
+    // 核（3D 卷积核，kT=3）
+    const kT=3;
+    const kStart=Math.round(kpos*(T-kT));
+    const acc={"3dcnn":"#a78bfa","i3d":"#7c5cff"}[model]||"#a78bfa";
+    if(model==="slowfast"){
+      // 慢通道：低帧率，每 2 帧取 1
+      drawKernel(kStart,kT,frameW,gap,startX,startY,frameH,"#34d399",true);
+      // 快通道：高帧率，全部帧，位置偏移
+      drawKernel(kStart,kT,frameW,gap,startX,startY+frameH+60,frameH,"#fbbf24",false);
+      // 双通道融合标注
+      const fl=el("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});fl.textContent="慢通道 (低帧率 · 语义) ⊕ 快通道 (高帧率 · 运动) → 横向融合";svg.appendChild(fl);
+      $("st01fps").textContent="1 : 4";
+      $("st01rf").textContent=(kT*2)+" 帧";
+    }else{
+      drawKernel(kStart,kT,frameW,gap,startX,startY,frameH,acc,false);
+      if(model==="i3d"){
+        const il=el("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});il.textContent="I3D: 2D 权重 W₂D 沿时间膨胀为 W₃D = W₂D / kT (重复 kT 次)";svg.appendChild(il);
+        $("st01fps").textContent="单通道";
+        $("st01rf").textContent=kT+" 帧";
+      }else{
+        const il=el("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});il.textContent="3D CNN: 核 (kT×kH×kW) 同时在时空滑动 → 输出特征图";svg.appendChild(il);
+        $("st01fps").textContent="单通道";
+        $("st01rf").textContent=kT+" 帧";
+      }
+    }
+    $("st01model").textContent=model==="3dcnn"?"3D CNN":model==="i3d"?"I3D":"SlowFast";
+  }
+  function drawKernel(kStart,kT,frameW,gap,startX,startY,frameH,color,fast){
+    for(let i=0;i<kT;i++){
+      const t=kStart+i;
+      const fx=startX+t*(frameW+gap);
+      const yoff=fast?0:0;
+      svg.appendChild(el("rect",{x:fx-2,y:startY+yoff-2,width:frameW+4,height:frameH+4,rx:6,fill:"none",stroke:color,"stroke-width":2,opacity:.9}));
+      if(i===0){
+        const lb=el("text",{x:fx+frameW/2,y:startY+yoff-8,"text-anchor":"middle","font-size":9.5,fill:color,"font-family":"ui-monospace,monospace"});lb.textContent=fast?"fast":"kernel";svg.appendChild(lb);
+      }
+    }
+  }
+
+  draw();
+  // 模型选择
+  const sel=document.createElement("select");sel.className="select";
+  [["3dcnn","3D CNN"],["i3d","I3D"],["slowfast","SlowFast"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{model=sel.value;draw();});
+  ctl.appendChild(sel);
+  // 核位置滑块
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>核位置</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=1;inp.step=0.01;inp.value=0.5;
+  const val=document.createElement("span");val.className="val";val.textContent="0.50";
+  inp.addEventListener("input",()=>{kpos=+inp.value;val.textContent=kpos.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  // 播放
+  const play=document.createElement("button");play.className="btn primary";play.textContent="滑动核";
+  play.addEventListener("click",()=>{
+    animate(2200,p=>{
+      kpos=ease(p);inp.value=kpos;val.textContent=kpos.toFixed(2);draw();
+    });
+  });
+  ctl.appendChild(play);
+})();
+
+/* ============================================================
+   02 Video Transformer (时空注意力)
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  const Tt=3,Ns=4; // 时间 tubelet 数, 空间 tubelet 数(每行)
+  let attType="space"; // space | time | spacetime
+  let qT=1,qS=5; // query tubelet 索引 (时间, 空间)
+
+  function tubePos(t,s){
+    // 网格 Tt 行 x Ns 列
+    const cellW=120,cellH=80;
+    const startX=90,startY=60;
+    return {x:startX+s*cellW+cellW/2,y:startY+t*cellH+cellH/2};
+  }
+  function tidx(t,s){return t*Ns+s;}
+
+  function draw(){
+    clearNode(svg);
+    // 绘制 tubelet 网格
+    for(let t=0;t<Tt;t++){
+      for(let s=0;s<Ns;s++){
+        const p=tubePos(t,s);
+        const id=tidx(t,s);
+        const isQ=(t===qT&&s===qS);
+        const cellW=120,cellH=80;
+        const startX=90,startY=60;
+        const rx=startX+s*cellW,ry=startY+t*cellH;
+        // tubelet 格子
+        svg.appendChild(el("rect",{x:rx+4,y:ry+4,width:cellW-8,height:cellH-8,rx:8,fill:isQ?"rgba(167,139,250,.22)":"#16181c",stroke:isQ?"#a78bfa":"rgba(255,255,255,.12)","stroke-width":isQ?2:1}));
+        // 内部小方块表示 patch
+        const pc=3;
+        const pw=(cellW-16)/pc,ph=(cellH-16)/pc;
+        for(let pi=0;pi<pc;pi++)for(let pj=0;pj<pc;pj++){
+          const seed=(t*7+s*3+pi*5+pj)%4;
+          svg.appendChild(el("rect",{x:rx+8+pj*pw,y:ry+8+pi*ph,width:pw-1.5,height:ph-1.5,rx:1,fill:["#7c5cff","#a78bfa","#34d399","#fbbf24"][seed],opacity:isQ?.8:.4}));
+        }
+        // 编号
+        const tl=el("text",{x:rx+cellW-12,y:ry+18,"text-anchor":"end","font-size":10,fill:isQ?"#a78bfa":"#62666d","font-family":"ui-monospace,monospace"});tl.textContent="("+t+","+s+")";svg.appendChild(tl);
+      }
+    }
+    // 轴标签
+    const tl=el("text",{x:60,y:60+Tt*80/2,transform:"rotate(-90 60 "+(60+Tt*80/2)+")","text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});tl.textContent="时间 T →";svg.appendChild(tl);
+    const sl=el("text",{x:90+Ns*120/2,y:48,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});sl.textContent="空间 H×W →";svg.appendChild(sl);
+
+    // 注意力连线
+    const q=tubePos(qT,qS);
+    const color={space:"#7c5cff",time:"#34d399",spacetime:"#fbbf24"}[attType];
+    for(let t=0;t<Tt;t++){
+      for(let s=0;s<Ns;s++){
+        if(t===qT&&s===qS)continue;
+        let connect=false;
+        if(attType==="space")connect=(t===qT);
+        else if(attType==="time")connect=(s===qS);
+        else connect=true;
+        if(connect){
+          const p=tubePos(t,s);
+          const ln=el("line",{x1:q.x,y1:q.y,x2:p.x,y2:p.y,stroke:color,"stroke-width":1.4,opacity:.55,"stroke-linecap":"round"});
+          svg.appendChild(ln);
+        }
+      }
+    }
+    // query 高亮环
+    svg.appendChild(el("circle",{cx:q.x,cy:q.y,r:6,fill:"#a78bfa"}));
+    svg.appendChild(el("circle",{cx:q.x,cy:q.y,r:12,fill:"none",stroke:"#a78bfa","stroke-width":1.6,opacity:.6}));
+
+    // 注意力矩阵小图
+    const mx=600,my=60,mw=90,mh=90;
+    svg.appendChild(el("rect",{x:mx,y:my,width:mw,height:mh,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const ml=el("text",{x:mx+mw/2,y:my-6,"text-anchor":"middle","font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});ml.textContent="Attention";svg.appendChild(ml);
+    const total=Tt*Ns;
+    const cell=mw/Math.max(Tt,Ns);
+    const qFlat=tidx(qT,qS);
+    for(let t=0;t<Tt;t++)for(let s=0;s<Ns;s++){
+      const id=tidx(t,s);
+      let v=0;
+      if(attType==="space")v=(t===qT)?0.9:0.05;
+      else if(attType==="time")v=(s===qS)?0.9:0.05;
+      else v=0.4+0.5*(id===qFlat?0:1)/(total);
+      if(id===qFlat)v=1;
+      svg.appendChild(el("rect",{x:mx+s*cell,y:my+t*cell,width:cell-1,height:cell-1,fill:color,opacity:.15+v*.8}));
+    }
+    // 说明
+    const desc={space:"空间注意力：query 仅与同一时刻的空间 tubelet 交互。",time:"时间注意力：query 仅与同一空间位置的不同时刻交互。",spacetime:"时空联合注意力：query 与所有时空 tubelet 交互（复杂度最高）。"}[attType];
+    const nl=el("text",{x:W/2,y:H-10,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});nl.textContent=desc;svg.appendChild(nl);
+
+    $("st02n").textContent=Tt*Ns;
+    $("st02seq").textContent=Tt*Ns;
+    $("st02type").textContent={space:"空间",time:"时间",spacetime:"时空联合"}[attType];
+    $("st02comp").textContent={space:"O(T·N²)",time:"O(N·T²)",spacetime:"O((TN)²)"}[attType];
+  }
+
+  draw();
+  // 点击选择 query
+  svg.style.cursor="crosshair";
+  svg.addEventListener("click",(e)=>{
+    const rect=svg.getBoundingClientRect();
+    const sx=(e.clientX-rect.left)/rect.width*W;
+    const sy=(e.clientY-rect.top)/rect.height*H;
+    // 找最近 tubelet
+    let best=null,bd=Infinity;
+    for(let t=0;t<Tt;t++)for(let s=0;s<Ns;s++){
+      const p=tubePos(t,s);const d=Math.hypot(p.x-sx,p.y-sy);
+      if(d<bd){bd=d;best={t,s};}
+    }
+    if(best&&bd<60){qT=best.t;qS=best.s;draw();}
+  });
+  // 注意力类型
+  [["空间","space"],["时间","time"],["时空联合","spacetime"]].forEach(([n,v],i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{attType=v;draw();document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const hint=document.createElement("span");hint.className="chip";hint.textContent="点击网格选择 query tubelet";
+  ctl.appendChild(hint);
+})();
+
+/* ============================================================
+   03 视频目标跟踪 (SORT / DeepSORT)
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420;
+  const F=10; // 帧数
+  let mode="SORT"; // SORT | DeepSORT
+  let frame=0;
+  let showPred=true,showAssoc=true;
+  // 3 个目标的真实轨迹（在场景坐标 0..1）
+  const tracks=[
+    {id:1,color:"#a78bfa",path:genPath(0.15,0.2,0.06,0.012)},
+    {id:2,color:"#7c5cff",path:genPath(0.7,0.25,-0.05,0.018)},
+    {id:3,color:"#34d399",path:genPath(0.4,0.7,0.02,-0.02)}
+  ];
+  function genPath(x0,y0,vx,vy){
+    const p=[];
+    let x=x0,y=y0;
+    for(let i=0;i<F;i++){
+      p.push({x:x+vx*i+Math.sin(i*0.7)*0.02,y:y+vy*i+Math.cos(i*0.5)*0.015});
+    }
+    return p;
+  }
+  // 噪声观测
+  function obs(t,f){const c=t.path[f];return {x:c.x+(Math.sin(t.id*7+f*3))*0.012,y:c.y+(Math.cos(t.id*5+f*2))*0.012};}
+  // 预测（匀速外推）
+  function pred(t,f){
+    if(f===0)return t.path[0];
+    const a=t.path[f-1];
+    return {x:a.x+(a.x-(f>=2?t.path[f-2].x:a.x))*0.9,y:a.y+(a.y-(f>=2?t.path[f-2].y:a.y))*0.9};
+  }
+
+  function sx(v){return 60+v*(W-120);}
+  function sy(v){return 50+v*(H-120);}
+
+  function draw(){
+    clearNode(svg);
+    // 场景框
+    svg.appendChild(el("rect",{x:60,y:50,width:W-120,height:H-120,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.10)"}));
+    // 历史轨迹（到当前帧）
+    tracks.forEach(t=>{
+      let d="M";
+      for(let i=0;i<=frame;i++){const p=t.path[i];d+=(i===0?"":"L")+sx(p.x)+","+sy(p.y)+" ";}
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:t.color,"stroke-width":1.6,opacity:.5,"stroke-linecap":"round"}));
+    });
+    // 当前帧：预测框 + 观测框 + 关联
+    let assoc=0;
+    tracks.forEach(t=>{
+      const o=obs(t,frame);
+      const pp=pred(t,frame);
+      // 关联连线
+      if(showAssoc&&frame>0){
+        svg.appendChild(el("line",{x1:sx(pp.x),y1:sy(pp.y),x2:sx(o.x),y2:sy(o.y),stroke:"#34d399","stroke-width":1.4,opacity:.7,"stroke-dasharray":"3 3"}));
+        assoc++;
+      }
+      // 预测框（虚线）
+      if(showPred&&frame>0){
+        svg.appendChild(el("rect",{x:sx(pp.x)-18,y:sy(pp.y)-12,width:36,height:24,rx:4,fill:"none",stroke:"#7c5cff","stroke-width":1.3,"stroke-dasharray":"4 3",opacity:.85}));
+        const pl=el("text",{x:sx(pp.x)-22,y:sy(pp.y)-16,"font-size":9,fill:"#7c5cff","font-family":"ui-monospace,monospace"});pl.textContent="pred "+t.id;svg.appendChild(pl);
+      }
+      // 观测框（实线）
+      svg.appendChild(el("rect",{x:sx(o.x)-18,y:sy(o.y)-12,width:36,height:24,rx:4,fill:t.color,opacity:.18,stroke:t.color,"stroke-width":1.8}));
+      const ol=el("text",{x:sx(o.x),y:sy(o.y)+3,"text-anchor":"middle","font-size":11,fill:t.color,"font-family":"ui-monospace,monospace","font-weight":650});ol.textContent=t.id;svg.appendChild(ol);
+    });
+    // 帧编号
+    const fl=el("text",{x:W/2,y:36,"text-anchor":"middle","font-size":13,fill:"#f7f8f8","font-family":"ui-monospace,monospace"});fl.textContent="Frame "+frame+" / "+(F-1)+"   ["+mode+"]";svg.appendChild(fl);
+    // 状态说明
+    let det="检测器给出观测框；";
+    if(frame>0)det+="卡尔曼滤波预测下一位置（虚线），匈牙利算法按 "+(mode==="SORT"?"IoU":"IoU+ReID")+" 关联预测与观测。";
+    else det+="首帧初始化轨迹。";
+    const nl=el("text",{x:W/2,y:H-10,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});nl.textContent=det;svg.appendChild(nl);
+
+    $("st03frame").textContent=frame;
+    $("st03tracks").textContent=tracks.length;
+    $("st03assoc").textContent=assoc;
+    $("st03mode").textContent=mode;
+  }
+
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放";
+  let playing=false,timer=null;
+  play.addEventListener("click",()=>{
+    if(playing){playing=false;play.textContent="播放";if(timer)clearInterval(timer);return;}
+    playing=true;play.textContent="暂停";
+    timer=setInterval(()=>{
+      frame=(frame+1)%F;draw();
+      if(frame===0){playing=false;play.textContent="播放";clearInterval(timer);}
+    },700);
+  });
+  const step=document.createElement("button");step.className="btn";step.textContent="下一帧 →";
+  step.addEventListener("click",()=>{frame=(frame+1)%F;draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{playing=false;play.textContent="播放";if(timer)clearInterval(timer);frame=0;draw();});
+  ctl.appendChild(play);ctl.appendChild(step);ctl.appendChild(rst);
+  const sel=document.createElement("select");sel.className="select";
+  [["SORT","SORT"],["DeepSORT","DeepSORT"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{mode=sel.value;draw();});
+  ctl.appendChild(sel);
+  const tp=document.createElement("button");tp.className="btn small on";tp.textContent="预测框";
+  tp.addEventListener("click",()=>{showPred=!showPred;tp.classList.toggle("on",showPred);draw();});
+  ctl.appendChild(tp);
+})();
+
+/* ============================================================
+   04 文本到视频生成 (扩散)
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420;
+  const T=4; // 帧数
+  const STEPS=50;
+  let t=25; // 去噪步 (0=干净, 50=纯噪声) 这里 t 越大噪声越多
+  let prompt="astronaut"; // astronaut | waves | city
+  const prompts={astronaut:"宇航员在月球漫步",waves:"海浪拍打沙滩",city:"赛博朋克城市夜景"};
+
+  function draw(){
+    clearNode(svg);
+    const frameW=120,frameH=80,gap=18;
+    const startX=70,startY=80;
+    // 噪声强度
+    const noise=Math.sqrt(t/STEPS);
+    const clarity=1-noise;
+    const palette={astronaut:["#7c5cff","#a78bfa","#34d399"],waves:["#38bdf8","#0ea5e9","#34d399"],city:["#fbbf24","#f87171","#7c5cff"]}[prompt];
+    // 帧
+    for(let i=0;i<T;i++){
+      const fx=startX+i*(frameW+gap);
+      // 帧背景
+      svg.appendChild(el("rect",{x:fx,y:startY,width:frameW,height:frameH,rx:6,fill:"#0b0b0c",stroke:"rgba(255,255,255,.12)"}));
+      // 内容（清晰度随 t 变化）
+      const cells=6;
+      const cw=frameW/cells,ch=frameH/4;
+      for(let r=0;r<4;r++)for(let c=0;c<cells;c++){
+        const seed=(i*7+r*3+c*5)%3;
+        const baseCol=palette[seed];
+        // 加噪声：随机方块
+        let col=baseCol,op=0.6*clarity;
+        if(Math.random()<noise){col=["#f7f8f8","#62666d","#9b9fa8"][Math.floor(Math.random()*3)];op=0.5*noise+0.3;}
+        svg.appendChild(el("rect",{x:fx+c*cw,y:startY+r*ch,width:cw-1,height:ch-1,fill:col,opacity:op}));
+      }
+      // 帧编号
+      const fl=el("text",{x:fx+frameW/2,y:startY+frameH+16,"text-anchor":"middle","font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});fl.textContent="latent frame "+i;svg.appendChild(fl);
+    }
+    // 帧间自注意力连线
+    for(let i=0;i<T-1;i++){
+      const x1=startX+i*(frameW+gap)+frameW;
+      const x2=startX+(i+1)*(frameW+gap);
+      svg.appendChild(el("line",{x1:x1,y1:startY+frameH/2,x2:x2,y2:startY+frameH/2,stroke:"#7c5cff","stroke-width":1.4,opacity:.6}));
+      // 双向箭头
+      svg.appendChild(el("circle",{cx:(x1+x2)/2,cy:startY+frameH/2,r:3,fill:"#7c5cff"}));
+    }
+    const tl=el("text",{x:W/2,y:startY-10,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});tl.textContent="⟷ 帧间自注意力 (时序一致性) ⟷";svg.appendChild(tl);
+
+    // 文本 token 交叉注意力
+    const ty=startY+frameH+40;
+    const words=prompts[prompt].split("");
+    const twStart=startX;
+    words.forEach((w,i)=>{
+      const wx=twStart+i*30;
+      svg.appendChild(el("rect",{x:wx,y:ty,width:24,height:22,rx:4,fill:"#16181c",stroke:"#34d399","stroke-width":1.2}));
+      const wl=el("text",{x:wx+12,y:ty+15,"text-anchor":"middle","font-size":11,fill:"#34d399","font-family":"ui-monospace,monospace"});wl.textContent=w;svg.appendChild(wl);
+      // 交叉注意力线到所有帧
+      for(let f=0;f<T;f++){
+        const fx=startX+f*(frameW+gap)+frameW/2;
+        svg.appendChild(el("line",{x1:wx+12,y1:ty,x2:fx,y2:startY+frameH,stroke:"#34d399","stroke-width":0.8,opacity:.18}));
+      }
+    });
+    const pl=el("text",{x:twStart,y:ty+38,"font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});pl.textContent="prompt tokens → 交叉注意力注入语义";svg.appendChild(pl);
+
+    // 去噪进度条
+    const bx=70,by=H-40,bw=W-140,bh=12;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+    const fillW=bw*(1-t/STEPS);
+    svg.appendChild(el("rect",{x:bx,y:by,width:Math.max(2,fillW),height:bh,rx:6,fill:"url(#grad04)"}));
+    const defs=el("defs");const lg=el("linearGradient",{id:"grad04",x1:"0",x2:"1"});
+    lg.appendChild(el("stop",{offset:"0%","stop-color":"#f87171"}));lg.appendChild(el("stop",{offset:"100%","stop-color":"#a78bfa"}));defs.appendChild(lg);svg.appendChild(defs);
+    const bl=el("text",{x:bx,y:by-6,"font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});bl.textContent="去噪进度: "+((1-t/STEPS)*100).toFixed(0)+"%   (t="+t+", 噪声 ε~"+noise.toFixed(2)+")";svg.appendChild(bl);
+
+    $("st04t").textContent=t;
+    $("st04noise").textContent=(noise*100).toFixed(0)+"%";
+    $("st04prompt").textContent=prompts[prompt];
+    $("p04title").textContent="视频潜扩散 · t="+t;
+    $("p04detail").textContent="当前去噪步 t="+t+"，噪声强度 "+(noise*100).toFixed(0)+"%。t 大时潜帧充满高斯噪声；随 t 减小，帧间自注意力维持时序一致，文本交叉注意力引导内容向提示词「"+prompts[prompt]+"」收敛。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>去噪步 t</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=STEPS;inp.value=t;
+  const val=document.createElement("span");val.className="val";val.textContent=t;
+  inp.addEventListener("input",()=>{t=+inp.value;val.textContent=t;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="去噪动画";
+  play.addEventListener("click",()=>{
+    animate(2600,p=>{
+      t=Math.round(STEPS*(1-p));inp.value=t;val.textContent=t;draw();
+    });
+  });
+  ctl.appendChild(play);
+  const sel=document.createElement("select");sel.className="select";
+  [["astronaut","宇航员"],["waves","海浪"],["city","城市夜景"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{prompt=sel.value;draw();});
+  ctl.appendChild(sel);
+})();
+
+/* ============================================================
+   05 视频插帧 (光流)
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=420;
+  let tt=0.5; // 插值时刻
+  let showFlow="both"; // fwd | bwd | both
+  // 两帧的"特征点"（在帧坐标 0..1）
+  const pts0=[
+    {x:0.2,y:0.3,c:"#a78bfa"},{x:0.5,y:0.25,c:"#7c5cff"},{x:0.75,y:0.4,c:"#34d399"},
+    {x:0.3,y:0.7,c:"#fbbf24"},{x:0.65,y:0.75,c:"#f87171"},{x:0.85,y:0.65,c:"#38bdf8"}
+  ];
+  // 第二帧点位置（位移）
+  const pts1=pts0.map((p,i)=>({x:p.x+0.12*Math.sin(i+1),y:p.y+0.08*Math.cos(i+1.5),c:p.c}));
+
+  function fx(v,mx){return mx+v*180;}
+  function fy(v,my){return my+v*180;}
+  function lerp(a,b,t){return a+(b-a)*t;}
+
+  function draw(){
+    clearNode(svg);
+    const mx0=70,mx1=470,my=70;
+    // 帧 I0
+    svg.appendChild(el("rect",{x:mx0-10,y:my-10,width:200,height:200,rx:8,fill:"#0b0b0c",stroke:"#a78bfa","stroke-width":1.4}));
+    const l0=el("text",{x:mx0+90,y:my-18,"text-anchor":"middle","font-size":12,fill:"#a78bfa","font-family":"ui-monospace,monospace"});l0.textContent="I₀ (t=0)";svg.appendChild(l0);
+    // 帧 I1
+    svg.appendChild(el("rect",{x:mx1-10,y:my-10,width:200,height:200,rx:8,fill:"#0b0b0c",stroke:"#7c5cff","stroke-width":1.4}));
+    const l1=el("text",{x:mx1+90,y:my-18,"text-anchor":"middle","font-size":12,fill:"#7c5cff","font-family":"ui-monospace,monospace"});l1.textContent="I₁ (t=1)";svg.appendChild(l1);
+    // 中间帧 It（中间）
+    const mxT=270;
+    svg.appendChild(el("rect",{x:mxT-10,y:my-10,width:200,height:200,rx:8,fill:"#0b0b0c",stroke:"#34d399","stroke-width":1.6}));
+    const lt=el("text",{x:mxT+90,y:my-18,"text-anchor":"middle","font-size":12,fill:"#34d399","font-family":"ui-monospace,monospace"});lt.textContent="I_t (t="+tt.toFixed(2)+")";svg.appendChild(lt);
+
+    // 前向流箭头 I0->I1
+    if(showFlow==="fwd"||showFlow==="both"){
+      pts0.forEach((p,i)=>{
+        const a={x:fx(p.x,mx0),y:fy(p.y,my)};
+        const b={x:fx(pts1[i].x,mx1),y:fy(pts1[i].y,my)};
+        // 在 I0 帧内画流向（指向 I1 方向的局部箭头）
+        const dx=(pts1[i].x-p.x)*60,dy=(pts1[i].y-p.y)*60;
+        svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:a.x+dx,y2:a.y+dy,stroke:"#fbbf24","stroke-width":1.3,opacity:.7,"marker-end":"url(#arr05)"}));
+      });
+    }
+    // 后向流箭头 I1->I0
+    if(showFlow==="bwd"||showFlow==="both"){
+      pts1.forEach((p,i)=>{
+        const a={x:fx(p.x,mx1),y:fy(p.y,my)};
+        const dx=(pts0[i].x-p.x)*60,dy=(pts0[i].y-p.y)*60;
+        svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:a.x+dx,y2:a.y+dy,stroke:"#f87171","stroke-width":1.3,opacity:.7,"marker-end":"url(#arr05b)"}));
+      });
+    }
+    // 箭头标记
+    const defs=el("defs");
+    const m1=el("marker",{id:"arr05",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m1.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(m1);
+    const m2=el("marker",{id:"arr05b",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m2.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#f87171"}));defs.appendChild(m2);
+    svg.appendChild(defs);
+
+    // I0 点
+    pts0.forEach(p=>{svg.appendChild(el("circle",{cx:fx(p.x,mx0),cy:fy(p.y,my),r:5,fill:p.c}));});
+    // I1 点
+    pts1.forEach(p=>{svg.appendChild(el("circle",{cx:fx(p.x,mx1),cy:fy(p.y,my),r:5,fill:p.c}));});
+    // It 点（双向 warp 融合）
+    pts0.forEach((p,i)=>{
+      const ix=lerp(p.x,pts1[i].x,tt);
+      const iy=lerp(p.y,pts1[i].y,tt);
+      svg.appendChild(el("circle",{cx:fx(ix,mxT),cy:fy(iy,my),r:6,fill:p.c,stroke:"#34d399","stroke-width":1.8}));
+      // warp 连线
+      svg.appendChild(el("line",{x1:fx(p.x,mx0),y1:fy(p.y,my),x2:fx(ix,mxT),y2:fy(iy,my),stroke:p.c,"stroke-width":0.8,opacity:.3,"stroke-dasharray":"2 2"}));
+      svg.appendChild(el("line",{x1:fx(pts1[i].x,mx1),y1:fy(pts1[i].y,my),x2:fx(ix,mxT),y2:fy(iy,my),stroke:p.c,"stroke-width":0.8,opacity:.3,"stroke-dasharray":"2 2"}));
+    });
+
+    // 统计
+    let fwdSum=0,bwdSum=0;
+    pts0.forEach((p,i)=>{fwdSum+=Math.hypot(pts1[i].x-p.x,pts1[i].y-p.y);bwdSum+=Math.hypot(p.x-pts1[i].x,p.y-pts1[i].y);});
+    $("st05t").textContent=tt.toFixed(2);
+    $("st05fwd").textContent=(fwdSum*100).toFixed(1);
+    $("st05bwd").textContent=(bwdSum*100).toFixed(1);
+    $("st05show").textContent={fwd:"前向",bwd:"后向",both:"双向"}[showFlow];
+    $("p05title").textContent="双向光流合成 · t="+tt.toFixed(2);
+    $("p05detail").textContent="中间帧点位置 = lerp(I₀, I₁, "+tt.toFixed(2)+")，由前向流 F₀→₁ 与后向流 F₁→₀ 双向 warp 后融合。t=0.5 时近似线性插值，真实方法用网络预测中间流以处理遮挡。";
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>时刻 t</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=1;inp.step=0.01;inp.value=0.5;
+  const val=document.createElement("span");val.className="val";val.textContent="0.50";
+  inp.addEventListener("input",()=>{tt=+inp.value;val.textContent=tt.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="插值动画";
+  play.addEventListener("click",()=>{
+    animate(2400,p=>{
+      tt=0.5+0.5*Math.sin(p*Math.PI*2-Math.PI/2);
+      inp.value=tt;val.textContent=tt.toFixed(2);draw();
+    });
+  });
+  ctl.appendChild(play);
+  [["前向流","fwd"],["后向流","bwd"],["双向","both"]].forEach(([n,v],i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===2?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{showFlow=v;draw();document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   06 视频分割 (SAM Video)
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  const F=8;
+  let frame=0;
+  let obj="A"; // A | B
+  let playing=false,timer=null;
+  // 两个对象在每帧的 mask（椭圆，随时间漂移）
+  const objA=[],objB=[];
+  for(let i=0;i<F;i++){
+    objA.push({cx:0.3+0.04*i,cy:0.4+0.02*Math.sin(i),rx:0.1,ry:0.08,conf:Math.max(0.55,0.95-i*0.04)});
+    objB.push({cx:0.65-0.03*i,cy:0.5+0.015*Math.cos(i*0.8),rx:0.09,ry:0.1,conf:Math.max(0.5,0.92-i*0.05)});
+  }
+  // 记忆帧：每隔 3 帧一个
+  function isMem(f){return f%3===0;}
+
+  function sx(v){return 70+v*180;}
+  function sy(v){return 70+v*220;}
+  function srx(v){return v*180;}
+  function sry(v){return v*220;}
+
+  function draw(){
+    clearNode(svg);
+    // 三帧缩略图：prev记忆帧 / 当前帧 / next
+    const views=[{f:Math.max(0,frame-1),lbl:"prev (记忆)"},{f:frame,lbl:"current"},{f:Math.min(F-1,frame+1),lbl:"next (预测)"}];
+    const startX=[70,290,510];
+    views.forEach((v,i)=>{
+      const ox=startX[i],oy=70;
+      // 帧
+      svg.appendChild(el("rect",{x:ox,y:oy,width:180,height:220,rx:8,fill:"#0b0b0c",stroke:i===1?"#a78bfa":"rgba(255,255,255,.12)","stroke-width":i===1?1.6:1}));
+      // 背景内容
+      const palette=["#7c5cff","#a78bfa","#34d399","#fbbf24"];
+      for(let r=0;r<5;r++)for(let c=0;c<4;c++){
+        const seed=(v.f*7+r*3+c)%4;
+        svg.appendChild(el("rect",{x:ox+4+c*43,y:oy+4+r*43,width:41,height:41,rx:2,fill:palette[seed],opacity:.22}));
+      }
+      // masks
+      const drawMask=(o,col)=>{
+        const e=el("ellipse",{cx:sx(o.cx)-70+ox,cy:sy(o.cy),rx:srx(o.rx),ry:sry(o.ry),fill:col,opacity:(obj===col.charAt(0)?"A":col)===col?0.4:0.2,stroke:col,"stroke-width":obj===(col==="#a78bfa"?"A":"B")?1.8:1});
+        // 简化：直接用传入颜色
+        e.setAttribute("fill",col);
+        e.setAttribute("opacity",obj===(col==="#a78bfa"?"A":"B")?0.42:0.18);
+        svg.appendChild(e);
+      };
+      drawMask(objA[v.f],"#a78bfa");
+      drawMask(objB[v.f],"#7c5cff");
+      // 标签
+      const fl=el("text",{x:ox+90,y:oy-8,"text-anchor":"middle","font-size":11,fill:i===1?"#a78bfa":"#9b9fa8","font-family":"ui-monospace,monospace"});fl.textContent=v.lbl+"  f="+v.f;svg.appendChild(fl);
+      // 记忆帧标记
+      if(isMem(v.f)){
+        svg.appendChild(el("circle",{cx:ox+16,cy:oy+16,r:7,fill:"#34d399"}));
+        const ml=el("text",{x:ox+16,y:oy+19,"text-anchor":"middle","font-size":9,fill:"#0b0b0c","font-family":"ui-monospace,monospace","font-weight":700});ml.textContent="M";svg.appendChild(ml);
+      }
+    });
+    // 传播箭头 prev -> current -> next
+    [0,1].forEach(i=>{
+      const x1=startX[i]+180,y1=180,x2=startX[i+1],y2=180;
+      svg.appendChild(el("line",{x1:x1,y1:y1,x2:x2,y2:y2,stroke:"#fbbf24","stroke-width":1.6,opacity:.7,"marker-end":"url(#arr06)"}));
+    });
+    const defs=el("defs");const m=el("marker",{id:"arr06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(m);svg.appendChild(defs);
+
+    // 置信度曲线
+    const cx0=70,cy0=320,cw=W-140,ch=70;
+    svg.appendChild(el("rect",{x:cx0,y:cy0,width:cw,height:ch,rx:6,fill:"#0b0b0c",stroke:"rgba(255,255,255,.10)"}));
+    const cl=el("text",{x:cx0+6,y:cy0+14,"font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});cl.textContent="Mask 置信度随时间";svg.appendChild(cl);
+    const series=obj==="A"?objA:objB;
+    const scol=obj==="A"?"#a78bfa":"#7c5cff";
+    let d="M";
+    for(let i=0;i<F;i++){
+      const x=cx0+10+i*(cw-20)/(F-1);
+      const y=cy0+ch-8-series[i].conf*(ch-16);
+      d+=(i===0?"":"L")+x+","+y+" ";
+      // 点
+      svg.appendChild(el("circle",{cx:x,cy:y,r:i===frame?4:2.5,fill:scol}));
+    }
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:scol,"stroke-width":1.6}));
+    // 记忆帧竖线
+    for(let i=0;i<F;i++)if(isMem(i)){
+      const x=cx0+10+i*(cw-20)/(F-1);
+      svg.appendChild(el("line",{x1:x,y1:cy0+4,x2:x,y2:cy0+ch-4,stroke:"#34d399","stroke-width":1,"stroke-dasharray":"3 3",opacity:.5}));
+    }
+    // 当前帧指示
+    const cx=cx0+10+frame*(cw-20)/(F-1);
+    svg.appendChild(el("line",{x1:cx,y1:cy0,x2:cx,y2:cy0+ch,stroke:"#f7f8f8","stroke-width":1,opacity:.4}));
+
+    $("st06frame").textContent=frame;
+    $("st06obj").textContent=obj;
+    $("st06conf").textContent=(series[frame].conf*100).toFixed(0)+"%";
+    $("st06mem").textContent=Math.ceil((frame+1)/3);
+    $("p06title").textContent="时序 Mask 传播 · 对象 "+obj+" · 帧 "+frame;
+    $("p06detail").textContent="当前对象 "+obj+" 在帧 "+frame+" 的 mask 置信度 "+(series[frame].conf*100).toFixed(0)+"%。记忆帧（绿色 M）每 3 帧注入一次，将历史 mask 与特征写入记忆库，当前帧通过记忆注意力查询得到新 mask。置信度随遮挡下降，记忆帧注入后回升。";
+  }
+
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放传播";
+  play.addEventListener("click",()=>{
+    if(playing){playing=false;play.textContent="播放传播";if(timer)clearInterval(timer);return;}
+    playing=true;play.textContent="暂停";
+    timer=setInterval(()=>{
+      frame=(frame+1)%F;draw();
+    },650);
+  });
+  const step=document.createElement("button");step.className="btn";step.textContent="下一帧 →";
+  step.addEventListener("click",()=>{frame=(frame+1)%F;draw();});
+  ctl.appendChild(play);ctl.appendChild(step);
+  [["对象 A","A"],["对象 B","B"]].forEach(([n,v],i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{obj=v;draw();document.querySelectorAll("#ctl06 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{playing=false;play.textContent="播放传播";if(timer)clearInterval(timer);frame=0;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   07 时序特征提取 (I3D / TimeSformer / VideoMAE)
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420;
+  let arch="i3d"; // i3d | timesformer | videomae
+  let layer=2; // 1..3
+  const T=6,N=8; // 时间, 空间 token
+  const archInfo={
+    i3d:{layers:["Conv3a","Conv4a","Logits"],shapes:["(28,28,256)","(14,14,512)","(1,1,1024)"],mask:0},
+    timesformer:{layers:["Block 2","Block 6","Block 12"],shapes:["(T·N, 256)","(T·N, 512)","(T·N, 768)"],mask:0},
+    videomae:{layers:["Encoder L2","Encoder L6","Decoder"],shapes:["(0.75·T·N, 384)","(0.75·T·N, 768)","(T·N, 384)"],mask:75}
+  };
+
+  function draw(){
+    clearNode(svg);
+    const info=archInfo[arch];
+    const startX=80,startY=70;
+    const cellW=60,cellH=44;
+    // 时间轴
+    svg.appendChild(el("line",{x1:startX,y1:startY-16,x2:startX+T*cellW,y2:startY-16,stroke:"rgba(255,255,255,.14)","stroke-width":1}));
+    const tl=el("text",{x:startX,y:startY-22,"font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});tl.textContent="时间 T →";svg.appendChild(tl);
+
+    if(arch==="i3d"){
+      // 3D 特征图：T 个空间特征图
+      for(let t=0;t<T;t++){
+        const fx=startX+t*cellW;
+        const opacity=0.3+0.5*(Math.sin(t*0.8+layer)+1)/2;
+        svg.appendChild(el("rect",{x:fx,y:startY,width:cellW-4,height:cellH*2,rx:4,fill:"#7c5cff",opacity:opacity*0.5,stroke:"rgba(167,139,250,.5)","stroke-width":1}));
+        // 特征图内 grid
+        for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+          const seed=(t*7+r*3+c+layer)%4;
+          svg.appendChild(el("rect",{x:fx+4+c*(cellW-12)/3,y:startY+4+r*(cellH*2-12)/3,width:(cellW-12)/3-1,height:(cellH*2-12)/3-1,fill:["#a78bfa","#7c5cff","#34d399","#fbbf24"][seed],opacity:.5}));
+        }
+        const fl=el("text",{x:fx+cellW/2,y:startY+cellH*2+14,"text-anchor":"middle","font-size":9,fill:"#62666d","font-family":"ui-monospace,monospace"});fl.textContent="t"+t;svg.appendChild(fl);
+      }
+      const nl=el("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});nl.textContent="I3D: 4D 特征图 (T',H',W',C) · 保留空间结构";svg.appendChild(nl);
+    }else{
+      // token 序列：T×N 个圆点
+      const total=arch==="videomae"?Math.floor(T*N*0.25):T*N;
+      const maskedIdx=arch==="videomae"?new Set(Array.from({length:T*N},(_,i)=>i).sort(()=>Math.random()-0.5).slice(0,Math.floor(T*N*0.75))):new Set();
+      for(let t=0;t<T;t++){
+        for(let n=0;n<N;n++){
+          const idx=t*N+n;
+          const fx=startX+n*(cellW*0.9/N)+t*0;
+          const fy=startY+t*cellH;
+          const x=startX+n*9+t*70;
+          const y=startY+t*36;
+          // token
+          const isMasked=arch==="videomae"&&maskedIdx.has(idx);
+          if(isMasked){
+            svg.appendChild(el("rect",{x:x-5,y:y-5,width:10,height:10,rx:2,fill:"none",stroke:"#62666d","stroke-width":1,"stroke-dasharray":"2 2"}));
+          }else{
+            const op=0.4+0.5*(Math.sin(idx*0.5+layer)+1)/2;
+            svg.appendChild(el("circle",{cx:x,cy:y,r:4.5,fill:"#a78bfa",opacity:op}));
+          }
+        }
+      }
+      // 重建（VideoMAE）
+      if(arch==="videomae"){
+        const ry=startY+T*36+30;
+        const rl=el("text",{x:startX,y:ry-6,"font-size":10,fill:"#fbbf24","font-family":"ui-monospace,monospace"});rl.textContent="↓ 解码器重建被掩码像素";svg.appendChild(rl);
+        for(let t=0;t<T;t++)for(let n=0;n<N;n++){
+          const x=startX+n*9+t*70;
+          const y=ry+t*10;
+          const idx=t*N+n;
+          const isMasked=maskedIdx.has(idx);
+          if(isMasked){
+            svg.appendChild(el("rect",{x:x-5,y:y-5,width:10,height:10,rx:2,fill:"#fbbf24",opacity:.7}));
+          }else{
+            svg.appendChild(el("circle",{cx:x,cy:y,r:3,fill:"#a78bfa",opacity:.4}));
+          }
+        }
+      }
+      const nl=el("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":11,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});
+      nl.textContent=arch==="timesformer"?"TimeSformer: token 序列 (T·N, C) · 含 CLS · 全局自注意力":"VideoMAE: 仅编码可见 token (25%) · 解码器重建掩码";svg.appendChild(nl);
+    }
+
+    // 层信息框
+    const bx=W-180,by=60,bw=140,bh=70;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const bll=el("text",{x:bx+8,y:by+16,"font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});bll.textContent="Layer: "+info.layers[layer-1];svg.appendChild(bll);
+    const bsl=el("text",{x:bx+8,y:by+34,"font-size":10,fill:"#a78bfa","font-family":"ui-monospace,monospace"});bsl.textContent="Shape: "+info.shapes[layer-1];svg.appendChild(bsl);
+    const bml=el("text",{x:bx+8,y:by+52,"font-size":10,fill:"#34d399","font-family":"ui-monospace,monospace"});bml.textContent="Mask: "+info.mask+"%";svg.appendChild(bml);
+
+    $("st07arch").textContent=arch==="i3d"?"I3D":arch==="timesformer"?"TimeSformer":"VideoMAE";
+    $("st07layer").textContent=info.layers[layer-1];
+    $("st07shape").textContent=info.shapes[layer-1];
+    $("st07mask").textContent=info.mask+"%";
+    $("p07title").textContent="骨干特征 · "+(arch==="i3d"?"I3D":arch==="timesformer"?"TimeSformer":"VideoMAE")+" · "+info.layers[layer-1];
+    $("p07detail").textContent={
+      i3d:"I3D 输出 4D 特征图 (T',H',W',C)，保留空间二维结构，适合检测分割等密集预测任务。Inception 主干膨胀为 3D。",
+      timesformer:"TimeSformer 输出 (T·N, C) token 序列，分离的时空注意力，CLS token 用于分类。无空间结构归纳偏置。",
+      videomae:"VideoMAE 仅编码 25% 可见 token（高掩码率 + tube masking），解码器重建像素。自监督预训练特征对下游更鲁棒。"
+    }[arch];
+  }
+
+  draw();
+  const sel=document.createElement("select");sel.className="select";
+  [["i3d","I3D"],["timesformer","TimeSformer"],["videomae","VideoMAE"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];sel.appendChild(op);});
+  sel.addEventListener("change",()=>{arch=sel.value;draw();});
+  ctl.appendChild(sel);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>特征层</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=3;inp.value=2;
+  const val=document.createElement("span");val.className="val";val.textContent="L2";
+  inp.addEventListener("input",()=>{layer=+inp.value;val.textContent="L"+layer;draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   08 视频编码 (GOP / IBP)
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420;
+  let gop=9; // GOP 长度
+  let qp=24; // 量化参数
+  let showMV=true;
+
+  function frameType(i,gopLen){
+    // 结构: I B B P B B P B B P ... (GOP 内 1 个 I)
+    const inGop=i%gopLen;
+    if(inGop===0)return "I";
+    if(inGop%3===0)return "P";
+    return "B";
+  }
+  function rateOf(type,qp){
+    // 码率近似（相对单位），QP 越大码率越小
+    const base={I:1.0,P:0.45,B:0.28}[type];
+    return base*Math.exp(-(qp-10)/30)*100;
+  }
+  function colorOf(type){return {I:"#a78bfa",P:"#7c5cff",B:"#34d399"}[type];}
+
+  function draw(){
+    clearNode(svg);
+    const total=Math.min(16,gop+4);
+    const startX=50,startY=70;
+    const frameW=36,gap=8;
+    // 帧序列
+    for(let i=0;i<total;i++){
+      const type=frameType(i,gop);
+      const fx=startX+i*(frameW+gap);
+      const col=colorOf(type);
+      svg.appendChild(el("rect",{x:fx,y:startY,width:frameW,height:64,rx:5,fill:col,opacity:.85,stroke:col,"stroke-width":1.4}));
+      const tl=el("text",{x:fx+frameW/2,y:startY+38,"text-anchor":"middle","font-size":18,fill:"#0b0b0c","font-family":"ui-monospace,monospace","font-weight":700});tl.textContent=type;svg.appendChild(tl);
+      const fl=el("text",{x:fx+frameW/2,y:startY+78,"text-anchor":"middle","font-size":9,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});fl.textContent="f"+i;svg.appendChild(fl);
+      // GOP 边界
+      if(i%gop===0&&i>0){
+        svg.appendChild(el("line",{x1:fx-gap/2,y1:startY-6,x2:fx-gap/2,y2:startY+72,stroke:"#f87171","stroke-width":1.4,"stroke-dasharray":"3 3"}));
+        const gl=el("text",{x:fx-gap/2,y:startY-10,"text-anchor":"middle","font-size":9,fill:"#f87171","font-family":"ui-monospace,monospace"});gl.textContent="GOP";svg.appendChild(gl);
+      }
+    }
+    // 参考箭头（P/B 帧指向参考）
+    if(showMV){
+      for(let i=1;i<total;i++){
+        const type=frameType(i,gop);
+        const fx=startX+i*(frameW+gap)+frameW/2;
+        if(type==="P"){
+          // 前向参考最近的 I/P
+          let ref=i-1;
+          while(ref>=0&&frameType(ref,gop)==="B")ref--;
+          if(ref>=0){
+            const rx=startX+ref*(frameW+gap)+frameW/2;
+            svg.appendChild(el("path",{d:"M"+fx+","+startY+" Q"+((fx+rx)/2)+","+(startY-20)+" "+rx+","+startY,stroke:"#fbbf24","stroke-width":1,fill:"none",opacity:.5,"marker-end":"url(#arr08)"}));
+          }
+        }else if(type==="B"){
+          // 双向
+          let ref1=i-1,ref2=i+1;
+          while(ref1>=0&&frameType(ref1,gop)==="B")ref1--;
+          if(ref1>=0){
+            const rx=startX+ref1*(frameW+gap)+frameW/2;
+            svg.appendChild(el("path",{d:"M"+fx+","+(startY+64)+" Q"+((fx+rx)/2)+","+(startY+84)+" "+rx+","+(startY+64),stroke:"#fbbf24","stroke-width":0.8,fill:"none",opacity:.4,"marker-end":"url(#arr08)"}));
+          }
+          if(ref2<total&&frameType(ref2,gop)!=="B"){
+            const rx=startX+ref2*(frameW+gap)+frameW/2;
+            svg.appendChild(el("path",{d:"M"+fx+","+(startY+64)+" Q"+((fx+rx)/2)+","+(startY+84)+" "+rx+","+(startY+64),stroke:"#fbbf24","stroke-width":0.8,fill:"none",opacity:.4,"marker-end":"url(#arr08)"}));
+          }
+        }
+      }
+      const defs=el("defs");const m=el("marker",{id:"arr08",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(m);svg.appendChild(defs);
+    }
+    // 运动补偿块可视化（在一个 P 帧上）
+    const mvFrame=Math.max(1,gop>=6?3:1);
+    const mvfx=startX+mvFrame*(frameW+gap);
+    // 局部放大：运动矢量
+    const zx=50,zy=180,zw=300,zh=160;
+    svg.appendChild(el("rect",{x:zx,y:zy,width:zw,height:zh,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.12)"}));
+    const zl=el("text",{x:zx+8,y:zy+16,"font-size":11,fill:"#7c5cff","font-family":"ui-monospace,monospace"});zl.textContent="P 帧运动补偿 (块匹配 + 残差)";svg.appendChild(zl);
+    // 参考帧块
+    for(let r=0;r<4;r++)for(let c=0;c<5;c++){
+      const seed=(r*3+c)%4;
+      svg.appendChild(el("rect",{x:zx+12+c*30,y:zy+24+r*30,width:28,height:28,rx:2,fill:["#a78bfa","#7c5cff","#34d399","#fbbf24"][seed],opacity:.3}));
+    }
+    // 运动矢量箭头
+    for(let r=0;r<4;r++)for(let c=0;c<5;c++){
+      const x=zx+12+c*30+14,y=zy+24+r*30+14;
+      const mvx=Math.sin(r*2+c)*8,mvy=Math.cos(r+c*2)*6;
+      svg.appendChild(el("line",{x1:x,y1:y,x2:x+mvx,y2:y+mvy,stroke:"#fbbf24","stroke-width":1.2,opacity:.8,"marker-end":"url(#arr08)"}));
+    }
+    const rvl=el("text",{x:zx+zw-8,y:zy+zh-8,"text-anchor":"end","font-size":9,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});rvl.textContent="黄色箭头=运动矢量 · 残差=预测-参考";svg.appendChild(rvl);
+
+    // 码率分配柱状图
+    const bx=370,by=180,bw=300,bh=160;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.12)"}));
+    const bl=el("text",{x:bx+8,y:by+16,"font-size":11,fill:"#a78bfa","font-family":"ui-monospace,monospace"});bl.textContent="码率分配 (QP="+qp+")";svg.appendChild(bl);
+    const showN=Math.min(12,gop);
+    const barW=(bw-20)/showN-2;
+    let totalRate=0;
+    for(let i=0;i<showN;i++){
+      const type=frameType(i,gop);
+      const rate=rateOf(type,qp);
+      totalRate+=rate;
+      const bh2=rate/100*(bh-30);
+      const x=bx+10+i*(barW+2),y=by+bh-10-bh2;
+      svg.appendChild(el("rect",{x:x,y:y,width:barW,height:Math.max(2,bh2),rx:2,fill:colorOf(type),opacity:.85}));
+      const tl=el("text",{x:x+barW/2,y:by+bh-2,"text-anchor":"middle","font-size":8,fill:"#62666d","font-family":"ui-monospace,monospace"});tl.textContent=type;svg.appendChild(tl);
+    }
+    // 码率总和
+    const suml=el("text",{x:bx+bw-8,y:by+16,"text-anchor":"end","font-size":10,fill:"#9b9fa8","font-family":"ui-monospace,monospace"});suml.textContent="Σ="+totalRate.toFixed(0);svg.appendChild(suml);
+
+    // 统计
+    const iCount=1,pCount=Math.floor((gop-1)/3),bCount=gop-1-pCount;
+    const avgRate=totalRate/showN;
+    $("st08gop").textContent=gop;
+    $("st08qp").textContent=qp;
+    $("st08rate").textContent=avgRate.toFixed(1);
+    $("st08ratio").textContent=(100/avgRate*rateOf("I",qp)/100).toFixed(1)+"x";
+    $("p08title").textContent="GOP="+gop+" · QP="+qp+" · I:"+iCount+" P:"+pCount+" B:"+bCount;
+    $("p08detail").textContent="当前 GOP 长度 "+gop+"，结构 I-BB-P-BB-P...（每 3 帧一个 P）。QP="+qp+" 控制量化步长，越大质量越低码率越小。I 帧码率最高，B 帧最低。GOP 越长总体压缩率越高，但随机访问与抗误码能力下降。";
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>GOP 长度</span>';
+  const inp1=document.createElement("input");inp1.type="range";inp1.min=4;inp1.max=16;inp1.value=gop;
+  const val1=document.createElement("span");val1.className="val";val1.textContent=gop;
+  inp1.addEventListener("input",()=>{gop=+inp1.value;val1.textContent=gop;draw();});
+  sg1.appendChild(inp1);sg1.appendChild(val1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>QP</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=10;inp2.max=40;inp2.value=qp;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=qp;
+  inp2.addEventListener("input",()=>{qp=+inp2.value;val2.textContent=qp;draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+  const mv=document.createElement("button");mv.className="btn small on";mv.textContent="运动矢量";
+  mv.addEventListener("click",()=>{showMV=!showMV;mv.classList.toggle("on",showMV);draw();});
+  ctl.appendChild(mv);
+})();
+
+</script>
+</body>
+</html>

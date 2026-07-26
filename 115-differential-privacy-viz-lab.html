@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>differential-privacy-viz-lab · 差分隐私可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fbbf24;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,191,36,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,191,36,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,191,36,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1503;border-color:transparent}
+.btn.primary:hover{background:#fcc73d}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>differential-privacy</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">differential privacy</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/differential-privacy-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>DP 基础</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>Laplace 机制</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>Gaussian 机制</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>组合定理</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>DP-SGD</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>本地差分隐私</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>隐私预算</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>效用-隐私权衡</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/differential-privacy-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>差分隐私 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 ε-差分隐私、Laplace/Gaussian 机制、DP-SGD、组合定理、隐私预算等差分隐私核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 DP 基础 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>ε-差分隐私定义</h2>
+      <p>相邻数据集 D 与 D' 仅相差一条记录。随机机制 M 满足 ε-DP 当且仅当对所有输出子集 S，概率比被 e^ε 界住。调节 ε 观察概率比上界的变化。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">epsilon-dp-definition.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>数据集 D</span>
+          <span><i style="background:#7c5cff"></i>相邻数据集 D'</span>
+          <span><i style="background:#34d399"></i>输出分布</span>
+          <span><i style="background:#f87171"></i>概率比上界 e^ε</span>
+        </div>
+        <div class="detail-box">
+          <h4>ε-差分隐私形式定义</h4>
+          <span class="formula">Pr[M(D) ∈ S] ≤ e^ε · Pr[M(D') ∈ S]</span>
+          <p id="p01detail">相邻数据集 D、D' 仅相差一条记录（差一行）。ε 越小，D 与 D' 的输出分布越接近，隐私保护越强但效用越低。拖动滑块改变 ε，观察概率比上界 e^ε 与输出分布的差异。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">ε</div><div class="v amber" id="st01eps">1.0</div></div>
+          <div class="stat"><div class="k">e^ε (比上界)</div><div class="v purple" id="st01bound">2.72</div></div>
+          <div class="stat"><div class="k">隐私强度</div><div class="v" id="st01strength">中等</div></div>
+          <div class="stat"><div class="k">ln(e^ε)</div><div class="v amber" id="st01ln">1.0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 Laplace 机制 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>Laplace 机制</h2>
+      <p>对查询 f 添加 Laplace 噪声：M(x)=f(x)+Lap(Δf/ε)。Δf 为 L1 敏感度。调节 ε 与敏感度，观察噪声分布的尺度与采样点。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">laplace-mechanism.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>Laplace 密度</span>
+          <span><i style="background:#7c5cff"></i>真实值 f(x)</span>
+          <span><i style="background:#34d399"></i>采样输出</span>
+          <span><i style="background:#f87171"></i>敏感度 Δf</span>
+        </div>
+        <div class="detail-box">
+          <h4>Laplace 机制 = 真实值 + 噪声</h4>
+          <span class="formula">M(x) = f(x) + Lap(b),   b = Δf / ε</span>
+          <p id="p02detail">L1 敏感度 Δf = max‖f(D)−f(D')‖₁ 衡量相邻数据集上查询结果的最大变化。尺度参数 b 越大噪声越分散。ε 越小 b 越大，隐私越强。点击“采样”生成一次机制输出。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">ε</div><div class="v amber" id="st02eps">1.0</div></div>
+          <div class="stat"><div class="k">敏感度 Δf</div><div class="v" style="color:#f87171" id="st02sens">1.0</div></div>
+          <div class="stat"><div class="k">尺度 b=Δf/ε</div><div class="v purple" id="st02b">1.00</div></div>
+          <div class="stat"><div class="k">上次采样</div><div class="v" style="color:#34d399" id="st02sample">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 Gaussian 机制 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>Gaussian 机制</h2>
+      <p>添加高斯噪声实现 (ε,δ)-DP：M(x)=f(x)+N(0,σ²)，σ = Δ₂f·√(2ln(1.25/δ))/ε。δ 为“失败概率”。对比 Gaussian 与 Laplace 分布形态。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">gaussian-mechanism.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>Gaussian 密度</span>
+          <span><i style="background:#7c5cff"></i>Laplace 对比</span>
+          <span><i style="background:#f87171"></i>δ 失败尾概率</span>
+          <span><i style="background:#34d399"></i>采样输出</span>
+        </div>
+        <div class="detail-box">
+          <h4>(ε,δ)-差分隐私</h4>
+          <span class="formula">σ ≥ Δ₂f · √(2 ln(1.25/δ)) / ε</span>
+          <p id="p03detail">Gaussian 机制使用 L2 敏感度 Δ₂f。δ 是一个极小的“失败概率”（通常 ≤ 1/n），允许概率比以 1+δ 的概率突破 e^ε。Gaussian 尾部比 Laplace 衰减更快但在中心略宽。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">ε</div><div class="v amber" id="st03eps">1.0</div></div>
+          <div class="stat"><div class="k">δ</div><div class="v" style="color:#f87171" id="st03delta">1e-5</div></div>
+          <div class="stat"><div class="k">σ</div><div class="v purple" id="st03sigma">3.40</div></div>
+          <div class="stat"><div class="k">L2 敏感度</div><div class="v amber" id="st03sens">1.0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 组合定理 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>组合定理</h2>
+      <p>串行组合：k 个 ε_i-DP 机制顺序作用 → 总 ε = Σε_i。并行组合：作用于不相交子集 → 总 ε = max ε_i。播放动画观察隐私预算的消耗方式。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">composition.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>串行组合 (Σ)</span>
+          <span><i style="background:#7c5cff"></i>并行组合 (max)</span>
+          <span><i style="background:#34d399"></i>高级组合 (ε̄)</span>
+          <span><i style="background:#f87171"></i>预算上限</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">组合方式对比</h4>
+          <p id="p04detail">串行组合下隐私预算线性累加，k 次查询后 ε_total = k·ε。并行组合作用于不相交分区，预算不累加。高级组合定理给出更紧的界：ε_total ≈ ε·√(2k·ln(1/δ)) + k·ε·(e^ε−1)。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">查询数 k</div><div class="v amber" id="st04k">5</div></div>
+          <div class="stat"><div class="k">单次 ε</div><div class="v purple" id="st04eps1">0.5</div></div>
+          <div class="stat"><div class="k">串行总 ε</div><div class="v amber" id="st04seq">2.50</div></div>
+          <div class="stat"><div class="k">并行总 ε</div><div class="v" style="color:#34d399" id="st04par">0.50</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 DP-SGD ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>DP-SGD 差分隐私随机梯度下降</h2>
+      <p>每步：对每个样本裁剪梯度到 L2 范数 C，求和后加 N(0,σ²C²I) 噪声，再除以 batch size。Moments Accountant 跟踪累计 ε。调节 C、σ、batch 观察隐私消耗。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">dp-sgd.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>原始梯度</span>
+          <span><i style="background:#f87171"></i>裁剪边界 C</span>
+          <span><i style="background:#7c5cff"></i>裁剪后梯度</span>
+          <span><i style="background:#34d399"></i>噪声聚合梯度</span>
+        </div>
+        <div class="detail-box">
+          <h4>DP-SGD 单步流程</h4>
+          <span class="formula">g̃ = (1/B)·( Σ clip(∇L_i, C) + N(0, σ²C²I) )</span>
+          <p id="p05detail">梯度裁剪限制单样本贡献上限 C；噪声 σ 控制隐私强度；采样率 q=B/N 影响 Accountant。点击“训练一步”观察梯度被裁剪、加噪并累积隐私成本。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">裁剪范数 C</div><div class="v amber" id="st05c">1.0</div></div>
+          <div class="stat"><div class="k">噪声 σ</div><div class="v purple" id="st05sigma">1.0</div></div>
+          <div class="stat"><div class="k">训练步数</div><div class="v" id="st05step">0</div></div>
+          <div class="stat"><div class="k">累计 ε</div><div class="v" style="color:#34d399" id="st05eps">0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 本地差分隐私 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>本地差分隐私 LDP</h2>
+      <p>用户在本地对数据随机化后上传，服务器看不到原始值。Randomized Response：以概率 p=e^ε/(e^ε+1) 报告真值。RAPPOR 用 Bloom filter + RR 实现字符串 LDP。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">local-dp.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>真实值分布</span>
+          <span><i style="background:#7c5cff"></i>随机化后报告</span>
+          <span><i style="background:#34d399"></i>聚合估计</span>
+          <span><i style="background:#f87171"></i>偏差</span>
+        </div>
+        <div class="detail-box">
+          <h4>Randomized Response 机制</h4>
+          <span class="formula">Pr[报告真值] = e^ε / (e^ε + 1)，否则报告反值</span>
+          <p id="p06detail">N 个用户各持有一个二元值。LDP 下每个人独立随机化报告。服务器用校正公式 p̂=(r̂−q)/(p−q) 还原总体比例。ε 越小越隐私但方差越大。点击“模拟”运行一轮。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">用户数 N</div><div class="v amber" id="st06n">200</div></div>
+          <div class="stat"><div class="k">ε</div><div class="v purple" id="st06eps">1.0</div></div>
+          <div class="stat"><div class="k">真实比例</div><div class="v" id="st06true">0.50</div></div>
+          <div class="stat"><div class="k">估计比例</div><div class="v" style="color:#34d399" id="st06est">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 隐私预算 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>隐私预算与 Accountant</h2>
+      <p>隐私预算 ε_total 在多次查询间分配。Naive 累加 vs Rényi/Moments Accountant 给出更紧的界。分配查询预算，观察何时预算耗尽。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">privacy-accountant.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>Naive 累加</span>
+          <span><i style="background:#7c5cff"></i>Moments Accountant</span>
+          <span><i style="background:#34d399"></i>剩余预算</span>
+          <span><i style="background:#f87171"></i>预算上限 ε_max</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">预算分配策略</h4>
+          <p id="p07detail">Naive 组合下每次查询消耗 ε_i，总和线性增长。Moments Accountant 基于 Rényi 散度，给出更紧的累计 ε 估计，允许更多查询。点击“追加查询”观察预算曲线。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">已执行查询</div><div class="v amber" id="st07q">0</div></div>
+          <div class="stat"><div class="k">Naive ε</div><div class="v purple" id="st07naive">0.00</div></div>
+          <div class="stat"><div class="k">MA ε</div><div class="v" style="color:#34d399" id="st07ma">0.00</div></div>
+          <div class="stat"><div class="k">预算上限</div><div class="v" style="color:#f87171" id="st07max">4.0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 效用-隐私权衡 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>效用-隐私权衡</h2>
+      <p>ε 越小隐私越强但误差越大。均方误差 MSE 与 1/ε² 成正比（Laplace）。拖动 ε 观察精度损失曲线与误差区间。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">utility-privacy-tradeoff.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>MSE 曲线</span>
+          <span><i style="background:#7c5cff"></i>当前 ε 误差</span>
+          <span><i style="background:#34d399"></i>效用区</span>
+          <span><i style="background:#f87171"></i>隐私区</span>
+        </div>
+        <div class="detail-box">
+          <h4>误差与 ε 的关系</h4>
+          <span class="formula">MSE ≈ (Δf)² · 2 / ε²   (Laplace 机制)</span>
+          <p id="p08detail">Laplace 机制下 MSE 与 1/ε² 成正比：ε 减半则误差变 4 倍。小 ε 提供强隐私但效用急剧下降，需在隐私与精度间权衡。拖动滑块或点击“扫描”观察曲线。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">ε</div><div class="v amber" id="st08eps">1.0</div></div>
+          <div class="stat"><div class="k">MSE</div><div class="v" style="color:#f87171" id="st08mse">2.00</div></div>
+          <div class="stat"><div class="k">RMSE</div><div class="v purple" id="st08rmse">1.41</div></div>
+          <div class="stat"><div class="k">区间</div><div class="v" id="st08region">权衡区</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>differential-privacy-viz-lab · 差分隐私可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/differential-privacy-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MFONT="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 ε-差分隐私定义
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  let eps=1.0;
+
+  function draw(){
+    clearNode(svg);
+    // 左：相邻数据集 D 与 D'
+    const dx=120,dy=110,rowH=22,colW=120;
+    // D
+    svg.appendChild(el("text",{x:dx,y:dy-14,fill:"#fbbf24","font-size":13,"font-family":MFONT})).textContent="数据集 D";
+    for(let i=0;i<5;i++){
+      const r=el("rect",{x:dx,y:dy+i*rowH,width:colW,height:rowH-4,rx:4,fill:"#16181c",stroke:i===2?"#fbbf24":"rgba(255,255,255,.1)","stroke-width":i===2?1.6:1});
+      svg.appendChild(r);
+      const t=el("text",{x:dx+colW/2,y:dy+i*rowH+14,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:i===2?"#fbbf24":"#9b9fa8"});
+      t.textContent="记录 r"+(i+1);svg.appendChild(t);
+    }
+    // D' (相差第3条)
+    const dx2=300;
+    svg.appendChild(el("text",{x:dx2,y:dy-14,fill:"#7c5cff","font-size":13,"font-family":MFONT})).textContent="相邻数据集 D'";
+    for(let i=0;i<5;i++){
+      const diff=(i===2);
+      const r=el("rect",{x:dx2,y:dy+i*rowH,width:colW,height:rowH-4,rx:4,fill:diff?"rgba(124,92,255,.16)":"#16181c",stroke:diff?"#7c5cff":"rgba(255,255,255,.1)","stroke-width":diff?1.6:1,"stroke-dasharray":diff?"4 3":null});
+      svg.appendChild(r);
+      const t=el("text",{x:dx2+colW/2,y:dy+i*rowH+14,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:diff?"#7c5cff":"#9b9fa8"});
+      t.textContent=diff?"r3' (不同)":"记录 r"+(i+1);svg.appendChild(t);
+    }
+    // 相邻标记
+    const arr=el("path",{d:"M"+(dx+colW+6)+","+(dy+2*rowH+8)+" L"+(dx2-6)+","+(dy+2*rowH+8),stroke:"#f87171","stroke-width":1.4,fill:"none","marker-end":"url(#a01)"});
+    svg.appendChild(arr);
+    const defs=el("defs");const m=el("marker",{id:"a01",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#f87171"}));defs.appendChild(m);svg.appendChild(defs);
+    const al=el("text",{x:(dx+colW+dx2)/2,y:dy+2*rowH+2,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#f87171"});
+    al.textContent="相差 1 条";svg.appendChild(al);
+
+    // 右：两个输出分布 + 概率比上界
+    const px=500,pw=200,py=60,ph=240;
+    // 框
+    svg.appendChild(el("rect",{x:px,y:py,width:pw,height:ph,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.1)"}));
+    const tl=el("text",{x:px+pw/2,y:py-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent="输出分布";svg.appendChild(tl);
+    // 两条分布曲线（高斯近似），D 偏左 D' 偏右，差异随 eps
+    const sep=Math.exp(-eps)*30; // eps 越大分布越分开
+    const cx1=px+pw/2-sep,cx2=px+pw/2+sep;
+    const peakY=py+ph-30;
+    function gauss(x,mu){const s=22;return Math.exp(-((x-mu)*(x-mu))/(2*s*s));}
+    // D 分布
+    let d1="";for(let i=0;i<=pw;i+=3){const x=px+i;const v=gauss(x,cx1);const y=peakY-v*180;if(i===0)d1="M"+x+","+y;else d1+=" L"+x+","+y;}
+    const area1=d1+" L"+(px+pw)+","+peakY+" L"+px+","+peakY+" z";
+    svg.appendChild(el("path",{d:area1,fill:"rgba(251,191,36,.14)"}));
+    svg.appendChild(el("path",{d:d1,fill:"none",stroke:"#fbbf24","stroke-width":2}));
+    // D' 分布
+    let d2="";for(let i=0;i<=pw;i+=3){const x=px+i;const v=gauss(x,cx2);const y=peakY-v*180;if(i===0)d2="M"+x+","+y;else d2+=" L"+x+","+y;}
+    const area2=d2+" L"+(px+pw)+","+peakY+" L"+px+","+peakY+" z";
+    svg.appendChild(el("path",{d:area2,fill:"rgba(124,92,255,.12)"}));
+    svg.appendChild(el("path",{d:d2,fill:"none",stroke:"#7c5cff","stroke-width":2,"stroke-dasharray":"4 3"}));
+    // 基线
+    svg.appendChild(el("line",{x1:px,y1:peakY,x2:px+pw,y2:peakY,stroke:"rgba(255,255,255,.14)","stroke-width":1}));
+    // 机制箭头
+    const m1=el("path",{d:"M"+(dx+colW/2)+","+(dy+5*rowH+8)+" Q"+(dx+colW/2)+","+(py+ph)+" "+px+","+ (py+ph/2),stroke:"#34d399","stroke-width":1.3,fill:"none","stroke-dasharray":"3 3","marker-end":"url(#a01g)"});
+    svg.appendChild(m1);
+    const m2=el("marker",{id:"a01g",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    m2.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(m2);
+
+    // 底部：概率比上界条
+    const by=340,bx=120,bw=480;
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:18,rx:4,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const ratio=Math.min(1,Math.log(Math.exp(eps))/5); // 归一化到 0..1 (eps 0..5)
+    const fillW=bw*Math.min(1,eps/5);
+    svg.appendChild(el("rect",{x:bx,y:by,width:fillW,height:18,rx:4,fill:"rgba(248,113,113,.5)"}));
+    const bl=el("text",{x:bx,y:by-6,"font-size":11,"font-family":MFONT,fill:"#f87171"});
+    bl.textContent="概率比上界 e^ε = "+Math.exp(eps).toFixed(2);svg.appendChild(bl);
+    // 刻度
+    for(let i=0;i<=5;i++){
+      const x=bx+(i/5)*bw;
+      svg.appendChild(el("line",{x1:x,y1:by+18,x2:x,y2:by+22,stroke:"#62666d"}));
+      const t=el("text",{x:x,y:by+34,"text-anchor":"middle","font-size":9,"font-family":MFONT,fill:"#62666d"});
+      t.textContent="ε="+i;svg.appendChild(t);
+    }
+    const note=el("text",{x:360,y:by+52,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    note.textContent="ε 越小 → D 与 D' 输出分布越接近 → 隐私越强";svg.appendChild(note);
+
+    // 统计
+    $("st01eps").textContent=eps.toFixed(1);
+    $("st01bound").textContent=Math.exp(eps).toFixed(2);
+    $("st01ln").textContent=eps.toFixed(2);
+    let strength="弱";
+    if(eps<0.5)strength="极强";else if(eps<1)strength="强";else if(eps<2)strength="中等";else if(eps<4)strength="弱";else strength="极弱";
+    $("st01strength").textContent=strength;
+  }
+
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>ε</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.1;inp.max=5;inp.step=0.1;inp.value=1;
+  const val=document.createElement("span");val.className="val";val.textContent="1.0";
+  inp.addEventListener("input",()=>{eps=+inp.value;val.textContent=eps.toFixed(1);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const animBtn=document.createElement("button");animBtn.className="btn small";animBtn.textContent="扫描 ε";
+  animBtn.addEventListener("click",()=>{
+    animate(1800,p=>{eps=0.1+4.9*ease(p);inp.value=eps;val.textContent=eps.toFixed(1);draw();});
+  });
+  ctl.appendChild(animBtn);
+})();
+
+/* ============================================================
+   02 Laplace 机制
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400,padL=50,padR=24,padT=24,padB=42;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let eps=1.0,sens=1.0,samples=[];
+
+  function laplace(x,mu,b){return Math.exp(-Math.abs(x-mu)/b)/(2*b);}
+  function b(){return sens/eps;}
+
+  function draw(){
+    clearNode(svg);
+    const mu=4; // 真实值位置（x 轴单位）
+    const xMin=-2,xMax=10;
+    const xScale=v=>padL+((v-xMin)/(xMax-xMin))*plotW;
+    const peak=laplace(mu,mu,b());
+    const yScale=v=>padT+plotH-(v/peak)*plotH*0.82;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    // 轴
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    // x 刻度
+    for(let i=0;i<=6;i++){
+      const v=xMin+(xMax-xMin)*i/6;
+      const x=xScale(v);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=v.toFixed(0);svg.appendChild(t);
+    }
+    // Laplace 曲线
+    let d="";for(let i=0;i<=plotW;i+=2){const v=xMin+(xMax-xMin)*i/plotW;const y=yScale(laplace(v,mu,b()));d+=(i===0?"M":"L")+xScale(v)+","+y;}
+    const area=d+" L"+(padL+plotW)+","+(padT+plotH)+" L"+padL+","+(padT+plotH)+" z";
+    svg.appendChild(el("path",{d:area,fill:"rgba(251,191,36,.12)"}));
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#fbbf24","stroke-width":2}));
+    // 真实值竖线
+    const mx=xScale(mu);
+    svg.appendChild(el("line",{x1:mx,y1:padT,x2:mx,y2:padT+plotH,stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    const ml=el("text",{x:mx+4,y:padT+14,"font-size":11,"font-family":MFONT,fill:"#7c5cff"});
+    ml.textContent="f(x)="+mu;svg.appendChild(ml);
+    // 敏感度区间 ±Δf
+    const sx1=xScale(mu-sens),sx2=xScale(mu+sens);
+    svg.appendChild(el("rect",{x:sx1,y:padT+plotH-6,width:sx2-sx1,height:6,fill:"rgba(248,113,113,.3)"}));
+    const sl=el("text",{x:(sx1+sx2)/2,y:padT+plotH-10,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#f87171"});
+    sl.textContent="Δf="+sens.toFixed(1);svg.appendChild(sl);
+    // 采样点
+    samples.forEach(s=>{
+      const x=xScale(s);
+      const c=el("circle",{cx:x,cy:padT+plotH+4,r:3.5,fill:"#34d399"});
+      svg.appendChild(c);
+      const l=el("line",{x1:x,y1:padT+plotH,x2:x,y2:yScale(laplace(s,mu,b())),stroke:"#34d399","stroke-width":1,opacity:.4});
+      svg.appendChild(l);
+    });
+    // 轴标签
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="输出值";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="Laplace 密度";svg.appendChild(yl);
+
+    $("st02eps").textContent=eps.toFixed(1);
+    $("st02sens").textContent=sens.toFixed(1);
+    $("st02b").textContent=b().toFixed(2);
+  }
+
+  function sample(){
+    // 逆变换采样 Laplace
+    const u=Math.random()-0.5;
+    const s=4 - b()*Math.sign(u)*Math.log(1-2*Math.abs(u));
+    samples.push(s);
+    if(samples.length>30)samples.shift();
+    $("st02sample").textContent=s.toFixed(2);
+    draw();
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.2;i1.max=4;i1.step=0.1;i1.value=1;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="1.0";
+  i1.addEventListener("input",()=>{eps=+i1.value;v1.textContent=eps.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>Δf</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=0.5;i2.max=3;i2.step=0.1;i2.value=1;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="1.0";
+  i2.addEventListener("input",()=>{sens=+i2.value;v2.textContent=sens.toFixed(1);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const sBtn=document.createElement("button");sBtn.className="btn primary";sBtn.textContent="采样 1 次";
+  sBtn.addEventListener("click",sample);
+  ctl.appendChild(sBtn);
+  const s10=document.createElement("button");s10.className="btn small";s10.textContent="采样 10 次";
+  s10.addEventListener("click",()=>{let i=0;const iv=setInterval(()=>{sample();i++;if(i>=10)clearInterval(iv);},120);});
+  ctl.appendChild(s10);
+  const clr=document.createElement("button");clr.className="btn ghost small";clr.textContent="清空";
+  clr.addEventListener("click",()=>{samples=[];$("st02sample").textContent="—";draw();});
+  ctl.appendChild(clr);
+})();
+
+/* ============================================================
+   03 Gaussian 机制
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400,padL=50,padR=24,padT=24,padB=42;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let eps=1.0,deltaLog=5,sens=1.0,samples=[];
+
+  function sigma(){return sens*Math.sqrt(2*Math.log(1.25/Math.pow(10,-deltaLog)))/eps;}
+  function gauss(x,mu,s){return Math.exp(-((x-mu)*(x-mu))/(2*s*s))/(s*Math.sqrt(2*Math.PI));}
+  function laplace(x,mu,bb){return Math.exp(-Math.abs(x-mu)/bb)/(2*bb);}
+  function bLap(){return sens/eps;}
+
+  function draw(){
+    clearNode(svg);
+    const mu=4;
+    const xMin=-2,xMax=10;
+    const xScale=v=>padL+((v-xMin)/(xMax-xMin))*plotW;
+    const s=sigma();
+    const peak=Math.max(gauss(mu,mu,s),laplace(mu,mu,bLap()));
+    const yScale=v=>padT+plotH-(v/peak)*plotH*0.82;
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=6;i++){
+      const v=xMin+(xMax-xMin)*i/6;const x=xScale(v);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=v.toFixed(0);svg.appendChild(t);
+    }
+    // Gaussian 曲线
+    let dg="";for(let i=0;i<=plotW;i+=2){const v=xMin+(xMax-xMin)*i/plotW;const y=yScale(gauss(v,mu,s));dg+=(i===0?"M":"L")+xScale(v)+","+y;}
+    svg.appendChild(el("path",{d:dg+" L"+(padL+plotW)+","+(padT+plotH)+" L"+padL+","+(padT+plotH)+" z",fill:"rgba(251,191,36,.12)"}));
+    svg.appendChild(el("path",{d:dg,fill:"none",stroke:"#fbbf24","stroke-width":2}));
+    // Laplace 对比
+    let dl="";for(let i=0;i<=plotW;i+=2){const v=xMin+(xMax-xMin)*i/plotW;const y=yScale(laplace(v,mu,bLap()));dl+=(i===0?"M":"L")+xScale(v)+","+y;}
+    svg.appendChild(el("path",{d:dl,fill:"none",stroke:"#7c5cff","stroke-width":1.6,"stroke-dasharray":"4 3"}));
+    // 真实值
+    const mx=xScale(mu);
+    svg.appendChild(el("line",{x1:mx,y1:padT,x2:mx,y2:padT+plotH,stroke:"#7c5cff","stroke-width":1.2,"stroke-dasharray":"3 3"}));
+    // δ 失败尾区域（超出 ±σ·√(2ln(1.25/δ))）
+    const tail=s*Math.sqrt(2*Math.log(1.25/Math.pow(10,-deltaLog)));
+    const tl1=xScale(mu-tail),tl2=xScale(mu+tail);
+    svg.appendChild(el("rect",{x:padL,y:padT,width:tl1-padL,height:plotH,fill:"rgba(248,113,113,.06)"}));
+    svg.appendChild(el("rect",{x:tl2,y:padT,width:padL+plotW-tl2,height:plotH,fill:"rgba(248,113,113,.06)"}));
+    const tl=el("text",{x:padL+plotW-8,y:padT+16,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#f87171"});
+    tl.textContent="δ 尾";svg.appendChild(tl);
+    // 采样
+    samples.forEach(sm=>{
+      const x=xScale(sm);
+      svg.appendChild(el("circle",{cx:x,cy:padT+plotH+4,r:3.5,fill:"#34d399"}));
+    });
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="输出值";svg.appendChild(xl);
+    // 图例
+    const lg=el("text",{x:padL+8,y:padT+14,"font-size":10.5,"font-family":MFONT,fill:"#fbbf24"});
+    lg.textContent="— Gaussian";svg.appendChild(lg);
+    const lg2=el("text",{x:padL+8,y:padT+28,"font-size":10.5,"font-family":MFONT,fill:"#7c5cff"});
+    lg2.textContent="-- Laplace";svg.appendChild(lg2);
+
+    $("st03eps").textContent=eps.toFixed(1);
+    $("st03delta").textContent="1e-"+deltaLog;
+    $("st03sigma").textContent=sigma().toFixed(2);
+    $("st03sens").textContent=sens.toFixed(1);
+  }
+
+  function sample(){
+    // Box-Muller
+    const u1=Math.random(),u2=Math.random();
+    const z=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+    const s=4+sigma()*z;
+    samples.push(s);if(samples.length>30)samples.shift();
+    draw();
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.2;i1.max=4;i1.step=0.1;i1.value=1;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="1.0";
+  i1.addEventListener("input",()=>{eps=+i1.value;v1.textContent=eps.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>log₁₀δ</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=3;i2.max=8;i2.step=1;i2.value=5;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="-5";
+  i2.addEventListener("input",()=>{deltaLog=+i2.value;v2.textContent=-deltaLog;draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const sBtn=document.createElement("button");sBtn.className="btn primary";sBtn.textContent="采样";
+  sBtn.addEventListener("click",sample);ctl.appendChild(sBtn);
+  const clr=document.createElement("button");clr.className="btn ghost small";clr.textContent="清空";
+  clr.addEventListener("click",()=>{samples=[];draw();});ctl.appendChild(clr);
+})();
+
+/* ============================================================
+   04 组合定理
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400,padL=50,padR=24,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let k=5,eps1=0.5,step=0;
+
+  function seqEps(n){return n*eps1;}
+  function parEps(n){return n>0?eps1:0;}
+  function advEps(n){
+    // 高级组合近似 ε̄ = ε·√(2k·ln(1/δ)) + k·ε·(e^ε−1)
+    const delta=1e-5;
+    return eps1*Math.sqrt(2*n*Math.log(1/delta))+n*eps1*(Math.exp(eps1)-1);
+  }
+
+  function draw(){
+    clearNode(svg);
+    const maxN=20;
+    const yMax=seqEps(maxN);
+    const yScale=v=>padT+plotH-(v/yMax)*plotH;
+    const xScale=n=>padL+(n/maxN)*plotW;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=(yMax*i/5).toFixed(1);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=4;i++){
+      const n=maxN*i/4;const x=xScale(n);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=Math.round(n);svg.appendChild(t);
+    }
+    // 串行曲线
+    let ds="";for(let n=0;n<=maxN;n++){ds+=(n===0?"M":"L")+xScale(n)+","+yScale(seqEps(n));}
+    svg.appendChild(el("path",{d:ds,fill:"none",stroke:"#fbbf24","stroke-width":2.2}));
+    // 并行曲线
+    let dp="";for(let n=0;n<=maxN;n++){dp+=(n===0?"M":"L")+xScale(n)+","+yScale(parEps(n));}
+    svg.appendChild(el("path",{d:dp,fill:"none",stroke:"#7c5cff","stroke-width":2.2,"stroke-dasharray":"5 3"}));
+    // 高级组合曲线
+    let da="";for(let n=0;n<=maxN;n++){da+=(n===0?"M":"L")+xScale(n)+","+yScale(advEps(n));}
+    svg.appendChild(el("path",{d:da,fill:"none",stroke:"#34d399","stroke-width":2,"stroke-dasharray":"2 3"}));
+    // 当前查询数竖线
+    const cx=xScale(step);
+    svg.appendChild(el("line",{x1:cx,y1:padT,x2:cx,y2:padT+plotH,stroke:"#f7f8f8","stroke-width":1,opacity:.3,"stroke-dasharray":"3 3"}));
+    // 当前点
+    svg.appendChild(el("circle",{cx:cx,cy:yScale(seqEps(step)),r:4,fill:"#fbbf24"}));
+    svg.appendChild(el("circle",{cx:cx,cy:yScale(parEps(step)),r:4,fill:"#7c5cff"}));
+    svg.appendChild(el("circle",{cx:cx,cy:yScale(advEps(step)),r:4,fill:"#34d399"}));
+    // 标签
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="查询数 k";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="总 ε";svg.appendChild(yl);
+    // 图例
+    const items=[["串行 Σ","#fbbf24"],["并行 max","#7c5cff"],["高级 ε̄","#34d399"]];
+    items.forEach((it,i)=>{
+      const lx=padL+plotW-110,ly=padT+10+i*16;
+      svg.appendChild(el("line",{x1:lx,y1:ly,x2:lx+16,y2:ly,stroke:it[1],"stroke-width":2}));
+      const t=el("text",{x:lx+22,y:ly+4,"font-size":10.5,"font-family":MFONT,fill:"#9b9fa8"});t.textContent=it[0];svg.appendChild(t);
+    });
+
+    $("st04k").textContent=step;
+    $("st04eps1").textContent=eps1.toFixed(1);
+    $("st04seq").textContent=seqEps(step).toFixed(2);
+    $("st04par").textContent=parEps(step).toFixed(2);
+    if(step===0){
+      $("p04detail").textContent="串行组合下隐私预算线性累加，k 次查询后 ε_total = k·ε。并行组合作用于不相交分区，预算不累加。高级组合定理给出更紧的界。";
+    }else{
+      $("p04detail").textContent="已执行 "+step+" 次查询。串行 ε="+seqEps(step).toFixed(2)+"，并行 ε="+parEps(step).toFixed(2)+"（不相交分区），高级组合 ε̄="+advEps(step).toFixed(2)+"（更紧）。";
+    }
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>单次 ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.1;i1.max=2;i1.step=0.1;i1.value=0.5;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="0.5";
+  i1.addEventListener("input",()=>{eps1=+i1.value;v1.textContent=eps1.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="追加查询";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;
+    function next(){
+      if(step>=20){playing=false;return;}
+      step++;draw();setTimeout(next,500);
+    }
+    next();
+  });
+  ctl.appendChild(play);
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="+1 查询";
+  stepBtn.addEventListener("click",()=>{if(step<20){step++;draw();}});
+  ctl.appendChild(stepBtn);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{step=0;playing=false;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 DP-SGD
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let C=1.0,sigma=1.0,step=0,totalEps=0;
+  // 模拟一批梯度（向量，用2D表示）
+  let grads=[];
+
+  function genGrads(){
+    grads=[];
+    const B=8;
+    for(let i=0;i<B;i++){
+      const ang=Math.random()*2*Math.PI;
+      const mag=0.4+Math.random()*1.8;
+      grads.push({x:Math.cos(ang)*mag,y:Math.sin(ang)*mag,orig:0});
+    }
+    grads.forEach(g=>g.orig=Math.hypot(g.x,g.y));
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 左：梯度向量图（裁剪前后）
+    const cx=180,cy=200,R=140;
+    // 裁剪圆
+    svg.appendChild(el("circle",{cx,cy,r:C*40,fill:"rgba(248,113,113,.06)",stroke:"#f87171","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    const cl=el("text",{x:cx,y:cy-C*40-6,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#f87171"});
+    cl.textContent="裁剪范数 C="+C.toFixed(1);svg.appendChild(cl);
+    // 坐标轴
+    svg.appendChild(el("line",{x1:cx-R,y1:cy,x2:cx+R,y2:cy,stroke:"rgba(255,255,255,.1)"}));
+    svg.appendChild(el("line",{x1:cx,y1:cy-R,x2:cx,y2:cy+R,stroke:"rgba(255,255,255,.1)"}));
+    // 原始梯度
+    grads.forEach(g=>{
+      const ex=cx+g.x*40,ey=cy-g.y*40;
+      svg.appendChild(el("line",{x1:cx,y1:cy,x2:ex,y2:ey,stroke:"#fbbf24","stroke-width":1.4,opacity:.7,"marker-end":"url(#a05o)"}));
+      // 裁剪后
+      const norm=Math.hypot(g.x,g.y);
+      let cx2=g.x,cy2=g.y;
+      if(norm>C){cx2=g.x/norm*C;cy2=g.y/norm*C;}
+      const cex=cx+cx2*40,cey=cy-cy2*40;
+      svg.appendChild(el("line",{x1:cx,y1:cy,x2:cex,y2:cey,stroke:"#7c5cff","stroke-width":2,"marker-end":"url(#a05c)"}));
+      svg.appendChild(el("circle",{cx:ex,cy:ey,r:2.5,fill:"#fbbf24"}));
+    });
+    const defs=el("defs");
+    const mo=el("marker",{id:"a05o",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto"});
+    mo.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fbbf24"}));defs.appendChild(mo);
+    const mc=el("marker",{id:"a05c",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto"});
+    mc.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(mc);
+    svg.appendChild(defs);
+    const tl=el("text",{x:cx,y:30,"text-anchor":"middle","font-size":12,"font-family":MFONT,fill:"#9b9fa8"});
+    tl.textContent="梯度裁剪（黄=原始，紫=裁剪后）";svg.appendChild(tl);
+
+    // 右：聚合梯度 + 噪声
+    const ax=460,ay=80,aw=220,ah=140;
+    svg.appendChild(el("rect",{x:ax,y:ay,width:aw,height:ah,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tl2=el("text",{x:ax+aw/2,y:ay+18,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    tl2.textContent="聚合梯度 g̃ = Σclip + N(0,σ²C²)";svg.appendChild(tl2);
+    // 聚合
+    let sum={x:0,y:0};
+    grads.forEach(g=>{const n=Math.hypot(g.x,g.y);const s=n>C?C/n:1;sum.x+=g.x*s;sum.y+=g.y*s;});
+    sum.x/=grads.length;sum.y/=grads.length;
+    // 加噪
+    const nz={x:sigma*C*(Math.random()-0.5)*2/grads.length,y:sigma*C*(Math.random()-0.5)*2/grads.length};
+    const noisy={x:sum.x+nz.x,y:sum.y+nz.y};
+    // 画三个向量
+    const ccx=ax+aw/2,ccy=ay+ah/2+20;
+    const sc=28;
+    function vec(v,col){
+      const ex=ccx+v.x*sc,ey=ccy-v.y*sc;
+      svg.appendChild(el("line",{x1:ccx,y1:ccy,x2:ex,y2:ey,stroke:col,"stroke-width":2.2,"marker-end":"url(#a05v)"}));
+    }
+    const mv=el("marker",{id:"a05v",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto"});
+    mv.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#fff"}));defs.appendChild(mv);
+    vec(sum,"#fbbf24");
+    vec(noisy,"#34d399");
+    svg.appendChild(el("circle",{cx:ccx,cy:ccy,r:3,fill:"#f7f8f8"}));
+    // 噪声圆
+    svg.appendChild(el("circle",{cx:ccx,cy:ccy,r:sigma*C*sc*0.6,fill:"rgba(52,211,153,.08)",stroke:"#34d399","stroke-width":1,"stroke-dasharray":"3 3"}));
+
+    // 底部：ε 累积曲线
+    const ex=460,ey=250,ew=220,eh=120;
+    svg.appendChild(el("rect",{x:ex,y:ey,width:ew,height:eh,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tl3=el("text",{x:ex+ew/2,y:ey+18,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    tl3.textContent="累计 ε（Accountant）";svg.appendChild(tl3);
+    // 简化：ε 随步数 ~ sigma 相关，用近似 ε_step = q²·something，这里用经验曲线
+    const maxStep=50;
+    const epsCurve=[];
+    for(let i=0;i<=maxStep;i++){
+      // 粗略 moments accountant 近似：ε ≈ q·√(i)/σ * const
+      epsCurve.push(0.5*Math.sqrt(i)/(sigma+0.1)*C);
+    }
+    const eMax=Math.max(1,epsCurve[maxStep]);
+    let de="";for(let i=0;i<=maxStep;i++){const x=ex+10+(i/maxStep)*(ew-20);const y=ey+eh-10-(epsCurve[i]/eMax)*(eh-30);de+=(i===0?"M":"L")+x+","+y;}
+    svg.appendChild(el("path",{d:de,fill:"none",stroke:"#34d399","stroke-width":2}));
+    const cdx=ex+10+(Math.min(step,maxStep)/maxStep)*(ew-20);
+    const cdy=ey+eh-10-(epsCurve[Math.min(step,maxStep)]/eMax)*(eh-30);
+    svg.appendChild(el("circle",{cx:cdx,cy:cdy,r:4,fill:"#fbbf24"}));
+
+    $("st05c").textContent=C.toFixed(1);
+    $("st05sigma").textContent=sigma.toFixed(1);
+    $("st05step").textContent=step;
+    $("st05eps").textContent=totalEps.toFixed(2);
+  }
+
+  genGrads();draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>裁剪 C</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.3;i1.max=2;i1.step=0.1;i1.value=1;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="1.0";
+  i1.addEventListener("input",()=>{C=+i1.value;v1.textContent=C.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>噪声 σ</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=0.3;i2.max=3;i2.step=0.1;i2.value=1;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="1.0";
+  i2.addEventListener("input",()=>{sigma=+i2.value;v2.textContent=sigma.toFixed(1);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const train=document.createElement("button");train.className="btn primary";train.textContent="训练一步";
+  train.addEventListener("click",()=>{
+    step++;
+    totalEps=0.5*Math.sqrt(step)/(sigma+0.1)*C;
+    genGrads();draw();
+  });
+  ctl.appendChild(train);
+  const regen=document.createElement("button");regen.className="btn small";regen.textContent="新批次";
+  regen.addEventListener("click",()=>{genGrads();draw();});
+  ctl.appendChild(regen);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{step=0;totalEps=0;genGrads();draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   06 本地差分隐私
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let N=200,eps=1.0,trueRatio=0.5;
+  let reports=[],estRatio=null;
+
+  function pTrue(){return Math.exp(eps)/(Math.exp(eps)+1);}
+
+  function simulate(){
+    reports=[];
+    const p=pTrue();
+    for(let i=0;i<N;i++){
+      const actual=Math.random()<trueRatio?1:0;
+      let reported;
+      if(Math.random()<p)reported=actual;
+      else reported=1-actual;
+      reports.push(reported);
+    }
+    // 校正估计
+    const r1=reports.filter(r=>r===1).length/N;
+    const q=1-p;
+    estRatio=(r1-q)/(p-q);
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 左：用户网格
+    const gx=60,gy=60,cols=14,rows=14,cell=16;
+    svg.appendChild(el("text",{x:gx+cols*cell/2,y:gy-12,"text-anchor":"middle","font-size":12,"font-family":MFONT,fill:"#9b9fa8"})).textContent="用户真实值";
+    for(let i=0;i<N;i++){
+      const c=i%cols,r=Math.floor(i/cols);
+      const x=gx+c*cell,y=gy+r*cell;
+      const actual=Math.random()<trueRatio?1:0;
+      svg.appendChild(el("rect",{x:x,y:y,width:cell-2,height:cell-2,rx:2,fill:actual?"#fbbf24":"#1c1f24",stroke:"rgba(255,255,255,.08)"}));
+    }
+    // 中：随机化报告
+    const rx=360;
+    svg.appendChild(el("text",{x:rx+cols*cell/2,y:gy-12,"text-anchor":"middle","font-size":12,"font-family":MFONT,fill:"#9b9fa8"})).textContent="随机化后报告";
+    reports.forEach((rep,i)=>{
+      const c=i%cols,r=Math.floor(i/cols);
+      const x=rx+c*cell,y=gy+r*cell;
+      svg.appendChild(el("rect",{x:x,y:y,width:cell-2,height:cell-2,rx:2,fill:rep?"#7c5cff":"#1c1f24",stroke:"rgba(255,255,255,.08)"}));
+    });
+    // 箭头
+    const arr=el("path",{d:"M"+(gx+cols*cell+10)+","+(gy+rows*cell/2)+" L"+(rx-10)+","+(gy+rows*cell/2),stroke:"#34d399","stroke-width":1.4,fill:"none","marker-end":"url(#a06)"});
+    svg.appendChild(arr);
+    const al=el("text",{x:(gx+cols*cell+rx)/2,y:gy+rows*cell/2-8,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#34d399"});
+    al.textContent="LDP 随机化";svg.appendChild(al);
+    const defs=el("defs");const m=el("marker",{id:"a06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(m);svg.appendChild(defs);
+
+    // 底部：比例条对比
+    const by=320,bx=60,bw=600,bh=22;
+    // 真实
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw*trueRatio,height:bh,fill:"rgba(251,191,36,.5)"}));
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,fill:"none",stroke:"rgba(255,255,255,.14)"}));
+    const tl=el("text",{x:bx,y:by-6,"font-size":11,"font-family":MFONT,fill:"#fbbf24"});
+    tl.textContent="真实比例 = "+trueRatio.toFixed(2);svg.appendChild(tl);
+    // 估计
+    const by2=by+bh+20;
+    if(estRatio!=null){
+      const e=Math.max(0,Math.min(1,estRatio));
+      svg.appendChild(el("rect",{x:bx,y:by2,width:bw*e,height:bh,fill:"rgba(52,211,153,.5)"}));
+      const bias=Math.abs(e-trueRatio);
+      svg.appendChild(el("rect",{x:bx,y:by2,width:bw,height:bh,fill:"none",stroke:bias>0.1?"#f87171":"#34d399","stroke-width":1.2}));
+      const tl2=el("text",{x:bx,y:by2-6,"font-size":11,"font-family":MFONT,fill:"#34d399"});
+      tl2.textContent="估计比例 = "+e.toFixed(3)+" (偏差 "+bias.toFixed(3)+")";svg.appendChild(tl2);
+    }
+
+    $("st06n").textContent=N;
+    $("st06eps").textContent=eps.toFixed(1);
+    $("st06true").textContent=trueRatio.toFixed(2);
+    $("st06est").textContent=estRatio!=null?Math.max(0,Math.min(1,estRatio)).toFixed(3):"—";
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.1;i1.max=4;i1.step=0.1;i1.value=1;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="1.0";
+  i1.addEventListener("input",()=>{eps=+i1.value;v1.textContent=eps.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>真实比例</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=0.1;i2.max=0.9;i2.step=0.05;i2.value=0.5;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="0.50";
+  i2.addEventListener("input",()=>{trueRatio=+i2.value;v2.textContent=trueRatio.toFixed(2);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const sim=document.createElement("button");sim.className="btn primary";sim.textContent="模拟一轮";
+  sim.addEventListener("click",()=>{simulate();draw();});
+  ctl.appendChild(sim);
+  const sim10=document.createElement("button");sim10.className="btn small";sim10.textContent="模拟 10 轮平均";
+  sim10.addEventListener("click",()=>{
+    let acc=0;
+    for(let i=0;i<10;i++){simulate();acc+=estRatio;}
+    estRatio=acc/10;draw();
+  });
+  ctl.appendChild(sim10);
+})();
+
+/* ============================================================
+   07 隐私预算 Accountant
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400,padL=50,padR=24,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let queries=0,epsMax=4.0,epsPer=0.3;
+  const history=[0]; // 累计 ε 历史
+
+  function naiveEps(n){return n*epsPer;}
+  function maEps(n){
+    // moments accountant 近似：q=0.01, steps=n, sigma=2
+    const q=0.01,sigma=2.0;
+    if(n===0)return 0;
+    // 粗略 Rényi: α(λ) ≈ q²λ·n / σ²
+    return Math.sqrt(2*Math.log(1/1e-5))*Math.sqrt(q*q*n/(sigma*sigma))+n*q*q/(2*sigma*sigma);
+  }
+
+  function draw(){
+    clearNode(svg);
+    const maxN=30;
+    const yMax=epsMax*1.3;
+    const yScale=v=>padT+plotH-(v/yMax)*plotH;
+    const xScale=n=>padL+(n/maxN)*plotW;
+    // 预算上限线
+    svg.appendChild(el("line",{x1:padL,y1:yScale(epsMax),x2:padL+plotW,y2:yScale(epsMax),stroke:"#f87171","stroke-width":1.4,"stroke-dasharray":"6 4"}));
+    const ml=el("text",{x:padL+plotW-6,y:yScale(epsMax)-6,"text-anchor":"end","font-size":11,"font-family":MFONT,fill:"#f87171"});
+    ml.textContent="预算上限 ε_max="+epsMax.toFixed(1);svg.appendChild(ml);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=(yMax*i/5).toFixed(1);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=5;i++){
+      const n=maxN*i/5;const x=xScale(n);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=Math.round(n);svg.appendChild(t);
+    }
+    // Naive 曲线
+    let dn="";for(let n=0;n<=maxN;n++){dn+=(n===0?"M":"L")+xScale(n)+","+yScale(naiveEps(n));}
+    svg.appendChild(el("path",{d:dn,fill:"none",stroke:"#fbbf24","stroke-width":2.2}));
+    // MA 曲线
+    let dm="";for(let n=0;n<=maxN;n++){dm+=(n===0?"M":"L")+xScale(n)+","+yScale(maEps(n));}
+    svg.appendChild(el("path",{d:dm,fill:"none",stroke:"#34d399","stroke-width":2.2}));
+    // 已执行点
+    if(queries>0){
+      svg.appendChild(el("circle",{cx:xScale(queries),cy:yScale(naiveEps(queries)),r:4.5,fill:"#fbbf24"}));
+      svg.appendChild(el("circle",{cx:xScale(queries),cy:yScale(maEps(queries)),r:4.5,fill:"#34d399"}));
+      // 竖线
+      svg.appendChild(el("line",{x1:xScale(queries),y1:padT,x2:xScale(queries),y2:padT+plotH,stroke:"#f7f8f8",opacity:.2,"stroke-dasharray":"3 3"}));
+    }
+    // 剩余预算填充（MA）
+    if(maEps(queries)<epsMax){
+      const remX=xScale(queries);
+      svg.appendChild(el("rect",{x:remX,y:yScale(epsMax),width:padL+plotW-remX,height:yScale(maEps(queries))-yScale(epsMax),fill:"rgba(52,211,153,.06)"}));
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="查询数";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="累计 ε";svg.appendChild(yl);
+    // 图例
+    [["Naive","#fbbf24"],["Moments Acct","#34d399"]].forEach((it,i)=>{
+      const lx=padL+plotW-130,ly=padT+10+i*16;
+      svg.appendChild(el("line",{x1:lx,y1:ly,x2:lx+16,y2:ly,stroke:it[1],"stroke-width":2}));
+      const t=el("text",{x:lx+22,y:ly+4,"font-size":10.5,"font-family":MFONT,fill:"#9b9fa8"});t.textContent=it[0];svg.appendChild(t);
+    });
+
+    $("st07q").textContent=queries;
+    $("st07naive").textContent=naiveEps(queries).toFixed(2);
+    $("st07ma").textContent=maEps(queries).toFixed(2);
+    $("st07max").textContent=epsMax.toFixed(1);
+    const naiveOver=naiveEps(queries)>epsMax;
+    const maOver=maEps(queries)>epsMax;
+    if(queries===0){
+      $("p07detail").textContent="Naive 组合下每次查询消耗 ε_i，总和线性增长。Moments Accountant 基于 Rényi 散度，给出更紧的累计 ε 估计，允许更多查询。";
+    }else{
+      $("p07detail").textContent="已执行 "+queries+" 次查询。Naive ε="+naiveEps(queries).toFixed(2)+(naiveOver?"（已超预算！）":"")+"; MA ε="+maEps(queries).toFixed(2)+(maOver?"（已超预算！）":"")+"。MA 在相同预算下可支持更多查询。";
+    }
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>单次 ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.05;i1.max=1;i1.step=0.05;i1.value=0.3;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="0.30";
+  i1.addEventListener("input",()=>{epsPer=+i1.value;v1.textContent=epsPer.toFixed(2);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>预算上限</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=1;i2.max=10;i2.step=0.5;i2.value=4;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="4.0";
+  i2.addEventListener("input",()=>{epsMax=+i2.value;v2.textContent=epsMax.toFixed(1);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const add=document.createElement("button");add.className="btn primary";add.textContent="追加查询";
+  add.addEventListener("click",()=>{if(naiveEps(queries+1)<=epsMax*1.5){queries++;draw();}});
+  ctl.appendChild(add);
+  const play=document.createElement("button");play.className="btn small";play.textContent="自动追加";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;
+    function next(){if(queries>=30||naiveEps(queries)>epsMax*1.5){playing=false;return;}queries++;draw();setTimeout(next,400);}
+    next();
+  });
+  ctl.appendChild(play);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{queries=0;playing=false;draw();});
+  ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   08 效用-隐私权衡
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400,padL=50,padR=24,padT=30,padB=46;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let eps=1.0,deltaF=1.0;
+
+  function mse(e){return 2*deltaF*deltaF/(e*e);}
+  function draw(){
+    clearNode(svg);
+    const eMin=0.2,eMax=5;
+    const xScale=e=>padL+((Math.log(e)-Math.log(eMin))/(Math.log(eMax)-Math.log(eMin)))*plotW;
+    const yMax=mse(eMin);
+    const yScale=v=>padT+plotH-(Math.log(Math.max(v,0.01))/Math.log(yMax))*plotH*0.85;
+    // 区域背景：隐私区（左小ε）vs 效用区（右大ε）
+    const midE=1.5;
+    svg.appendChild(el("rect",{x:padL,y:padT,width:xScale(midE)-padL,height:plotH,fill:"rgba(248,113,113,.05)"}));
+    svg.appendChild(el("rect",{x:xScale(midE),y:padT,width:padL+plotW-xScale(midE),height:plotH,fill:"rgba(52,211,153,.05)"}));
+    const pl=el("text",{x:padL+40,y:padT+18,"font-size":11,"font-family":MFONT,fill:"#f87171"});
+    pl.textContent="隐私区 (小ε)";svg.appendChild(pl);
+    const ul=el("text",{x:padL+plotW-10,y:padT+18,"text-anchor":"end","font-size":11,"font-family":MFONT,fill:"#34d399"});
+    ul.textContent="效用区 (大ε)";svg.appendChild(ul);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    // x 对数刻度
+    [0.2,0.5,1,2,5].forEach(e=>{
+      const x=xScale(e);
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":MFONT,fill:"#62666d"});
+      t.textContent=e;svg.appendChild(t);
+      svg.appendChild(el("line",{x1:x,y1:padT+plotH,x2:x,y2:padT+plotH+4,stroke:"#62666d"}));
+    });
+    // MSE 曲线
+    let d="";for(let i=0;i<=plotW;i+=2){const e=eMin*Math.pow(eMax/eMin,i/plotW);const y=yScale(mse(e));d+=(i===0?"M":"L")+(padL+i)+","+y;}
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#fbbf24","stroke-width":2.2}));
+    // 当前 ε 点
+    const cx=xScale(eps),cy=yScale(mse(eps));
+    // 误差竖线
+    svg.appendChild(el("line",{x1:cx,y1:padT+plotH,x2:cx,y2:cy,stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    svg.appendChild(el("line",{x1:padL,y1:cy,x2:cx,y2:cy,stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:5,fill:"#fbbf24",stroke:"#0b0b0c","stroke-width":2}));
+    // 标签
+    const lbl=el("text",{x:cx+8,y:cy-8,"font-size":11,"font-family":MFONT,fill:"#7c5cff"});
+    lbl.textContent="ε="+eps.toFixed(1)+" MSE="+mse(eps).toFixed(2);svg.appendChild(lbl);
+    const xl=el("text",{x:padL+plotW/2,y:H-8,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8"});
+    xl.textContent="ε (对数刻度)";svg.appendChild(xl);
+    const yl=el("text",{x:14,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MFONT,fill:"#9b9fa8",transform:"rotate(-90 14 "+(padT+plotH/2)+")"});
+    yl.textContent="MSE (对数)";svg.appendChild(yl);
+
+    $("st08eps").textContent=eps.toFixed(1);
+    $("st08mse").textContent=mse(eps).toFixed(2);
+    $("st08rmse").textContent=Math.sqrt(mse(eps)).toFixed(2);
+    let region="权衡区";
+    if(eps<0.5)region="强隐私区";else if(eps<1.5)region="权衡区";else if(eps<3)region="效用区";else region="弱隐私区";
+    $("st08region").textContent=region;
+  }
+
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>ε</span>';
+  const i1=document.createElement("input");i1.type="range";i1.min=0.2;i1.max=5;i1.step=0.1;i1.value=1;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="1.0";
+  i1.addEventListener("input",()=>{eps=+i1.value;v1.textContent=eps.toFixed(1);draw();});
+  sg1.appendChild(i1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>Δf</span>';
+  const i2=document.createElement("input");i2.type="range";i2.min=0.5;i2.max=3;i2.step=0.1;i2.value=1;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="1.0";
+  i2.addEventListener("input",()=>{deltaF=+i2.value;v2.textContent=deltaF.toFixed(1);draw();});
+  sg2.appendChild(i2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  const anim=document.createElement("button");anim.className="btn primary";anim.textContent="扫描 ε";
+  anim.addEventListener("click",()=>{
+    animate(2000,p=>{
+      const e=0.2*Math.pow(25,ease(p));eps=e;i1.value=Math.min(5,e);v1.textContent=e.toFixed(1);draw();
+    });
+  });
+  ctl.appendChild(anim);
+})();
+
+</script>
+</body>
+</html>

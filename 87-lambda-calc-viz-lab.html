@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lambda 演算可视化实验室 · Lambda Calc Viz Lab</title>
+<meta name="description" content="一个纯前端、零依赖的 Lambda 演算交互式可视化实验室，涵盖 α/β/η 归约、Church 编码、Y 组合子、STLC、归约策略、SKI 组合子、SECD 抽象机与编译器后端。">
+<style>
+/* ============================================================
+   Lambda Calc Viz Lab — 单文件样式
+   ============================================================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fb7185;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,113,133,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#fbbf24;
+  --nav-h:56px;
+  --side-w:240px;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --radius:12px;
+  --radius-sm:8px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+::selection{background:var(--accent-soft);color:var(--ink)}
+
+/* ---------- 顶部进度条 ---------- */
+.progress-bar{
+  position:fixed;top:0;left:0;right:0;height:3px;z-index:200;
+  background:transparent;pointer-events:none;
+}
+.progress-fill{
+  height:100%;width:100%;transform-origin:left center;transform:scaleX(0);
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+}
+
+/* ---------- 导航栏 ---------- */
+.navbar{
+  position:fixed;top:3px;left:0;right:0;height:calc(var(--nav-h) - 0px);
+  height:var(--nav-h);z-index:150;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(8,9,10,.92);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.brand .glyph{
+  width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+  font-family:var(--mono);font-size:18px;font-weight:700;
+  background:linear-gradient(135deg,var(--accent-soft),var(--accent2-soft));
+  border:1px solid var(--border-strong);color:var(--accent);
+}
+.brand .name{font-size:15px}
+.brand .name .sub{color:var(--faint);font-weight:500;font-size:12px;margin-left:6px}
+.nav-spacer{flex:1}
+.nav-link{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
+.nav-link svg{width:15px;height:15px}
+.menu-toggle{
+  display:none;background:none;border:1px solid var(--border-strong);border-radius:8px;
+  color:var(--ink);width:36px;height:36px;cursor:pointer;
+}
+.menu-toggle svg{width:18px;height:18px}
+
+/* ---------- 侧边栏 ---------- */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:120;
+  background:var(--surface);border-right:1px solid var(--border);
+  overflow-y:auto;padding:16px 12px 40px;
+}
+.sidebar-label{
+  font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);
+  padding:6px 10px 10px;font-weight:600;
+}
+.side-item{
+  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);
+  color:var(--muted);font-size:13.5px;cursor:pointer;border:1px solid transparent;
+  transition:background .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease);
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--surface-3);color:var(--ink);border-color:var(--border-strong);
+}
+.side-item .num{
+  font-family:var(--mono);font-size:11px;color:var(--accent);
+  background:var(--accent-soft);border-radius:5px;padding:1px 6px;flex-shrink:0;
+}
+.side-item.active .num{background:var(--accent);color:#fff}
+.side-item .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- 主内容 ---------- */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);padding:34px 36px 120px;
+  max-width:1180px;
+}
+.hero{
+  padding:30px 0 26px;border-bottom:1px solid var(--border);margin-bottom:30px;
+}
+.hero h1{
+  font-size:34px;margin:0 0 10px;letter-spacing:-.5px;line-height:1.15;
+  background:linear-gradient(90deg,var(--ink),var(--accent) 60%,var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;margin:0 0 14px;font-size:15px}
+.hero .tags{display:flex;flex-wrap:wrap;gap:8px}
+.tag{
+  font-size:12px;font-family:var(--mono);color:var(--muted);
+  border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:3px 10px;
+}
+
+/* ---------- 模块 ---------- */
+.module{margin-bottom:46px;scroll-margin-top:calc(var(--nav-h) + 14px)}
+.module-head{margin-bottom:16px}
+.kicker{
+  display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+  color:var(--accent);background:var(--accent-soft);border:1px solid rgba(251,113,133,.25);
+  padding:3px 10px;border-radius:6px;margin-bottom:10px;font-weight:600;
+}
+.module-title{font-size:24px;margin:0 0 6px;letter-spacing:-.3px}
+.module-desc{color:var(--muted);margin:0;max-width:760px;font-size:14px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;
+}
+.viz-box{
+  border-bottom:1px solid var(--border);padding:18px;min-height:180px;
+  background:
+    radial-gradient(120% 80% at 0% 0%,rgba(124,92,255,.06),transparent 55%),
+    radial-gradient(120% 80% at 100% 0%,rgba(251,113,133,.06),transparent 55%),
+    var(--surface);
+  overflow:auto;
+}
+.viz-box svg{display:block;margin:0 auto;max-width:100%}
+.controls{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.input,.select{
+  font-family:var(--mono);font-size:13px;color:var(--ink);
+  background:var(--surface-3);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:8px 11px;outline:none;min-width:0;flex:1;max-width:420px;
+  transition:border-color .15s var(--ease);
+}
+.input:focus,.select:focus{border-color:var(--accent)}
+.select{flex:0 0 auto;max-width:none;cursor:pointer}
+.btn{
+  font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink);
+  background:var(--surface-3);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:8px 13px;cursor:pointer;white-space:nowrap;
+  transition:transform .12s var(--ease),background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease);
+}
+.btn:hover{background:var(--surface-2);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{
+  background:linear-gradient(135deg,var(--accent),#e11d48);border-color:transparent;color:#fff;
+}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.detail-box{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  font-size:13.5px;color:var(--muted);
+}
+.detail-box .dt-title{color:var(--ink);font-weight:600;font-size:13px;margin-bottom:4px}
+.detail-box code{
+  font-family:var(--mono);font-size:12.5px;color:var(--accent-2);
+  background:var(--surface-3);padding:1px 6px;border-radius:5px;border:1px solid var(--border);
+}
+.detail-box .step{font-family:var(--mono);color:var(--ink);font-size:13px;margin:3px 0;word-break:break-all}
+.detail-box .arrow{color:var(--accent);margin:0 6px}
+.stats-row{
+  display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px;background:var(--surface-2);
+}
+.stat{
+  flex:1 1 110px;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 12px;min-width:0;
+}
+.stat .stat-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.stat .stat-val{font-family:var(--mono);font-size:18px;color:var(--ink);font-weight:600;margin-top:2px;word-break:break-all}
+.stat .stat-val.accent{color:var(--accent)}
+.stat .stat-val.accent2{color:var(--accent-2)}
+
+/* ---------- 通用 SVG 节点 ---------- */
+svg .edge{stroke:var(--border-strong);stroke-width:1.4;fill:none}
+svg .node-bg{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1.2}
+svg .node-bg.var{stroke:var(--accent)}
+svg .node-bg.abs{stroke:var(--accent-2)}
+svg .node-bg.app{stroke:var(--muted)}
+svg .node-lbl{font-family:var(--mono);font-size:13px;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+svg .node-lbl.sm{font-size:11px}
+svg .axis-lbl{font-family:var(--mono);font-size:11px;fill:var(--faint)}
+svg .pill{fill:var(--surface-2);stroke:var(--border-strong)}
+svg .term-txt{font-family:var(--mono);font-size:12px;fill:var(--ink)}
+svg .term-txt.muted{fill:var(--muted)}
+svg .head-lbl{font-family:var(--sans);font-size:12px;font-weight:600;fill:var(--muted)}
+svg .col-bg{fill:var(--surface-2);stroke:var(--border)}
+
+/* fade-in */
+.fade-in{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* seg control */
+.seg{display:inline-flex;background:var(--surface-3);border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden}
+.seg button{
+  font-family:var(--sans);font-size:12.5px;color:var(--muted);background:none;border:none;
+  padding:7px 12px;cursor:pointer;transition:background .15s,color .15s;
+}
+.seg button.active{background:var(--accent);color:#fff}
+.seg button:hover:not(.active){color:var(--ink)}
+
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:4px}
+.legend .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;border:1px solid var(--border-strong)}
+
+footer{
+  margin-top:60px;padding-top:22px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:960px){
+  :root{--side-w:0px}
+  .sidebar{
+    transform:translateX(-100%);transition:transform .25s var(--ease);
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.5);
+  }
+  .sidebar.open{transform:translateX(0);--side-w:260px}
+  .main{margin-left:0;padding:24px 18px 90px}
+  .menu-toggle{display:grid;place-items:center}
+  .hero h1{font-size:27px}
+  .brand .name .sub{display:none}
+}
+@media (max-width:560px){
+  .controls .input{max-width:100%}
+  .stat{flex:1 1 100%}
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+  .fade-in{opacity:1;transform:none}
+  .progress-fill{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<nav class="navbar">
+  <button class="menu-toggle" id="menuToggle" aria-label="菜单">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="brand">
+    <div class="glyph">λ</div>
+    <div class="name">Lambda Calc Viz Lab<span class="sub">λ 演算可视化实验室</span></div>
+  </div>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/lambda-calc-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.79 2.73 1.27 3.4.97.1-.76.41-1.27.74-1.56-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-label">实验模块</div>
+  <div id="sideList"></div>
+</aside>
+
+<main class="main">
+  <header class="hero">
+    <h1>Lambda 演算可视化实验室</h1>
+    <p>用纯 HTML / CSS / JS / SVG 构建的交互式 λ 演算实验台。从 α/β/η 归约到 Church 编码，从 Y 组合子到 SECD 抽象机与字节码后端，逐层拆解计算的本质。零依赖，全部计算在浏览器本地完成。</p>
+    <div class="tags">
+      <span class="tag">untyped λ</span>
+      <span class="tag">Church encoding</span>
+      <span class="tag">Y combinator</span>
+      <span class="tag">STLC</span>
+      <span class="tag">SKI</span>
+      <span class="tag">SECD</span>
+      <span class="tag">bytecode</span>
+    </div>
+  </header>
+
+  <div id="modules"></div>
+
+  <footer>
+    <span>Lambda Calc Viz Lab · MIT License · 2026</span>
+    <span>github.com/wangzifan396-wzf/lambda-calc-viz-lab</span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   Lambda Calc Viz Lab — 单文件脚本
+   纯 HTML/CSS/JS + SVG，零依赖
+   ============================================================ */
+(function(){
+
+/* ---------- DOM 小工具 ---------- */
+function el(tag, attrs, children){
+  var n = document.createElement(tag);
+  if(attrs) for(var k in attrs){
+    if(k === "class") n.className = attrs[k];
+    else if(k === "text") n.textContent = attrs[k];
+    else if(k.slice(0,5) === "data-") n.setAttribute(k, attrs[k]);
+    else n[k] = attrs[k];
+  }
+  if(children) children.forEach(function(c){ if(c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return n;
+}
+function $(sel, root){ return (root || document).querySelector(sel); }
+function $$(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function svgWrap(inner, vb){
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + (vb || "0 0 600 220") + '" width="100%" role="img">' + inner + '</svg>';
+}
+function setViz(box, inner, vb){ box.innerHTML = svgWrap(inner, vb); }
+
+/* ============================================================
+   核心：λ 项表示与解析器
+   项: {type:'var',name} | {type:'abs',param,body} | {type:'app',func,arg}
+   ============================================================ */
+function tokenize(s){
+  var toks = [], i = 0;
+  while(i < s.length){
+    var c = s[i];
+    if(c === " " || c === "\t" || c === "\n" || c === "\r"){ i++; continue; }
+    if(c === "(" || c === ")"){ toks.push(c); i++; continue; }
+    if(c === "." ){ toks.push("."); i++; continue; }
+    if(c === "\\" || c === "\u03bb"){ toks.push("\\"); i++; continue; }
+    var j = i;
+    while(j < s.length){
+      var cj = s[j];
+      if(cj === " " || cj === "\t" || cj === "\n" || cj === "\r" || cj === "(" || cj === ")" || cj === "." || cj === "\\" || cj === "\u03bb") break;
+      j++;
+    }
+    if(j > i){ toks.push(s.slice(i, j)); i = j; } else { i++; }
+  }
+  return toks;
+}
+function parseTerm(s){
+  var toks = tokenize(s), pos = 0;
+  function peek(){ return toks[pos]; }
+  function next(){ return toks[pos++]; }
+  function parseAtom(){
+    var t = peek();
+    if(t === undefined) throw new Error("意外的输入结尾");
+    if(t === "("){
+      next();
+      var e = parseExpr();
+      if(peek() !== ")") throw new Error("缺少右括号 )");
+      next();
+      return e;
+    }
+    if(t === "\\") return parseAbs();
+    if(t === "." || t === ")") throw new Error("意外的符号 “" + t + "”");
+    next();
+    return { type:"var", name:t };
+  }
+  function parseAbs(){
+    next();
+    var params = [];
+    while(peek() !== undefined && peek() !== "." && peek() !== "(" && peek() !== ")"){
+      if(peek() === "\\") break;
+      params.push(next());
+    }
+    if(peek() !== ".") throw new Error("抽象缺少点号 .");
+    next();
+    var body = parseExpr();
+    for(var k = params.length - 1; k >= 0; k--) body = { type:"abs", param:params[k], body:body };
+    return body;
+  }
+  function parseExpr(){
+    var left = parseAtom();
+    while(peek() !== undefined && peek() !== ")" && peek() !== "."){
+      var right = parseAtom();
+      left = { type:"app", func:left, arg:right };
+    }
+    return left;
+  }
+  var r = parseExpr();
+  if(pos < toks.length) throw new Error("多余的符号：“" + toks[pos] + "”");
+  return r;
+}
+
+/* ---------- 自由变量 / 所有变量 ---------- */
+function freeVars(t){
+  if(t.type === "var") return new Set([t.name]);
+  if(t.type === "abs"){ var s = freeVars(t.body); s.delete(t.param); return s; }
+  var s = freeVars(t.func); freeVars(t.arg).forEach(function(v){ s.add(v); }); return s;
+}
+function allVars(t){
+  if(t.type === "var") return new Set([t.name]);
+  if(t.type === "abs"){ var s = allVars(t.body); s.add(t.param); return s; }
+  var s = allVars(t.func); allVars(t.arg).forEach(function(v){ s.add(v); }); return s;
+}
+function freshName(name, used){
+  var n = name, i = 1;
+  while(used.has(n)){ n = name + i; i++; }
+  return n;
+}
+
+/* ---------- 捕获避免的代入 ---------- */
+function substitute(t, name, value){
+  if(t.type === "var") return t.name === name ? clone(value) : t;
+  if(t.type === "app") return { type:"app", func:substitute(t.func, name, value), arg:substitute(t.arg, name, value) };
+  if(t.param === name) return t;
+  var vf = freeVars(value);
+  if(vf.has(t.param)){
+    var used = allVars(t.body); vf.forEach(function(v){ used.add(v); });
+    var newName = freshName(t.param, used);
+    var renamed = substitute(t.body, t.param, { type:"var", name:newName });
+    return { type:"abs", param:newName, body:substitute(renamed, name, value) };
+  }
+  return { type:"abs", param:t.param, body:substitute(t.body, name, value) };
+}
+function clone(t){
+  if(t.type === "var") return { type:"var", name:t.name };
+  if(t.type === "abs") return { type:"abs", param:t.param, body:clone(t.body) };
+  return { type:"app", func:clone(t.func), arg:clone(t.arg) };
+}
+
+/* ---------- α 转换（重命名最外层绑定变量） ---------- */
+function alphaRenameTop(t, newName){
+  if(t.type !== "abs") return t;
+  var used = allVars(t.body); used.add(newName);
+  var nn = used.has(newName) ? freshName(newName, used) : newName;
+  return { type:"abs", param:nn, body:substitute(t.body, t.param, { type:"var", name:nn }) };
+}
+
+/* ---------- β 归约（单步） ---------- */
+function betaStepNormal(t){
+  if(t.type === "app"){
+    if(t.func.type === "abs") return { term:substitute(t.func.body, t.func.param, t.arg), reduced:true };
+    var f = betaStepNormal(t.func); if(f.reduced) return { term:{ type:"app", func:f.term, arg:t.arg }, reduced:true };
+    var a = betaStepNormal(t.arg); if(a.reduced) return { term:{ type:"app", func:t.func, arg:a.term }, reduced:true };
+    return { term:t, reduced:false };
+  }
+  if(t.type === "abs"){ var b = betaStepNormal(t.body); if(b.reduced) return { term:{ type:"abs", param:t.param, body:b.term }, reduced:true }; return { term:t, reduced:false }; }
+  return { term:t, reduced:false };
+}
+function betaStepApplicative(t){
+  if(t.type === "app"){
+    var f = betaStepApplicative(t.func); if(f.reduced) return { term:{ type:"app", func:f.term, arg:t.arg }, reduced:true };
+    var a = betaStepApplicative(t.arg); if(a.reduced) return { term:{ type:"app", func:t.func, arg:a.term }, reduced:true };
+    if(t.func.type === "abs") return { term:substitute(t.func.body, t.func.param, t.arg), reduced:true };
+    return { term:t, reduced:false };
+  }
+  if(t.type === "abs"){ var b = betaStepApplicative(t.body); if(b.reduced) return { term:{ type:"abs", param:t.param, body:b.term }, reduced:true }; return { term:t, reduced:false }; }
+  return { term:t, reduced:false };
+}
+function betaStepCBN(t){
+  if(t.type === "app"){
+    if(t.func.type === "abs") return { term:substitute(t.func.body, t.func.param, t.arg), reduced:true };
+    var f = betaStepCBN(t.func); if(f.reduced) return { term:{ type:"app", func:f.term, arg:t.arg }, reduced:true };
+    return { term:t, reduced:false };
+  }
+  return { term:t, reduced:false };
+}
+
+/* ---------- η 归约 ---------- */
+function etaStep(t){
+  if(t.type === "abs" && t.body.type === "app" && t.body.arg.type === "var" && t.body.arg.name === t.param){
+    if(!freeVars(t.body.func).has(t.param)) return { term:t.body.func, reduced:true };
+  }
+  if(t.type === "app"){
+    var f = etaStep(t.func); if(f.reduced) return { term:{ type:"app", func:f.term, arg:t.arg }, reduced:true };
+    var a = etaStep(t.arg); if(a.reduced) return { term:{ type:"app", func:t.func, arg:a.term }, reduced:true };
+    return { term:t, reduced:false };
+  }
+  if(t.type === "abs"){ var b = etaStep(t.body); if(b.reduced) return { term:{ type:"abs", param:t.param, body:b.term }, reduced:true }; return { term:t, reduced:false }; }
+  return { term:t, reduced:false };
+}
+
+/* ---------- 度量 ---------- */
+function countRedexes(t){
+  if(t.type === "var") return 0;
+  if(t.type === "abs") return countRedexes(t.body);
+  var c = (t.func.type === "abs") ? 1 : 0;
+  return c + countRedexes(t.func) + countRedexes(t.arg);
+}
+function termSize(t){
+  if(t.type === "var") return 1;
+  if(t.type === "abs") return 1 + termSize(t.body);
+  return 1 + termSize(t.func) + termSize(t.arg);
+}
+function termDepth(t){
+  if(t.type === "var") return 0;
+  if(t.type === "abs") return 1 + termDepth(t.body);
+  return 1 + Math.max(termDepth(t.func), termDepth(t.arg));
+}
+
+/* ---------- 漂亮打印 ---------- */
+function pp(t){
+  function go(t, prec){
+    if(t.type === "var") return t.name;
+    if(t.type === "abs"){
+      var params = [t.param], body = t.body;
+      while(body.type === "abs"){ params.push(body.param); body = body.body; }
+      var s = "\u03bb" + params.join(" ") + "." + go(body, 0);
+      return prec >= 1 ? "(" + s + ")" : s;
+    }
+    var l = go(t.func, 1), r = go(t.arg, 2);
+    var s = l + " " + r;
+    return prec >= 2 ? "(" + s + ")" : s;
+  }
+  return go(t, 0);
+}
+
+/* ---------- 归约到范式（带步数限制） ---------- */
+function normalize(t, stepFn, limit){
+  limit = limit || 500;
+  var steps = 0, trace = [t], cur = t;
+  while(steps < limit){
+    var r = stepFn(cur);
+    if(!r.reduced) break;
+    cur = r.term; steps++; trace.push(cur);
+  }
+  return { term:cur, steps:steps, trace:trace, limited:steps >= limit };
+}
+
+/* ============================================================
+   Church 编码
+   ============================================================ */
+function churchNum(n){
+  var body = { type:"var", name:"x" };
+  for(var i = 0; i < n; i++) body = { type:"app", func:{ type:"var", name:"f" }, arg:body };
+  return { type:"abs", param:"f", body:{ type:"abs", param:"x", body:body } };
+}
+function churchBool(b){
+  return b
+    ? { type:"abs", param:"t", body:{ type:"abs", param:"f", body:{ type:"var", name:"t" } } }
+    : { type:"abs", param:"t", body:{ type:"abs", param:"f", body:{ type:"var", name:"f" } } };
+}
+function churchPair(a, b){
+  return { type:"abs", param:"f", body:{ type:"app", func:{ type:"app", func:{ type:"var", name:"f" }, arg:a }, arg:b } };
+}
+function churchList(arr){
+  // λc.λn. c h (c h-1 (... n))
+  var body = { type:"var", name:"n" };
+  for(var i = arr.length - 1; i >= 0; i--) body = { type:"app", func:{ type:"app", func:{ type:"var", name:"c" }, arg:arr[i] }, arg:body };
+  return { type:"abs", param:"c", body:{ type:"abs", param:"n", body:body } };
+}
+
+/* ============================================================
+   Y 组合子
+   ============================================================ */
+function YCombinator(){
+  // λf.(λx.f (x x))(λx.f (x x))
+  var xx = function(){ return { type:"app", func:{ type:"var", name:"x" }, arg:{ type:"var", name:"x" } }; };
+  var inner = { type:"abs", param:"x", body:{ type:"app", func:{ type:"var", name:"f" }, arg:xx() } };
+  return { type:"abs", param:"f", body:{ type:"app", func:inner, arg:{ type:"abs", param:"x", body:{ type:"app", func:{ type:"var", name:"f" }, arg:xx() } } } };
+}
+
+/* ============================================================
+   SKI 组合子 / 括号抽象
+   ============================================================ */
+function toSKI(t){
+  if(t.type === "var") return t;
+  if(t.type === "app") return { type:"app", func:toSKI(t.func), arg:toSKI(t.arg) };
+  return bracketAbstract(t.param, toSKI(t.body));
+}
+function bracketAbstract(x, m){
+  if(!freeVars(m).has(x)) return { type:"app", func:{ type:"var", name:"K" }, arg:m };
+  if(m.type === "var" && m.name === x) return { type:"var", name:"I" };
+  if(m.type === "app"){
+    return { type:"app",
+      func:{ type:"app", func:{ type:"var", name:"S" }, arg:bracketAbstract(x, m.func) },
+      arg:bracketAbstract(x, m.arg) };
+  }
+  return m;
+}
+function skiCount(t){
+  var c = { S:0, K:0, I:0 };
+  (function go(n){
+    if(n.type === "var"){ if(c[n.name] !== undefined) c[n.name]++; return; }
+    go(n.func); go(n.arg);
+  })(t);
+  return c;
+}
+
+/* ============================================================
+   STLC 类型推导（合一，无 let 多态）
+   ============================================================ */
+var tvCounter = 0;
+function newTypeVar(){ return { tag:"var", id:tvCounter++, instance:null }; }
+function prune(t){
+  if(t.tag === "var" && t.instance) return prune(t.instance);
+  if(t.tag === "arrow"){ t.from = prune(t.from); t.to = prune(t.to); }
+  return t;
+}
+function occursIn(v, t){
+  t = prune(t);
+  if(t === v) return true;
+  if(t.tag === "arrow") return occursIn(v, t.from) || occursIn(v, t.to);
+  return false;
+}
+function unify(a, b){
+  a = prune(a); b = prune(b);
+  if(a.tag === "var"){ if(a !== b){ if(occursIn(a, b)) throw new Error("无限类型"); a.instance = b; } return; }
+  if(b.tag === "var"){ unify(b, a); return; }
+  if(a.tag === "base" && b.tag === "base"){
+    if(a.name !== b.name) throw new Error("无法统一 " + a.name + " 与 " + b.name);
+    return;
+  }
+  if(a.tag === "arrow" && b.tag === "arrow"){ unify(a.from, b.from); unify(a.to, b.to); return; }
+  throw new Error("无法统一类型");
+}
+function infer(t, ctx){
+  if(t.type === "var"){
+    if(!(t.name in ctx)) throw new Error("自由变量 " + t.name + " 缺少类型");
+    return prune(ctx[t.name]);
+  }
+  if(t.type === "abs"){
+    var tv = newTypeVar();
+    var nc = Object.assign({}, ctx); nc[t.param] = tv;
+    var bt = infer(t.body, nc);
+    return { tag:"arrow", from:tv, to:bt };
+  }
+  var ft = infer(t.func, ctx), at = infer(t.arg, ctx), ret = newTypeVar();
+  unify(ft, { tag:"arrow", from:at, to:ret });
+  return prune(ret);
+}
+function typeStr(t){
+  t = prune(t);
+  if(t.tag === "var") return "\u03b1" + t.id;
+  if(t.tag === "base") return t.name;
+  return "(" + typeStr(t.from) + " \u2192 " + typeStr(t.to) + ")";
+}
+function typeTree(t, ctx){
+  // 生成推导树节点用于 SVG
+  if(t.type === "var"){
+    return { rule:"Var", label:t.name + " : " + typeStr(ctx[t.name]), kids:[] };
+  }
+  if(t.type === "abs"){
+    var tv = newTypeVar(); var nc = Object.assign({}, ctx); nc[t.param] = tv;
+    var k = typeTree(t.body, nc);
+    return { rule:"Abs", label:"\u03bb" + t.param + ". : " + typeStr({tag:"arrow",from:tv,to:inferTypeOf(k)}), kids:[k] };
+  }
+  var kf = typeTree(t.func, ctx), ka = typeTree(t.arg, ctx);
+  return { rule:"App", label:"@ : " + typeStr(infer(t,ctx)), kids:[kf, ka] };
+}
+function inferTypeOf(node){
+  // 从推导节点取回类型（label 末段）
+  var m = node.label.match(/:\s*(.+)$/);
+  return m ? m[1] : "?";
+}
+
+/* ============================================================
+   De Bruijn 表示 + SECD 抽象机
+   ============================================================ */
+function toDeBruijn(t, ctx){
+  // 约定：index = 在 ctx 中的位置，0 = 最内层绑定；自由变量由调用方预置到 ctx 尾部
+  ctx = ctx || [];
+  if(t.type === "var"){
+    var i = ctx.indexOf(t.name);
+    if(i < 0) throw new Error("自由变量 " + t.name + " 无法转 De Bruijn");
+    return { type:"var", index:i };
+  }
+  if(t.type === "abs") return { type:"abs", body:toDeBruijn(t.body, [t.param].concat(ctx)) };
+  return { type:"app", func:toDeBruijn(t.func, ctx), arg:toDeBruijn(t.arg, ctx) };
+}
+// 把自由变量预置到上下文尾部，使整项可转 De Bruijn；返回 De Bruijn 项与自由变量顺序
+function dbOf(t){
+  var fv = Array.from(freeVars(t));
+  return { db:toDeBruijn(t, fv), frees:fv };
+}
+function compileSECD(t){
+  if(t.type === "var") return [{ op:"LD", index:t.index }];
+  // RTN 放入闭包体内（函数返回），而非调用点之后
+  if(t.type === "abs") return [{ op:"LDF", code:compileSECD(t.body).concat([{ op:"RTN" }]) }];
+  return compileSECD(t.func).concat(compileSECD(t.arg)).concat([{ op:"AP" }]);
+}
+function instrStr(i){
+  if(i.op === "LD") return "LD " + i.index;
+  if(i.op === "LDF") return "LDF [" + i.code.map(instrStr).join(", ") + "]";
+  return i.op;
+}
+function runSECD(code, limit, initEnv){
+  limit = limit || 2000;
+  var S = [], E = (initEnv || []).slice(), C = code.slice(), D = [];
+  var steps = [];
+  function snap(instr){
+    steps.push({
+      instr: instr ? instr.op : "—",
+      S: S.map(valStr),
+      E: E.map(valStr),
+      C: C.map(instrStr),
+      D: D.length
+    });
+  }
+  function valStr(v){
+    if(v && v.closure) return "<clo " + v.code.map(instrStr).join(";") + ">";
+    return String(v);
+  }
+  var guard = 0;
+  while(C.length > 0 && guard++ < limit){
+    var ins = C.shift();
+    snap(ins);
+    if(ins.op === "LD"){ S.push(E[ins.index]); }
+    else if(ins.op === "LDF"){ S.push({ closure:true, code:ins.code, env:E.slice() }); }
+    else if(ins.op === "AP"){
+      var arg = S.pop(), clo = S.pop();
+      D.push({ S:S.slice(), E:E.slice(), C:C.slice() });
+      S = []; E = [arg].concat(clo.env); C = clo.code.slice();
+    }
+    else if(ins.op === "RTN"){
+      var v = S[S.length - 1];
+      var d = D.pop();
+      S = d.S.concat([v]); E = d.E; C = d.C;
+    }
+  }
+  snap(null);
+  return { result:S[S.length - 1], steps:steps, limited:guard >= limit };
+}
+
+/* ============================================================
+   字节码编译器（λ → 闭包转换 → 字节码）
+   ============================================================ */
+function compileBytecode(t){
+  // 基于 De Bruijn 的简单栈式字节码
+  function go(n){
+    if(n.type === "var") return [{ op:"GET", depth:n.index }];
+    if(n.type === "abs") return [{ op:"MAKE_CLOSURE", code:go(n.body).concat([{ op:"RETURN" }]) }];
+    return go(n.func).concat(go(n.arg)).concat([{ op:"APPLY" }]);
+  }
+  return go(t);
+}
+function bcStr(i){
+  if(i.op === "GET") return "GET " + i.depth;
+  if(i.op === "MAKE_CLOSURE") return "MAKE_CLOSURE [" + i.code.map(bcStr).join(", ") + "]";
+  return i.op;
+}
+function closureConvert(t){
+  // 展示阶段：将每个 λ 标记为闭包，列出其自由变量
+  var closures = [];
+  function go(n, ctx){
+    if(n.type === "var") return n;
+    if(n.type === "app") return { type:"app", func:go(n.func, ctx), arg:go(n.arg, ctx) };
+    var fv = freeVars(n).toArray ? freeVars(n) : freeVars(n);
+    var arr = []; fv.forEach(function(v){ arr.push(v); });
+    closures.push({ param:n.param, frees:arr });
+    return { type:"abs", param:n.param, body:go(n.body, [n.param].concat(ctx)) };
+  }
+  go(t, []);
+  return closures;
+}
+
+/* ============================================================
+   AST 树布局与渲染
+   ============================================================ */
+var NODE_COLORS = ["#fb7185","#7c5cff","#38bdf8","#34d399","#fbbf24","#f472b6","#a78bfa","#4ade80","#22d3ee","#fb923c"];
+function annotateBindings(term){
+  var ci = 0;
+  function go(n, env){
+    if(n.type === "var") return Object.assign({}, n, { bindColor: env[n.name] !== undefined ? NODE_COLORS[env[n.name] % NODE_COLORS.length] : null });
+    if(n.type === "abs"){
+      var color = ci++;
+      var ne = Object.assign({}, env); ne[n.param] = color;
+      return Object.assign({}, n, { bindColor:NODE_COLORS[color % NODE_COLORS.length], body:go(n.body, ne) });
+    }
+    return Object.assign({}, n, { func:go(n.func, env), arg:go(n.arg, env) });
+  }
+  return go(term, {});
+}
+function layoutTree(node){
+  var xc = 0;
+  function go(n, depth){
+    var kids = [];
+    if(n.type === "app"){ kids.push(go(n.func, depth + 1)); kids.push(go(n.arg, depth + 1)); }
+    else if(n.type === "abs"){ kids.push(go(n.body, depth + 1)); }
+    var x = kids.length === 0 ? xc++ : (kids[0].x + kids[kids.length - 1].x) / 2;
+    return { n:n, x:x, y:depth, kids:kids };
+  }
+  return go(node, 0);
+}
+function renderAST(term, box, opts){
+  opts = opts || {};
+  var ann = annotateBindings(term);
+  var L = layoutTree(ann);
+  var xs = 46, ys = 64, padX = 30, padY = 26;
+  function maxX(n){ var m = n.x; for(var i=0;i<n.kids.length;i++) m = Math.max(m, maxX(n.kids[i])); return m; }
+  function maxY(n){ var m = n.y; for(var i=0;i<n.kids.length;i++) m = Math.max(m, maxY(n.kids[i])); return m; }
+  var w = (maxX(L) + 1) * xs + padX * 2;
+  var h = (maxY(L) + 1) * ys + padY * 2;
+  var parts = [];
+  function px(n){ return n.x * xs + padX; }
+  function py(n){ return n.y * ys + padY; }
+  function draw(n){
+    for(var i=0;i<n.kids.length;i++){
+      parts.push('<line class="edge" x1="'+px(n)+'" y1="'+py(n)+'" x2="'+px(n.kids[i])+'" y2="'+py(n.kids[i])+'"/>');
+      draw(n.kids[i]);
+    }
+  }
+  draw(L);
+  function label(n){
+    if(n.type === "var") return n.name;
+    if(n.type === "abs") return "\u03bb" + n.param;
+    return "@";
+  }
+  function nodeClass(n){ return n.type; }
+  function nodes(n){
+    var cx = px(n), cy = py(n);
+    var col = n.bindColor || "var(--border-strong)";
+    if(n.type === "var" && n.bindColor){
+      parts.push('<circle class="node-bg var" cx="'+cx+'" cy="'+cy+'" r="15" style="stroke:'+col+'"/>');
+      parts.push('<text class="node-lbl" x="'+cx+'" y="'+cy+'" style="fill:'+col+'">'+esc(label(n))+'</text>');
+    } else if(n.type === "abs"){
+      parts.push('<rect class="node-bg abs" x="'+(cx-18)+'" y="'+(cy-14)+'" width="36" height="28" rx="7" style="stroke:'+col+'"/>');
+      parts.push('<text class="node-lbl" x="'+cx+'" y="'+cy+'" style="fill:'+col+'">'+esc(label(n))+'</text>');
+    } else {
+      parts.push('<circle class="node-bg app" cx="'+cx+'" cy="'+cy+'" r="13"/>');
+      parts.push('<text class="node-lbl" x="'+cx+'" y="'+cy+'">'+esc(label(n))+'</text>');
+    }
+    n.kids.forEach(nodes);
+  }
+  nodes(L);
+  setViz(box, parts.join(""), "0 0 " + w + " " + h);
+}
+
+/* ---------- 归约链渲染（横向） ---------- */
+function renderChain(terms, box, maxCols){
+  maxCols = maxCols || 5;
+  var show = terms.slice(0, maxCols);
+  var colW = 150, gap = 36, pad = 14;
+  var w = show.length * colW + (show.length - 1) * gap + pad * 2;
+  var parts = [];
+  show.forEach(function(t, i){
+    var x = pad + i * (colW + gap);
+    parts.push('<rect class="pill" x="'+x+'" y="14" width="'+colW+'" height="86" rx="8"/>');
+    var txt = pp(t);
+    // 简单折行
+    var lines = wrapText(txt, colW - 16);
+    lines.forEach(function(ln, j){
+      parts.push('<text class="term-txt" x="'+(x+colW/2)+'" y="'+(40 + j*15)+'" text-anchor="middle">'+esc(ln)+'</text>');
+    });
+    parts.push('<text class="axis-lbl" x="'+(x+colW/2)+'" y="118" text-anchor="middle">步骤 '+i+'</text>');
+    if(i < show.length - 1){
+      parts.push('<text class="term-txt" x="'+(x+colW+gap/2)+'" y="60" text-anchor="middle" style="fill:var(--accent)">\u2192\u03b2</text>');
+    }
+  });
+  if(terms.length > maxCols){
+    parts.push('<text class="axis-lbl" x="'+(w-pad)+'" y="135" text-anchor="end">… 共 '+terms.length+' 步（省略显示）</text>');
+  }
+  setViz(box, parts.join(""), "0 0 " + w + " 150");
+}
+function wrapText(s, maxChars){
+  maxChars = Math.max(8, Math.floor(maxChars / 7.2));
+  var lines = [];
+  for(var i = 0; i < s.length; i += maxChars) lines.push(s.slice(i, i + maxChars));
+  return lines.slice(0, 4);
+}
+
+/* ============================================================
+   模块定义与构建
+   ============================================================ */
+var MODULES = [
+  { id:"m01", num:"01", title:"无类型 λ 演算", desc:"α / β / η 归约与变量绑定。编辑任意 λ 项，单步执行归约并观察抽象语法树中绑定关系的颜色变化。", init:initM01 },
+  { id:"m02", num:"02", title:"Church 编码", desc:"在纯 λ 演算中编码数据：Church 数、布尔、有序对与列表。观察 λf.λx.fⁿx 如何表示自然数。", init:initM02 },
+  { id:"m03", num:"03", title:"Y 组合子", desc:"不动点组合子 Y = λf.(λx.f (x x))(λx.f (x x))，在无类型 λ 演算中实现递归。展开 Y g 并观察自应用。", init:initM03 },
+  { id:"m04", num:"04", title:"简单类型 λ（STLC）", desc:"简单类型 λ 演算与基于合一的类型推导。输入一个项，得到其最一般类型与推导树。", init:initM04 },
+  { id:"m05", num:"05", title:"归约策略", desc:"正则序 / 应用序 / 按名词求值的对比。同一项在不同策略下的归约步数与结果。", init:initM05 },
+  { id:"m06", num:"06", title:"SKI 组合子", desc:"S / K / I 组合子基与括号抽象算法。将任意闭 λ 项翻译为只含 S、K、I 的表达式。", init:initM06 },
+  { id:"m07", num:"07", title:"求值器（SECD）", desc:"SECD 抽象机：栈 S、环境 E、控制 C、转储 D。逐指令执行编译后的 λ 项并观察四个栈的演化。", init:initM07 },
+  { id:"m08", num:"08", title:"编译器后端", desc:"λ → 闭包转换 → 字节码。展示从高阶项到栈式虚拟机字节码的完整编译管线。", init:initM08 }
+];
+
+function buildSidebar(){
+  var list = $("#sideList");
+  MODULES.forEach(function(m){
+    var it = el("div", { class:"side-item", "data-target":m.id });
+    it.appendChild(el("span", { class:"num", text:m.num }));
+    it.appendChild(el("span", { class:"txt", text:m.title }));
+    it.addEventListener("click", function(){
+      var target = document.getElementById(m.id);
+      if(target) target.scrollIntoView({ behavior:"smooth", block:"start" });
+      $("#sidebar").classList.remove("open");
+    });
+    list.appendChild(it);
+  });
+}
+function buildModules(){
+  var root = $("#modules");
+  MODULES.forEach(function(m){
+    var sec = el("section", { class:"module fade-in", id:m.id });
+    sec.innerHTML =
+      '<div class="module-head">' +
+        '<span class="kicker">MODULE ' + m.num + '</span>' +
+        '<h2 class="module-title">' + m.title + '</h2>' +
+        '<p class="module-desc">' + m.desc + '</p>' +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="viz-box" data-viz></div>' +
+        '<div class="controls" data-controls></div>' +
+        '<div class="detail-box" data-detail></div>' +
+        '<div class="stats-row" data-stats></div>' +
+      '</div>';
+    root.appendChild(sec);
+    try {
+      m.init({
+        viz:$("[data-viz]", sec),
+        controls:$("[data-controls]", sec),
+        detail:$("[data-detail]", sec),
+        stats:$("[data-stats]", sec),
+        sec:sec
+      });
+    } catch(e){
+      m.init && (m.initFallback ? m.initFallback() : 0);
+      console.error("模块 " + m.id + " 初始化失败:", e);
+    }
+  });
+}
+
+/* ---------- 通用控件构造 ---------- */
+function makeInput(controls, value, placeholder, opts){
+  opts = opts || {};
+  var i = el("input", { class:"input", value:value, placeholder:placeholder });
+  if(opts.onEnter){
+    i.addEventListener("keydown", function(e){ if(e.key === "Enter") opts.onEnter(i.value); });
+  }
+  controls.appendChild(i);
+  return i;
+}
+function makeSelect(controls, options, value, onChange){
+  var s = el("select", { class:"select" });
+  options.forEach(function(o){
+    var v = typeof o === "string" ? o : o.value;
+    var t = typeof o === "string" ? o : o.label;
+    var opt = el("option", { value:v, text:t });
+    if(v === value) opt.selected = true;
+    s.appendChild(opt);
+  });
+  s.addEventListener("change", function(){ onChange(s.value); });
+  controls.appendChild(s);
+  return s;
+}
+function makeBtn(controls, label, onClick, cls){
+  var b = el("button", { class:"btn " + (cls || ""), text:label });
+  b.addEventListener("click", onClick);
+  controls.appendChild(b);
+  return b;
+}
+function setDetail(detail, title, html){
+  detail.innerHTML = '<div class="dt-title">' + esc(title) + '</div>' + html;
+}
+function setStats(stats, items){
+  stats.innerHTML = "";
+  items.forEach(function(it){
+    var s = el("div", { class:"stat" });
+    s.appendChild(el("div", { class:"stat-label", text:it.label }));
+    s.appendChild(el("div", { class:"stat-val " + (it.cls || ""), text:String(it.value) }));
+    stats.appendChild(s);
+  });
+}
+function errDetail(detail, e){
+  setDetail(detail, "出错", '<span style="color:var(--accent)">' + esc(e.message) + '</span>');
+}
+function tryParse(s){
+  try { return { term:parseTerm(s) }; } catch(e){ return { error:e }; }
+}
+
+/* ============================================================
+   模块 01 — 无类型 λ 演算
+   ============================================================ */
+function initM01(ui){
+  var DEFAULT = "(\\x.\\y.x y) (\\z.z)";
+  var state = { term:null };
+  function refresh(explain){
+    renderAST(state.term, ui.viz);
+    setStats(ui.stats, [
+      { label:"项大小", value:termSize(state.term) },
+      { label:"redex 数", value:countRedexes(state.term), cls:"accent" },
+      { label:"自由变量", value:freeVars(state.term).size ? Array.from(freeVars(state.term)).join(",") : "（无）" },
+      { label:"深度", value:termDepth(state.term), cls:"accent2" }
+    ]);
+    if(explain) setDetail(ui.detail, explain.title, explain.html);
+  }
+  function load(s){
+    var r = tryParse(s);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    state.term = r.term;
+    refresh({ title:"当前项", html:'<div class="step">' + esc(pp(state.term)) + '</div>编辑项后可执行 α/β/η 归约。同色节点表示同一绑定变量；<code>@</code> 为应用，<code>λx</code> 为抽象。' });
+  }
+  var input = makeInput(ui.controls, DEFAULT, "输入 λ 项，例如 (\\x.x) y", {
+    onEnter:function(v){ load(v); }
+  });
+  makeBtn(ui.controls, "载入", function(){ load(input.value); });
+  makeBtn(ui.controls, "β 单步", function(){
+    if(!state.term) return;
+    var before = pp(state.term);
+    var r = betaStepNormal(state.term);
+    if(!r.reduced){ setDetail(ui.detail, "β 归约", "已无 β-redex。"); return; }
+    state.term = r.term;
+    refresh({ title:"β 归约（正则序，最左最外）", html:'<div class="step">' + esc(before) + '<span class="arrow">\u2192\u03b2</span>' + esc(pp(state.term)) + '</div>将最左最外的 (λx.M) N 替换为 M[x:=N]，代入时自动进行 α 转换以避免变量捕获。' });
+  }, "primary");
+  makeBtn(ui.controls, "α 重命名", function(){
+    if(!state.term || state.term.type !== "abs"){ setDetail(ui.detail, "α 转换", "请在顶层为抽象的项上执行。"); return; }
+    var before = pp(state.term);
+    state.term = alphaRenameTop(state.term, state.term.param + "'");
+    refresh({ title:"α 转换", html:'<div class="step">' + esc(before) + '<span class="arrow">\u2192\u03b1</span>' + esc(pp(state.term)) + '</div>重命名绑定变量不改变项的语义（α 等价）。' });
+  });
+  makeBtn(ui.controls, "η 归约", function(){
+    if(!state.term) return;
+    var before = pp(state.term);
+    var r = etaStep(state.term);
+    if(!r.reduced){ setDetail(ui.detail, "η 归约", "无可 η 归约的子项（形如 λx. M x 且 x 不在 M 自由出现）。"); return; }
+    state.term = r.term;
+    refresh({ title:"η 归约", html:'<div class="step">' + esc(before) + '<span class="arrow">\u2192\u03b7</span>' + esc(pp(state.term)) + '</div>λx. M x \u2192 M（外延性：函数相等当且仅当作用相等）。' });
+  });
+  makeBtn(ui.controls, "β 规范化", function(){
+    if(!state.term) return;
+    var res = normalize(state.term, betaStepNormal, 300);
+    var trace = res.trace;
+    state.term = res.term;
+    if(trace.length <= 6) renderChain(trace, ui.viz);
+    else renderAST(state.term, ui.viz);
+    setStats(ui.stats, [
+      { label:"项大小", value:termSize(state.term) },
+      { label:"redex 数", value:countRedexes(state.term), cls:"accent" },
+      { label:"归约步数", value:res.steps, cls:"accent2" },
+      { label:"状态", value:res.limited ? "超限" : (countRedexes(state.term) === 0 ? "范式" : "停止") }
+    ]);
+    setDetail(ui.detail, "β 规范化（正则序到范式）", '<div class="step">' + esc(pp(trace[0])) + (trace.length>1?'<span class="arrow">\u2192* ('+res.steps+' 步)</span>':'') + esc(pp(state.term)) + '</div>' + (res.limited ? "达到步数上限，可能不终止（如 Ω）。" : "已到达 β-范式。"));
+  });
+  makeBtn(ui.controls, "重置", function(){ input.value = DEFAULT; load(DEFAULT); }, "ghost");
+  load(DEFAULT);
+}
+
+/* ============================================================
+   模块 02 — Church 编码
+   ============================================================ */
+function initM02(ui){
+  var state = { kind:"numeral", n:3, b:true, a:2, bb:3 };
+  var seg = el("div", { class:"seg" });
+  [["numeral","Church 数"],["boolean","布尔"],["pair","有序对"],["list","列表"]].forEach(function(o){
+    var b = el("button", { text:o[1], value:o[0] });
+    if(o[0] === state.kind) b.className = "active";
+    b.addEventListener("click", function(){
+      state.kind = o[0];
+      $$(".seg button", seg).forEach(function(x){ x.classList.remove("active"); });
+      b.classList.add("active");
+      refresh();
+    });
+    seg.appendChild(b);
+  });
+  ui.controls.appendChild(seg);
+  var numInput = el("input", { class:"input", type:"number", value:String(state.n), style:"max-width:90px;flex:0 0 auto" });
+  numInput.addEventListener("input", function(){ state.n = Math.max(0, parseInt(numInput.value, 10) || 0); refresh(); });
+  var numLabel = el("span", { text:"n =", style:"color:var(--muted);font-size:13px" });
+  ui.controls.appendChild(numLabel); ui.controls.appendChild(numInput);
+
+  function refresh(){
+    if(state.kind === "numeral") renderNumeral();
+    else if(state.kind === "boolean") renderBoolean();
+    else if(state.kind === "pair") renderPair();
+    else renderList();
+  }
+  function renderNumeral(){
+    var n = state.n;
+    var term = churchNum(n);
+    // SVG：水平链条 f (f (f (... x)))
+    var cellW = 40, gap = 6, pad = 16;
+    var count = n + 1; // n 个 f + 1 个 x
+    var w = count * cellW + (count - 1) * gap + pad * 2;
+    var parts = [];
+    parts.push('<text class="head-lbl" x="'+pad+'" y="22">Church 数 ' + n + ' = \u03bbf.\u03bbx. f' + sup(n) + '(x)</text>');
+    var y = 70;
+    for(var i = 0; i < n; i++){
+      var x = pad + i * (cellW + gap);
+      parts.push('<rect class="pill" x="'+x+'" y="'+(y-16)+'" width="'+cellW+'" height="32" rx="6" style="stroke:var(--accent)"/>');
+      parts.push('<text class="node-lbl" x="'+(x+cellW/2)+'" y="'+y+'" style="fill:var(--accent)">f</text>');
+      parts.push('<text class="term-txt muted" x="'+(x+cellW+gap/2)+'" y="'+y+'" text-anchor="middle">@</text>');
+    }
+    var xlast = pad + n * (cellW + gap);
+    parts.push('<rect class="pill" x="'+xlast+'" y="'+(y-16)+'" width="'+cellW+'" height="32" rx="6" style="stroke:var(--accent-2)"/>');
+    parts.push('<text class="node-lbl" x="'+(xlast+cellW/2)+'" y="'+y+'" style="fill:var(--accent-2)">x</text>');
+    setViz(ui.viz, parts.join(""), "0 0 " + w + " 110");
+    setStats(ui.stats, [
+      { label:"数值", value:n, cls:"accent" },
+      { label:"编码", value:"λf.λx.fⁿx" },
+      { label:"项大小", value:termSize(term) },
+      { label:"应用层数", value:n, cls:"accent2" }
+    ]);
+    setDetail(ui.detail, "Church 数", 'Church 数 <code>n</code> 表示“把函数 <code>f</code> 作用于 <code>x</code> 共 n 次”：<code>' + esc(pp(term)) + '</code>。例如 <code>2 = λf.λx.f(f x)</code>。后继函数 <code>SUCC = λn.λf.λx.f(n f x)</code> 可由其推导出加法、乘法。');
+  }
+  function renderBoolean(){
+    var T = churchBool(true), F = churchBool(false);
+    var parts = [];
+    parts.push('<text class="head-lbl" x="16" y="22">TRUE = λt.λf.t　　FALSE = λt.λf.f</text>');
+    parts.push('<rect class="pill" x="20" y="44" width="120" height="64" rx="8" style="stroke:var(--accent)"/>');
+    parts.push('<text class="term-txt" x="80" y="70" text-anchor="middle">TRUE</text>');
+    parts.push('<text class="term-txt muted" x="80" y="90" text-anchor="middle">选择第一参数</text>');
+    parts.push('<rect class="pill" x="170" y="44" width="120" height="64" rx="8" style="stroke:var(--accent-2)"/>');
+    parts.push('<text class="term-txt" x="230" y="70" text-anchor="middle">FALSE</text>');
+    parts.push('<text class="term-txt muted" x="230" y="90" text-anchor="middle">选择第二参数</text>');
+    parts.push('<text class="term-txt" x="330" y="80" style="fill:var(--accent)">IF b t f = b t f</text>');
+    setViz(ui.viz, parts.join(""), "0 0 480 130");
+    setStats(ui.stats, [
+      { label:"TRUE", value:pp(T), cls:"accent" },
+      { label:"FALSE", value:pp(F), cls:"accent2" },
+      { label:"AND", value:"λp.λq.p q p" },
+      { label:"NOT", value:"λp.λa.λb.p b a" }
+    ]);
+    setDetail(ui.detail, "Church 布尔", '布尔即“二选一”函数：<code>TRUE = λt.λf.t</code>，<code>FALSE = λt.λf.f</code>。条件分支直接写成 <code>b t f</code>，因为布尔本身就是选择器。');
+  }
+  function renderPair(){
+    var term = churchPair(churchNum(state.a), churchNum(state.bb));
+    var parts = [];
+    parts.push('<text class="head-lbl" x="16" y="22">PAIR a b = λf.f a b　　FST = λp.p (λa.λb.a)　　SND = λp.p (λa.λb.b)</text>');
+    parts.push('<rect class="pill" x="60" y="48" width="80" height="56" rx="8" style="stroke:var(--accent)"/>');
+    parts.push('<text class="term-txt" x="100" y="82" text-anchor="middle">' + state.a + '</text>');
+    parts.push('<rect class="pill" x="180" y="48" width="80" height="56" rx="8" style="stroke:var(--accent-2)"/>');
+    parts.push('<text class="term-txt" x="220" y="82" text-anchor="middle">' + state.bb + '</text>');
+    parts.push('<text class="term-txt muted" x="150" y="40" text-anchor="middle">( a , b )</text>');
+    setViz(ui.viz, parts.join(""), "0 0 320 130");
+    setStats(ui.stats, [
+      { label:"FST", value:state.a, cls:"accent" },
+      { label:"SND", value:state.bb, cls:"accent2" },
+      { label:"PAIR 编码", value:"λf.f a b" },
+      { label:"项大小", value:termSize(term) }
+    ]);
+    setDetail(ui.detail, "Church 有序对", '有序对把两个值打包成一个“接受选择器”的函数：<code>PAIR = λa.λb.λf.f a b</code>。取出靠选择器：<code>FST = λp.p (λa.λb.a)</code>，<code>SND = λp.p (λa.λb.b)</code>。');
+  }
+  function renderList(){
+    var items = [churchNum(1), churchNum(2), churchNum(3)];
+    var term = churchList(items);
+    var parts = [];
+    parts.push('<text class="head-lbl" x="16" y="22">列表 = λc.λn. c h₁ (c h₂ … n)　（右折叠表示）</text>');
+    var x = 30, y = 70;
+    items.forEach(function(it, i){
+      parts.push('<rect class="pill" x="'+x+'" y="'+(y-16)+'" width="60" height="32" rx="6" style="stroke:var(--accent)"/>');
+      parts.push('<text class="node-lbl" x="'+(x+30)+'" y="'+y+'" style="fill:var(--accent)">'+(i+1)+'</text>');
+      parts.push('<text class="term-txt muted" x="'+(x+70)+'" y="'+y+'" text-anchor="middle">c</text>');
+      x += 84;
+    });
+    parts.push('<rect class="pill" x="'+x+'" y="'+(y-16)+'" width="60" height="32" rx="6" style="stroke:var(--accent-2)"/>');
+    parts.push('<text class="node-lbl" x="'+(x+30)+'" y="'+y+'" style="fill:var(--accent-2)">nil</text>');
+    setViz(ui.viz, parts.join(""), "0 0 " + (x + 90) + " 120");
+    setStats(ui.stats, [
+      { label:"长度", value:items.length, cls:"accent" },
+      { label:"表示", value:"右折叠" },
+      { label:"cons", value:"λh.λt.λc.λn.c h (t c n)" },
+      { label:"nil", value:"λc.λn.n", cls:"accent2" }
+    ]);
+    setDetail(ui.detail, "Church 列表", '列表用右折叠编码：<code>CONS = λh.λt.λc.λn.c h (t c n)</code>，<code>NIL = λc.λn.n</code>。把列表作用于组合子 <code>c</code> 与初值 <code>n</code> 即可做折叠（如求和、求长）。');
+  }
+  function sup(n){
+    var map = {"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹"};
+    return String(n).split("").map(function(d){ return map[d] || d; }).join("");
+  }
+  refresh();
+}
+
+/* ============================================================
+   模块 03 — Y 组合子
+   ============================================================ */
+function initM03(ui){
+  var state = { fn:"factorial", steps:0, trace:[] };
+  var FNS = {
+    factorial: { label:"阶乘 fact = λf.λn. (ISZERO n) 1 (MULT n (f (PRED n)))", sketch:"fact(n) = n==0 ? 1 : n * fact(n-1)" },
+    fibonacci: { label:"斐波那契 fib = λf.λn. (ISZERO n) 0 ((ISZERO (PRED n)) 1 (PLUS (f (PRED n)) (f (PRED (PRED n)))))", sketch:"fib(n) = n<2 ? n : fib(n-1)+fib(n-2)" },
+    sumto: { label:"求和 sum = λf.λn. (ISZERO n) 0 (PLUS n (f (PRED n)))", sketch:"sum(n) = n==0 ? 0 : n + sum(n-1)" }
+  };
+  makeSelect(ui.controls, [
+    { value:"factorial", label:"阶乘 fact" },
+    { value:"fibonacci", label:"斐波那契 fib" },
+    { value:"sumto", label:"求和 sum" }
+  ], state.fn, function(v){ state.fn = v; reset(); });
+  makeBtn(ui.controls, "展开 Y g 一步", function(){ stepUnfold(); }, "primary");
+  makeBtn(ui.controls, "重置", function(){ reset(); }, "ghost");
+
+  function reset(){
+    state.steps = 0;
+    var Y = YCombinator();
+    state.trace = [Y];
+    renderY(Y);
+    setStats(ui.stats, [
+      { label:"Y 定义", value:"λf.(λx.f(xx))(λx.f(xx))", cls:"accent" },
+      { label:"展开步数", value:0 },
+      { label:"当前函数", value:FNS[state.fn].sketch },
+      { label:"性质", value:"不动点：Y g = g (Y g)", cls:"accent2" }
+    ]);
+    setDetail(ui.detail, "Y 组合子", 'Y 是不动点组合子，满足 <code>Y g = g (Y g)</code>。它通过自应用 <code>λx.f (x x)</code> 制造无限展开，从而在没有原生递归的 λ 演算中实现递归。选择函数后点击“展开”观察 <code>Y g \u2192 g (Y g)</code> 的展开链。');
+  }
+  function stepUnfold(){
+    // 模拟展开：Y g -> g ((λx.g (x x))(λx.g (x x))) -> g (g ((λx...)(λx...))) ...
+    state.steps++;
+    var depth = state.steps;
+    // 构造 g (g (... (Y g))) 的可视化
+    renderUnfold(depth);
+    setStats(ui.stats, [
+      { label:"Y 定义", value:"λf.(λx.f(xx))(λx.f(xx))", cls:"accent" },
+      { label:"展开步数", value:state.steps, cls:"accent2" },
+      { label:"当前函数", value:FNS[state.fn].sketch },
+      { label:"等式", value:"Y g = g (Y g) = g (g (Y g)) = …" }
+    ]);
+    setDetail(ui.detail, "Y g 展开（第 " + state.steps + " 步）", '每一步用 <code>g (·)</code> 包裹：<code>Y g \u2192 g (Y g) \u2192 g (g (Y g)) \u2192 …</code>。展开到合适深度后，把 <code>Y g</code> 作用于具体 Church 数即可求得递归结果——只要项能归约到范式，递归就“收敛”。');
+  }
+  function renderY(Y){
+    renderAST(Y, ui.viz);
+  }
+  function renderUnfold(depth){
+    var parts = [];
+    var w = 560, cx = w / 2;
+    parts.push('<text class="head-lbl" x="16" y="22">Y g 展开 ' + depth + ' 层</text>');
+    var y = 50, dy = 30;
+    parts.push('<text class="term-txt" x="'+cx+'" y="'+y+'" text-anchor="middle" style="fill:var(--accent)">g</text>');
+    for(var i = 1; i <= depth; i++){
+      y += dy;
+      parts.push('<line class="edge" x1="'+cx+'" y1="'+(y-dy+6)+'" x2="'+cx+'" y2="'+(y-6)+'"/>');
+      var col = i === depth ? "var(--accent-2)" : "var(--accent)";
+      parts.push('<text class="term-txt" x="'+cx+'" y="'+y+'" text-anchor="middle" style="fill:'+col+'">g</text>');
+      if(i === depth){
+        y += dy;
+        parts.push('<line class="edge" x1="'+cx+'" y1="'+(y-dy+6)+'" x2="'+cx+'" y2="'+(y-6)+'"/>');
+        parts.push('<text class="term-txt" x="'+cx+'" y="'+y+'" text-anchor="middle" style="fill:var(--muted)">Y g (\u2026)</text>');
+      }
+    }
+    parts.push('<text class="axis-lbl" x="'+cx+'" y="'+(y+24)+'" text-anchor="middle">每层 = 一次 g 应用</text>');
+    setViz(ui.viz, parts.join(""), "0 0 " + w + " " + (y + 40));
+  }
+  reset();
+}
+
+/* ============================================================
+   模块 04 — STLC 类型推导
+   ============================================================ */
+function initM04(ui){
+  var DEFAULT = "\\f.\\x.f x";
+  var CTX = "x:\u03b1, f:\u03b1\u2192\u03b2";
+  var state = { term:null, type:null };
+  var input = makeInput(ui.controls, DEFAULT, "输入 λ 项");
+  var ctxInput = makeInput(ui.controls, CTX, "上下文 name:类型，逗号分隔");
+  ctxInput.style.maxWidth = "240px";
+  makeBtn(ui.controls, "推导类型", function(){ infer(); }, "primary");
+  function parseCtx(s){
+    var ctx = {};
+    if(!s.trim()) return ctx;
+    s.split(",").forEach(function(p){
+      var kv = p.split(":");
+      if(kv.length === 2){
+        var name = kv[0].trim(), tyStr = kv[1].trim();
+        ctx[name] = parseType(tyStr);
+      }
+    });
+    return ctx;
+  }
+  function parseType(s){
+    s = s.trim();
+    var arrow = s.indexOf("\u2192");
+    if(arrow < 0) arrow = s.indexOf("->");
+    if(arrow >= 0){
+      var from = parseType(s.slice(0, arrow));
+      var to = parseType(s.slice(s.indexOf("\u2192") >= 0 ? arrow + 1 : arrow + 2));
+      return { tag:"arrow", from:from, to:to };
+    }
+    if(/^[\u03b1\u03b2\u03b3\u03b4]/.test(s) || /^t\d+$/.test(s)) return newTypeVar();
+    return { tag:"base", name:s };
+  }
+  function infer(){
+    var r = tryParse(input.value);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    state.term = r.term;
+    tvCounter = 0;
+    var ctx;
+    try { ctx = parseCtx(ctxInput.value); } catch(e){ errDetail(ui.detail, e); return; }
+    try {
+      var ty = infer(state.term, ctx);
+      state.type = ty;
+      renderDerivation(state.term, ctx, ty);
+      setStats(ui.stats, [
+        { label:"推导类型", value:typeStr(ty), cls:"accent" },
+        { label:"类型变量数", value:tvCounter, cls:"accent2" },
+        { label:"项大小", value:termSize(state.term) },
+        { label:"结果", value:"类型良好" }
+      ]);
+      setDetail(ui.detail, "类型推导结果", '项 <code>' + esc(pp(state.term)) + '</code> 的最一般类型为 <code>' + esc(typeStr(ty)) + '</code>。推导基于合一（unification）：应用 <code>M : A\u2192B</code> 作用于 <code>N : A</code> 得 <code>B</code>；抽象为参数引入新类型变量。');
+    } catch(e){
+      errDetail(ui.detail, e);
+      setStats(ui.stats, [
+        { label:"结果", value:"类型错误", cls:"accent" },
+        { label:"原因", value:e.message }
+      ]);
+    }
+  }
+  function renderDerivation(term, ctx, ty){
+    var L = layoutDeriv(term, ctx);
+    var xs = 150, ys = 70, padX = 20, padY = 20;
+    function maxX(n){ var m = n.x; n.kids.forEach(function(k){ m = Math.max(m, maxX(k)); }); return m; }
+    function maxY(n){ var m = n.y; n.kids.forEach(function(k){ m = Math.max(m, maxY(k)); }); return m; }
+    var w = (maxX(L) + 1) * xs + padX * 2;
+    var h = (maxY(L) + 1) * ys + padY * 2 + 24;
+    var parts = [];
+    function px(n){ return n.x * xs + padX; }
+    function py(n){ return n.y * ys + padY; }
+    function draw(n){
+      n.kids.forEach(function(k){
+        parts.push('<line class="edge" x1="'+px(n)+'" y1="'+(py(n)+18)+'" x2="'+px(k)+'" y2="'+(py(k)-14)+'"/>');
+        draw(k);
+      });
+    }
+    draw(L);
+    function nodes(n){
+      var cx = px(n), cy = py(n);
+      var w2 = 120;
+      parts.push('<rect class="pill" x="'+(cx-w2/2)+'" y="'+(cy-14)+'" width="'+w2+'" height="30" rx="7" style="stroke:'+(n.rule==='App'?'var(--accent)':(n.rule==='Abs'?'var(--accent-2)':'var(--muted)'))+'"/>');
+      parts.push('<text class="term-txt" x="'+cx+'" y="'+(cy-1)+'" text-anchor="middle">'+esc(n.label)+'</text>');
+      parts.push('<text class="axis-lbl" x="'+cx+'" y="'+(cy+22)+'" text-anchor="middle">['+n.rule+']</text>');
+      n.kids.forEach(nodes);
+    }
+    nodes(L);
+    parts.push('<text class="head-lbl" x="'+padX+'" y="'+(h-4)+'">结论：'+esc(pp(term))+' : '+esc(typeStr(ty))+'</text>');
+    setViz(ui.viz, parts.join(""), "0 0 " + w + " " + h);
+  }
+  function layoutDeriv(term, ctx){
+    function go(n, ctx, depth){
+      var kids = [];
+      var label = "";
+      if(n.type === "var"){
+        label = n.name + " : " + typeStr(ctx[n.name] || newTypeVar());
+      } else if(n.type === "abs"){
+        var tv = newTypeVar(); var nc = Object.assign({}, ctx); nc[n.param] = tv;
+        var k = go(n.body, nc, depth + 1);
+        kids.push(k);
+        label = "\u03bb" + n.param + " : " + typeStr({tag:"arrow", from:tv, to:infer(n, ctx)});
+      } else {
+        kids.push(go(n.func, ctx, depth + 1));
+        kids.push(go(n.arg, ctx, depth + 1));
+        label = "@ : " + typeStr(infer(n, ctx));
+      }
+      return { rule:n.type === "var" ? "Var" : (n.type === "abs" ? "Abs" : "App"), label:label, kids:kids, depth:depth };
+    }
+    var root = go(term, ctx, 0);
+    // assign x positions
+    var xc = 0;
+    function assign(n){
+      if(n.kids.length === 0){ n.x = xc++; n.y = n.depth; return; }
+      n.kids.forEach(assign);
+      n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2;
+      n.y = n.depth;
+    }
+    assign(root);
+    return root;
+  }
+  infer();
+}
+
+/* ============================================================
+   模块 05 — 归约策略
+   ============================================================ */
+function initM05(ui){
+  var DEFAULT = "(\\x.\\y.x y) (\\z.z) (\\w.w)";
+  var input = makeInput(ui.controls, DEFAULT, "输入 λ 项");
+  makeBtn(ui.controls, "运行对比", function(){ run(); }, "primary");
+  makeBtn(ui.controls, "示例 Ω", function(){ input.value = "(\\x.x x)(\\x.x x)"; }, "ghost");
+  makeBtn(ui.controls, "示例 K", function(){ input.value = "(\\x.\\y.x) a b"; }, "ghost");
+  function run(){
+    var r = tryParse(input.value);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    var t = r.term;
+    var normal = normalize(clone(t), betaStepNormal, 400);
+    var applic = normalize(clone(t), betaStepApplicative, 400);
+    var cbn = normalize(clone(t), betaStepCBN, 400);
+    renderCompare(normal, applic, cbn, t);
+    setStats(ui.stats, [
+      { label:"正则序步数", value:normal.steps + (normal.limited?"*":""), cls:"accent" },
+      { label:"应用序步数", value:applic.steps + (applic.limited?"*":""), cls:"accent2" },
+      { label:"按名词步数", value:cbn.steps + (cbn.limited?"*":"") },
+      { label:"项大小", value:termSize(t) }
+    ]);
+    setDetail(ui.detail, "三种求值策略对比",
+      '<div class="step"><b>正则序</b>（最左最外，惰性代入）：' + esc(pp(normal.term)) + ' <span class="arrow">' + normal.steps + ' 步</span></div>' +
+      '<div class="step"><b>应用序</b>（最左最内，先求参数）：' + esc(pp(applic.term)) + ' <span class="arrow">' + applic.steps + ' 步</span></div>' +
+      '<div class="step"><b>按名词求值</b>（弱头范式，不求参数不求 λ 体）：' + esc(pp(cbn.term)) + ' <span class="arrow">' + cbn.steps + ' 步</span></div>' +
+      '带 * 表示达到上限（可能不终止）。正则序保证用最少步数到达 β-范式。');
+  }
+  function renderCompare(normal, applic, cbn, t){
+    var colW = 170, gap = 18, pad = 16;
+    var cols = [
+      { title:"正则序 Normal", data:normal, color:"var(--accent)" },
+      { title:"应用序 Applicative", data:applic, color:"var(--accent-2)" },
+      { title:"按名词 CBN", data:cbn, color:"#38bdf8" }
+    ];
+    var w = cols.length * colW + (cols.length - 1) * gap + pad * 2;
+    var parts = [];
+    cols.forEach(function(c, i){
+      var x = pad + i * (colW + gap);
+      parts.push('<rect class="col-bg" x="'+x+'" y="14" width="'+colW+'" height="156" rx="8"/>');
+      parts.push('<text class="head-lbl" x="'+(x+colW/2)+'" y="34" text-anchor="middle" style="fill:'+c.color+'">'+c.title+'</text>');
+      parts.push('<text class="term-txt" x="'+(x+colW/2)+'" y="62" text-anchor="middle">步数</text>');
+      parts.push('<text class="node-lbl" x="'+(x+colW/2)+'" y="88" text-anchor="middle" style="fill:'+c.color+';font-size:24px">'+c.data.steps+'</text>');
+      parts.push('<text class="term-txt muted" x="'+(x+colW/2)+'" y="110" text-anchor="middle">结果</text>');
+      var res = pp(c.data.term);
+      var lines = wrapText(res, colW - 12);
+      lines.forEach(function(ln, j){
+        parts.push('<text class="term-txt" x="'+(x+colW/2)+'" y="'+(128 + j*14)+'" text-anchor="middle">'+esc(ln)+'</text>');
+      });
+      parts.push('<text class="axis-lbl" x="'+(x+colW/2)+'" y="162" text-anchor="middle">'+(c.data.limited?"超限":(countRedexes(c.data.term)===0?"范式":"停止"))+'</text>');
+    });
+    parts.push('<text class="axis-lbl" x="'+pad+'" y="190">原项：'+esc(pp(t))+'</text>');
+    setViz(ui.viz, parts.join(""), "0 0 " + w + " 200");
+  }
+  run();
+}
+
+/* ============================================================
+   模块 06 — SKI 组合子
+   ============================================================ */
+function initM06(ui){
+  var DEFAULT = "\\x.\\y.x";
+  var state = { term:null, ski:null };
+  var input = makeInput(ui.controls, DEFAULT, "输入闭 λ 项");
+  makeBtn(ui.controls, "翻译为 SKI", function(){ translate(); }, "primary");
+  makeBtn(ui.controls, "示例 \\x.\\y.x", function(){ input.value = "\\x.\\y.x"; translate(); }, "ghost");
+  makeBtn(ui.controls, "示例 \\x.\\y.y x", function(){ input.value = "\\x.\\y.y x"; translate(); }, "ghost");
+  function translate(){
+    var r = tryParse(input.value);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    state.term = r.term;
+    try {
+      state.ski = toSKI(clone(state.term));
+      renderSKI();
+      var c = skiCount(state.ski);
+      setStats(ui.stats, [
+        { label:"S 数量", value:c.S, cls:"accent" },
+        { label:"K 数量", value:c.K, cls:"accent2" },
+        { label:"I 数量", value:c.I },
+        { label:"表达式大小", value:termSize(state.ski) }
+      ]);
+      setDetail(ui.detail, "括号抽象算法",
+        '基：<code>S = λx.λy.λz.x z (y z)</code>，<code>K = λx.λy.x</code>，<code>I = λx.x</code>。<br>' +
+        '规则：<code>[x]x = I</code>，<code>[x]M = K M</code>（x 不在 M 自由），<code>[x](M N) = S ([x]M) ([x]N)</code>。<br>' +
+        '结果：<code>' + esc(pp(state.ski)) + '</code>');
+    } catch(e){ errDetail(ui.detail, e); }
+  }
+  function renderSKI(){
+    renderAST(state.ski, ui.viz);
+  }
+  translate();
+}
+
+/* ============================================================
+   模块 07 — SECD 抽象机
+   ============================================================ */
+function initM07(ui){
+  var DEFAULT = "(\\x.\\y.x) a b";
+  var state = { code:[], run:null, idx:0, term:null };
+  var input = makeInput(ui.controls, DEFAULT, "输入闭 λ 项（无自由变量）");
+  makeBtn(ui.controls, "编译并运行", function(){ compile(); }, "primary");
+  makeBtn(ui.controls, "单步", function(){ step(); });
+  makeBtn(ui.controls, "重置", function(){ if(state.term) compile(); }, "ghost");
+  function compile(){
+    var r = tryParse(input.value);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    state.term = r.term;
+    try {
+      var dr = dbOf(clone(state.term));
+      var db = dr.db;
+      state.code = compileSECD(db);
+      state.run = runSECD(state.code, 1000, dr.frees.map(function(n){ return n; }));
+      state.idx = 0;
+      renderSECD(0);
+      setStats(ui.stats, [
+        { label:"指令数", value:state.code.length, cls:"accent" },
+        { label:"总执行步", value:state.run.steps.length, cls:"accent2" },
+        { label:"当前步", value:0 },
+        { label:"状态", value:"已编译" }
+      ]);
+      setDetail(ui.detail, "SECD 编译结果", 'De Bruijn：<code>' + esc(ppDb(db)) + '</code><br>字节码：<code>' + esc(state.code.map(instrStr).join(" | ")) + '</code><br>四个寄存器：<b>S</b> 栈、<b>E</b> 环境、<b>C</b> 控制、<b>D</b> 转储。点击“单步”逐指令执行。');
+    } catch(e){ errDetail(ui.detail, e); }
+  }
+  function ppDb(t){
+    if(t.type === "var") return String(t.index);
+    if(t.type === "abs") return "λ." + ppDb(t.body);
+    return "(" + ppDb(t.func) + " " + ppDb(t.arg) + ")";
+  }
+  function step(){
+    if(!state.run) return;
+    if(state.idx < state.run.steps.length - 1){ state.idx++; }
+    renderSECD(state.idx);
+    var st = state.run.steps[state.idx];
+    setStats(ui.stats, [
+      { label:"指令数", value:state.code.length, cls:"accent" },
+      { label:"总执行步", value:state.run.steps.length, cls:"accent2" },
+      { label:"当前步", value:state.idx },
+      { label:"当前指令", value:st.instr }
+    ]);
+    setDetail(ui.detail, "SECD 第 " + state.idx + " 步", '指令 <code>' + esc(st.instr) + '</code><br>S = [' + esc(st.S.join(", ")) + ']<br>E = [' + esc(st.E.join(", ")) + ']<br>C = [' + esc(st.C.join(", ")) + ']<br>D 深度 = ' + st.D);
+  }
+  function renderSECD(idx){
+    var st = state.run.steps[idx];
+    var colW = 150, gap = 16, pad = 16, rowH = 18;
+    function stackCol(title, arr, x, color){
+      var parts = [];
+      var h = Math.max(110, arr.length * rowH + 40);
+      parts.push('<rect class="col-bg" x="'+x+'" y="14" width="'+colW+'" height="'+h+'" rx="8"/>');
+      parts.push('<text class="head-lbl" x="'+(x+colW/2)+'" y="32" text-anchor="middle" style="fill:'+color+'">'+title+'</text>');
+      if(arr.length === 0){
+        parts.push('<text class="axis-lbl" x="'+(x+colW/2)+'" y="60" text-anchor="middle">∅</text>');
+      }
+      arr.forEach(function(v, i){
+        var yy = 44 + (arr.length - 1 - i) * rowH;
+        var top = i === arr.length - 1;
+        parts.push('<rect class="pill" x="'+(x+8)+'" y="'+yy+'" width="'+(colW-16)+'" height="16" rx="4" style="stroke:'+(top?color:'var(--border-strong)')+'"/>');
+        var txt = wrapText(v, colW - 24)[0] || "";
+        parts.push('<text class="term-txt" x="'+(x+colW/2)+'" y="'+(yy+12)+'" text-anchor="middle" style="font-size:11px">'+esc(txt)+'</text>');
+      });
+      return { parts:parts, h:h };
+    }
+    var cols = [
+      { title:"S 栈", arr:st.S, color:"var(--accent)" },
+      { title:"E 环境", arr:st.E, color:"var(--accent-2)" },
+      { title:"C 控制", arr:st.C, color:"#38bdf8" },
+      { title:"D 转储 ("+st.D+")", arr:state.run.steps.slice(0, idx).map(function(_,i){ return "frame"; }).slice(-st.D), color:"#34d399" }
+    ];
+    var w = cols.length * colW + (cols.length - 1) * gap + pad * 2;
+    var maxH = 0;
+    var allParts = [];
+    cols.forEach(function(c, i){
+      var x = pad + i * (colW + gap);
+      var r = stackCol(c.title, c.arr, x, c.color);
+      allParts = allParts.concat(r.parts);
+      maxH = Math.max(maxH, r.h);
+    });
+    allParts.push('<text class="axis-lbl" x="'+pad+'" y="'+(maxH+30)+'">第 '+idx+' 步　指令：'+esc(st.instr)+'</text>');
+    setViz(ui.viz, allParts.join(""), "0 0 " + w + " " + (maxH + 44));
+  }
+  compile();
+}
+
+/* ============================================================
+   模块 08 — 编译器后端
+   ============================================================ */
+function initM08(ui){
+  var DEFAULT = "\\x.\\y.x y";
+  var state = { term:null, bc:[], closures:[] };
+  var input = makeInput(ui.controls, DEFAULT, "输入 λ 项");
+  makeBtn(ui.controls, "编译", function(){ compile(); }, "primary");
+  makeBtn(ui.controls, "示例 \\m.\\n.\\f.\\x.m f (n f x)", function(){ input.value = "\\m.\\n.\\f.\\x.m f (n f x)"; compile(); }, "ghost");
+  function compile(){
+    var r = tryParse(input.value);
+    if(r.error){ errDetail(ui.detail, r.error); return; }
+    state.term = r.term;
+    try {
+      var dr = dbOf(clone(state.term));
+      var db = dr.db;
+      state.bc = compileBytecode(db);
+      state.closures = closureConvert(clone(state.term));
+      renderPipeline(db);
+      setStats(ui.stats, [
+        { label:"字节码长度", value:state.bc.length, cls:"accent" },
+        { label:"闭包数", value:state.closures.length, cls:"accent2" },
+        { label:"指令种类", value:uniqueOps(state.bc) },
+        { label:"项大小", value:termSize(state.term) }
+      ]);
+      setDetail(ui.detail, "编译管线",
+        '<div class="step"><b>① 源项</b>：' + esc(pp(state.term)) + '</div>' +
+        '<div class="step"><b>② De Bruijn</b>：' + esc(ppDb(db)) + '</div>' +
+        '<div class="step"><b>③ 闭包转换</b>：检测到 ' + state.closures.length + ' 个 λ，自由变量分别为 ' + esc(state.closures.map(function(c){ return "λ"+c.param+"{"+c.frees.join(",")+"}"; }).join(" ")) + '</div>' +
+        '<div class="step"><b>④ 字节码</b>：<code>' + esc(state.bc.map(bcStr).join(" ")) + '</code></div>' +
+        '指令集：<code>GET depth</code> 取环境，<code>MAKE_CLOSURE [code]</code> 创建闭包，<code>APPLY</code> 应用，<code>RETURN</code> 返回。');
+    } catch(e){ errDetail(ui.detail, e); }
+  }
+  function ppDb(t){
+    if(t.type === "var") return String(t.index);
+    if(t.type === "abs") return "λ." + ppDb(t.body);
+    return "(" + ppDb(t.func) + " " + ppDb(t.arg) + ")";
+  }
+  function uniqueOps(bc){
+    var s = {};
+    (function go(i){ if(i.op) s[i.op]=1; if(i.code) i.code.forEach(go); })({code:bc});
+    return Object.keys(s).length;
+  }
+  function renderPipeline(db){
+    var parts = [];
+    var phases = [
+      { title:"① λ 项", body:pp(state.term), color:"var(--accent)" },
+      { title:"② De Bruijn", body:ppDb(db), color:"#38bdf8" },
+      { title:"③ 闭包转换", body:state.closures.length + " 个闭包", color:"#34d399" },
+      { title:"④ 字节码", body:state.bc.map(bcStr).join(" "), color:"var(--accent-2)" }
+    ];
+    var colW = 200, gap = 24, pad = 16;
+    var w = phases.length * colW + (phases.length - 1) * gap + pad * 2;
+    phases.forEach(function(p, i){
+      var x = pad + i * (colW + gap);
+      parts.push('<rect class="col-bg" x="'+x+'" y="14" width="'+colW+'" height="120" rx="8"/>');
+      parts.push('<text class="head-lbl" x="'+(x+colW/2)+'" y="34" text-anchor="middle" style="fill:'+p.color+'">'+p.title+'</text>');
+      var lines = wrapText(p.body, colW - 16);
+      lines.forEach(function(ln, j){
+        parts.push('<text class="term-txt" x="'+(x+colW/2)+'" y="'+(60 + j*15)+'" text-anchor="middle">'+esc(ln)+'</text>');
+      });
+      if(i < phases.length - 1){
+        parts.push('<text class="term-txt" x="'+(x+colW+gap/2)+'" y="74" text-anchor="middle" style="fill:var(--accent)">\u2192</text>');
+      }
+    });
+    // 字节码详情列表
+    var yy = 150;
+    parts.push('<text class="head-lbl" x="'+pad+'" y="'+yy+'">字节码清单</text>');
+    yy += 16;
+    function listBC(code, indent){
+      code.forEach(function(ins){
+        var prefix = indent ? "  ".repeat(indent) : "";
+        parts.push('<text class="term-txt" x="'+(pad+4)+'" y="'+yy+'" style="fill:var(--muted)">'+esc(prefix+bcStr(ins))+'</text>');
+        yy += 15;
+        if(ins.code) { listBC(ins.code, indent + 1); }
+      });
+    }
+    listBC(state.bc, 0);
+    setViz(ui.viz, parts.join(""), "0 0 " + w + " " + (yy + 10));
+  }
+  compile();
+}
+
+/* ============================================================
+   全局 UI：进度条、淡入、侧边栏高亮、移动端菜单
+   ============================================================ */
+function initGlobalUI(){
+  var fill = $("#progressFill");
+  // 进度条用 transform + requestAnimationFrame 驱动（避免布局抖动）
+  var ticking = false;
+  function update(){
+    var h = document.documentElement;
+    var sc = h.scrollTop / Math.max(1, h.scrollHeight - h.clientHeight);
+    fill.style.transform = "scaleX(" + (isFinite(sc) ? sc : 0) + ")";
+    ticking = false;
+  }
+  function onScroll(){
+    if(!ticking){ ticking = true; requestAnimationFrame(update); }
+  }
+  window.addEventListener("scroll", onScroll, { passive:true });
+  requestAnimationFrame(update);
+
+  // IntersectionObserver 淡入
+  if("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting) e.target.classList.add("visible"); });
+    }, { threshold:0.08 });
+    $$(".fade-in").forEach(function(n){ io.observe(n); });
+    // 侧边栏激活态
+    var sideItems = $$(".side-item");
+    var io2 = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          var id = e.target.id;
+          sideItems.forEach(function(it){
+            it.classList.toggle("active", it.getAttribute("data-target") === id);
+          });
+        }
+      });
+    }, { rootMargin:"-" + (56+20) + "px 0px -60% 0px" });
+    $$(".module").forEach(function(n){ io2.observe(n); });
+  } else {
+    $$(".fade-in").forEach(function(n){ n.classList.add("visible"); });
+  }
+
+  // 移动端菜单
+  $("#menuToggle").addEventListener("click", function(){
+    $("#sidebar").classList.toggle("open");
+  });
+}
+
+/* ---------- 启动 ---------- */
+buildSidebar();
+buildModules();
+initGlobalUI();
+
+})();
+</script>
+</body>
+</html>

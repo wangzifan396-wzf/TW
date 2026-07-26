@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diffusion 可视化实验室 · Diffusion Model Visualization Lab</title>
+<meta name="description" content="交互式扩散模型可视化实验室：前向扩散、反向去噪、U-Net、噪声调度、采样算法、条件引导、Latent Diffusion、训练过程。">
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:260px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+a{color:inherit;text-decoration:none;}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:5px;}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35;}
+
+/* progress bar */
+.progress-bar{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:200;}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--amber),var(--accent-2));transition:width .12s linear;}
+
+/* navbar */
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(16,17,20,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 18px 0 14px;z-index:150;}
+.menu-btn{display:none;background:none;border:1px solid var(--border);color:var(--ink);width:34px;height:34px;border-radius:8px;align-items:center;justify-content:center;cursor:pointer;}
+.nav-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);flex-shrink:0;}
+.nav-title{font-weight:600;font-size:15px;letter-spacing:.2px;}
+.nav-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);}
+.nav-spacer{flex:1;}
+.nav-link-ext{font-size:12px;color:var(--muted);font-family:var(--font-mono);padding:6px 10px;border:1px solid var(--border);border-radius:7px;transition:.15s;}
+.nav-link-ext:hover{color:var(--amber);border-color:var(--amber);}
+
+/* sidebar */
+.sidebar{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);height:calc(100vh - var(--nav-h));background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:120;padding:18px 12px 40px;}
+.side-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1.2px;padding:0 10px;margin:14px 0 8px;font-family:var(--font-mono);}
+.side-label:first-child{margin-top:4px;}
+.nav-link{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--muted);font-size:13px;border-left:2px solid transparent;transition:.14s;cursor:pointer;line-height:1.4;}
+.nav-link .ln{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px;flex-shrink:0;}
+.nav-link:hover{color:var(--ink);background:var(--surface-2);}
+.nav-link.active{color:var(--amber);background:rgba(251,191,36,.07);border-left-color:var(--amber);}
+.nav-link.active .ln{color:var(--amber);}
+
+/* main */
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:30px 40px 90px;max-width:1180px;}
+.hero{padding:34px 0 40px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.hero h1{font-size:30px;font-weight:700;letter-spacing:-.4px;line-height:1.25;}
+.hero h1 .en{color:var(--muted);font-weight:500;font-size:18px;display:block;margin-top:6px;letter-spacing:0;}
+.hero p{color:var(--muted);margin-top:14px;max-width:640px;font-size:14px;}
+.hero .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.tag{font-size:11px;font-family:var(--font-mono);color:var(--muted);padding:4px 9px;border:1px solid var(--border);border-radius:20px;background:var(--surface);}
+.tag b{color:var(--amber);font-weight:600;}
+
+/* module */
+.module{padding:46px 0 30px;border-bottom:1px solid var(--border);opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
+.module.visible{opacity:1;transform:none;}
+.mod-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:22px;}
+.mod-num{font-family:var(--font-mono);font-size:13px;color:var(--amber);border:1px solid var(--amber);border-radius:7px;padding:3px 8px;flex-shrink:0;margin-top:2px;background:rgba(251,191,36,.06);}
+.mod-head h2{font-size:21px;font-weight:650;letter-spacing:-.2px;}
+.mod-head .mod-sub{color:var(--faint);font-size:12px;font-family:var(--font-mono);margin-top:2px;}
+.mod-body{display:grid;grid-template-columns:1fr 270px;gap:22px;align-items:start;}
+.viz-area{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;min-height:220px;}
+.viz{width:100%;height:auto;display:block;}
+.viz-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+.viz-legend span{display:flex;align-items:center;gap:6px;}
+.viz-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+.side-col{display:flex;flex-direction:column;gap:14px;}
+.controls{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.controls .ctl-title{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-family:var(--font-mono);}
+.slider-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12px;}
+.slider-wrap>span:first-child{color:var(--muted);flex-shrink:0;width:74px;}
+.slider-wrap input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:3px;background:var(--surface-3);border-radius:3px;outline:none;}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;border:2px solid var(--bg);box-shadow:0 0 0 1px var(--amber);}
+.slider-wrap input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;border:2px solid var(--bg);}
+.slider-wrap .val{font-family:var(--font-mono);color:var(--ink);font-size:11px;width:52px;text-align:right;flex-shrink:0;}
+.btn-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.btn{font-family:var(--font-sans);font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:6px 11px;cursor:pointer;transition:.14s;line-height:1.3;}
+.btn:hover{color:var(--ink);border-color:var(--border-strong);}
+.btn-sm{padding:5px 9px;font-size:11.5px;}
+.btn.active{color:var(--amber);border-color:var(--amber);background:rgba(251,191,36,.08);}
+.btn.primary{color:var(--ink);border-color:var(--accent);background:rgba(94,106,210,.12);}
+.btn.primary:hover{border-color:var(--accent-2);}
+.stats{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);}
+.stat-item:last-child{border-bottom:none;}
+.stat-item .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.stat-item span:last-child{color:var(--muted);font-family:var(--font-mono);font-size:11.5px;}
+.stat-item span:last-child b{color:var(--ink);font-weight:600;}
+.code-block{margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.code-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);}
+.code-head .lang{font-size:11px;color:var(--faint);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;}
+.code-dots{display:flex;gap:5px;}
+.code-dots i{width:8px;height:8px;border-radius:50%;background:var(--surface-3);}
+.code-block pre{padding:14px 16px;overflow-x:auto;font-family:var(--font-mono);font-size:12.5px;line-height:1.65;color:var(--ink);}
+.code-block .cmt{color:var(--faint);}
+.code-block .kw{color:var(--violet);}
+.code-block .fn{color:var(--cyan);}
+.code-block .num{color:var(--amber);}
+.code-block .str{color:var(--emerald);}
+.mod-note{color:var(--muted);font-size:12.5px;margin-top:14px;line-height:1.7;}
+.mod-note b{color:var(--ink);font-weight:600;}
+.footer{padding:40px 0 10px;color:var(--faint);font-size:12px;font-family:var(--font-mono);text-align:center;}
+.footer a{color:var(--muted);}
+.footer a:hover{color:var(--amber);}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important;}
+  .module{opacity:1!important;transform:none!important;}
+  html{scroll-behavior:auto;}
+}
+@media (max-width:880px){
+  .menu-btn{display:flex;}
+  .nav-sub{display:none;}
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;width:240px;}
+  .sidebar.open{transform:translateX(0);box-shadow:0 0 40px rgba(0,0,0,.6);}
+  .main{margin-left:0;padding:22px 16px 70px;}
+  .mod-body{grid-template-columns:1fr;}
+  .hero h1{font-size:24px;}
+  .hero h1 .en{font-size:15px;}
+}
+</style>
+</head>
+<body>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<nav class="navbar">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <span class="nav-dot"></span>
+  <span class="nav-title">Diffusion 可视化实验室</span>
+  <span class="nav-sub">/ Diffusion Model Visualization Lab</span>
+  <span class="nav-spacer"></span>
+  <a class="nav-link-ext" href="https://github.com/wangzifan396-wzf/diffusion-viz-lab" target="_blank" rel="noopener">GitHub</a>
+</nav>
+<aside class="sidebar" id="sidebar">
+  <div class="side-label">核心模块</div>
+  <a class="nav-link" href="#m01"><span class="ln">01</span>前向扩散过程</a>
+  <a class="nav-link" href="#m02"><span class="ln">02</span>反向去噪过程</a>
+  <a class="nav-link" href="#m03"><span class="ln">03</span>U-Net 架构</a>
+  <a class="nav-link" href="#m04"><span class="ln">04</span>噪声调度策略</a>
+  <div class="side-label">生成与优化</div>
+  <a class="nav-link" href="#m05"><span class="ln">05</span>采样算法</a>
+  <a class="nav-link" href="#m06"><span class="ln">06</span>条件引导</a>
+  <a class="nav-link" href="#m07"><span class="ln">07</span>Latent Diffusion</a>
+  <a class="nav-link" href="#m08"><span class="ln">08</span>训练过程</a>
+</aside>
+<main class="main">
+  <header class="hero">
+    <h1>Diffusion 可视化实验室<span class="en">Diffusion Model Visualization Lab</span></h1>
+    <p>通过 8 个交互式模块，从零理解扩散模型 (Diffusion Models) 的完整工作原理：前向加噪、反向去噪、U-Net 架构、噪声调度、采样算法、条件引导、潜在扩散与训练过程。所有可视化均由纯 SVG 实时绘制，零外部依赖。</p>
+    <div class="tags">
+      <span class="tag">纯 <b>HTML/CSS/JS</b></span>
+      <span class="tag">零依赖 · 单文件</span>
+      <span class="tag"><b>8</b> 个交互模块</span>
+      <span class="tag">实时 <b>SVG</b> 可视化</span>
+      <span class="tag">暗色工程主题</span>
+    </div>
+  </header>
+
+  <!-- 01 Forward Diffusion -->
+  <section id="m01" class="module" data-module="01">
+    <div class="mod-head"><span class="mod-num">01</span><div><h2>前向扩散过程</h2><div class="mod-sub">Forward Diffusion · q(x_t | x_{t-1})</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg01"></svg><div class="viz-legend" id="leg01"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl01"><div class="ctl-title">控制台</div></div><div class="stats" id="stat01"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · forward</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code01"></pre></pre>
+    <p class="mod-note">前向扩散逐步向干净图像 <b>x_0</b> 添加高斯噪声，经过 <b>T</b> 步后变为纯噪声。该过程是确定性的（给定 x_0 和噪声），关键在于其闭式解 <b>q(x_t|x_0)</b> 允许直接跳转到任意时间步 t，这是训练时随机采样 t 的基础。信噪比 SNR = ᾱ_t / (1 - ᾱ_t) 随 t 增大而下降。</p>
+  </section>
+
+  <!-- 02 Reverse Diffusion -->
+  <section id="m02" class="module" data-module="02">
+    <div class="mod-head"><span class="mod-num">02</span><div><h2>反向去噪过程</h2><div class="mod-sub">Reverse Diffusion · p_θ(x_{t-1} | x_t)</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg02"></svg><div class="viz-legend" id="leg02"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl02"><div class="ctl-title">控制台</div></div><div class="stats" id="stat02"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · reverse</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code02"></pre></pre>
+    <p class="mod-note">反向过程从纯噪声 <b>x_T</b> 出发，学习用 U-Net 预测每一步的噪声 <b>ε_θ(x_t, t)</b>，逐步去噪还原出干净图像。每一步均值 μ_θ 由模型预测的噪声计算，并加入受控随机性 z（采样时）。这是生成的核心：模型从未见过真实去噪过程，而是通过拟合前向噪声来"学会"逆转它。</p>
+  </section>
+
+  <!-- 03 U-Net -->
+  <section id="m03" class="module" data-module="03">
+    <div class="mod-head"><span class="mod-num">03</span><div><h2>U-Net 架构</h2><div class="mod-sub">U-Net Architecture · Encoder · Bottleneck · Decoder</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg03"></svg><div class="viz-legend" id="leg03"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl03"><div class="ctl-title">控制台</div></div><div class="stats" id="stat03"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · unet</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code03"></pre></pre>
+    <p class="mod-note">U-Net 是扩散模型的去噪骨干：编码器逐级下采样提取多尺度特征，解码器逐级上采样还原图像。<b>跳跃连接 (Skip Connections)</b> 将编码器的高分辨率细节直接传递给解码器，是恢复精细结构的关键。<b>注意力块 (Attention)</b> 在低分辨率层捕捉长程依赖。时间步 t 通过嵌入注入每个 ResNet 块。</p>
+  </section>
+
+  <!-- 04 Noise Schedule -->
+  <section id="m04" class="module" data-module="04">
+    <div class="mod-head"><span class="mod-num">04</span><div><h2>噪声调度策略</h2><div class="mod-sub">Noise Schedule · Linear · Cosine · Sigmoid</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg04"></svg><div class="viz-legend" id="leg04"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl04"><div class="ctl-title">控制台</div></div><div class="stats" id="stat04"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · schedule</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code04"></pre></pre>
+    <p class="mod-note">噪声调度决定 β_t 如何随时间步变化，进而控制 ᾱ_t 的衰减曲线。<b>线性调度</b>简单但后期信噪比下降过快；<b>余弦调度</b>让 ᾱ_t 平滑下降，各阶段信噪比更均衡，生成质量更佳；<b>Sigmoid 调度</b>在中间阶段加速、两端平缓。调度直接影响训练稳定性与采样质量。</p>
+  </section>
+
+  <!-- 05 Sampling -->
+  <section id="m05" class="module" data-module="05">
+    <div class="mod-head"><span class="mod-num">05</span><div><h2>采样算法</h2><div class="mod-sub">Sampling · DDPM · DDIM · DPM-Solver · Euler</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg05"></svg><div class="viz-legend" id="leg05"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl05"><div class="ctl-title">控制台</div></div><div class="stats" id="stat05"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · sampling</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code05"></pre></pre>
+    <p class="mod-note">采样算法决定如何从训练好的模型生成图像，核心是<b>质量与速度的权衡</b>。<b>DDPM</b> 需约 1000 步但质量最佳且随机性强；<b>DDIM</b> 通过确定性跳跃将步数压缩到 20-50 步；<b>DPM-Solver</b> 利用 ODE 求解仅需 10-20 步即可逼近 DDPM 质量；<b>Euler</b> 是最简单的 ODE 积分器。轨迹越直、步数越少则速度越快。</p>
+  </section>
+
+  <!-- 06 Guidance -->
+  <section id="m06" class="module" data-module="06">
+    <div class="mod-head"><span class="mod-num">06</span><div><h2>条件引导</h2><div class="mod-sub">Conditional Guidance · Classifier-Free · Classifier · None</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg06"></svg><div class="viz-legend" id="leg06"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl06"><div class="ctl-title">控制台</div></div><div class="stats" id="stat06"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · guidance</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code06"></pre></pre>
+    <p class="mod-note">条件引导控制生成样本对条件 (如文本提示) 的遵循程度。<b>无分类器引导 (CFG)</b> 同时预测有条件和无条件噪声，按引导尺度 w 外推：w 越大越对齐但多样性下降、易过饱和。<b>分类器引导</b>依赖额外分类器的梯度。<b>无引导</b> (w=1) 即普通条件采样。CFG 是现代文生图模型的标配。</p>
+  </section>
+
+  <!-- 07 Latent Diffusion -->
+  <section id="m07" class="module" data-module="07">
+    <div class="mod-head"><span class="mod-num">07</span><div><h2>Latent Diffusion</h2><div class="mod-sub">潜在扩散 · VAE Encoder · Latent Space · VAE Decoder</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg07"></svg><div class="viz-legend" id="leg07"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl07"><div class="ctl-title">控制台</div></div><div class="stats" id="stat07"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · ldm</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code07"></pre></pre>
+    <p class="mod-note">Latent Diffusion (LDM, Stable Diffusion 的基础) 将扩散过程从像素空间转移到<b>低维潜在空间</b>：先用 VAE 编码器把图像压缩为潜在表示 (压缩因子 f=8)，在潜在空间训练扩散模型，生成后再用 VAE 解码器还原。这使计算量与显存需求大幅降低 (约 <b>48×</b> 压缩)，是高分辨率文生图可行的关键。</p>
+  </section>
+
+  <!-- 08 Training -->
+  <section id="m08" class="module" data-module="08">
+    <div class="mod-head"><span class="mod-num">08</span><div><h2>训练过程</h2><div class="mod-sub">Training Process · Loss · EMA · Backprop</div></div></div>
+    <div class="mod-body">
+      <div class="viz-area"><svg class="viz" id="svg08"></svg><div class="viz-legend" id="leg08"></div></div>
+      <div class="side-col"><div class="controls" id="ctrl08"><div class="ctl-title">控制台</div></div><div class="stats" id="stat08"></div></div>
+    </div>
+    <pre class="code-block"><div class="code-head"><span class="lang">python · training</span><span class="code-dots"><i></i><i></i><i></i></span></div><pre id="code08"></pre></pre>
+    <p class="mod-note">训练循环：随机采样时间步 t 与噪声 ε，构造带噪样本 x_t，让 U-Net 预测噪声，以 MSE 损失监督。<b>EMA (指数移动平均)</b> 维护权重的平滑副本，推理时使用 EMA 权重可获得更稳定、更高质量的生成结果。学习率与批大小影响训练稳定性——学习率过高会震荡发散，过低则收敛缓慢。</p>
+  </section>
+
+  <footer class="footer">
+    Diffusion 可视化实验室 · Diffusion Model Visualization Lab &nbsp;|&nbsp;
+    <a href="https://github.com/wangzifan396-wzf/diffusion-viz-lab" target="_blank" rel="noopener">GitHub</a> &nbsp;|&nbsp;
+    MIT License · Copyright 2026 wangzifan396-wzf
+  </footer>
+</main>
+
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',violet:'#a78bfa',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',accent2:'#7c5cff',s2:'#16181c',s3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.innerHTML=it.label+': <b>'+it.val+'</b>';d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* ---------- shared helpers ---------- */
+function rng(seed){var s=(seed>>>0)||1;return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function gauss(r){var u=r()+1e-9,v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function clamp255(v){return Math.max(0,Math.min(255,Math.round(v)));}
+function rgb(p){return 'rgb('+clamp255(p[0])+','+clamp255(p[1])+','+clamp255(p[2])+')';}
+function svgText(p,x,y,txt,fill,size,anchor,weight){var t=svgEl(p,'text',{x:x,y:y,fill:fill,'font-size':size||12,'text-anchor':anchor||'start','font-family':'ui-monospace,monospace','font-weight':weight||400});t.textContent=txt;return t;}
+function gridGroup(svg,x,y,n,pixels,cell,border){var g=svgEl(svg,'g',{transform:'translate('+x+','+y+')'});for(var yy=0;yy<n;yy++)for(var xx=0;xx<n;xx++){var p=pixels[yy][xx];svgEl(g,'rect',{x:xx*cell,y:yy*cell,width:cell+0.6,height:cell+0.6,fill:rgb(p)});}if(border!==false)svgEl(g,'rect',{x:-1,y:-1,width:n*cell+2,height:n*cell+2,fill:'none',stroke:C.border,'stroke-width':1,rx:2});return g;}
+function baseImage(n){var g=[];for(var y=0;y<n;y++){var row=[];for(var x=0;x<n;x++){var u=x/(n-1),v=y/(n-1);var r=88+165*v+28*Math.sin(u*3.1);var gg=118+80*u-45*v;var b=222-185*v+26*Math.cos(u*4.2);row.push([Math.max(12,Math.min(245,r)),Math.max(12,Math.min(245,gg)),Math.max(12,Math.min(245,b))]);}g.push(row);}return g;}
+function alphaBarLinear(t,T,bs,be){var ab=1;var steps=Math.round(t);for(var i=1;i<=steps;i++){var b=bs+(be-bs)*(i/T);ab*=(1-b);}return ab;}
+function noisyImage(base,t,T,bs,be,seed){var ab=alphaBarLinear(t,T,bs,be);var sa=Math.sqrt(Math.max(0,ab)),s1=Math.sqrt(Math.max(0,1-ab));var r=rng(seed+Math.round(t)*17);var g=[];for(var y=0;y<base.length;y++){var row=[];for(var x=0;x<base[y].length;x++){var p=base[y][x];row.push([sa*p[0]+s1*gauss(r)*128,sa*p[1]+s1*gauss(r)*128,sa*p[2]+s1*gauss(r)*128]);}g.push(row);}return g;}
+function drawArrow(svg,x1,y1,x2,y2,color,width){svgEl(svg,'line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:color,'stroke-width':width||2,'stroke-linecap':'round'});var ang=Math.atan2(y2-y1,x2-x1);var ah=7;var p1x=x2-ah*Math.cos(ang-0.42),p1y=y2-ah*Math.sin(ang-0.42);var p2x=x2-ah*Math.cos(ang+0.42),p2y=y2-ah*Math.sin(ang+0.42);svgEl(svg,'polygon',{points:x2+','+y2+' '+p1x+','+p1y+' '+p2x+','+p2y,fill:color});}
+function legendBox(id,items){var leg=document.getElementById(id);leg.innerHTML='';items.forEach(function(it){var s=document.createElement('span');var i=document.createElement('i');i.style.background=it.c;s.appendChild(i);s.appendChild(document.createTextNode(it.t));leg.appendChild(s);});}
+function setCode(id,html){document.getElementById(id).innerHTML=html;}
+
+/* ---------- nav / scroll / progress ---------- */
+var modules=document.querySelectorAll('.module');
+var links=document.querySelectorAll('.nav-link');
+var progressFill=document.getElementById('progressFill');
+var sidebar=document.getElementById('sidebar');
+document.getElementById('menuBtn').addEventListener('click',function(){sidebar.classList.toggle('open');});
+links.forEach(function(l){l.addEventListener('click',function(){if(window.innerWidth<=880)sidebar.classList.remove('open');});});
+var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.06});
+modules.forEach(function(m){io.observe(m);});
+function onScroll(){var st=window.scrollY||document.documentElement.scrollTop;var dh=document.documentElement.scrollHeight-window.innerHeight;progressFill.style.width=(dh>0?(st/dh*100):0)+'%';var cur=0;modules.forEach(function(m,i){if(m.offsetTop-140<=st)cur=i;});links.forEach(function(l,i){l.classList.toggle('active',i===cur);});}
+window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+/* ============================================================
+   01 · FORWARD DIFFUSION
+   ============================================================ */
+function initForward(){
+  var svg=document.getElementById('svg01'),ctrl=document.getElementById('ctrl01'),stat=document.getElementById('stat01');
+  var N=8;var state={T:1000,t:500,bs:0.0001,be:0.02};
+  var base=baseImage(N);
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 300');
+    var prev=noisyImage(base,state.t,state.T,state.bs,state.be,7);
+    gridGroup(svg,28,46,N,prev,24);
+    svgText(svg,28,32,'当前  x_t   (t = '+state.t+')',C.ink,13);
+    svgText(svg,28,32+250+0,'',C.faint,10);
+    var fracs=[0,0.05,0.2,0.45,0.75,1.0];var bx=258;
+    svgText(svg,bx,32,'噪声演进参考',C.muted,13);
+    fracs.forEach(function(f,i){
+      var tt=Math.round(state.T*f);var px=noisyImage(base,tt,state.T,state.bs,state.be,7);
+      var gx=bx+i*76;gridGroup(svg,gx,46,N,px,8.6);
+      svgText(svg,gx,150,'t='+tt,C.faint,10,'middle');
+      if(i<fracs.length-1){drawArrow(svg,gx+70,90,gx+76-4,90,C.faint,1);}
+    });
+    // progress timeline
+    var tlx=28,tlw=664,tly=180;
+    svgEl(svg,'line',{x1:tlx,y1:tly,x2:tlx+tlw,y2:tly,stroke:C.s3,'stroke-width':4,'stroke-linecap':'round'});
+    var px=tlx+(state.t/state.T)*tlw;
+    svgEl(svg,'line',{x1:tlx,y1:tly,x2:px,y2:tly,stroke:C.amber,'stroke-width':4,'stroke-linecap':'round'});
+    svgEl(svg,'circle',{cx:px,cy:tly,r:5,fill:C.amber});
+    svgText(svg,tlx,tly+20,'t=0  (干净图像)',C.faint,10);
+    svgText(svg,tlx+tlw,tly+20,'t=T  (纯噪声)',C.faint,10,'end');
+    // SNR bar
+    var ab=alphaBarLinear(state.t,state.T,state.bs,state.be);
+    var beta=state.bs+(state.be-state.bs)*(state.t/state.T);
+    var snr=ab/(1-ab+1e-9);
+    var snrDb=10*Math.log(snr+1e-9)/Math.LN10;
+    setStats(stat,[
+      {color:C.amber,label:'T 总步数',val:state.T},
+      {color:C.cyan,label:'t 当前步',val:state.t},
+      {color:C.violet,label:'β_t',val:beta.toFixed(5)},
+      {color:C.emerald,label:'ᾱ_t',val:ab.toFixed(4)},
+      {color:C.rose,label:'SNR',val:snrDb.toFixed(2)+' dB'}
+    ]);
+  }
+  ctrl.appendChild(makeSlider('T 总步数',100,2000,100,state.T,'',function(v){state.T=v;if(state.t>v)state.t=v;render();}));
+  var tSlider=makeSlider('t 时间步',0,2000,10,state.t,'',function(v){state.t=Math.min(v,state.T);render();});
+  ctrl.appendChild(tSlider);
+  var row=document.createElement('div');row.className='btn-row';
+  row.appendChild(makeBtn('逐步加噪',false,function(){state.t=Math.min(state.T,state.t+Math.max(5,Math.round(state.T/20)));render();}));
+  row.appendChild(makeBtn('直达纯噪声',false,function(){state.t=state.T;render();}));
+  row.appendChild(makeBtn('重置 t=0',false,function(){state.t=0;render();}));
+  ctrl.appendChild(row);
+  legendBox('leg01',[{c:C.amber,t:'当前时间步'},{c:C.emerald,t:'ᾱ_t (信噪保留)'},{c:C.rose,t:'SNR (信噪比)'}]);
+  render();
+}
+
+/* ============================================================
+   02 · REVERSE DIFFUSION
+   ============================================================ */
+function initReverse(){
+  var svg=document.getElementById('svg02'),ctrl=document.getElementById('ctrl02'),stat=document.getElementById('stat02');
+  var N=10;var K=60;var T=1000;var state={step:0,playing:false,timer:null};
+  var base=baseImage(N);
+  function curT(){return Math.round(T*(1-state.step/K));}
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 300');
+    var t=curT();var img=noisyImage(base,t,T,0.0001,0.02,7);
+    gridGroup(svg,36,50,N,img,22);
+    svgText(svg,36,34,'x_'+ (state.step===K?'0':t)+'  ·  反向第 '+state.step+' / '+K+' 步',C.ink,13);
+    // U-Net box
+    var ux=320,uy=60,uh=170;
+    svgEl(svg,'rect',{x:ux,y:uy,width:150,height:uh,rx:10,fill:'none',stroke:C.accent,'stroke-width':1.5,'stroke-dasharray':'5 4'});
+    svgText(svg,ux+75,uy+22,'U-Net  ε_θ',C.accent,14,'middle',600);
+    svgText(svg,ux+75,uy+42,'(x_t, t)',C.muted,11,'middle');
+    // inner mini architecture
+    svgEl(svg,'rect',{x:ux+18,y:uy+58,width:114,height:18,rx:4,fill:C.s3,stroke:C.border});
+    svgText(svg,ux+75,uy+71,'ResNet + Attn',C.muted,10,'middle');
+    svgEl(svg,'rect',{x:ux+18,y:uy+82,width:114,height:18,rx:4,fill:C.s3,stroke:C.border});
+    svgText(svg,ux+75,uy+95,'ResNet + Attn',C.muted,10,'middle');
+    svgEl(svg,'rect',{x:ux+18,y:uy+106,width:114,height:18,rx:4,fill:C.s3,stroke:C.border});
+    svgText(svg,ux+75,uy+119,'ResNet + Attn',C.muted,10,'middle');
+    svgEl(svg,'rect',{x:ux+18,y:uy+130,width:114,height:22,rx:4,fill:'rgba(94,106,210,.15)',stroke:C.accent});
+    svgText(svg,ux+75,uy+145,'预测噪声 ε̂',C.cyan,10,'middle',600);
+    // arrows
+    drawArrow(svg,36+N*22+6,135,ux,135,C.muted,1.5);
+    svgText(svg,(36+N*22+6+ux)/2,128,'x_t',C.faint,10,'middle');
+    drawArrow(svg,ux+150,135,ux+185,135,C.cyan,1.5);
+    svgText(svg,ux+167,128,'ε̂',C.cyan,11,'middle');
+    // denoise output small frames
+    var fx=ux+190,fy=60;
+    svgText(svg,fx,fy-8,'去噪轨迹',C.muted,11);
+    for(var i=0;i<5;i++){var ss=Math.round(K*(i+1)/5);var tt=Math.round(T*(1-ss/K));var im=noisyImage(base,tt,T,0.0001,0.02,7);gridGroup(svg,fx+i*36,fy,N,im,3.2);svgText(svg,fx+i*36+16,fy+N*3.2+12,'step '+ss,C.faint,9,'middle');}
+    // stats
+    var remaining=K-state.step;
+    var predNoise=(1-state.step/K).toFixed(3);
+    setStats(stat,[
+      {color:C.amber,label:'当前反向步',val:state.step+' / '+K},
+      {color:C.cyan,label:'剩余步数',val:remaining},
+      {color:C.violet,label:'对应前向 t',val:curT()},
+      {color:C.emerald,label:'预测噪声强度',val:predNoise},
+      {color:C.rose,label:'状态',val:state.playing?'播放中':'已暂停'}
+    ]);
+  }
+  function togglePlay(b){state.playing=!state.playing;if(state.playing){b.textContent='暂停';b.classList.add('primary');state.timer=setInterval(function(){state.step++;if(state.step>K){state.step=K;togglePlay(b);}render();},90);}else{b.textContent='播放';b.classList.remove('primary');clearInterval(state.timer);}}
+  ctrl.appendChild(makeBtn('播放',false,function(b){togglePlay(b);}));
+  var row=document.createElement('div');row.className='btn-row';row.style.marginTop='8px';
+  row.appendChild(makeBtn('◀ 上一步',false,function(){state.step=Math.max(0,state.step-1);render();}));
+  row.appendChild(makeBtn('下一步 ▶',false,function(){state.step=Math.min(K,state.step+1);render();}));
+  ctrl.appendChild(row);
+  ctrl.appendChild(makeSlider('手动跳转',0,K,1,state.step,'',function(v){state.step=v;render();}));
+  legendBox('leg02',[{c:C.accent,t:'U-Net 去噪网络'},{c:C.cyan,t:'预测噪声 ε̂'},{c:C.muted,t:'逐步去噪'}]);
+  render();
+}
+
+/* ============================================================
+   03 · U-NET ARCHITECTURE
+   ============================================================ */
+function initUNet(){
+  var svg=document.getElementById('svg03'),ctrl=document.getElementById('ctrl03'),stat=document.getElementById('stat03');
+  var state={skip:true,attn:true,baseCh:64,levels:4};
+  var lvY=[58,128,198,268];var lvH=[62,52,42,32];var lvRes=[64,32,16,8];var lvCh=[64,128,256,512];
+  var encX=70,decX=540,bw=120;var midX=300,midY=330;
+  function drawBlock(x,y,w,h,title,res,ch,attn){
+    svgEl(svg,'rect',{x:x,y:y,width:w,height:h,rx:7,fill:C.s3,stroke:C.border,'stroke-width':1});
+    svgText(svg,x+w/2,y+h/2-4,title,C.ink,12,'middle',600);
+    svgText(svg,x+w/2,y+h/2+11,res+'² · '+ch+'ch',C.muted,10,'middle');
+    if(attn){svgEl(svg,'circle',{cx:x+w-9,cy:y+9,r:3.2,fill:C.violet});svgText(svg,x+w-15,y+12,'A',C.violet,9,'end');}
+  }
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 390');
+    // input
+    svgText(svg,encX-30,30,'输入 x_t',C.faint,11);
+    drawArrow(svg,encX-30,40,encX,lvY[0],C.muted,1.5);
+    // encoder
+    for(var i=0;i<state.levels;i++){
+      var by=lvY[i]-lvH[i]/2;
+      drawBlock(encX,by,bw,lvH[i],'Down '+i,lvRes[i],lvCh[i],state.attn);
+      if(i<state.levels-1)drawArrow(svg,encX+bw/2,by+lvH[i],encX+bw/2,lvY[i+1]-lvH[i+1]/2,C.faint,1.5);
+    }
+    // to bottleneck
+    drawArrow(svg,encX+bw/2,lvY[state.levels-1]+lvH[state.levels-1]/2,midX,midY-12,C.faint,1.5);
+    // bottleneck
+    drawBlock(midX-60,midY-18,120,36,'Bottleneck','4',1024,state.attn);
+    // to decoder
+    drawArrow(svg,midX,midY+18,decX+bw/2,lvY[state.levels-1]+lvH[state.levels-1]/2,C.faint,1.5);
+    // decoder
+    for(i=0;i<state.levels;i++){var j=state.levels-1-i;by=lvY[j]-lvH[j]/2;drawBlock(decX,by,bw,lvH[j],'Up '+i,lvRes[j],lvCh[j],state.attn);if(i<state.levels-1)drawArrow(svg,decX+bw/2,by,decX+bw/2,lvY[j-1]-lvH[j-1]/2+lvH[j-1],C.faint,1.5);}
+    // output
+    drawArrow(svg,decX+bw,lvY[0],decX+bw+30,40,C.muted,1.5);
+    svgText(svg,decX+bw+30,30,'输出 ε̂',C.faint,11);
+    // skip connections
+    if(state.skip){
+      for(i=0;i<state.levels;i++){
+        var y1=lvY[i],y2=lvY[i];var mx=(encX+bw+decX)/2;var dy=-(26+i*3);
+        var d='M '+(encX+bw)+' '+y1+' C '+mx+' '+(y1+dy)+', '+mx+' '+(y2+dy)+', '+decX+' '+y2;
+        svgEl(svg,'path',{d:d,fill:'none',stroke:C.cyan,'stroke-width':1.4,'stroke-dasharray':'5 3',opacity:.55});
+        svgEl(svg,'polygon',{points:decX+','+y2+' '+(decX-7)+','+(y2-4)+' '+(decX-7)+','+(y2+4),fill:C.cyan,opacity:.7});
+        svgText(svg,mx,y1+dy-5,'skip '+i,C.cyan,9,'middle');
+      }
+    }
+    // legend dots
+    svgEl(svg,'circle',{cx:encX+bw-9,cy:by+9,r:3.2,fill:C.violet});svgText(svg,encX+bw-15,by+12,'',C.faint,9);
+    // t embedding
+    svgText(svg,midX,midY+40,'⊕ 时间步嵌入 t',C.amber,11,'middle');
+    // stats
+    var params=state.baseCh*state.baseCh*7.5/1000;
+    setStats(stat,[
+      {color:C.amber,label:'基础通道',val:state.baseCh},
+      {color:C.cyan,label:'分辨率层级',val:state.levels},
+      {color:C.emerald,label:'总通道数',val:lvCh.join('/')},
+      {color:C.violet,label:'参数量 (估)',val:params.toFixed(1)+' M'},
+      {color:C.rose,label:'FLOPs (估)',val:(params*2.4).toFixed(1)+' G'},
+      {color:C.accent,label:'跳跃连接',val:state.skip?'开启':'关闭'},
+      {color:C.accent2,label:'注意力块',val:state.attn?'开启':'关闭'}
+    ]);
+  }
+  function row(label,btns,active,onclick){var w=document.createElement('div');w.className='btn-row';w.style.marginBottom='8px';var s=document.createElement('div');s.style.fontSize='11px';s.style.color=C.faint;s.style.marginBottom='4px';s.textContent=label;ctrl.appendChild(s);btns.forEach(function(b){w.appendChild(makeBtn(b,b===active,onclick));});ctrl.appendChild(w);}
+  row('跳跃连接',['开启','关闭'],state.skip?'开启':'关闭',function(b){state.skip=b.textContent==='开启';render();});
+  row('注意力块',['开启','关闭'],state.attn?'开启':'关闭',function(b){state.attn=b.textContent==='开启';render();});
+  row('基础通道',['32','64','128'],'64',function(b){state.baseCh=parseInt(b.textContent,10);render();});
+  legendBox('leg03',[{c:C.accent,t:'下采样 / 上采样块'},{c:C.cyan,t:'跳跃连接 (skip)'},{c:C.violet,t:'注意力块 (Attn)'},{c:C.amber,t:'时间步嵌入'}]);
+  render();
+}
+
+/* ============================================================
+   04 · NOISE SCHEDULE
+   ============================================================ */
+function initSchedule(){
+  var svg=document.getElementById('svg04'),ctrl=document.getElementById('ctrl04'),stat=document.getElementById('stat04');
+  var state={type:'cosine',T:1000,bs:0.0001,be:0.02,t:500};
+  function alphaBarArr(type,T,bs,be){var arr=[1];var ab=1;for(var i=1;i<=T;i++){var b;if(type==='linear'){b=bs+(be-bs)*(i/T);ab*=(1-b);}else if(type==='cosine'){ab=Math.pow(Math.cos(((i/T)+0.008)/1.008*Math.PI/2),2);}else if(type==='sigmoid'){var s=1/(1+Math.exp(-12*((i/T)-0.5)));b=bs+(be-bs)*s;ab*=(1-b);}arr.push(ab);}return arr;}
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 340');
+    var m={l:54,r:24,t:22,b:44};var W=720,H=340;var pw=W-m.l-m.r,ph=H-m.t-m.b;
+    // grid
+    svgEl(svg,'rect',{x:m.l,y:m.t,width:pw,height:ph,fill:'none',stroke:C.s3});
+    for(var g=0;g<=4;g++){var gy=m.t+ph*g/4;svgEl(svg,'line',{x1:m.l,y1:gy,x2:m.l+pw,y2:gy,stroke:C.s3,'stroke-width':1});svgText(svg,m.l-8,gy+4,(1-g/4).toFixed(2),C.faint,10,'end');}
+    for(g=0;g<=5;g++){var gx=m.l+pw*g/5;svgEl(svg,'line',{x1:gx,y1:m.t,x2:gx,y2:m.t+ph,stroke:C.s3,'stroke-width':1});svgText(svg,gx,m.t+ph+16,Math.round(state.T*g/5),C.faint,10,'middle');}
+    svgText(svg,m.l+pw/2,m.t+ph+34,'时间步 t  →',C.muted,11,'middle');
+    svgText(svg,16,m.t+ph/2,'ᾱ_t',C.muted,11,'middle');svgText(svg,16,m.t-6,'1.0',C.faint,10);
+    // curves
+    var types=[['linear',C.cyan],['cosine',C.amber],['sigmoid',C.violet]];
+    var curArr;
+    types.forEach(function(tp){var arr=alphaBarArr(tp[0],state.T,state.bs,state.be);if(tp[0]===state.type)curArr=arr;var pts=[];var step=Math.max(1,Math.round(state.T/200));for(var i=0;i<=state.T;i+=step){var x=m.l+(i/state.T)*pw;var y=m.t+ph-arr[i]*ph;pts.push(x.toFixed(1)+','+y.toFixed(1));}var active=tp[0]===state.type;svgEl(svg,'polyline',{points:pts.join(' '),fill:'none',stroke:tp[1],'stroke-width':active?2.6:1.3,opacity:active?1:0.38});});
+    // marker
+    var mx=m.l+(state.t/state.T)*pw;var my=m.t+ph-curArr[state.t]*ph;
+    svgEl(svg,'line',{x1:mx,y1:m.t,x2:mx,y2:m.t+ph,stroke:C.rose,'stroke-width':1,'stroke-dasharray':'3 3'});
+    svgEl(svg,'circle',{cx:mx,cy:my,r:5,fill:C.rose});svgEl(svg,'circle',{cx:mx,cy:my,r:9,fill:'none',stroke:C.rose,opacity:.4});
+    svgText(svg,mx+8,my-8,'t='+state.t,C.rose,11);
+    // stats
+    var ab=curArr[state.t];var prev=state.t>0?curArr[state.t-1]:1;var beta=1-ab/(prev+1e-12);
+    setStats(stat,[
+      {color:C.amber,label:'调度类型',val:state.type},
+      {color:C.cyan,label:'t',val:state.t},
+      {color:C.violet,label:'β_t',val:beta.toFixed(5)},
+      {color:C.emerald,label:'α_t',val:(1-beta).toFixed(5)},
+      {color:C.rose,label:'ᾱ_t',val:ab.toFixed(4)},
+      {color:C.accent,label:'β_start',val:state.bs},
+      {color:C.accent2,label:'β_end',val:state.be}
+    ]);
+  }
+  function row(label,btns,active,onclick){var w=document.createElement('div');w.className='btn-row';w.style.marginBottom='8px';var s=document.createElement('div');s.style.fontSize='11px';s.style.color=C.faint;s.style.marginBottom='4px';s.textContent=label;ctrl.appendChild(s);btns.forEach(function(b){w.appendChild(makeBtn(b,b===active,onclick));});ctrl.appendChild(w);}
+  row('调度类型',['linear','cosine','sigmoid'],state.type,function(b){state.type=b.textContent;render();});
+  ctrl.appendChild(makeSlider('β_start',0.00001,0.002,0.00001,state.bs,'',function(v){state.bs=v;render();}));
+  ctrl.appendChild(makeSlider('β_end',0.005,0.2,0.005,state.be,'',function(v){state.be=v;render();}));
+  ctrl.appendChild(makeSlider('查看时间步 t',0,state.T,10,state.t,'',function(v){state.t=v;render();}));
+  legendBox('leg04',[{c:C.cyan,t:'linear 线性'},{c:C.amber,t:'cosine 余弦'},{c:C.violet,t:'sigmoid'},{c:C.rose,t:'当前 t'}]);
+  render();
+}
+
+/* ============================================================
+   05 · SAMPLING ALGORITHMS
+   ============================================================ */
+function initSampling(){
+  var svg=document.getElementById('svg05'),ctrl=document.getElementById('ctrl05'),stat=document.getElementById('stat05');
+  var state={algo:'ddpm',steps:50};
+  var algos={ddpm:{name:'DDPM',color:C.cyan,wig:14,mult:1},ddim:{name:'DDIM',color:C.amber,wig:5,mult:0.6},dpm:{name:'DPM-Solver',color:C.violet,wig:1.5,mult:0.3},euler:{name:'Euler',color:C.emerald,wig:7,mult:0.7}};
+  function traj(){var a=algos[state.algo];var r=rng(42);var sx=120+r()*70,sy=255+r()*40;var tx=560,ty=120;var n=Math.max(4,state.steps);var pts=[];for(var i=0;i<=n;i++){var u=i/n;var bx=sx+(tx-sx)*u,by=sy+(ty-sy)*u;var jx=0,jy=0;if(state.algo==='ddpm'){jx=Math.sin(i*0.6)*a.wig*(1-u);jy=Math.cos(i*0.45)*a.wig*(1-u);}else if(state.algo==='euler'){jx=Math.sin(i*0.9)*a.wig*(1-u)*0.5;}pts.push([bx+jx,by+jy]);}return pts;}
+  function fidScore(){var a=algos[state.algo];var s=state.steps;var base={ddpm:Math.max(2.5,26-s*0.022),ddim:Math.max(4,30-s*0.42),dpm:Math.max(3.2,22-s*0.62),euler:Math.max(5,34-s*0.5)};return base[state.algo];}
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 320');
+    var m={l:50,r:24,t:20,b:40};var W=720,H=320;var pw=W-m.l-m.r,ph=H-m.t-m.b;
+    // axes
+    svgEl(svg,'rect',{x:m.l,y:m.t,width:pw,height:ph,fill:'none',stroke:C.s3});
+    svgText(svg,m.l,m.t-6,'潜在空间 (2D 投影)',C.muted,11);
+    svgText(svg,m.l+pw,m.t+ph+30,'→ 数据流形',C.faint,10,'end');
+    svgText(svg,m.l+8,m.t+ph-8,'噪声起点',C.faint,10);
+    // data manifold cluster
+    var dr=rng(7);for(var i=0;i<26;i++){var cx=540+dr()*70,cy=110+dr()*60;svgEl(svg,'circle',{cx:cx,cy:cy,r:3,fill:C.emerald,opacity:.35});}
+    svgText(svg,560,90,'数据流形',C.emerald,11,'middle');
+    // trajectories for all algos faintly
+    Object.keys(algos).forEach(function(k){var old=state.algo;state.algo=k;var pts=traj();state.algo=old;var active=k===state.algo;var d='M '+pts[0][0]+' '+pts[0][1];for(var i=1;i<pts.length;i++)d+=' L '+pts[i][0]+' '+pts[i][1];svgEl(svg,'path',{d:d,fill:'none',stroke:algos[k].color,'stroke-width':active?2.4:1,opacity:active?1:0.2,'stroke-linejoin':'round'});if(active){svgEl(svg,'circle',{cx:pts[0][0],cy:pts[0][1],r:5,fill:algos[k].color});svgEl(svg,'circle',{cx:pts[pts.length-1][0],cy:pts[pts.length-1][1],r:6,fill:algos[k].color});for(var j=1;j<pts.length-1;j+=Math.max(1,Math.round(pts.length/12))){svgEl(svg,'circle',{cx:pts[j][0],cy:pts[j][1],r:2,fill:algos[k].color,opacity:.7});}}});
+    // sample quality grid
+    var q=1-Math.min(1,fidScore()/30);var N=8;var base=baseImage(N);var noiseLvl=1-q;var sample=noisyImage(base,Math.round(noiseLvl*1000),1000,0.0001,0.02,3);
+    gridGroup(svg,560,250,N,sample,9);
+    svgText(svg,560,242,'生成质量',C.muted,11);
+    // stats
+    var a=algos[state.algo];var fid=fidScore();var latency=state.steps*a.mult*2.2;
+    setStats(stat,[
+      {color:C.amber,label:'算法',val:a.name},
+      {color:C.cyan,label:'采样步数',val:state.steps},
+      {color:C.violet,label:'FID (估)',val:fid.toFixed(1)},
+      {color:C.emerald,label:'延迟 (估)',val:latency.toFixed(0)+' ms'},
+      {color:C.rose,label:'轨迹特征',val:state.algo==='ddpm'?'随机曲折':(state.algo==='dpm'?'近似直线':'半直')}
+    ]);
+  }
+  function row(label,btns,active,onclick){var w=document.createElement('div');w.className='btn-row';w.style.marginBottom='8px';var s=document.createElement('div');s.style.fontSize='11px';s.style.color=C.faint;s.style.marginBottom='4px';s.textContent=label;ctrl.appendChild(s);btns.forEach(function(b){w.appendChild(makeBtn(b,b===active,onclick));});ctrl.appendChild(w);}
+  row('采样算法',['ddpm','ddim','dpm','euler'],state.algo,function(b){state.algo=b.textContent;render();});
+  ctrl.appendChild(makeSlider('采样步数',4,200,1,state.steps,' 步',function(v){state.steps=v;render();}));
+  legendBox('leg05',[{c:C.cyan,t:'DDPM'},{c:C.amber,t:'DDIM'},{c:C.violet,t:'DPM-Solver'},{c:C.emerald,t:'Euler · 数据流形'}]);
+  render();
+}
+
+/* ============================================================
+   06 · CONDITIONAL GUIDANCE
+   ============================================================ */
+function initGuidance(){
+  var svg=document.getElementById('svg06'),ctrl=document.getElementById('ctrl06'),stat=document.getElementById('stat06');
+  var state={mode:'cfg',scale:7.5};
+  var modes={cfg:'Classifier-Free',classifier:'Classifier',none:'None'};
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 320');
+    var O=[110,250];
+    var uncond=[55,-35];var cond=[110,-95];
+    var w=state.mode==='none'?1:state.scale;
+    var guided=[uncond[0]+w*(cond[0]-uncond[0]),uncond[1]+w*(cond[1]-uncond[1])];
+    // origin
+    svgEl(svg,'circle',{cx:O[0],cy:O[1],r:5,fill:C.ink});
+    svgText(svg,O[0]-12,O[1]+22,'x_t',C.muted,12);
+    // axes faint
+    svgEl(svg,'line',{x1:O[0],y1:O[1],x2:O[0]+200,y2:O[1],stroke:C.s3,'stroke-width':1});
+    svgEl(svg,'line',{x1:O[0],y1:O[1],x2:O[0],y2:O[1]-180,stroke:C.s3,'stroke-width':1});
+    // uncond
+    if(state.mode!=='none'){drawArrow(svg,O[0],O[1],O[0]+uncond[0],O[1]+uncond[1],C.muted,2);svgText(svg,O[0]+uncond[0]+8,O[1]+uncond[1],'ε_uncond',C.muted,11);}
+    // cond
+    drawArrow(svg,O[0],O[1],O[0]+cond[0],O[1]+cond[1],C.cyan,2);svgText(svg,O[0]+cond[0]+8,O[1]+cond[1]-4,'ε_cond',C.cyan,11);
+    // guided
+    drawArrow(svg,O[0],O[1],O[0]+guided[0],O[1]+guided[1],C.amber,3);svgText(svg,O[0]+guided[0]+8,O[1]+guided[1],'guided (w='+w.toFixed(1)+')',C.amber,12,'start',600);
+    // delta line cond-uncond
+    if(state.mode==='cfg'){svgEl(svg,'line',{x1:O[0]+uncond[0],y1:O[1]+uncond[1],x2:O[0]+cond[0],y2:O[1]+cond[1],stroke:C.violet,'stroke-width':1,'stroke-dasharray':'3 3',opacity:.6});svgText(svg,(O[0]+uncond[0]+O[0]+cond[0])/2-10,(O[1]+uncond[1]+O[1]+cond[1])/2-6,'ε_cond-ε_uncond',C.violet,9);}
+    // sample grid: 4 samples, diversity shrinks with scale
+    var N=6;var base=baseImage(N);var sx=430,sy=40;svgText(svg,sx,sy-8,'生成样本 (多样性 vs 对齐)',C.muted,11);
+    var div=state.mode==='none'?1:Math.max(0.12,1/(1+ (w-1)*0.45));
+    for(var s=0;s<4;s++){var r=rng(5+s*3);var off=(r()-0.5)*60*div;var im=[];for(var yy=0;yy<N;yy++){var row=[];for(var xx=0;xx<N;xx++){var p=base[yy][xx];var sat=w>1?Math.min(1.6,1+(w-1)*0.08):1;row.push([Math.min(255,p[0]*sat+off),Math.min(255,p[1]*sat+off*0.7),Math.min(255,p[2]*sat-off*0.5)]);}im.push(row);}gridGroup(svg,sx+s*70,sy,N,im,10,false);}
+    // alignment bar
+    var bx=430,by=200,bw=260;
+    svgText(svg,bx,by-8,'对齐度 / 多样性',C.muted,11);
+    var al=Math.min(1,(w-1)/14);var di=1-al;
+    svgEl(svg,'rect',{x:bx,y:by,width:bw,height:10,rx:5,fill:C.s3});
+    svgEl(svg,'rect',{x:bx,y:by,width:bw*al,height:10,rx:5,fill:C.amber});
+    svgText(svg,bx,by+26,'对齐 '+(al*100).toFixed(0)+'%',C.amber,10);
+    svgEl(svg,'rect',{x:bx,y:by+34,width:bw,height:10,rx:5,fill:C.s3});
+    svgEl(svg,'rect',{x:bx,y:by+34,width:bw*di,height:10,rx:5,fill:C.cyan});
+    svgText(svg,bx,by+60,'多样性 '+(di*100).toFixed(0)+'%',C.cyan,10);
+    // stats
+    setStats(stat,[
+      {color:C.amber,label:'引导模式',val:modes[state.mode]},
+      {color:C.cyan,label:'引导尺度 w',val:state.mode==='none'?'1.0 (无)':state.scale.toFixed(1)},
+      {color:C.emerald,label:'对齐度',val:(al*100).toFixed(0)+'%'},
+      {color:C.violet,label:'多样性',val:(di*100).toFixed(0)+'%'},
+      {color:C.rose,label:'效果',val:w>10?'过饱和/低多样':(w>1?'强对齐':'普通条件')}
+    ]);
+  }
+  function row(label,btns,active,onclick){var w=document.createElement('div');w.className='btn-row';w.style.marginBottom='8px';var s=document.createElement('div');s.style.fontSize='11px';s.style.color=C.faint;s.style.marginBottom='4px';s.textContent=label;ctrl.appendChild(s);btns.forEach(function(b){w.appendChild(makeBtn(b,b===active,onclick));});ctrl.appendChild(w);}
+  row('引导方式',['cfg','classifier','none'],state.mode,function(b){state.mode=b.textContent;render();});
+  ctrl.appendChild(makeSlider('引导尺度 w',1.0,15.0,0.1,state.scale,'',function(v){state.scale=v;render();}));
+  legendBox('leg06',[{c:C.cyan,t:'ε_cond 条件预测'},{c:C.muted,t:'ε_uncond 无条件'},{c:C.amber,t:'引导后方向'},{c:C.violet,t:'差向量'}]);
+  render();
+}
+
+/* ============================================================
+   07 · LATENT DIFFUSION
+   ============================================================ */
+function initLatent(){
+  var svg=document.getElementById('svg07'),ctrl=document.getElementById('ctrl07'),stat=document.getElementById('stat07');
+  var state={mode:'latent'};
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 330');
+    var Np=10,Nl=state.mode==='latent'?4:10;
+    var base=baseImage(Np);var latBase=baseImage(Nl);
+    var px=30,py=70;var lx=300,ly=90;var rx=560,ry=70;
+    // left image
+    gridGroup(svg,px,py,Np,base,16);svgText(svg,px,py-12,'像素图像  512×512×3',C.muted,11);
+    // right image
+    gridGroup(svg,rx,ry,Np,base,16);svgText(svg,rx,ry-12,'重建图像  512×512×3',C.ink,11);
+    if(state.mode==='latent'){
+      // VAE enc
+      svgEl(svg,'rect',{x:px+Np*16+30,y:py+30,width:70,height:100,rx:8,fill:'none',stroke:C.accent,'stroke-dasharray':'4 3'});
+      svgText(svg,px+Np*16+65,py+70,'VAE',C.accent,12,'middle',600);svgText(svg,px+Np*16+65,py+86,'Encoder',C.muted,9,'middle');
+      drawArrow(svg,px+Np*16+6,py+80,px+Np*16+30,py+80,C.muted,1.5);
+      drawArrow(svg,px+Np*16+100,py+80,lx,ly+Nl*16/2,C.muted,1.5);
+      // latent
+      gridGroup(svg,lx,ly,Nl,latBase,22);svgText(svg,lx,ly-12,'潜在空间  64×64×4',C.cyan,11);
+      // diffusion loop
+      svgEl(svg,'rect',{x:lx-18,y:ly-18,width:Nl*22+36,height:Nl*22+50,rx:10,fill:'none',stroke:C.amber,'stroke-width':1.4,'stroke-dasharray':'5 3'});
+      svgText(svg,lx+Nl*11,ly+Nl*22+34,'扩散在此进行',C.amber,10,'middle');
+      // VAE dec
+      svgEl(svg,'rect',{x:rx-100,y:ry+30,width:70,height:100,rx:8,fill:'none',stroke:C.accent,'stroke-dasharray':'4 3'});
+      svgText(svg,rx-65,ry+70,'VAE',C.accent,12,'middle',600);svgText(svg,rx-65,ry+86,'Decoder',C.muted,9,'middle');
+      drawArrow(svg,lx+Nl*22,ly+Nl*11,rx-100,ry+80,C.muted,1.5);
+      drawArrow(svg,rx-30,ry+80,rx-6,ry+80,C.muted,1.5);
+      // compression label
+      svgText(svg,220,30,'压缩  48×',C.emerald,13,'middle',600);
+      drawArrow(svg,px+Np*8,50,rx+Np*8,50,C.emerald,1.5);
+    }else{
+      // pixel diffusion: big loop around left image
+      svgEl(svg,'rect',{x:px-18,y:py-18,width:Np*16+36,height:Np*16+50,rx:10,fill:'none',stroke:C.amber,'stroke-width':1.4,'stroke-dasharray':'5 3'});
+      svgText(svg,px+Np*8,py+Np*16+30,'扩散在像素空间进行 (极慢)',C.amber,11,'middle');
+      drawArrow(svg,px+Np*16+6,py+Np*8,rx-6,ry+Np*8,C.faint,1.5);
+      svgText(svg,(px+Np*16+rx)/2,ry+Np*8-8,'直接生成',C.faint,10,'middle');
+      svgText(svg,220,30,'无压缩',C.rose,13,'middle',600);
+    }
+    // stats
+    var pdim=512*512*3;var ldim=64*64*4;var comp=pdim/ldim;
+    setStats(stat,[
+      {color:C.amber,label:'模式',val:state.mode==='latent'?'Latent Diffusion':'Pixel Diffusion'},
+      {color:C.cyan,label:'像素维度',val:(pdim/1000).toFixed(0)+'K'},
+      {color:C.emerald,label:'潜在维度',val:(ldim/1000).toFixed(1)+'K'},
+      {color:C.violet,label:'压缩比',val:comp.toFixed(0)+'×'},
+      {color:C.rose,label:'加速比 (估)',val:state.mode==='latent'?'~8×':'1×'},
+      {color:C.accent,label:'f (下采样)',val:state.mode==='latent'?'8':'1'}
+    ]);
+  }
+  function row(label,btns,active,onclick){var w=document.createElement('div');w.className='btn-row';var s=document.createElement('div');s.style.fontSize='11px';s.style.color=C.faint;s.style.marginBottom='4px';s.textContent=label;ctrl.appendChild(s);btns.forEach(function(b){w.appendChild(makeBtn(b,b===active,onclick));});ctrl.appendChild(w);}
+  row('扩散空间',['latent','pixel'],state.mode,function(b){state.mode=b.textContent;render();});
+  legendBox('leg07',[{c:C.accent,t:'VAE 编/解码器'},{c:C.cyan,t:'潜在空间'},{c:C.amber,t:'扩散区域'},{c:C.emerald,t:'压缩/加速'}]);
+  render();
+}
+
+/* ============================================================
+   08 · TRAINING PROCESS
+   ============================================================ */
+function initTraining(){
+  var svg=document.getElementById('svg08'),ctrl=document.getElementById('ctrl08'),stat=document.getElementById('stat08');
+  var state={lr:1e-4,batch:32,epoch:0,emaDecay:0.9999,playing:false,timer:null};
+  var lossHist=[],emaHist=[];
+  function step(){
+    state.epoch++;
+    var base=2.0*Math.exp(-state.epoch/45)+0.018;
+    var nz=(Math.random()-0.5)*0.18*Math.exp(-state.epoch/90);
+    var unstable=state.lr>=5e-4?0.12*Math.sin(state.epoch*0.8)*(state.lr/5e-4):0;
+    var loss=Math.max(0.01,base+nz+unstable);
+    lossHist.push(loss);
+    var prev=emaHist.length?emaHist[emaHist.length-1]:loss;
+    var ed=state.batch>=64?0.9997:state.emaDecay;
+    emaHist.push(ed*prev+(1-ed)*loss);
+    if(lossHist.length>160){lossHist.shift();emaHist.shift();}
+  }
+  function render(){
+    clearSvg(svg);svg.setAttribute('viewBox','0 0 720 340');
+    // loss chart
+    var m={l:54,r:200,t:20,b:30};var W=720,H=340;var pw=W-m.l-m.r,ph=H-m.t-m.b;
+    svgText(svg,m.l,m.t-6,'训练损失 Loss (对数尺度)',C.muted,11);
+    svgEl(svg,'rect',{x:m.l,y:m.t,width:pw,height:ph,fill:'none',stroke:C.s3});
+    // y grid (log)
+    var yVals=[0.01,0.05,0.2,1,2];
+    yVals.forEach(function(v){var yy=m.t+ph-(Math.log(v)-Math.log(0.01))/(Math.log(2.2)-Math.log(0.01))*ph;svgEl(svg,'line',{x1:m.l,y1:yy,x2:m.l+pw,y2:yy,stroke:C.s3});svgText(svg,m.l-8,yy+4,v.toString(),C.faint,9,'end');});
+    var maxE=Math.max(80,state.epoch);
+    if(lossHist.length>1){
+      var lpts=[],epts=[];
+      for(var i=0;i<lossHist.length;i++){var x=m.l+(i/(maxE-1))*pw;var yv=Math.max(0.011,Math.min(2.1,lossHist[i]));var y=m.t+ph-(Math.log(yv)-Math.log(0.01))/(Math.log(2.2)-Math.log(0.01))*ph;lpts.push(x.toFixed(1)+','+y.toFixed(1));var yv2=Math.max(0.011,Math.min(2.1,emaHist[i]));var y2=m.t+ph-(Math.log(yv2)-Math.log(0.01))/(Math.log(2.2)-Math.log(0.01))*ph;epts.push(x.toFixed(1)+','+y2.toFixed(1));}
+      svgEl(svg,'polyline',{points:lpts.join(' '),fill:'none',stroke:C.cyan,'stroke-width':1.4,opacity:.7});
+      svgEl(svg,'polyline',{points:epts.join(' '),fill:'none',stroke:C.amber,'stroke-width':2.2});
+      // current point
+      var lx=m.l+((lossHist.length-1)/(maxE-1))*pw;var ly=m.t+ph-(Math.log(Math.max(0.011,emaHist[emaHist.length-1]))-Math.log(0.01))/(Math.log(2.2)-Math.log(0.01))*ph;
+      svgEl(svg,'circle',{cx:lx,cy:ly,r:4,fill:C.amber});
+    }
+    svgText(svg,m.l+pw/2,m.t+ph+22,'训练步 / epoch  →',C.muted,10,'middle');
+    // training loop diagram (right column)
+    var dx=540;
+    svgText(svg,dx,m.t+4,'训练循环',C.muted,11);
+    var steps=[['x_0','采样真实图像',C.ink],['t, ε','采样时间步与噪声',C.violet],['x_t','前向加噪',C.cyan],['ε_θ','U-Net 预测',C.accent],['MSE','计算损失',C.rose],['∇','反向传播 + EMA',C.emerald]];
+    var sy=m.t+22;
+    steps.forEach(function(s,i){var y=sy+i*40;svgEl(svg,'rect',{x:dx,y:y,width:150,height:30,rx:6,fill:C.s3,stroke:C.border});svgEl(svg,'circle',{cx:dx+12,cy:y+15,r:4,fill:s[2]});svgText(svg,dx+24,y+14,s[0],s[2],11,'start',600);svgText(svg,dx+24,y+26,s[1],C.muted,9);if(i<steps.length-1)drawArrow(svg,dx+75,y+30,dx+75,y+40,C.faint,1.2);});
+    // stats
+    var curLoss=lossHist.length?lossHist[lossHist.length-1].toFixed(4):'—';
+    var curEma=emaHist.length?emaHist[emaHist.length-1].toFixed(4):'—';
+    setStats(stat,[
+      {color:C.amber,label:'Epoch',val:state.epoch},
+      {color:C.cyan,label:'当前 Loss',val:curLoss},
+      {color:C.emerald,label:'EMA Loss',val:curEma},
+      {color:C.violet,label:'学习率',val:state.lr.toExponential(1)},
+      {color:C.rose,label:'Batch Size',val:state.batch},
+      {color:C.accent,label:'EMA Decay',val:state.batch>=64?0.9997:state.emaDecay},
+      {color:C.accent2,label:'状态',val:state.playing?'训练中':'已停止'}
+    ]);
+  }
+  function togglePlay(b){state.playing=!state.playing;if(state.playing){b.textContent='停止训练';b.classList.add('primary');state.timer=setInterval(function(){step();render();},80);}else{b.textContent='开始训练';b.classList.remove('primary');clearInterval(state.timer);}}
+  ctrl.appendChild(makeBtn('开始训练',false,function(b){togglePlay(b);}));
+  var lr=document.createElement('div');lr.className='btn-row';lr.style.marginTop='10px';var lrs=document.createElement('div');lrs.style.fontSize='11px';lrs.style.color=C.faint;lrs.style.marginBottom='4px';lrs.textContent='学习率';ctrl.appendChild(lrs);['1e-5','1e-4','5e-4','1e-3'].forEach(function(v){lr.appendChild(makeBtn(v,v==='1e-4',function(b){state.lr=parseFloat(v);render();}));});ctrl.appendChild(lr);
+  var bs=document.createElement('div');bs.className='btn-row';bs.style.marginTop='8px';var bss=document.createElement('div');bss.style.fontSize='11px';bss.style.color=C.faint;bss.style.marginBottom='4px';bss.textContent='Batch Size';ctrl.appendChild(bss);['16','32','64','128'].forEach(function(v){bs.appendChild(makeBtn(v,v==='32',function(b){state.batch=parseInt(v,10);render();}));});ctrl.appendChild(bs);
+  var sb=document.createElement('div');sb.className='btn-row';sb.style.marginTop='10px';
+  sb.appendChild(makeBtn('单步训练',false,function(){step();render();}));
+  sb.appendChild(makeBtn('重置',false,function(){state.epoch=0;lossHist=[];emaHist=[];render();}));
+  ctrl.appendChild(sb);
+  legendBox('leg08',[{c:C.cyan,t:'原始 Loss'},{c:C.amber,t:'EMA Loss (平滑)'},{c:C.rose,t:'高学习率 → 震荡'}]);
+  render();
+}
+
+/* ---------- code blocks ---------- */
+function code(html){return html;}
+setCode('code01',code(
+'<span class="cmt"># 前向扩散: 逐步添加高斯噪声 (马尔可夫链)</span>\n'+
+'<span class="kw">def</span> <span class="fn">forward_step</span>(x_prev, t, beta):\n'+
+'    mean = sqrt(<span class="num">1</span> - beta[t]) * x_prev\n'+
+'    <span class="kw">return</span> mean + sqrt(beta[t]) * randn_like(x_prev)\n\n'+
+'<span class="cmt"># 闭式解: 直接从 x_0 跳转到任意 t (训练用)</span>\n'+
+'<span class="kw">def</span> <span class="fn">q_sample</span>(x0, t, alpha_bar):\n'+
+'    eps = randn_like(x0)               <span class="cmt"># ε ~ N(0, I)</span>\n'+
+'    sqrt_ab = sqrt(alpha_bar[t])\n'+
+'    <span class="kw">return</span> sqrt_ab * x0 + sqrt(<span class="num">1</span> - sqrt_ab**<span class="num">2</span>) * eps\n\n'+
+'<span class="cmt"># q(x_t | x_0) = N(sqrt(α̅_t)·x_0, (1-α̅_t)·I)</span>'
+));
+
+setCode('code02',code(
+'<span class="cmt"># 反向去噪: 学习逆转扩散过程</span>\n'+
+'<span class="kw">def</span> <span class="fn">reverse_step</span>(model, x_t, t, alpha, beta, alpha_bar):\n'+
+'    eps = model(x_t, t)                <span class="cmt"># U-Net 预测噪声</span>\n'+
+'    mean = (<span class="num">1</span> / sqrt(alpha[t])) * (\n'+
+'        x_t - (beta[t] / sqrt(<span class="num">1</span> - alpha_bar[t])) * eps\n'+
+'    )\n'+
+'    <span class="kw">if</span> t &gt; <span class="num">0</span>:\n'+
+'        sigma = sqrt(beta[t])           <span class="cmt"># 受控随机性</span>\n'+
+'        <span class="kw">return</span> mean + sigma * randn_like(x_t)\n'+
+'    <span class="kw">return</span> mean\n\n'+
+'<span class="cmt"># p_θ(x_{t-1}|x_t) = N(μ_θ(x_t,t), σ_t²·I)</span>\n'+
+'<span class="cmt"># 生成: x_T ~ N(0,I)  →  迭代  →  x_0</span>'
+));
+
+setCode('code03',code(
+'<span class="kw">class</span> <span class="fn">UNet</span>(nn.Module):\n'+
+'    <span class="kw">def</span> <span class="fn">forward</span>(self, x, t, c=<span class="kw">None</span>):\n'+
+'        t_emb = time_embed(t)\n'+
+'        skips = []\n'+
+'        <span class="kw">for</span> block <span class="kw">in</span> self.down_blocks:\n'+
+'            x = block(x, t_emb)        <span class="cmt"># ResNet + Attention</span>\n'+
+'            skips.append(x)\n'+
+'            x = downsample(x)          <span class="cmt"># 分辨率 ↓ 通道 ↑</span>\n'+
+'        x = self.mid_block(x, t_emb)   <span class="cmt"># bottleneck</span>\n'+
+'        <span class="kw">for</span> block <span class="kw">in</span> self.up_blocks:\n'+
+'            x = upsample(x)\n'+
+'            x = torch.cat([x, skips.pop()], dim=<span class="num">1</span>)  <span class="cmt"># skip</span>\n'+
+'            x = block(x, t_emb)\n'+
+'        <span class="kw">return</span> self.out(x)         <span class="cmt"># 预测 ε</span>'
+));
+
+setCode('code04',code(
+'<span class="cmt"># 1. 线性调度 (Ho et al. 2020)</span>\n'+
+'<span class="kw">def</span> <span class="fn">linear</span>(T, b_start=<span class="num">1e-4</span>, b_end=<span class="num">0.02</span>):\n'+
+'    <span class="kw">return</span> torch.linspace(b_start, b_end, T)\n\n'+
+'<span class="cmt"># 2. 余弦调度 (Nichol & Dhariwal 2021)</span>\n'+
+'<span class="kw">def</span> <span class="fn">cosine</span>(T, s=<span class="num">0.008</span>):\n'+
+'    f = lambda t: cos(((t/T)+s)/(<span class="num">1</span>+s) * pi/<span class="num">2</span>)**<span class="num">2</span>\n'+
+'    alpha_bar = [f(t) <span class="kw">for</span> t <span class="kw">in</span> range(T+<span class="num">1</span>)]\n'+
+'    betas = [<span class="num">1</span> - alpha_bar[i]/alpha_bar[i-<span class="num">1</span>]\n'+
+'             <span class="kw">for</span> i <span class="kw">in</span> range(<span class="num">1</span>, T+<span class="num">1</span>)]\n'+
+'    <span class="kw">return</span> clip(betas, <span class="num">0</span>, <span class="num">0.999</span>)\n\n'+
+'<span class="cmt"># 3. Sigmoid 调度</span>\n'+
+'<span class="kw">def</span> <span class="fn">sigmoid</span>(T, b_start, b_end):\n'+
+'    x = linspace(<span class="num">0</span>, <span class="num">1</span>, T)\n'+
+'    s = <span class="num">1</span> / (<span class="num">1</span> + exp(-<span class="num">12</span>*(x-<span class="num">0.5</span>)))\n'+
+'    <span class="kw">return</span> b_start + (b_end-b_start)*s'
+));
+
+setCode('code05',code(
+'<span class="cmt"># DDPM 采样: 随机, ~1000 步, 质量最佳</span>\n'+
+'<span class="kw">def</span> <span class="fn">ddpm_sample</span>(model, T, alpha, beta, alpha_bar):\n'+
+'    x = randn(shape)                  <span class="cmt"># x_T ~ N(0,I)</span>\n'+
+'    <span class="kw">for</span> t <span class="kw">in</span> reversed(range(T)):\n'+
+'        eps = model(x, t)\n'+
+'        mean = (x - beta[t]/sqrt(<span class="num">1</span>-alpha_bar[t])*eps) / sqrt(alpha[t])\n'+
+'        x = mean + sqrt(beta[t])*randn() <span class="kw">if</span> t&gt;<span class="num">0</span> <span class="kw">else</span> mean\n'+
+'    <span class="kw">return</span> x\n\n'+
+'<span class="cmt"># DDIM 采样: 确定性, ~20-50 步</span>\n'+
+'<span class="kw">def</span> <span class="fn">ddim_sample</span>(model, tau, alpha_bar):\n'+
+'    x = randn(shape)\n'+
+'    <span class="kw">for</span> i <span class="kw">in</span> reversed(range(len(tau))):\n'+
+'        t, t_prev = tau[i], tau[i-<span class="num">1</span>]\n'+
+'        eps = model(x, t)\n'+
+'        x0_pred = (x - sqrt(<span class="num">1</span>-alpha_bar[t])*eps) / sqrt(alpha_bar[t])\n'+
+'        x = sqrt(alpha_bar[t_prev])*x0_pred + sqrt(<span class="num">1</span>-alpha_bar[t_prev])*eps\n'+
+'    <span class="kw">return</span> x'
+));
+
+setCode('code06',code(
+'<span class="cmt"># Classifier-Free Guidance (CFG)</span>\n'+
+'<span class="cmt"># 训练时: 以概率 p 丢弃条件 (训练无条件分支)</span>\n'+
+'<span class="kw">def</span> <span class="fn">cfg_eps</span>(model, x, t, c, w=<span class="num">7.5</span>):\n'+
+'    eps_cond = model(x, t, c)          <span class="cmt"># 有条件预测</span>\n'+
+'    eps_uncond = model(x, t, <span class="kw">None</span>)     <span class="cmt"># 无条件预测</span>\n'+
+'    <span class="kw">return</span> eps_uncond + w * (eps_cond - eps_uncond)\n\n'+
+'<span class="cmt"># 等价形式:</span>\n'+
+'<span class="cmt">#   ε̂ = (1+w)·ε_cond - w·ε_uncond</span>\n'+
+'<span class="cmt">#   w = 1   → 普通条件采样</span>\n'+
+'<span class="cmt">#   w &gt; 1   → 强对齐, 低多样, 易过饱和</span>\n\n'+
+'<span class="cmt"># Classifier Guidance (额外分类器)</span>\n'+
+'<span class="kw">def</span> <span class="fn">cls_eps</span>(model, x, t, c, w):\n'+
+'    x.requires_grad_(<span class="kw">True</span>)\n'+
+'    eps = model(x, t)\n'+
+'    logp = classifier(x, c).sum()\n'+
+'    grad = autograd.grad(logp, x)[<span class="num">0</span>]\n'+
+'    <span class="kw">return</span> eps - w * sqrt(<span class="num">1</span>-alpha_bar[t]) * grad'
+));
+
+setCode('code07',code(
+'<span class="cmt"># Latent Diffusion (Rombach et al. 2022)</span>\n'+
+'<span class="kw">class</span> <span class="fn">LDM</span>:\n'+
+'    <span class="kw">def</span> <span class="fn">train_step</span>(self, x0):\n'+
+'        z = self.vae.encode(x0)        <span class="cmt"># 512×512×3 → 64×64×4</span>\n'+
+'        t = randint(<span class="num">0</span>, T)\n'+
+'        eps = randn_like(z)\n'+
+'        z_t = sqrt(ab[t])*z + sqrt(<span class="num">1</span>-ab[t])*eps\n'+
+'        loss = mse(eps, self.unet(z_t, t, c))\n'+
+'        <span class="kw">return</span> loss\n\n'+
+'    <span class="kw">def</span> <span class="fn">generate</span>(self, c, steps=<span class="num">50</span>):\n'+
+'        z = randn(<span class="num">64</span>,<span class="num">64</span>,<span class="num">4</span>)         <span class="cmt"># 在潜在空间采样</span>\n'+
+'        <span class="kw">for</span> t <span class="kw">in</span> ddim_steps(steps):\n'+
+'            z = reverse_step(self.unet, z, t, c)\n'+
+'        <span class="kw">return</span> self.vae.decode(z)  <span class="cmt"># 64×64×4 → 512×512×3</span>\n\n'+
+'<span class="cmt"># 压缩因子 f = 8, 计算量降低 ~f² = 64×</span>'
+));
+
+setCode('code08',code(
+'<span class="kw">def</span> <span class="fn">train_step</span>(model, ema, x0, optimizer):\n'+
+'    B = x0.shape[<span class="num">0</span>]\n'+
+'    t = randint(<span class="num">0</span>, T, (B,))       <span class="cmt"># 随机采样时间步</span>\n'+
+'    eps = randn_like(x0)            <span class="cmt"># 采样噪声</span>\n'+
+'    x_t = sqrt(ab[t])*x0 + sqrt(<span class="num">1</span>-ab[t])*eps  <span class="cmt"># 前向加噪</span>\n'+
+'    eps_pred = model(x_t, t)        <span class="cmt"># U-Net 预测</span>\n'+
+'    loss = mse(eps, eps_pred)       <span class="cmt"># 简化目标</span>\n'+
+'    optimizer.zero_grad()\n'+
+'    loss.backward()                 <span class="cmt"># 反向传播</span>\n'+
+'    optimizer.step()\n'+
+'    <span class="cmt"># EMA 权重更新 (推理时使用 EMA)</span>\n'+
+'    <span class="kw">for</span> p, ep <span class="kw">in</span> zip(model.params(), ema.params()):\n'+
+'        ep.data = decay * ep.data + (<span class="num">1</span>-decay) * p.data\n'+
+'    <span class="kw">return</span> loss\n\n'+
+'<span class="cmt"># decay ≈ 0.9999 ~ 0.99999</span>'
+));
+
+/* ---------- boot ---------- */
+initForward();
+initReverse();
+initUNet();
+initSchedule();
+initSampling();
+initGuidance();
+initLatent();
+initTraining();
+})();
+</script>
+</body>
+</html>

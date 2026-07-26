@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>supply-chain-viz-lab · 供应链安全可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#5e6ad2;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(94,106,210,.16);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(94,106,210,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(94,106,210,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+.btn.primary:hover{background:#6f7ad8}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>supply-chain</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">supply chain security</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/supply-chain-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>SBOM 构成</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>SLSA 等级</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>依赖漏洞</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>构建完整性</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>签名验证</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>依赖混淆</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>制品扫描</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>供应链攻击</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/supply-chain-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>供应链安全 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 SBOM、SLSA、依赖漏洞、签名验证、可重现构建等软件供应链安全技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 SBOM 构成 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>SBOM 软件物料清单</h2>
+      <p>SBOM（Software Bill of Materials）枚举组件与依赖关系。CycloneDX 与 SPDX 是两大标准格式。点击依赖树节点查看组件元数据与传递依赖。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sbom-dependency-tree.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>直接依赖</span>
+          <span><i style="background:#7c5cff"></i>传递依赖</span>
+          <span><i style="background:#34d399"></i>已选中</span>
+          <span><i style="background:#f87171"></i>含漏洞</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">组件详情</h4>
+          <p id="p01detail">点击依赖树中的任一组件查看其 SBOM 元数据：名称、版本、许可证、来源与已知漏洞状态。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">组件总数</div><div class="v amber" id="st01total">—</div></div>
+          <div class="stat"><div class="k">直接依赖</div><div class="v purple" id="st01direct">—</div></div>
+          <div class="stat"><div class="k">传递依赖</div><div class="v" id="st01trans">—</div></div>
+          <div class="stat"><div class="k">含漏洞</div><div class="v" style="color:#f87171" id="st01vuln">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 SLSA 等级 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>SLSA 供应链等级框架</h2>
+      <p>SLSA（Supply-chain Levels for Software Artifacts）分为 L1–L4 四级，逐级强化 Source、Build、Provenance 要求。点击各级查看其安全控制项。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">slsa-levels.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>L1 基线</span>
+          <span><i style="background:#fbbf24"></i>L2 可信构建</span>
+          <span><i style="background:#5e6ad2"></i>L3 硬化平台</span>
+          <span><i style="background:#34d399"></i>L4 双人审核</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">SLSA 等级说明</h4>
+          <p id="p02detail">点击各级别查看 Source / Build / Provenance 三大维度的具体要求。等级越高，构建过程越难以篡改，来源证明越完整。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前等级</div><div class="v amber" id="st02lvl">L1</div></div>
+          <div class="stat"><div class="k">来源要求</div><div class="v purple" id="st02src">—</div></div>
+          <div class="stat"><div class="k">构建要求</div><div class="v" id="st02build">—</div></div>
+          <div class="stat"><div class="k">出处要求</div><div class="v" id="st02prov">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 依赖漏洞 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>依赖漏洞与 CVSS 评分</h2>
+      <p>扫描依赖对照 CVE / OSV / GHSA 数据库，按 CVSS 评分划分严重性。点击漏洞条目查看详情，按严重性筛选。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">dependency-vulns.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>严重 (≥9)</span>
+          <span><i style="background:#fb923c"></i>高危 (7–8.9)</span>
+          <span><i style="background:#fbbf24"></i>中危 (4–6.9)</span>
+          <span><i style="background:#34d399"></i>低危 (&lt;4)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">漏洞详情</h4>
+          <p id="p03detail">点击列表中的漏洞查看 CVE 编号、CVSS 向量、受影响版本与修复建议。建议优先修复高危及以上漏洞。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">漏洞总数</div><div class="v amber" id="st03total">—</div></div>
+          <div class="stat"><div class="k">严重</div><div class="v" style="color:#f87171" id="st03crit">—</div></div>
+          <div class="stat"><div class="k">高危</div><div class="v" style="color:#fb923c" id="st03high">—</div></div>
+          <div class="stat"><div class="k">可修复</div><div class="v purple" id="st03fix">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 构建完整性 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>可重现构建与哈希验证</h2>
+      <p>可重现构建（Reproducible Build）要求同一源码在不同环境产出比特一致的制品。对比两次构建的哈希，逐字节验证完整性。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">reproducible-build.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>哈希一致</span>
+          <span><i style="background:#f87171"></i>哈希差异</span>
+          <span><i style="background:#5e6ad2"></i>构建 A</span>
+          <span><i style="background:#7c5cff"></i>构建 B</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">构建对比</h4>
+          <p id="p04detail">点击“运行构建”模拟两次独立构建。可重现时哈希完全一致；引入非确定性因素（时间戳、路径、随机种子）则产生差异。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">构建 A 哈希</div><div class="v amber" id="st04ha">—</div></div>
+          <div class="stat"><div class="k">构建 B 哈希</div><div class="v purple" id="st04hb">—</div></div>
+          <div class="stat"><div class="k">差异字节</div><div class="v" id="st04diff">—</div></div>
+          <div class="stat"><div class="k">可重现</div><div class="v" id="st04rep">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 签名验证 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>Sigstore 镜像签名</h2>
+      <p>Sigstore / Cosign 为制品签名，并写入 Rekor 透明日志。验证时同时校验签名与日志包含性，确保证制品来源可审计、不可抵赖。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sigstore-signing.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>制品</span>
+          <span><i style="background:#7c5cff"></i>签名</span>
+          <span><i style="background:#34d399"></i>透明日志</span>
+          <span><i style="background:#fbbf24"></i>验证</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">签名与验证流程</h4>
+          <p id="p05detail">点击“签名”逐步执行：Fulcio 颁发短时证书 → Cosign 用私钥签名 → Rekor 记录到透明日志。验证方校验签名有效且日志可查。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前步骤</div><div class="v amber" id="st05step">0 / 5</div></div>
+          <div class="stat"><div class="k">签名状态</div><div class="v purple" id="st05sig">未签名</div></div>
+          <div class="stat"><div class="k">日志条目</div><div class="v" id="st05log">—</div></div>
+          <div class="stat"><div class="k">验证结果</div><div class="v" id="st05ver">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 依赖混淆 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>依赖混淆与 Typosquatting</h2>
+      <p>攻击者注册与内部包同名或拼写相近的恶意包（Typosquatting），诱导开发者误装。对比包名，识别混淆攻击。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">typosquatting-detect.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>合法包</span>
+          <span><i style="background:#f87171"></i>恶意混淆包</span>
+          <span><i style="background:#fbbf24"></i>可疑</span>
+          <span><i style="background:#5e6ad2"></i>内部包</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">混淆检测</h4>
+          <p id="p06detail">点击任一候选包查看其与目标包的编辑距离、注册时间、下载量。编辑距离小、注册晚、下载低 = 高风险混淆。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">目标包</div><div class="v amber" id="st06target">—</div></div>
+          <div class="stat"><div class="k">候选数</div><div class="v purple" id="st06cand">—</div></div>
+          <div class="stat"><div class="k">恶意</div><div class="v" style="color:#f87171" id="st06mal">—</div></div>
+          <div class="stat"><div class="k">编辑距离</div><div class="v" id="st06dist">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 制品扫描 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>SCA 软件成分分析</h2>
+      <p>软件成分分析（SCA）扫描制品中的开源组件与许可证，识别合规风险与过期依赖。查看成分构成与许可证分布。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sca-artifact-scan.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>MIT / Apache</span>
+          <span><i style="background:#fbbf24"></i>LGPL</span>
+          <span><i style="background:#f87171"></i>GPL / 风险</span>
+          <span><i style="background:#5e6ad2"></i>未知</span>
+        </div>
+        <div class="detail-box">
+          <h4>许可证合规分析</h4>
+          <p id="p07detail">饼图展示制品中各许可证占比。GPL 系列可能与专有代码冲突；未知许可证需人工审查。切换制品查看不同项目的成分构成。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">组件数</div><div class="v amber" id="st07comp">—</div></div>
+          <div class="stat"><div class="k">许可证种类</div><div class="v purple" id="st07lic">—</div></div>
+          <div class="stat"><div class="k">合规风险</div><div class="v" style="color:#f87171" id="st07risk">—</div></div>
+          <div class="stat"><div class="k">过期依赖</div><div class="v" id="st07old">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 供应链攻击 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>供应链攻击案例复盘</h2>
+      <p>SolarWinds 与 Log4j 是两起标志性供应链攻击。前者篡改构建产物植入后门，后者利用开源组件漏洞。沿时间线复盘攻击链。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">supply-chain-attacks.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>攻击阶段</span>
+          <span><i style="background:#f87171"></i>植入/利用</span>
+          <span><i style="background:#fbbf24"></i>扩散</span>
+          <span><i style="background:#34d399"></i>发现/修复</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">攻击复盘</h4>
+          <p id="p08detail">选择案例并沿时间线推进，观察攻击者如何侵入供应链、植入载荷、横向扩散，以及防御方如何发现与修补。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前案例</div><div class="v amber" id="st08case">SolarWinds</div></div>
+          <div class="stat"><div class="k">阶段</div><div class="v purple" id="st08phase">0 / 5</div></div>
+          <div class="stat"><div class="k">受影响范围</div><div class="v" style="color:#f87171" id="st08scope">—</div></div>
+          <div class="stat"><div class="k">教训</div><div class="v" id="st08lesson">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>supply-chain-viz-lab · 供应链安全可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/supply-chain-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+// requestAnimationFrame 包装：reduced-motion 时直接跳到末态
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function mono(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+// 编辑距离 (Levenshtein)
+function levDist(a,b){
+  const m=a.length,n=b.length;
+  const dp=[];
+  for(let i=0;i<=m;i++){dp[i]=[i];}
+  for(let j=0;j<=n;j++){dp[0][j]=j;}
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost=a[i-1]===b[j-1]?0:1;
+      dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+cost);
+    }
+  }
+  return dp[m][n];
+}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+// 侧边栏 active 状态
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 SBOM 依赖树
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  // 依赖树：根应用 → 直接依赖 → 传递依赖
+  const tree={
+    n:"my-app",v:"1.4.2",lic:"Proprietary",type:"app",x:360,y:40,vuln:false,direct:true,
+    children:[
+      {n:"express",v:"4.18.2",lic:"MIT",type:"direct",vuln:false,direct:true,children:[
+        {n:"body-parser",v:"1.20.1",lic:"MIT",vuln:false,direct:false},
+        {n:"qs",v:"6.11.0",lic:"BSD-3",vuln:false,direct:false},
+        {n:"cookie",v:"0.5.0",lic:"MIT",vuln:true,direct:false}
+      ]},
+      {n:"lodash",v:"4.17.21",lic:"MIT",type:"direct",vuln:false,direct:true,children:[
+        {n:"lodash.merge",v:"4.6.2",lic:"MIT",vuln:false,direct:false}
+      ]},
+      {n:"axios",v:"1.4.0",lic:"MIT",type:"direct",vuln:true,direct:true,children:[
+        {n:"follow-redirects",v:"1.15.2",lic:"MIT",vuln:false,direct:false}
+      ]},
+      {n:"log4j",v:"2.14.1",lic:"Apache-2.0",type:"direct",vuln:true,direct:true,children:[
+        {n:"jansi",v:"2.4.0",lic:"Apache-2.0",vuln:false,direct:false}
+      ]}
+    ]
+  };
+  // 布局：递归分配 y
+  const allNodes=[];
+  let leafIdx=0;
+  function layout(node,depth,parent){
+    node.depth=depth;node.parent=parent;
+    if(!node.children||node.children.length===0){
+      node.y=80+leafIdx*40;leafIdx++;
+    }else{
+      node.children.forEach(c=>layout(c,depth+1,node));
+      const ys=node.children.map(c=>c.y);
+      node.y=(Math.min(...ys)+Math.max(...ys))/2;
+    }
+    node.x=80+depth*150;
+    allNodes.push(node);
+  }
+  layout(tree,0,null);
+  let selected=tree;
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    allNodes.forEach(n=>{
+      if(n.parent){
+        const col=n.vuln?"rgba(248,113,113,.4)":"rgba(124,92,255,.22)";
+        svg.appendChild(el("path",{d:"M"+n.parent.x+","+n.parent.y+" C"+(n.parent.x+60)+","+n.parent.y+" "+(n.x-60)+","+n.y+" "+n.x+","+n.y,fill:"none",stroke:col,"stroke-width":1.2}));
+      }
+    });
+    // 节点
+    allNodes.forEach(n=>{
+      const isSel=n===selected;
+      const isDirect=n.direct;
+      const col=n.vuln?"#f87171":(isSel?"#34d399":(isDirect?"#5e6ad2":"#7c5cff"));
+      // 节点框
+      const w=130,h=30;
+      svg.appendChild(el("rect",{x:n.x-w/2,y:n.y-h/2,width:w,height:h,rx:7,fill:isSel?"rgba(52,211,153,.14)":"#16181c",stroke:col,"stroke-width":isSel?2:1.4}));
+      const nt=el("text",{x:n.x,y:n.y-2,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#f7f8f8"});
+      nt.textContent=n.n;svg.appendChild(nt);
+      const vt=el("text",{x:n.x,y:n.y+11,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});
+      vt.textContent="v"+n.v;svg.appendChild(vt);
+      // 漏洞标记
+      if(n.vuln){
+        svg.appendChild(el("circle",{cx:n.x+w/2-6,cy:n.y-h/2+6,r:4,fill:"#f87171"}));
+      }
+      // 交互
+      const hit=el("rect",{x:n.x-w/2,y:n.y-h/2,width:w,height:h,fill:"transparent",cursor:"pointer"});
+      hit.addEventListener("click",()=>selectNode(n));
+      svg.appendChild(hit);
+    });
+    // 标题
+    const tl=el("text",{x:40,y:30,"font-size":11,"font-family":mono(),fill:"#9b9fa8"});
+    tl.textContent="依赖树 (CycloneDX / SPDX)";svg.appendChild(tl);
+    // 统计
+    const direct=allNodes.filter(n=>n.direct).length;
+    const trans=allNodes.length-direct-1;
+    const vuln=allNodes.filter(n=>n.vuln).length;
+    $("st01total").textContent=allNodes.length;
+    $("st01direct").textContent=direct;
+    $("st01trans").textContent=trans;
+    $("st01vuln").textContent=vuln;
+  }
+
+  function selectNode(n){
+    selected=n;draw();
+    $("p01title").textContent=n.n+" @ v"+n.v;
+    const path=ancestry(n).map(x=>x.n).join(" → ");
+    $("p01detail").innerHTML="<code>"+n.n+"</code> 版本 <code>"+n.v+"</code> · 许可证 <code>"+n.lic+"</code> · "+(n.direct?"直接依赖":"传递依赖")+(n.vuln?' · <b style="color:#f87171">含已知漏洞</b>':"")+"。<br>依赖路径："+path;
+  }
+  function ancestry(n){
+    const p=[];let c=n;while(c){p.unshift(c);c=c.parent;}return p;
+  }
+
+  draw();selectNode(tree);
+  const fmtBtn=document.createElement("button");fmtBtn.className="btn small on";fmtBtn.textContent="CycloneDX";
+  const spdxBtn=document.createElement("button");spdxBtn.className="btn small";spdxBtn.textContent="SPDX";
+  fmtBtn.addEventListener("click",()=>{fmtBtn.classList.add("on");spdxBtn.classList.remove("on");$("p01title").textContent="SBOM 格式：CycloneDX";$("p01detail").textContent="CycloneDX 是 OW维护 的 SBOM 标准，侧重依赖关系与组件清单，格式为 JSON/XML，适合 CI 集成与漏洞扫描。";});
+  spdxBtn.addEventListener("click",()=>{spdxBtn.classList.add("on");fmtBtn.classList.remove("on");$("p01title").textContent="SBOM 格式：SPDX";$("p01detail").textContent="SPDX 是 Linux Foundation 的 SBOM 标准，侧重许可证合规与文件级声明，格式为 tag-value/RDF/JSON，适合法务与合规审计。";});
+  ctl.appendChild(fmtBtn);ctl.appendChild(spdxBtn);
+  const vulnBtn=document.createElement("button");vulnBtn.className="btn small";vulnBtn.textContent="高亮漏洞";
+  vulnBtn.addEventListener("click",()=>{draw();
+    allNodes.filter(n=>n.vuln).forEach(n=>{
+      const ring=el("rect",{x:n.x-68,y:n.y-18,width:136,height:36,rx:9,fill:"none",stroke:"#f87171","stroke-width":2,opacity:.8});
+      svg.appendChild(ring);
+      animate(900,p=>{ring.setAttribute("opacity",.8-p*.7);ring.setAttribute("stroke-width",2+p*2);},()=>ring.remove());
+    });
+  });
+  ctl.appendChild(vulnBtn);
+})();
+
+/* ============================================================
+   02 SLSA 等级
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  let level=1;
+  const levels=[
+    {n:"L1",y:80,col:"#f87171",src:"任意来源",build:"脚本构建",prov:"出处存在",desc:"L1 基线：要求构建过程有文档记录，出处（provenance）存在但不一定可信。是入门级要求。"},
+    {n:"L2",y:150,col:"#fbbf24",src:"版本控制托管",build:"托管构建服务",prov:"出处防篡改",desc:"L2：源码来自版本控制系统；构建在托管服务（如 GitHub Actions）中完成；出处由构建服务生成且防篡改。"},
+    {n:"L3",y:220,col:"#5e6ad2",src:"分支保护 + 双人评审",build:"硬化隔离平台",prov:"出处不可伪造",desc:"L3：源码有分支保护与强制评审；构建在硬化隔离平台完成，构建定义来自受控源；出处由平台签发，不可伪造。"},
+    {n:"L4",y:290,col:"#34d399",src:"可重现 + 评审",build:"可重现 + 双人审核",prov:"一致性可验证",desc:"L4 最高级：构建可重现；任何构建变更需两人审阅；出处与制品一致性可独立验证，几乎杜绝篡改。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    // 阶梯背景
+    const baseX=120,stepW=130;
+    levels.forEach((lv,i)=>{
+      const on=i<level;
+      const x=baseX+i*stepW;
+      const h=240-i*50;
+      // 阶梯块
+      svg.appendChild(el("rect",{x:x,y:330-h,width:stepW-8,height:h,rx:6,fill:on?"rgba(94,106,210,.10)":"#16181c",stroke:on?lv.col:"rgba(255,255,255,.10)","stroke-width":1.4}));
+      // 等级标签
+      svg.appendChild(el("rect",{x:x,y:330-h-28,width:stepW-8,height:24,rx:5,fill:on?lv.col:"#1c1f24"}));
+      const lt=el("text",{x:x+(stepW-8)/2,y:330-h-11,"text-anchor":"middle","font-size":13,"font-family":mono(),"font-weight":700,fill:on?"#0b0b0c":"#62666d"});
+      lt.textContent=lv.n;svg.appendChild(lt);
+      // 选中高亮
+      if(i===level-1){
+        svg.appendChild(el("rect",{x:x-3,y:330-h-31,width:stepW-2,height:h+34,rx:8,fill:"none",stroke:"#fff","stroke-width":1.6,opacity:.5}));
+      }
+      // 交互
+      const hit=el("rect",{x:x,y:330-h-28,width:stepW-8,height:h+28,fill:"transparent",cursor:"pointer"});
+      hit.addEventListener("click",()=>{level=i+1;draw();update();});
+      svg.appendChild(hit);
+    });
+    // 右侧详情面板
+    const lv=levels[level-1];
+    const px=470,py=60;
+    svg.appendChild(el("rect",{x:px,y:py,width:220,height:300,rx:10,fill:"#16181c",stroke:lv.col,"stroke-width":1.4}));
+    const pt=el("text",{x:px+110,y:py+30,"text-anchor":"middle","font-size":18,"font-family":mono(),"font-weight":700,fill:lv.col});
+    pt.textContent="SLSA "+lv.n;svg.appendChild(pt);
+    // 三维度
+    const dims=[{k:"src",n:"Source 来源",v:lv.src},{k:"build",n:"Build 构建",v:lv.build},{k:"prov",n:"Provenance 出处",v:lv.prov}];
+    dims.forEach((d,i)=>{
+      const dy=py+70+i*70;
+      svg.appendChild(el("rect",{x:px+16,y:dy,width:188,height:54,rx:7,fill:"#0b0b0c",stroke:"rgba(255,255,255,.10)"}));
+      const dt=el("text",{x:px+26,y:dy+18,"font-size":10,"font-family":mono(),fill:"#62666d"});
+      dt.textContent=d.n;svg.appendChild(dt);
+      const dv=el("text",{x:px+26,y:dy+38,"font-size":11.5,"font-family":mono(),fill:"#f7f8f8"});
+      dv.textContent=d.v;svg.appendChild(dv);
+    });
+    // 升级箭头
+    for(let i=0;i<3;i++){
+      const x=baseX+(i+1)*stepW-12;
+      svg.appendChild(el("path",{d:"M"+(x-8)+",200 L"+(x+4)+",200 L"+(x-2)+",194 M"+(x+4)+",200 L"+(x-2)+",206",stroke:"rgba(255,255,255,.20)","stroke-width":1.3,fill:"none"}));
+    }
+    // 统计
+    update();
+  }
+  function update(){
+    const lv=levels[level-1];
+    $("st02lvl").textContent=lv.n;
+    $("st02src").textContent=lv.src;
+    $("st02build").textContent=lv.build;
+    $("st02prov").textContent=lv.prov;
+    $("p02title").textContent="SLSA "+lv.n+" · "+lv.desc.split("：")[0];
+    $("p02detail").textContent=lv.desc;
+  }
+
+  draw();
+  levels.forEach((lv,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i+1===level?" on":"");b.textContent=lv.n;
+    b.addEventListener("click",()=>{level=i+1;draw();document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const animBtn=document.createElement("button");animBtn.className="btn primary";animBtn.textContent="逐级升级";
+  let animating=false;
+  animBtn.addEventListener("click",()=>{
+    if(animating)return;animating=true;
+    function next(){
+      if(level>=4){animating=false;return;}
+      level++;draw();
+      document.querySelectorAll("#ctl02 .small").forEach((b,i)=>b.classList.toggle("on",i+1===level));
+      setTimeout(next,900);
+    }
+    setTimeout(next,300);
+  });
+  ctl.appendChild(animBtn);
+})();
+
+/* ============================================================
+   03 依赖漏洞
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420;
+  let filter="all";
+  let selected=0;
+  const vulns=[
+    {cve:"CVE-2021-44228",pkg:"log4j",v:"2.14.1",cvss:10.0,sev:"critical",fix:"2.17.1",vec:"AV:N/AC:L/PR:N/UI:N",desc:"Log4Shell JNDI 注入，远程代码执行。攻击者可通过日志消息触发 LDAP/JNDI 查询执行任意代码。"},
+    {cve:"CVE-2022-23305",pkg:"log4j",v:"1.2.17",cvss:9.8,sev:"critical",fix:"不再支持",vec:"AV:N/AC:L/PR:N/UI:N",desc:"Log4j 1.x JDBCAppender SQL 注入，可执行任意 SQL。"},
+    {cve:"CVE-2023-45857",pkg:"axios",v:"1.5.0",cvss:6.5,sev:"medium",fix:"1.6.0",vec:"AV:N/AC:L/PR:N/UI:N",desc:"Axios SSRF 漏洞，可能泄露内部服务信息。"},
+    {cve:"CVE-2022-38900",pkg:"axios",v:"1.1.0",cvss:7.5,sev:"high",fix:"1.1.1",vec:"AV:N/AC:L/PR:N/UI:N",desc:"Axios prototype pollution，可能导致权限提升。"},
+    {cve:"CVE-2023-26136",pkg:"cookie",v:"0.5.0",cvss:6.1,sev:"medium",fix:"0.6.0",vec:"AV:N/AC:L/PR:N/UI:R",desc:"cookie 前缀注入，可能绕过 Cookie 安全属性。"},
+    {cve:"CVE-2021-23337",pkg:"lodash",v:"4.17.20",cvss:7.2,sev:"high",fix:"4.17.21",vec:"AV:N/AC:L/PR:N/UI:N",desc:"lodash 命令注入，模板函数可执行任意命令。"},
+    {cve:"CVE-2020-8203",pkg:"lodash",v:"4.17.19",cvss:5.4,sev:"medium",fix:"4.17.20",vec:"AV:N/AC:L/PR:L/UI:N",desc:"lodash 原型污染，可影响应用数据完整性。"}
+  ];
+  function sevCol(s){return {critical:"#f87171",high:"#fb923c",medium:"#fbbf24",low:"#34d399"}[s];}
+
+  function filtered(){return filter==="all"?vulns:vulns.filter(v=>v.sev===filter);}
+
+  function draw(){
+    clearNode(svg);
+    const list=filtered();
+    // 左侧列表
+    const lx=40,ly=40,lw=380,lh=340;
+    svg.appendChild(el("rect",{x:lx,y:ly,width:lw,height:lh,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+    const ht=el("text",{x:lx+14,y:ly+24,"font-size":12,"font-family":mono(),fill:"#9b9fa8"});
+    ht.textContent="漏洞列表 ("+list.length+")";svg.appendChild(ht);
+    // 表头
+    svg.appendChild(el("line",{x1:lx+14,y1:ly+34,x2:lx+lw-14,y2:ly+34,stroke:"rgba(255,255,255,.10)"}));
+    list.forEach((v,i)=>{
+      const ry=ly+50+i*38;
+      const isSel=i===selected;
+      if(isSel)svg.appendChild(el("rect",{x:lx+8,y:ry-4,width:lw-16,height:34,rx:6,fill:"rgba(94,106,210,.16)"}));
+      // 严重性色条
+      svg.appendChild(el("rect",{x:lx+14,y:ry,width:4,height:24,rx:2,fill:sevCol(v.sev)}));
+      // CVE
+      const ct=el("text",{x:lx+26,y:ry+11,"font-size":10.5,"font-family":mono(),fill:"#f7f8f8"});
+      ct.textContent=v.cve;svg.appendChild(ct);
+      // 包
+      const pt=el("text",{x:lx+26,y:ry+24,"font-size":9.5,"font-family":mono(),fill:"#62666d"});
+      pt.textContent=v.pkg+" @ "+v.v;svg.appendChild(pt);
+      // CVSS
+      svg.appendChild(el("rect",{x:lx+lw-58,y:ry+4,width:44,height:18,rx:4,fill:sevCol(v.sev),opacity:.18}));
+      const st=el("text",{x:lx+lw-36,y:ry+16,"text-anchor":"middle","font-size":10.5,"font-family":mono(),fill:sevCol(v.sev)});
+      st.textContent=v.cvss.toFixed(1);svg.appendChild(st);
+      // 交互
+      const hit=el("rect",{x:lx+8,y:ry-4,width:lw-16,height:34,fill:"transparent",cursor:"pointer"});
+      hit.addEventListener("click",()=>{selected=i;draw();showDetail(v);});
+      svg.appendChild(hit);
+    });
+    // 右侧详情
+    const v=list[Math.min(selected,list.length-1)]||vulns[0];
+    showDetail(v);
+  }
+  function showDetail(v){
+    const px=450,py=40;
+    // 清除右侧
+    [...svg.children].forEach(c=>{
+      if(c.getAttribute&&c.getAttribute("data-side")==="d")svg.removeChild(c);
+    });
+    svg.appendChild(el("rect",{x:px,y:py,width:240,height:340,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.10)","data-side":"d"}));
+    const cve=el("text",{x:px+16,y:py+28,"font-size":13,"font-family":mono(),"font-weight":700,fill:"#f7f8f8"});
+    cve.textContent=v.cve;cve.setAttribute("data-side","d");svg.appendChild(cve);
+    // 严重性徽章
+    svg.appendChild(el("rect",{x:px+16,y:py+40,width:80,height:20,rx:5,fill:sevCol(v.sev),opacity:.2,"data-side":"d"}));
+    const sv=el("text",{x:px+56,y:py+54,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:sevCol(v.sev),"data-side":"d"});
+    sv.textContent=v.sev.toUpperCase();svg.appendChild(sv);
+    // 字段
+    const fields=[["包",v.pkg+" @ "+v.v],["CVSS",v.cvss.toFixed(1)],["向量",v.vec],["修复版本",v.fix]];
+    fields.forEach((f,i)=>{
+      const fy=py+80+i*40;
+      const ft=el("text",{x:px+16,y:fy,"font-size":10,"font-family":mono(),fill:"#62666d","data-side":"d"});
+      ft.textContent=f[0];svg.appendChild(ft);
+      const fvt=el("text",{x:px+16,y:fy+15,"font-size":11.5,"font-family":mono(),fill:"#f7f8f8","data-side":"d"});
+      fvt.textContent=f[1];svg.appendChild(fvt);
+    });
+    // 描述
+    const dt=el("text",{x:px+16,y:py+260,"font-size":10,"font-family":mono(),fill:"#62666d","data-side":"d"});
+    dt.textContent="描述";svg.appendChild(dt);
+    // 描述换行
+    const words=v.desc;
+    const lines=[];let cur="";
+    for(let i=0;i<words.length;i++){
+      cur+=words[i];
+      if(cur.length>=26){lines.push(cur);cur="";}
+    }
+    if(cur)lines.push(cur);
+    lines.slice(0,4).forEach((line,i)=>{
+      const lt=el("text",{x:px+16,y:py+280+i*13,"font-size":9.5,"font-family":mono(),fill:"#9b9fa8","data-side":"d"});
+      lt.textContent=line;svg.appendChild(lt);
+    });
+    // 统计
+    $("st03total").textContent=vulns.length;
+    $("st03crit").textContent=vulns.filter(v=>v.sev==="critical").length;
+    $("st03high").textContent=vulns.filter(v=>v.sev==="high").length;
+    $("st03fix").textContent=vulns.filter(v=>v.fix!=="不再支持").length;
+    $("p03title").textContent=v.cve;
+    $("p03detail").textContent=v.desc+" 建议升级至 "+v.fix+"。";
+  }
+
+  draw();
+  const filters=[["all","全部"],["critical","严重"],["high","高危"],["medium","中危"]];
+  filters.forEach(f=>{
+    const b=document.createElement("button");b.className="btn small"+(f[0]==="all"?" on":"");b.textContent=f[1];
+    b.addEventListener("click",()=>{filter=f[0];selected=0;draw();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const scanBtn=document.createElement("button");scanBtn.className="btn primary";scanBtn.textContent="重新扫描";
+  scanBtn.addEventListener("click",()=>{
+    let i=0;
+    function tick(){
+      if(i>=vulns.length){draw();return;}
+      clearNode(svg);
+      // 扫描进度
+      svg.appendChild(el("rect",{x:40,y:180,width:640,height:36,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+      svg.appendChild(el("rect",{x:44,y:184,width:632*(i/vulns.length),height:28,rx:6,fill:"#5e6ad2"}));
+      const t=el("text",{x:360,y:202,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});
+      t.textContent="扫描中... "+vulns[i].pkg+" ("+(i+1)+"/"+vulns.length+")";svg.appendChild(t);
+      i++;setTimeout(tick,180);
+    }
+    tick();
+  });
+  ctl.appendChild(scanBtn);
+})();
+
+/* ============================================================
+   04 可重现构建
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420;
+  let nondeterminism=0; // 0..1 非确定性程度
+  let built=false;
+  // 模拟 16 字节制品
+  const SIZE=24;
+  let bytesA=[],bytesB=[];
+
+  function genBytes(seed,deter){
+    const r=[];
+    let s=seed;
+    for(let i=0;i<SIZE;i++){
+      // 伪随机
+      s=(s*1103515245+12345)&0x7fffffff;
+      r.push((s>>16)&0xff);
+    }
+    // 注入非确定性
+    if(deter>0){
+      const inject=Math.round(deter*SIZE*0.5);
+      for(let k=0;k<inject;k++){
+        const idx=Math.floor((Math.sin(seed+k)*0.5+0.5)*SIZE)%SIZE;
+        r[idx]=(r[idx]+Math.floor(deter*200)+k*37)%256;
+      }
+    }
+    return r;
+  }
+  function hash(bytes){
+    // 简化哈希：显示为 hex
+    let h=0;
+    for(const b of bytes){h=((h*31)+b)&0xffffffff;}
+    const hex=(h>>>0).toString(16).padStart(8,"0");
+    return "sha256:"+hex+"…"+(bytes.reduce((a,b)=>a^b,0).toString(16).padStart(2,"0"));
+  }
+
+  function draw(){
+    clearNode(svg);
+    const cellW=20,cellH=24;
+    const ax=70,bx=400,ay=120;
+    // 构建A
+    svg.appendChild(el("text",{x:ax,y:ay-16,"font-size":12,"font-family":mono(),fill:"#5e6ad2"})).textContent="构建 A";
+    svg.appendChild(el("rect",{x:ax-8,y:ay-8,width:cellW*SIZE+16,height:cellH+16,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+    // 构建B
+    svg.appendChild(el("text",{x:bx,y:ay-16,"font-size":12,"font-family":mono(),fill:"#7c5cff"})).textContent="构建 B";
+    svg.appendChild(el("rect",{x:bx-8,y:ay-8,width:cellW*SIZE+16,height:cellH+16,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+
+    if(built){
+      let diffCount=0;
+      for(let i=0;i<SIZE;i++){
+        const a=bytesA[i],b=bytesB[i];
+        const same=a===b;
+        if(!same)diffCount++;
+        // A 字节
+        svg.appendChild(el("rect",{x:ax+i*cellW,y:ay,width:cellW-2,height:cellH,rx:3,fill:same?"rgba(52,211,153,.30)":"rgba(248,113,113,.30)",stroke:same?"#34d399":"#f87171","stroke-width":1}));
+        const at=el("text",{x:ax+i*cellW+cellW/2-1,y:ay+cellH/2+4,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:same?"#34d399":"#f87171"});
+        at.textContent=a.toString(16).padStart(2,"0");svg.appendChild(at);
+        // B 字节
+        svg.appendChild(el("rect",{x:bx+i*cellW,y:ay,width:cellW-2,height:cellH,rx:3,fill:same?"rgba(52,211,153,.30)":"rgba(248,113,113,.30)",stroke:same?"#34d399":"#f87171","stroke-width":1}));
+        const bt=el("text",{x:bx+i*cellW+cellW/2-1,y:ay+cellH/2+4,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:same?"#34d399":"#f87171"});
+        bt.textContent=b.toString(16).padStart(2,"0");svg.appendChild(bt);
+      }
+      // 哈希
+      const hA=hash(bytesA),hB=hash(bytesB);
+      const same=hA===hB;
+      const hy=ay+cellH+40;
+      const hat=el("text",{x:ax,y:hy,"font-size":10,"font-family":mono(),fill:same?"#34d399":"#f87171"});
+      hat.textContent="A: "+hA;svg.appendChild(hat);
+      const hbt=el("text",{x:bx,y:hy,"font-size":10,"font-family":mono(),fill:same?"#34d399":"#f87171"});
+      hbt.textContent="B: "+hB;svg.appendChild(hbt);
+      // 对比结果
+      svg.appendChild(el("rect",{x:200,y:hy+30,width:320,height:40,rx:8,fill:same?"rgba(52,211,153,.12)":"rgba(248,113,113,.12)",stroke:same?"#34d399":"#f87171","stroke-width":1.4}));
+      const rt=el("text",{x:360,y:hy+55,"text-anchor":"middle","font-size":14,"font-family":mono(),"font-weight":700,fill:same?"#34d399":"#f87171"});
+      rt.textContent=same?"✓ 比特一致 · 可重现":"✗ 存在差异 · 不可重现";svg.appendChild(rt);
+      // 统计
+      $("st04ha").textContent=hA.slice(0,14);
+      $("st04hb").textContent=hB.slice(0,14);
+      $("st04diff").textContent=diffCount;
+      $("st04rep").textContent=same?"是":"否";
+      $("st04rep").style.color=same?"var(--ok)":"var(--warn)";
+      $("p04title").textContent=same?"构建可重现":"构建不可重现";
+      $("p04detail").textContent=same?"两次独立构建产出完全一致的哈希。任何人可独立验证制品来自给定源码，供应链可信。":"两次构建存在 "+diffCount+" 字节差异，可能由时间戳、构建路径、随机种子等非确定性因素引入。需固定构建环境。";
+    }else{
+      // 占位
+      svg.appendChild(el("text",{x:360,y:ay+cellH/2+4,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#62666d"})).textContent="点击“运行构建”开始";
+      $("st04ha").textContent="—";$("st04hb").textContent="—";$("st04diff").textContent="—";$("st04rep").textContent="—";
+    }
+    // 非确定性因素说明
+    const fy=300;
+    svg.appendChild(el("text",{x:70,y:fy,"font-size":11,"font-family":mono(),fill:"#9b9fa8"})).textContent="非确定性来源：";
+    const factors=[["时间戳",nondeterminism>0.2],["构建路径",nondeterminism>0.4],["文件顺序",nondeterminism>0.6],["随机种子",nondeterminism>0.8]];
+    factors.forEach((f,i)=>{
+      const x=70+i*150;
+      svg.appendChild(el("rect",{x:x,y:fy+12,width:130,height:26,rx:6,fill:f[1]?"rgba(248,113,113,.14)":"#1c1f24",stroke:f[1]?"#f87171":"rgba(255,255,255,.10)"}));
+      const t=el("text",{x:x+65,y:fy+29,"text-anchor":"middle","font-size":10.5,"font-family":mono(),fill:f[1]?"#f87171":"#62666d"});
+      t.textContent=(f[1]?"✗ ":"✓ ")+f[0];svg.appendChild(t);
+    });
+  }
+
+  draw();
+  const runBtn=document.createElement("button");runBtn.className="btn primary";runBtn.textContent="运行构建";
+  runBtn.addEventListener("click",()=>{
+    bytesA=genBytes(42,nondeterminism);
+    bytesB=genBytes(42,nondeterminism);
+    built=true;
+    // 动画逐字节揭示
+    let reveal=0;
+    function tick(){
+      draw();
+      reveal++;
+      if(reveal<=SIZE&&nondeterminism===0){
+        if(!reduceMotion){requestAnimationFrame(()=>setTimeout(tick,30));}
+        else draw();
+      }
+    }
+    draw();
+  });
+  ctl.appendChild(runBtn);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>非确定性</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0;inp.max=100;inp.value=nondeterminism*100;
+  const val=document.createElement("span");val.className="val";val.textContent=Math.round(nondeterminism*100)+"%";
+  inp.addEventListener("input",()=>{nondeterminism=+inp.value/100;val.textContent=Math.round(nondeterminism*100)+"%";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const detBtn=document.createElement("button");detBtn.className="btn small on";detBtn.textContent="确定性构建";
+  detBtn.addEventListener("click",()=>{nondeterminism=0;inp.value=0;val.textContent="0%";draw();});
+  ctl.appendChild(detBtn);
+})();
+
+/* ============================================================
+   05 Sigstore 签名
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=420;
+  let step=0;
+  const STEPS=5;
+  const stepInfo=[
+    {t:"构建制品",d:"构建流水线产出容器镜像/制品，生成摘要 sha256:abc123…。"},
+    {t:"Fulcio 颁发证书",d:"构建者用 OIDC 身份向 Fulcio 证明身份，Fulcio 颁发短时（10 分钟）代码签名证书，绑定身份与公钥。"},
+    {t:"Cosign 签名",d:"Cosign 用 ephemeral 私钥对制品摘要签名，无需长期保管密钥。私钥用后即弃。"},
+    {t:"Rekor 透明日志",d:"签名记录追加到 Rekor 透明日志（append-only Merkle 树），生成可验证的包含证明。"},
+    {t:"验证",d:"验证方校验：① 签名有效 ② 证书来自受信 Fulcio ③ Rekor 日志可查。三者皆过则信任制品来源。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    // 制品（左）
+    const ax=70,ay=210;
+    svg.appendChild(el("rect",{x:ax-40,y:ay-30,width:80,height:60,rx:8,fill:step>=1?"rgba(94,106,210,.16)":"#1c1f24",stroke:"#5e6ad2","stroke-width":1.5}));
+    const at=el("text",{x:ax,y:ay-4,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#5e6ad2"});at.textContent="Artifact";svg.appendChild(at);
+    const at2=el("text",{x:ax,y:ay+12,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});at2.textContent="sha256:abc…";svg.appendChild(at2);
+    // Fulcio（上中）
+    const fx=360,fy=90;
+    svg.appendChild(el("rect",{x:fx-50,y:fy-22,width:100,height:44,rx:8,fill:step>=2?"rgba(124,92,255,.16)":"#1c1f24",stroke:"#7c5cff","stroke-width":1.5}));
+    const ft=el("text",{x:fx,y:fy,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#7c5cff"});ft.textContent="Fulcio";svg.appendChild(ft);
+    const ft2=el("text",{x:fx,y:fy+14,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:"#62666d"});ft2.textContent="CA / OIDC";svg.appendChild(ft2);
+    // Cosign 签名（中）
+    const sx=360,sy=210;
+    svg.appendChild(el("rect",{x:sx-50,y:sy-22,width:100,height:44,rx:8,fill:step>=3?"rgba(124,92,255,.16)":"#1c1f24",stroke:"#7c5cff","stroke-width":1.5}));
+    const sct=el("text",{x:sx,y:sy,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#7c5cff"});sct.textContent="Cosign";svg.appendChild(sct);
+    const sct2=el("text",{x:sx,y:sy+14,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:"#62666d"});sct2.textContent="sign";svg.appendChild(sct2);
+    // Rekor 透明日志（右）
+    const rx=600,ry=210;
+    svg.appendChild(el("rect",{x:rx-60,y:ry-50,width:120,height:100,rx:8,fill:step>=4?"rgba(52,211,153,.12)":"#1c1f24",stroke:"#34d399","stroke-width":1.5}));
+    const rt=el("text",{x:rx,y:ry-28,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#34d399"});rt.textContent="Rekor";svg.appendChild(rt);
+    const rt2=el("text",{x:rx,y:ry-14,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:"#62666d"});rt2.textContent="Transparency Log";svg.appendChild(rt2);
+    // 日志条目
+    for(let i=0;i<4;i++){
+      const ey=ry+4+i*12;
+      const on=step>=4&&i===0;
+      svg.appendChild(el("rect",{x:rx-46,y:ey,width:92,height:9,rx:2,fill:on?"#34d399":"#1c1f24",stroke:"rgba(52,211,153,.4)","stroke-width":.8}));
+      if(on){const h=el("text",{x:rx-42,y:ey+7,"font-size":7,"font-family":mono(),fill:"#0b0b0c"});h.textContent="#entry "+(1234);svg.appendChild(h);}
+    }
+    // 验证方（下）
+    const vx=360,vy=360;
+    svg.appendChild(el("rect",{x:vx-60,y:vy-18,width:120,height:36,rx:8,fill:step>=5?"rgba(251,191,36,.16)":"#1c1f24",stroke:"#fbbf24","stroke-width":1.5}));
+    const vt=el("text",{x:vx,y:vy+4,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#fbbf24"});vt.textContent="Verifier";svg.appendChild(vt);
+
+    // 流程箭头
+    const arrows=[
+      {x1:ax+40,y1:ay,x2:sx-50,y2:sy,active:step>=2,col:"#5e6ad2"},
+      {x1:fx,y1:fy+22,x2:sx,y2:sy-22,active:step>=3,col:"#7c5cff"},
+      {x1:sx+50,y1:sy,x2:rx-60,y2:ry,active:step>=4,col:"#34d399"},
+      {x1:ax,y1:ay+30,x2:vx-50,y2:vy-12,active:step>=5,col:"#fbbf24",dash:"5 4"},
+      {x1:rx,y1:ry+50,x2:vx+50,y2:vy-12,active:step>=5,col:"#fbbf24",dash:"5 4"}
+    ];
+    arrows.forEach(a=>{
+      const ln=el("line",{x1:a.x1,y1:a.y1,x2:a.x2,y2:a.y2,stroke:a.active?a.col:"rgba(255,255,255,.10)","stroke-width":a.active?1.8:1,opacity:a.active?1:.4});
+      if(a.dash&&a.active)ln.setAttribute("stroke-dasharray",a.dash);
+      svg.appendChild(ln);
+    });
+    // 步骤标记
+    const markers=[
+      {x:215,y:210,s:1,n:"1"},
+      {x:360,y:150,s:2,n:"2"},
+      {x:480,y:210,s:3,n:"3"},
+      {x:360,y:285,s:4,n:"4"},
+      {x:360,y:330,s:5,n:"5"}
+    ];
+    markers.forEach(m=>{
+      if(step>=m.s){
+        svg.appendChild(el("circle",{cx:m.x,cy:m.y,r:11,fill:"#5e6ad2",stroke:"#0b0b0c","stroke-width":1.5}));
+        const t=el("text",{x:m.x,y:m.y+4,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:"#fff"});
+        t.textContent=m.n;svg.appendChild(t);
+      }
+    });
+    // 统计
+    $("st05step").textContent=step+" / "+STEPS;
+    $("st05sig").textContent=step>=3?"已签名":"未签名";
+    $("st05sig").style.color=step>=3?"var(--ok)":"var(--muted)";
+    $("st05log").textContent=step>=4?"#1234":"—";
+    $("st05ver").textContent=step>=5?"通过":"—";
+    $("st05ver").style.color=step>=5?"var(--ok)":"var(--muted)";
+  }
+
+  function setStep(s){step=s;draw();$("p05title").textContent="第 "+step+" 步 · "+stepInfo[Math.min(step-1,STEPS-1)].t;$("p05detail").textContent=stepInfo[Math.min(step-1,STEPS-1)].d;}
+
+  draw();setStep(0);
+  const playBtn=document.createElement("button");playBtn.className="btn primary";playBtn.textContent="播放签名流程";
+  let playing=false;
+  playBtn.addEventListener("click",()=>{
+    if(playing)return;playing=true;playBtn.textContent="播放中…";step=0;
+    function next(){
+      if(step>=STEPS){playing=false;playBtn.textContent="播放签名流程";return;}
+      setStep(step+1);setTimeout(next,1100);
+    }
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>{if(step<STEPS)setStep(step+1);else setStep(0);});
+  const rstBtn=document.createElement("button");rstBtn.className="btn ghost small";rstBtn.textContent="重置";
+  rstBtn.addEventListener("click",()=>{setStep(0);playBtn.textContent="播放签名流程";});
+  ctl.appendChild(playBtn);ctl.appendChild(stepBtn);ctl.appendChild(rstBtn);
+})();
+
+/* ============================================================
+   06 依赖混淆 Typosquatting
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  let selected=0;
+  const target="lodash";
+  const candidates=[
+    {n:"lodash",mal:false,internal:false,dist:0,reg:"2012-03-14",dl:"52M/wk",note:"合法原始包，下载量巨大。"},
+    {n:"lodahs",mal:true,internal:false,dist:1,reg:"2021-08-02",dl:"3.2K/wk",note:"字母 a/s 互换，经典 Typosquatting。注册晚、下载低。"},
+    {n:"lodas",mal:true,internal:false,dist:2,reg:"2020-11-30",dl:"1.1K/wk",note:"少一个 h，视觉相近。"},
+    {n:"lodash-internal",mal:false,internal:true,dist:0,reg:"2019-05-10",dl:"私有",note:"公司内部包，依赖混淆攻击会注册同名公共包。"},
+    {n:"l0dash",mal:true,internal:false,dist:1,reg:"2022-01-15",dl:"890/wk",note:"字母 o 替换为数字 0（homoglyph 同形异义攻击）。"},
+    {n:"lodash.merge",mal:false,internal:false,dist:6,reg:"2015-02-20",dl:"18M/wk",note:"合法子包，命名空间扩展，非混淆。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    // 目标包
+    svg.appendChild(el("rect",{x:40,y:40,width:640,height:54,rx:8,fill:"rgba(94,106,210,.12)",stroke:"#5e6ad2","stroke-width":1.4}));
+    const tt=el("text",{x:60,y:65,"font-size":13,"font-family":mono(),fill:"#5e6ad2"});tt.textContent="目标包（target）";svg.appendChild(tt);
+    const tn=el("text",{x:60,y:84,"font-size":16,"font-family":mono(),"font-weight":700,fill:"#f7f8f8"});tn.textContent=target;svg.appendChild(tn);
+    // 候选列表
+    const ly=120;
+    svg.appendChild(el("text",{x:40,y:ly-8,"font-size":11,"font-family":mono(),fill:"#9b9fa8"})).textContent="候选包（对照检测）";
+    candidates.forEach((c,i)=>{
+      const ry=ly+i*44;
+      const isSel=i===selected;
+      const col=c.mal?"#f87171":(c.internal?"#5e6ad2":(c.dist<=2?"#fbbf24":"#34d399"));
+      if(isSel)svg.appendChild(el("rect",{x:36,y:ry-4,width:648,height:40,rx:7,fill:"rgba(94,106,210,.14)"}));
+      // 名字
+      const nt=el("text",{x:54,y:ry+12,"font-size":14,"font-family":mono(),"font-weight":600,fill:"#f7f8f8"});
+      nt.textContent=c.n;svg.appendChild(nt);
+      // 高亮差异字符
+      if(c.dist<=2&&c.dist>0){
+        // 找差异位置
+        for(let k=0;k<Math.max(target.length,c.n.length);k++){
+          if(target[k]!==c.n[k]){
+            svg.appendChild(el("rect",{x:54+k*8.4,y:ry+2,width:8,height:14,rx:2,fill:"rgba(248,113,113,.20)"}));
+            break;
+          }
+        }
+      }
+      // 标签
+      const tag=c.mal?"恶意":(c.internal?"内部":(c.dist<=2?"可疑":"安全"));
+      svg.appendChild(el("rect",{x:240,y:ry+2,width:48,height:18,rx:4,fill:col,opacity:.2}));
+      const tg=el("text",{x:264,y:ry+15,"text-anchor":"middle","font-size":9.5,"font-family":mono(),fill:col});
+      tg.textContent=tag;svg.appendChild(tg);
+      // 编辑距离
+      const dl=el("text",{x:320,y:ry+15,"font-size":10,"font-family":mono(),fill:"#9b9fa8"});
+      dl.textContent="距离 "+c.dist;svg.appendChild(dl);
+      // 注册时间
+      const rg=el("text",{x:400,y:ry+15,"font-size":10,"font-family":mono(),fill:"#62666d"});
+      rg.textContent="注册 "+c.reg;svg.appendChild(rg);
+      // 下载量
+      const dld=el("text",{x:540,y:ry+15,"font-size":10,"font-family":mono(),fill:"#62666d"});
+      dld.textContent="下载 "+c.dl;svg.appendChild(dld);
+      // 交互
+      const hit=el("rect",{x:36,y:ry-4,width:648,height:40,fill:"transparent",cursor:"pointer"});
+      hit.addEventListener("click",()=>{selected=i;draw();showDetail(c);});
+      svg.appendChild(hit);
+    });
+    // 默认详情
+    showDetail(candidates[selected]);
+  }
+  function showDetail(c){
+    $("st06target").textContent=target;
+    $("st06cand").textContent=candidates.length;
+    $("st06mal").textContent=candidates.filter(x=>x.mal).length;
+    $("st06dist").textContent=c.dist;
+    const risk=c.mal?"高危":(c.dist<=2?"可疑":"低");
+    $("p06title").textContent=c.n+" · 风险等级："+risk;
+    $("p06detail").textContent=c.note+" 编辑距离 "+c.dist+"，注册于 "+c.reg+"，下载量 "+c.dl+"。"+(c.mal?"建议立即移除该依赖并审计已安装版本。":"");
+  }
+
+  draw();
+  const scanBtn=document.createElement("button");scanBtn.className="btn primary";scanBtn.textContent="运行混淆检测";
+  scanBtn.addEventListener("click",()=>{
+    let i=0;
+    function tick(){
+      if(i>=candidates.length){draw();return;}
+      selected=i;draw();
+      const c=candidates[i];
+      if(c.mal||c.dist<=2){
+        // 闪烁警告
+        const ry=120+i*44;
+        const ring=el("rect",{x:36,y:ry-4,width:648,height:40,rx:7,fill:"none",stroke:c.mal?"#f87171":"#fbbf24","stroke-width":2});
+        svg.appendChild(ring);
+        animate(700,p=>{ring.setAttribute("opacity",1-p);ring.setAttribute("stroke-width",2+p*3);},()=>ring.remove());
+      }
+      i++;setTimeout(tick,500);
+    }
+    tick();
+  });
+  ctl.appendChild(scanBtn);
+  candidates.forEach((c,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===selected?" on":"");b.textContent=c.n;
+    b.addEventListener("click",()=>{selected=i;draw();document.querySelectorAll("#ctl06 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   07 SCA 制品扫描
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420;
+  let project=0;
+  const projects=[
+    {n:"web-app",components:[
+      {lic:"MIT",n:18},{lic:"Apache-2.0",n:9},{lic:"BSD-3",n:5},{lic:"ISC",n:3},{lic:"GPL-3.0",n:1},{lic:"Unknown",n:2}
+    ]},
+    {n:"api-server",components:[
+      {lic:"MIT",n:12},{lic:"Apache-2.0",n:6},{lic:"LGPL-2.1",n:3},{lic:"MPL-2.0",n:2},{lic:"Unknown",n:4}
+    ]},
+    {n:"data-pipeline",components:[
+      {lic:"MIT",n:8},{lic:"Apache-2.0",n:14},{lic:"GPL-2.0",n:5},{lic:"AGPL-3.0",n:2},{lic:"Unknown",n:1}
+    ]}
+  ];
+  const licColor={MIT:"#34d399","Apache-2.0":"#5e6ad2","BSD-3":"#7c5cff",ISC:"#a78bfa","GPL-3.0":"#f87171","GPL-2.0":"#f87171","AGPL-3.0":"#f87171","LGPL-2.1":"#fbbf24","MPL-2.0":"#fbbf24",Unknown:"#62666d"};
+  const licRisk={"MIT":"低","Apache-2.0":"低","BSD-3":"低","ISC":"低","MPL-2.0":"中","LGPL-2.1":"中","GPL-2.0":"高","GPL-3.0":"高","AGPL-3.0":"高","Unknown":"未知"};
+
+  function draw(){
+    clearNode(svg);
+    const proj=projects[project];
+    const total=proj.components.reduce((s,c)=>s+c.n,0);
+    // 饼图（左）
+    const cx=200,cy=210,R=110;
+    let ang=-Math.PI/2;
+    proj.components.forEach(c=>{
+      const frac=c.n/total;
+      const a2=ang+frac*Math.PI*2;
+      const x1=cx+Math.cos(ang)*R,y1=cy+Math.sin(ang)*R;
+      const x2=cx+Math.cos(a2)*R,y2=cy+Math.sin(a2)*R;
+      const large=frac>0.5?1:0;
+      const d="M"+cx+","+cy+" L"+x1+","+y1+" A"+R+","+R+" 0 "+large+" 1 "+x2+","+y2+" Z";
+      svg.appendChild(el("path",{d:d,fill:licColor[c.lic]||"#62666d",stroke:"#0b0b0c","stroke-width":1.5,opacity:.85}));
+      ang=a2;
+    });
+    // 中心
+    svg.appendChild(el("circle",{cx:cx,cy:cy,r:46,fill:"#0b0b0c",stroke:"rgba(255,255,255,.10)"}));
+    const ct=el("text",{x:cx,y:cy-4,"text-anchor":"middle","font-size":22,"font-family":mono(),"font-weight":700,fill:"#f7f8f8"});
+    ct.textContent=total;svg.appendChild(ct);
+    const cl=el("text",{x:cx,y:cy+14,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:"#62666d"});
+    cl.textContent="components";svg.appendChild(cl);
+    // 标题
+    const pt=el("text",{x:cx,y:cy-R-20,"text-anchor":"middle","font-size":13,"font-family":mono(),fill:"#9b9fa8"});
+    pt.textContent=proj.n+" · 许可证分布";svg.appendChild(pt);
+
+    // 右侧许可证清单
+    const lx=400,ly=80;
+    svg.appendChild(el("text",{x:lx,y:ly-12,"font-size":12,"font-family":mono(),fill:"#9b9fa8"})).textContent="许可证明细";
+    proj.components.forEach((c,i)=>{
+      const ry=ly+i*44;
+      const col=licColor[c.lic]||"#62666d";
+      svg.appendChild(el("rect",{x:lx,y:ry,width:12,height:28,rx:2,fill:col}));
+      // 许可证名
+      const nt=el("text",{x:lx+22,y:ry+12,"font-size":12,"font-family":mono(),fill:"#f7f8f8"});
+      nt.textContent=c.lic;svg.appendChild(nt);
+      // 风险
+      const risk=licRisk[c.lic]||"未知";
+      const rcol=risk==="高"?"#f87171":risk==="中"?"#fbbf24":risk==="低"?"#34d399":"#62666d";
+      svg.appendChild(el("rect",{x:lx+170,y:ry+1,width:36,height:16,rx:4,fill:rcol,opacity:.2}));
+      const rt=el("text",{x:lx+188,y:ry+12,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:rcol});
+      rt.textContent=risk;svg.appendChild(rt);
+      // 数量条
+      const bw=120;
+      svg.appendChild(el("rect",{x:lx+220,y:ry+6,width:bw,height:8,rx:4,fill:"#1c1f24"}));
+      svg.appendChild(el("rect",{x:lx+220,y:ry+6,width:bw*(c.n/total),height:8,rx:4,fill:col}));
+      // 数量
+      const cn=el("text",{x:lx+350,y:ry+12,"font-size":11,"font-family":mono(),fill:"#9b9fa8"});
+      cn.textContent=c.n+" ("+Math.round(c.n/total*100)+"%)";svg.appendChild(cn);
+    });
+    // 统计
+    const riskCount=proj.components.filter(c=>licRisk[c.lic]==="高").reduce((s,c)=>s+c.n,0);
+    const oldDep=Math.round(total*0.18);
+    $("st07comp").textContent=total;
+    $("st07lic").textContent=proj.components.length;
+    $("st07risk").textContent=riskCount;
+    $("st07old").textContent=oldDep;
+    $("p07detail").textContent=proj.n+" 含 "+total+" 个组件，"+proj.components.length+" 种许可证。高风险(GPL/AGPL)组件 "+riskCount+" 个，过期依赖约 "+oldDep+" 个。GPL 系列许可证要求衍生作品同样开源，可能与专有许可冲突。";
+  }
+
+  draw();
+  projects.forEach((p,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===project?" on":"");b.textContent=p.n;
+    b.addEventListener("click",()=>{project=i;draw();document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const scanBtn=document.createElement("button");scanBtn.className="btn primary";scanBtn.textContent="重新扫描";
+  scanBtn.addEventListener("click",()=>{
+    // 动画扫描
+    let p=0;
+    function tick(){
+      clearNode(svg);
+      svg.appendChild(el("rect",{x:40,y:180,width:640,height:40,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.10)"}));
+      svg.appendChild(el("rect",{x:44,y:184,width:632*p,height:32,rx:6,fill:"#5e6ad2"}));
+      const t=el("text",{x:360,y:202,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});
+      t.textContent="SCA 扫描中... "+Math.round(p*100)+"%";svg.appendChild(t);
+      p+=0.05;
+      if(p<=1){if(!reduceMotion)requestAnimationFrame(tick);else draw();}
+      else draw();
+    }
+    tick();
+  });
+  ctl.appendChild(scanBtn);
+})();
+
+/* ============================================================
+   08 供应链攻击复盘
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420;
+  let caseIdx=0;
+  let phase=0;
+  const cases=[
+    {n:"SolarWinds",scope:"18,000+ 组织",lesson:"构建隔离",
+     phases:[
+       {t:"攻击者入侵构建系统",d:"APT 组织通过 0day 入侵 SolarWinds 内部网络，获取 Orion 构建流水线访问权限。",col:"#5e6ad2"},
+       {t:"植入 SUNBURST 后门",d:"在构建过程中向合法的 Orion 更新包注入 SUNBURST 后门代码，签名合法。",col:"#f87171"},
+       {t:"分发给客户",d:"后门版本通过正常更新通道分发给 18,000+ 客户，包括美国政府机构与财富 500 强。",col:"#fbbf24"},
+       {t:"潜伏与横向移动",d:"后门静默潜伏，选择性激活后回连 C2，横向移动至高价值目标。",col:"#fbbf24"},
+       {t:"发现与响应",d:"FireEye 披露攻击，业界大规模排查。推动 SLSA 框架与构建硬化。",col:"#34d399"}
+     ]},
+    {n:"Log4j (Log4Shell)",scope:"数百万应用",lesson:"依赖盘点",
+     phases:[
+       {t:"漏洞存在于流行库",d:"log4j 是 Java 生态最广泛使用的日志库，被数百万应用间接依赖。",col:"#5e6ad2"},
+       {t:"Log4Shell JNDI 注入披露",d:"CVE-2021-44228：日志消息中的 ${jndi:...} 触发远程类加载，CVSS 10.0 远程代码执行。",col:"#f87171"},
+       {t:"大规模利用",d:"攻击者扫描公网，对任何记录用户输入的应用发起攻击，半数互联网服务受影响。",col:"#fbbf24"},
+       {t:"紧急修复与绕过",d:"官方发布 2.15.0 修复，但后续发现绕过（CVE-2021-45046 等），多次补丁。",col:"#fbbf24"},
+       {t:"长期影响与 SBOM 推广",d:"深层传递依赖难以排查，推动 SBOM 普及与依赖漏洞持续扫描。",col:"#34d399"}
+     ]}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const c=cases[caseIdx];
+    // 时间线
+    const tlY=110;
+    svg.appendChild(el("line",{x1:80,y1:tlY,x2:640,y2:tlY,stroke:"rgba(255,255,255,.14)","stroke-width":1.5}));
+    // 阶段点
+    c.phases.forEach((p,i)=>{
+      const x=80+i*140;
+      const active=i<=phase;
+      // 节点
+      svg.appendChild(el("circle",{cx:x,cy:tlY,r:active?12:8,fill:active?p.col:"#1c1f24",stroke:p.col,"stroke-width":active?2:1.4}));
+      if(active){
+        const t=el("text",{x:x,y:tlY+4,"text-anchor":"middle","font-size":10,"font-family":mono(),"font-weight":700,fill:i===phase?"#0b0b0c":"#f7f8f8"});
+        t.textContent=i+1;svg.appendChild(t);
+      }
+      // 连接线高亮
+      if(i<phase){
+        svg.appendChild(el("line",{x1:x,y1:tlY,x2:x+140,y2:tlY,stroke:c.phases[i].col,"stroke-width":2,opacity:.6}));
+      }
+      // 标签
+      const lbl=el("text",{x:x,y:tlY-22,"text-anchor":"middle","font-size":9.5,"font-family":mono(),fill:active?"#9b9fa8":"#62666d"});
+      // 截断长标签
+      const lblTxt=p.t.length>12?p.t.slice(0,11)+"…":p.t;
+      lbl.textContent=lblTxt;svg.appendChild(lbl);
+      // 交互
+      const hit=el("circle",{cx:x,cy:tlY,r:16,fill:"transparent",cursor:"pointer"});
+      hit.addEventListener("click",()=>{phase=i;draw();update();});
+      svg.appendChild(hit);
+    });
+    // 当前阶段详情
+    const cur=c.phases[phase];
+    const py=180;
+    svg.appendChild(el("rect",{x:60,y:py,width:600,height:180,rx:10,fill:"#16181c",stroke:cur.col,"stroke-width":1.4}));
+    // 阶段标题
+    svg.appendChild(el("rect",{x:60,y:py,width:600,height:40,rx:10,fill:cur.col,opacity:.16}));
+    const st=el("text",{x:80,y:py+26,"font-size":14,"font-family":mono(),"font-weight":700,fill:cur.col});
+    st.textContent="阶段 "+(phase+1)+" · "+cur.t;svg.appendChild(st);
+    // 描述（换行）
+    const words=cur.d;
+    const lines=[];let line="";
+    for(let i=0;i<words.length;i++){
+      line+=words[i];
+      if(line.length>=38){lines.push(line);line="";}
+    }
+    if(line)lines.push(line);
+    lines.forEach((l,i)=>{
+      const lt=el("text",{x:80,y:py+72+i*20,"font-size":12,"font-family":mono(),fill:"#9b9fa8"});
+      lt.textContent=l;svg.appendChild(lt);
+    });
+    // 案例标题
+    const ct=el("text",{x:360,y:50,"text-anchor":"middle","font-size":16,"font-family":mono(),"font-weight":700,fill:"#5e6ad2"});
+    ct.textContent=c.n+" 攻击链复盘";svg.appendChild(ct);
+    update();
+  }
+  function update(){
+    const c=cases[caseIdx];
+    $("st08case").textContent=c.n;
+    $("st08phase").textContent=(phase+1)+" / "+c.phases.length;
+    $("st08scope").textContent=c.scope;
+    $("st08lesson").textContent=c.lesson;
+    $("p08title").textContent=c.n+" · 阶段 "+(phase+1);
+    $("p08detail").textContent=c.phases[phase].d+" 教训：强化"+c.lesson+"。";
+  }
+
+  draw();
+  // 案例切换
+  cases.forEach((c,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===caseIdx?" on":"");b.textContent=c.n;
+    b.addEventListener("click",()=>{caseIdx=i;phase=0;draw();document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const playBtn=document.createElement("button");playBtn.className="btn primary";playBtn.textContent="播放时间线";
+  let playing=false;
+  playBtn.addEventListener("click",()=>{
+    if(playing)return;playing=true;playBtn.textContent="播放中…";phase=0;
+    function next(){
+      if(phase>=cases[caseIdx].phases.length-1){playing=false;playBtn.textContent="播放时间线";return;}
+      phase++;draw();setTimeout(next,1500);
+    }
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="下一步 →";
+  stepBtn.addEventListener("click",()=>{const c=cases[caseIdx];phase=(phase+1)%c.phases.length;draw();});
+  ctl.appendChild(playBtn);ctl.appendChild(stepBtn);
+})();
+</script>
+</body>
+</html>

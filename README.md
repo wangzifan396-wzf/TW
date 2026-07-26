@@ -93,7 +93,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | # | 项目 | 描述 | Demo |
 |---|------|------|------|
-| 01 | AI 发展趋势 2026 | Stanford HAI / McKinsey / Gartner 权威数据源 | [Demo](https://wangzifan396-wzf.github.io/TW/ai-trends-2026.html) |
+| 01 | AI 发展趋势 2026 | Stanford HAI / McKinsey / Gartner 权威数据源 | [Demo](https://wangzifan396-wzf.github.io/ai-trends-2026/) |
 | 02 | System Design 可视化 | 负载均衡、CAP 定理、一致性哈希等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/system-design-viz/) |
 | 03 | LLM 可视化实验室 | Tokenizer、Attention、KV-Cache 等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/llm-viz-lab/) |
 | 04 | MoE 可视化实验室 | 专家路由、Top-K 选择、稀疏激活等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/moe-viz-lab/) |
@@ -264,9 +264,9 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 168 | 神经符号AI可视化实验室 | 神经符号集成、可微逻辑编程、知识图谱推理、因果推理、概率逻辑、归纳逻辑、可微分编程、符号回归等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/neuro-symbolic-viz-lab/) |
 | 169 | AI伦理与公平性可视化实验室 | 算法偏见、公平性度量、伦理框架、道德推理、价值对齐、算法问责、隐私伦理、AI人权等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-ethics-viz-lab/) |
 | 170 | 多模态智能体可视化实验室 | VLA模型、GUI Agent、工具使用、任务分解、多模态推理、动作生成、环境交互、Agent评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multimodal-agent-viz-lab/) |
-| 171 | 推理大模型可视化实验室 | 思维链CoT、测试时计算、过程奖励模型PRM、MCTS思维树搜索、自洽性投票、推理蒸馏、o1/o3/DeepSeek-R1架构、推理评估基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/171-reasoning-llm-viz-lab.html) |
-| 172 | AI编程智能体可视化实验室 | 智能体编程循环、代码库理解、任务分解规划、工具编排、多文件编辑协同、自主调试、多智能体协作、Cursor/Devin/Claude Code对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/172-ai-coding-agent-viz-lab.html) |
-| 173 | 长上下文大模型可视化实验室 | 上下文窗口与位置编码、RoPE与位置插值、Ring Attention分布式、注意力复杂度、大海捞针测试、KV-Cache优化、长上下文基准、应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/173-long-context-viz-lab.html) |
+| 171 | 推理大模型可视化实验室 | 思维链CoT、测试时计算、过程奖励模型PRM、MCTS思维树搜索、自洽性投票、推理蒸馏、o1/o3/DeepSeek-R1架构、推理评估基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/reasoning-llm-viz-lab/) |
+| 172 | AI编程智能体可视化实验室 | 智能体编程循环、代码库理解、任务分解规划、工具编排、多文件编辑协同、自主调试、多智能体协作、Cursor/Devin/Claude Code对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-coding-agent-viz-lab/) |
+| 173 | 长上下文大模型可视化实验室 | 上下文窗口与位置编码、RoPE与位置插值、Ring Attention分布式、注意力复杂度、大海捞针测试、KV-Cache优化、长上下文基准、应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/long-context-viz-lab/) |
 
 ## 技术栈
 

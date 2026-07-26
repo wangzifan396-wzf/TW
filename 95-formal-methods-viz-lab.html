@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>形式化方法可视化实验室 · Formal Methods Viz Lab</title>
+<meta name="description" content="形式化方法可视化实验室：TLA+、Alloy、SPIN、Coq、Z3、进程代数、实时系统与混合系统的交互式可视化。">
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;
+  --good:#3fb950;--bad:#f85149;--warn:#d29922;
+  --nav-h:56px;--side-w:240px;
+  --radius:12px;--radius-sm:8px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit}
+
+/* progress bar */
+.progress-bar{position:fixed;top:0;left:0;right:0;height:2px;z-index:100;background:transparent}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transform-origin:left center;transition:width .1s linear}
+
+/* navbar */
+.navbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:90;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{
+  display:grid;place-items:center;width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;
+}
+.brand-name{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.brand-sub{display:block;font-size:11px;color:var(--muted);font-weight:400;letter-spacing:.02em}
+.nav-right{display:flex;align-items:center;gap:18px}
+.nav-link{font-size:13px;color:var(--muted);transition:color .15s}
+.nav-link:hover{color:var(--ink)}
+.nav-link svg{vertical-align:-2px;margin-right:5px}
+
+/* layout */
+.layout{padding-top:var(--nav-h);display:grid;grid-template-columns:var(--side-w) 1fr;min-height:100vh}
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;width:var(--side-w);
+  height:calc(100vh - var(--nav-h));background:var(--surface);
+  border-right:1px solid var(--border);overflow-y:auto;padding:18px 0;
+}
+.side-title{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;padding:0 20px 8px}
+.side-link{
+  display:flex;align-items:center;gap:10px;padding:8px 20px;
+  color:var(--muted);font-size:13.5px;border-left:2px solid transparent;
+  transition:color .15s,background .15s,border-color .15s;
+}
+.side-link:hover{color:var(--ink);background:var(--surface-2)}
+.side-link.active{color:var(--ink);border-left-color:var(--accent);background:var(--surface-2)}
+.side-num{font-family:var(--mono);color:var(--faint);font-size:11px;width:22px}
+.side-foot{padding:14px 20px;font-size:11px;color:var(--faint);border-top:1px solid var(--border);margin-top:10px}
+
+.main{grid-column:2;padding:34px 40px 96px;max-width:1120px}
+.intro{margin-bottom:48px}
+.intro h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+.intro h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.intro p{color:var(--muted);max-width:680px;font-size:15px}
+.intro .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.tag{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);padding:4px 10px;border-radius:999px}
+
+/* module */
+.module{margin-bottom:56px;scroll-margin-top:72px}
+.module-head{margin-bottom:16px}
+.kicker{font-family:var(--mono);font-size:12px;color:var(--accent-2);letter-spacing:.08em;text-transform:uppercase;display:inline-block;margin-bottom:6px}
+.module-title{font-size:23px;font-weight:650;letter-spacing:-.01em;margin-bottom:6px}
+.module-desc{color:var(--muted);font-size:14px;max-width:700px}
+.module-desc b{color:var(--ink);font-weight:600}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.viz-box{
+  background:var(--surface-2);border-bottom:1px solid var(--border);
+  padding:22px 20px;position:relative;
+  background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.035) 1px,transparent 0);
+  background-size:22px 22px;
+}
+.viz-box svg.viz{display:block;width:100%;height:auto;overflow:visible}
+.controls{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.btn{
+  font-size:13px;color:var(--ink);background:var(--surface-3);
+  border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:6px 14px;cursor:pointer;
+  transition:background .15s,border-color .15s,transform .08s;
+}
+.btn:hover{background:#232730;border-color:rgba(255,255,255,.24)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.status{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.detail-box{padding:14px 16px;border-bottom:1px solid var(--border);font-size:13.5px;color:var(--muted)}
+.detail-box code{font-family:var(--mono);background:var(--surface-3);padding:1px 6px;border-radius:5px;color:var(--ink);font-size:12.5px}
+.detail-box b{color:var(--ink);font-weight:600}
+.stats-row{display:flex}
+.stat{flex:1;padding:13px 16px;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-label{display:block;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.stat-value{font-family:var(--mono);font-size:17px;color:var(--ink)}
+.stat-value.good{color:var(--good)}
+.stat-value.bad{color:var(--bad)}
+.stat-value.warn{color:var(--warn)}
+
+/* svg element styles */
+.viz .state{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1.5}
+.viz .state-bad{fill:rgba(248,81,73,.12);stroke:var(--bad)}
+.viz .state-active{stroke:var(--accent-2);stroke-width:2.5;fill:rgba(124,92,255,.14)}
+.viz .state-label{fill:var(--ink);font-family:var(--mono);font-size:12px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.viz .node-label{fill:var(--ink);font-family:var(--mono);font-size:13px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.viz .edge{stroke:var(--border-strong);stroke-width:1.5;fill:none}
+.viz .edge-bad{stroke:var(--bad);stroke-dasharray:5 4}
+.viz .edge-cex{stroke:var(--bad);stroke-width:2.5}
+.viz .edge-active{stroke:var(--accent-2);stroke-width:2.5}
+.viz .edge-label{fill:var(--muted);font-family:var(--mono);font-size:11px;text-anchor:middle}
+.viz .axis{stroke:var(--border-strong);stroke-width:1;fill:none}
+.viz .axis-label{fill:var(--faint);font-family:var(--mono);font-size:10px}
+.viz .token{fill:var(--accent-2)}
+.viz .token-halo{fill:var(--accent-2);opacity:.22}
+.viz .feasible{fill:rgba(94,106,210,.16);stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3}
+.viz .cline{stroke:var(--border-strong);stroke-width:1.2;fill:none}
+.viz .cline-key{stroke:var(--accent-2);stroke-width:1.6}
+.viz .clock-bg{fill:var(--surface-3);stroke:var(--border)}
+.viz .clock-fill{fill:var(--accent)}
+.viz .ground{stroke:var(--border-strong);stroke-width:1.5}
+.viz .trail{fill:none;stroke:var(--accent-2);stroke-width:1.5;opacity:.55}
+.viz .loc-label{fill:var(--ink);font-family:var(--mono);font-size:13px;text-anchor:middle;dominant-baseline:central}
+.viz .inv-label{fill:var(--muted);font-family:var(--mono);font-size:10px;text-anchor:middle}
+.viz .check{fill:var(--good);font-family:var(--mono);font-size:13px;text-anchor:middle;dominant-baseline:central}
+.viz .goal-box{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1.2}
+.viz .goal-box.closed{stroke:var(--good)}
+.coq-reveal{opacity:0;transition:opacity .35s ease}
+.coq-reveal.shown{opacity:1}
+
+/* fade in */
+.fade-in{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.fade-in.visible{opacity:1;transform:none}
+
+/* responsive */
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static;width:100%;height:auto;border-right:none;border-bottom:1px solid var(--border);padding:10px 0}
+  .sidebar .side-title{padding:0 16px 6px}
+  .side-link{padding:7px 16px}
+  .side-foot{display:none}
+  .main{grid-column:1;padding:22px 16px 64px}
+  .navbar{padding:0 16px}
+  .brand-sub{display:none}
+  .stats-row{flex-direction:column}
+  .stat{border-right:none;border-bottom:1px solid var(--border)}
+  .stat:last-child{border-bottom:none}
+  .intro h1{font-size:24px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+  .fade-in{opacity:1;transform:none}
+  .coq-reveal{transition:none}
+  .progress-fill{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#62666d"></path></marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c5cff"></path></marker>
+    <marker id="arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"></path></marker>
+    <marker id="arrow-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"></path></marker>
+  </defs>
+</svg>
+
+<nav class="navbar">
+  <a class="brand" href="#top">
+    <span class="brand-mark">&#8704;</span>
+    <span><span class="brand-name">形式化方法可视化实验室</span><span class="brand-sub">Formal Methods Viz Lab</span></span>
+  </a>
+  <div class="nav-right">
+    <a class="nav-link" href="https://github.com/wangzifan396-wzf/formal-methods-viz-lab" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>GitHub
+    </a>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="side-title">导航</div>
+    <a class="side-link" href="#top"><span class="side-num">00</span>概览</a>
+    <a class="side-link" href="#m01"><span class="side-num">01</span>TLA+</a>
+    <a class="side-link" href="#m02"><span class="side-num">02</span>Alloy</a>
+    <a class="side-link" href="#m03"><span class="side-num">03</span>SPIN / Promela</a>
+    <a class="side-link" href="#m04"><span class="side-num">04</span>Coq</a>
+    <a class="side-link" href="#m05"><span class="side-num">05</span>Z3 求解器</a>
+    <a class="side-link" href="#m06"><span class="side-num">06</span>进程代数</a>
+    <a class="side-link" href="#m07"><span class="side-num">07</span>实时系统</a>
+    <a class="side-link" href="#m08"><span class="side-num">08</span>混合系统</a>
+    <div class="side-foot">纯 HTML / CSS / JS + SVG · 零依赖</div>
+  </aside>
+
+  <main class="main" id="top">
+    <section class="intro fade-in">
+      <h1><span class="grad">形式化方法</span>可视化实验室</h1>
+      <p>通过交互式可视化理解形式化方法的核心工具与思想：从时序逻辑的状态机到 SMT 约束求解，从归纳证明到混合系统的连续-离散耦合。每个模块均可播放、单步与重置，直观体会安全/活性、反例、迹等价与时钟演化的含义。</p>
+      <div class="tags">
+        <span class="tag">TLA+</span><span class="tag">Alloy</span><span class="tag">SPIN / Promela</span>
+        <span class="tag">Coq</span><span class="tag">Z3 / SMT</span><span class="tag">CSP / CCS</span>
+        <span class="tag">Timed Automata</span><span class="tag">Hybrid Automata</span>
+      </div>
+    </section>
+
+    <!-- 01 TLA+ -->
+    <section class="module fade-in" id="m01" data-viz="tla">
+      <header class="module-head">
+        <span class="kicker">模块 01 · TLA+</span>
+        <h2 class="module-title">时序逻辑与状态机</h2>
+        <p class="module-desc">TLA+ 以数学方式描述系统行为：<b>Init</b> 初始条件、<b>Next</b> 次态关系，并用时序公式刻画 <b>安全性</b>（坏事永不发生）与 <b>活性</b>（好事终将发生）。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 220" role="img" aria-label="TLA+ 状态机">
+            <g>
+              <line class="edge" x1="78" y1="110" x2="182" y2="110" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="218" y1="110" x2="322" y2="110" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="358" y1="110" x2="462" y2="110" marker-end="url(#arrow)"></line>
+              <path class="edge" d="M480,92 C480,28 60,28 60,92" marker-end="url(#arrow)"></path>
+              <line class="edge edge-bad" x1="480" y1="128" x2="480" y2="174" marker-end="url(#arrow-bad)"></line>
+            </g>
+            <text class="edge-label" x="270" y="20">Next · 循环迁移</text>
+            <text class="edge-label" x="500" y="156" fill="#f85149">禁止</text>
+            <g>
+              <circle class="state state-active" id="s01-s0" cx="60" cy="110" r="18"></circle>
+              <text class="state-label" x="60" y="110">S0</text>
+              <circle class="state" id="s01-s1" cx="200" cy="110" r="18"></circle>
+              <text class="state-label" x="200" y="110">S1</text>
+              <circle class="state" id="s01-s2" cx="340" cy="110" r="18"></circle>
+              <text class="state-label" x="340" y="110">S2</text>
+              <circle class="state" id="s01-s3" cx="480" cy="110" r="18"></circle>
+              <text class="state-label" x="480" y="110">S3</text>
+              <circle class="state state-bad" cx="480" cy="192" r="15"></circle>
+              <text class="state-label" x="480" y="192" fill="#f85149">Bad</text>
+            </g>
+            <circle class="token-halo tla-halo" cx="0" cy="0" r="16" transform="translate(60,110)"></circle>
+            <circle class="token tla-token" cx="0" cy="0" r="9" transform="translate(60,110)"></circle>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">单步</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">就绪</span>
+        </div>
+        <div class="detail-box">安全性 <code>[]~Bad</code> 要求永远不进入 Bad 状态；活性 <code>&lt;&gt;S3</code> 要求最终到达 S3。虚线为被安全约束禁止的迁移，运行中永不被采纳。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">当前状态</span><span class="stat-value" id="s01-state">S0</span></div>
+          <div class="stat"><span class="stat-label">安全性 []~Bad</span><span class="stat-value good" id="s01-safety">&#10003; 满足</span></div>
+          <div class="stat"><span class="stat-label">活性 &lt;&gt;S3</span><span class="stat-value warn" id="s01-liveness">… 等待</span></div>
+          <div class="stat"><span class="stat-label">迁移数</span><span class="stat-value" id="s01-trans">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 Alloy -->
+    <section class="module fade-in" id="m02" data-viz="alloy">
+      <header class="module-head">
+        <span class="kicker">模块 02 · Alloy</span>
+        <h2 class="module-title">关系约束与实例生成</h2>
+        <p class="module-desc">Alloy 以关系代数声明签名与约束，通过 SAT 求解器枚举实例。若约束不可满足则给出 <b>反例</b>，辅助在早期发现设计缺陷。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 240" role="img" aria-label="Alloy 实例">
+            <g class="alloy-edges"></g>
+            <g class="alloy-nodes"></g>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">重新生成</button>
+          <button class="btn ctrl-reset">清空</button>
+          <span class="status ctrl-status">生成实例…</span>
+        </div>
+        <div class="detail-box">签名 <code>sig Person { friend: set Person }</code>；约束 <code>all p: Person | some p.friend</code>。无朋友的节点即为反例（红色高亮）。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">节点数</span><span class="stat-value" id="s02-nodes">4</span></div>
+          <div class="stat"><span class="stat-label">关系边</span><span class="stat-value" id="s02-edges">0</span></div>
+          <div class="stat"><span class="stat-label">约束状态</span><span class="stat-value" id="s02-sat">—</span></div>
+          <div class="stat"><span class="stat-label">反例节点</span><span class="stat-value" id="s02-cex">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 SPIN -->
+    <section class="module fade-in" id="m03" data-viz="spin">
+      <header class="module-head">
+        <span class="kicker">模块 03 · SPIN / Promela</span>
+        <h2 class="module-title">模型检测与反例路径</h2>
+        <p class="module-desc">SPIN 对 Promela 模型做穷尽状态空间搜索，验证 LTL 性质。若性质被违反，返回一条 <b>反例路径</b> 作为可执行的反证。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 220" role="img" aria-label="SPIN 反例路径">
+            <g>
+              <line class="edge" x1="88" y1="110" x2="182" y2="62" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="88" y1="110" x2="182" y2="158" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="218" y1="62" x2="322" y2="62" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="218" y1="62" x2="322" y2="158" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="218" y1="158" x2="462" y2="110" marker-end="url(#arrow)"></line>
+              <line class="edge" x1="358" y1="62" x2="462" y2="110" marker-end="url(#arrow)"></line>
+              <path class="edge" d="M340,178 C326,206 354,206 358,180" marker-end="url(#arrow)"></path>
+              <line class="edge edge-cex" x1="88" y1="110" x2="182" y2="62" marker-end="url(#arrow-bad)"></line>
+              <line class="edge edge-cex" x1="218" y1="62" x2="322" y2="158" marker-end="url(#arrow-bad)"></line>
+            </g>
+            <text class="edge-label" x="120" y="78">a</text>
+            <text class="edge-label" x="120" y="148">b</text>
+            <text class="edge-label" x="270" y="54">c</text>
+            <text class="edge-label" x="276" y="100">d</text>
+            <text class="edge-label" x="350" y="148">e</text>
+            <text class="edge-label" x="412" y="78">f</text>
+            <text class="edge-label" x="356" y="214">q</text>
+            <g>
+              <circle class="state state-active" cx="70" cy="110" r="18"></circle><text class="state-label" x="70" y="110">N0</text>
+              <circle class="state" cx="200" cy="62" r="18"></circle><text class="state-label" x="200" y="62">N1</text>
+              <circle class="state" cx="200" cy="158" r="18"></circle><text class="state-label" x="200" y="158">N2</text>
+              <circle class="state" cx="340" cy="62" r="18"></circle><text class="state-label" x="340" y="62">N3</text>
+              <circle class="state state-bad" cx="340" cy="158" r="18"></circle><text class="state-label" x="340" y="158" fill="#f85149">N4</text>
+              <circle class="state" cx="480" cy="110" r="18"></circle><text class="state-label" x="480" y="110">N5</text>
+            </g>
+            <circle class="token-halo spin-halo" cx="0" cy="0" r="16" transform="translate(70,110)"></circle>
+            <circle class="token spin-token" cx="0" cy="0" r="9" transform="translate(70,110)"></circle>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">单步</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">就绪</span>
+        </div>
+        <div class="detail-box">LTL 性质 <code>[]!q</code>（始终不发生 q）。红色路径 <code>N0 &rarr; N1 &rarr; N4</code> 即反例：它到达 q 状态，证伪该性质。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">状态数</span><span class="stat-value" id="s03-states">6</span></div>
+          <div class="stat"><span class="stat-label">迁移数</span><span class="stat-value" id="s03-trans">7</span></div>
+          <div class="stat"><span class="stat-label">LTL 属性</span><span class="stat-value" id="s03-ltl">[]!q</span></div>
+          <div class="stat"><span class="stat-label">反例位置</span><span class="stat-value warn" id="s03-cur">N0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 Coq -->
+    <section class="module fade-in" id="m04" data-viz="coq">
+      <header class="module-head">
+        <span class="kicker">模块 04 · Coq</span>
+        <h2 class="module-title">归纳证明与 tactic 策略</h2>
+        <p class="module-desc">Coq 基于归纳构造演算，通过 <b>tactic</b> 逐步将目标分解为子目标，直至全部闭合。证明树记录每一步策略的衍生关系。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 300" role="img" aria-label="Coq 证明树">
+            <!-- root goal always visible -->
+            <rect class="goal-box" x="190" y="14" width="180" height="34" rx="6"></rect>
+            <text class="node-label" x="280" y="31" style="font-size:12px">&#8704; n, n + 0 = n</text>
+            <!-- step1 induction: base & step -->
+            <g class="coq-reveal" data-step="1">
+              <line class="edge edge-active" x1="260" y1="48" x2="170" y2="78"></line>
+              <line class="edge edge-active" x1="300" y1="48" x2="410" y2="78"></line>
+              <text class="edge-label" x="190" y="66">induction</text>
+              <rect class="goal-box" x="100" y="78" width="140" height="30" rx="6"></rect>
+              <text class="node-label" x="170" y="93" style="font-size:11px">0 + 0 = 0</text>
+              <rect class="goal-box" x="350" y="78" width="150" height="30" rx="6"></rect>
+              <text class="node-label" x="425" y="93" style="font-size:11px">S m + 0 = S m</text>
+            </g>
+            <!-- step2 base simpl -->
+            <g class="coq-reveal" data-step="2">
+              <line class="edge" x1="170" y1="108" x2="170" y2="134"></line>
+              <text class="edge-label" x="196" y="124">simpl</text>
+              <rect class="goal-box" x="110" y="134" width="120" height="28" rx="6"></rect>
+              <text class="node-label" x="170" y="148" style="font-size:11px">0 = 0</text>
+            </g>
+            <!-- step3 base reflexivity closed -->
+            <g class="coq-reveal" data-step="3">
+              <line class="edge" x1="170" y1="162" x2="170" y2="186"></line>
+              <text class="edge-label" x="205" y="176">reflexivity</text>
+              <rect class="goal-box closed" x="120" y="186" width="100" height="26" rx="6"></rect>
+              <text class="check" x="170" y="199">&#10003; 闭合</text>
+            </g>
+            <!-- step4 step simpl -->
+            <g class="coq-reveal" data-step="4">
+              <line class="edge" x1="425" y1="108" x2="425" y2="134"></line>
+              <text class="edge-label" x="455" y="124">simpl</text>
+              <rect class="goal-box" x="350" y="134" width="150" height="28" rx="6"></rect>
+              <text class="node-label" x="425" y="148" style="font-size:11px">S (m + 0) = S m</text>
+            </g>
+            <!-- step5 step apply IH -->
+            <g class="coq-reveal" data-step="5">
+              <line class="edge" x1="425" y1="162" x2="425" y2="186"></line>
+              <text class="edge-label" x="462" y="176">rewrite IH</text>
+              <rect class="goal-box" x="360" y="186" width="130" height="26" rx="6"></rect>
+              <text class="node-label" x="425" y="199" style="font-size:11px">S m = S m</text>
+            </g>
+            <!-- step6 step reflexivity closed -->
+            <g class="coq-reveal" data-step="6">
+              <line class="edge" x1="425" y1="212" x2="425" y2="236"></line>
+              <text class="edge-label" x="462" y="226">reflexivity</text>
+              <rect class="goal-box closed" x="375" y="236" width="100" height="26" rx="6"></rect>
+              <text class="check" x="425" y="249">&#10003; 闭合</text>
+            </g>
+            <text class="edge-label" x="280" y="285" fill="#3fb950" id="coq-banner">按“单步”依次应用 tactic …</text>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">单步 tactic</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">目标：1</span>
+        </div>
+        <div class="detail-box">证明 <code>plus_n_O : forall n, n + 0 = n</code>。先 <code>induction n</code> 分裂为基础与归纳步，再用 <code>simpl</code> 化简、<code>rewrite IH</code> 应用归纳假设、<code>reflexivity</code> 闭合。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">剩余目标</span><span class="stat-value warn" id="s04-goals">2</span></div>
+          <div class="stat"><span class="stat-label">已闭合</span><span class="stat-value" id="s04-proved">0</span></div>
+          <div class="stat"><span class="stat-label">tactic 步</span><span class="stat-value" id="s04-tactics">0</span></div>
+          <div class="stat"><span class="stat-label">进度</span><span class="stat-value" id="s04-step">0 / 6</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 Z3 -->
+    <section class="module fade-in" id="m05" data-viz="z3">
+      <header class="module-head">
+        <span class="kicker">模块 05 · Z3 求解器</span>
+        <h2 class="module-title">SAT / SMT 约束求解</h2>
+        <p class="module-desc">Z3 是 SMT 求解器，在实数/整数/布尔理论上判定约束可满足性。可视化展示约束裁出的可行域与求解点的搜索收敛过程。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 280" role="img" aria-label="Z3 约束求解">
+            <line class="axis" x1="60" y1="230" x2="470" y2="230"></line>
+            <line class="axis" x1="60" y1="40" x2="60" y2="230"></line>
+            <text class="axis-label" x="472" y="234">x</text>
+            <text class="axis-label" x="52" y="40">y</text>
+            <text class="axis-label" x="56" y="234">0</text>
+            <text class="axis-label" x="436" y="246">10</text>
+            <text class="axis-label" x="44" y="54">10</text>
+            <!-- feasible region -->
+            <polygon class="feasible" points="136,86 364,86 364,176 326,176"></polygon>
+            <!-- constraint lines -->
+            <line class="cline cline-key" x1="60" y1="50" x2="440" y2="230"></line>
+            <line class="cline" x1="136" y1="50" x2="136" y2="230"></line>
+            <line class="cline" x1="60" y1="176" x2="440" y2="176"></line>
+            <line class="cline" x1="364" y1="50" x2="364" y2="230"></line>
+            <line class="cline" x1="60" y1="86" x2="440" y2="86"></line>
+            <text class="edge-label" x="250" y="120">x+y=10</text>
+            <text class="edge-label" x="148" y="60">x=2</text>
+            <text class="edge-label" x="376" y="60">x=8</text>
+            <text class="edge-label" x="430" y="180">y=3</text>
+            <text class="edge-label" x="430" y="90">y=8</text>
+            <circle class="token-halo z3-halo" cx="0" cy="0" r="11" transform="translate(60,230)"></circle>
+            <circle class="token z3-point" cx="0" cy="0" r="6" transform="translate(60,230)"></circle>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">单步</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">搜索中…</span>
+        </div>
+        <div class="detail-box">约束 <code>x+y&ge;10, x&ge;2, y&ge;3, x&le;8, y&le;8</code>。求解器在可行域（阴影）中搜索满足赋值，收敛到一个解即返回 <code>sat</code>。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">约束数</span><span class="stat-value" id="s05-constraints">5</span></div>
+          <div class="stat"><span class="stat-label">变量数</span><span class="stat-value" id="s05-vars">2</span></div>
+          <div class="stat"><span class="stat-label">求解状态</span><span class="stat-value warn" id="s05-status">搜索中</span></div>
+          <div class="stat"><span class="stat-label">当前解</span><span class="stat-value" id="s05-sol">(0,0)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 Process Algebra -->
+    <section class="module fade-in" id="m06" data-viz="proc">
+      <header class="module-head">
+        <span class="kicker">模块 06 · 进程代数</span>
+        <h2 class="module-title">CSP / CCS · 互模拟与迹</h2>
+        <p class="module-desc">进程代数用标号迁移系统刻画并发行为。<b>迹等价</b>比较可观察动作序列，<b>互模拟</b>更强：要求每步迁移后仍能继续匹配。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 260" role="img" aria-label="进程代数互模拟">
+            <text class="edge-label" x="140" y="24" style="font-size:12px">P = a.(b.0 + c.0)</text>
+            <text class="edge-label" x="420" y="24" style="font-size:12px">Q = a.b.0 + a.c.0</text>
+            <!-- P edges -->
+            <g>
+              <line class="edge edge-active" x1="140" y1="58" x2="140" y2="116" marker-end="url(#arrow-accent)"></line>
+              <text class="edge-label" x="154" y="90">a</text>
+              <line class="edge" x1="126" y1="148" x2="92" y2="206" marker-end="url(#arrow)"></line>
+              <text class="edge-label" x="96" y="176">b</text>
+              <line class="edge" x1="154" y1="148" x2="190" y2="206" marker-end="url(#arrow)"></line>
+              <text class="edge-label" x="190" y="176">c</text>
+            </g>
+            <!-- Q edges -->
+            <g>
+              <line class="edge edge-active" x1="410" y1="58" x2="370" y2="116" marker-end="url(#arrow-accent)"></line>
+              <text class="edge-label" x="376" y="90">a</text>
+              <line class="edge" x1="430" y1="58" x2="478" y2="116" marker-end="url(#arrow-accent)"></line>
+              <text class="edge-label" x="466" y="90">a</text>
+              <line class="edge" x1="362" y1="148" x2="362" y2="206" marker-end="url(#arrow)"></line>
+              <text class="edge-label" x="376" y="180">b</text>
+              <line class="edge" x1="486" y1="148" x2="486" y2="206" marker-end="url(#arrow)"></line>
+              <text class="edge-label" x="500" y="180">c</text>
+            </g>
+            <!-- P nodes -->
+            <g>
+              <circle class="state" cx="140" cy="40" r="16"></circle><text class="state-label" x="140" y="40">P0</text>
+              <circle class="state" cx="140" cy="134" r="16"></circle><text class="state-label" x="140" y="134">P1</text>
+              <circle class="state" cx="80" cy="222" r="14"></circle><text class="state-label" x="80" y="222" style="font-size:10px">0</text>
+              <circle class="state" cx="200" cy="222" r="14"></circle><text class="state-label" x="200" y="222" style="font-size:10px">0</text>
+            </g>
+            <!-- Q nodes -->
+            <g>
+              <circle class="state" cx="420" cy="40" r="16"></circle><text class="state-label" x="420" y="40">Q0</text>
+              <circle class="state" cx="362" cy="134" r="16"></circle><text class="state-label" x="362" y="134">Q1</text>
+              <circle class="state" cx="486" cy="134" r="16"></circle><text class="state-label" x="486" y="134">Q2</text>
+              <circle class="state" cx="362" cy="222" r="14"></circle><text class="state-label" x="362" y="222" style="font-size:10px">0</text>
+              <circle class="state" cx="486" cy="222" r="14"></circle><text class="state-label" x="486" y="222" style="font-size:10px">0</text>
+            </g>
+            <circle class="token-halo proc-halo-p" cx="0" cy="0" r="13" transform="translate(140,40)"></circle>
+            <circle class="token proc-token-p" cx="0" cy="0" r="8" transform="translate(140,40)"></circle>
+            <circle class="token-halo proc-halo-q" cx="0" cy="0" r="13" transform="translate(420,40)" style="fill:#5e6ad2"></circle>
+            <circle class="token proc-token-q" cx="0" cy="0" r="8" transform="translate(420,40)" style="fill:#5e6ad2"></circle>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">单步</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">迹：—</span>
+        </div>
+        <div class="detail-box">两进程的迹集合相同 <code>{a&middot;b, a&middot;c}</code>，故 <b>迹等价</b>；但 P 在 a 之后可同时选择 b 或 c，而 Q 已被 a 提前锁定分支，故 <b>不互模拟</b>。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">进程</span><span class="stat-value" id="s06-proc">P / Q</span></div>
+          <div class="stat"><span class="stat-label">迹匹配</span><span class="stat-value good" id="s06-traces">&#10003; 等价</span></div>
+          <div class="stat"><span class="stat-label">互模拟</span><span class="stat-value bad" id="s06-bisim">&#10007; 不互模拟</span></div>
+          <div class="stat"><span class="stat-label">当前迹</span><span class="stat-value" id="s06-trace">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 Real-time -->
+    <section class="module fade-in" id="m07" data-viz="timed">
+      <header class="module-head">
+        <span class="kicker">模块 07 · 实时系统</span>
+        <h2 class="module-title">时间自动机与 UPPAAL</h2>
+        <p class="module-desc">时间自动机在迁移上添加 <b>时钟约束</b>（guard）与 <b>不变式</b>（invariant），刻画实时行为。UPPAAL 借此验证带时间的可达性与死锁性质。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 220" role="img" aria-label="时间自动机">
+            <line class="edge" x1="202" y1="110" x2="358" y2="110" marker-end="url(#arrow)"></line>
+            <line class="edge" x1="358" y1="92" x2="202" y2="92" marker-end="url(#arrow)"></line>
+            <text class="edge-label" x="280" y="104">x &ge; 3 / x:=0</text>
+            <text class="edge-label" x="280" y="80">x &ge; 2 / x:=0</text>
+            <g>
+              <circle class="state state-active" id="tloc-0" cx="180" cy="110" r="24"></circle>
+              <text class="loc-label" x="180" y="106">L0</text>
+              <text class="inv-label" x="180" y="122">x&le;5</text>
+              <circle class="state" id="tloc-1" cx="380" cy="110" r="24"></circle>
+              <text class="loc-label" x="380" y="106">L1</text>
+              <text class="inv-label" x="380" y="122">x&le;4</text>
+            </g>
+            <!-- clock -->
+            <text class="edge-label" x="60" y="178">时钟 x</text>
+            <rect class="clock-bg" x="60" y="184" width="220" height="14" rx="4"></rect>
+            <rect class="clock-fill" id="clockFill" x="60" y="184" width="0" height="14" rx="4"></rect>
+            <text class="axis-label" x="288" y="195" id="clockText">0.00</text>
+            <circle class="token-halo timed-halo" cx="0" cy="0" r="18" transform="translate(180,110)"></circle>
+            <circle class="token timed-token" cx="0" cy="0" r="10" transform="translate(180,110)"></circle>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">跳到下次迁移</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">L0 · x=0.00</span>
+        </div>
+        <div class="detail-box">L0 不变式 <code>x&le;5</code>、迁移 guard <code>x&ge;3</code> 并重置 <code>x:=0</code>；L1 同理。时钟连续增长，guard 满足时发生离散迁移并复位时钟。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">时钟 x</span><span class="stat-value" id="s07-clock">0.00</span></div>
+          <div class="stat"><span class="stat-label">当前位置</span><span class="stat-value" id="s07-loc">L0</span></div>
+          <div class="stat"><span class="stat-label">不变式</span><span class="stat-value" id="s07-inv">x&le;5</span></div>
+          <div class="stat"><span class="stat-label">迁移数</span><span class="stat-value" id="s07-trans">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 Hybrid -->
+    <section class="module fade-in" id="m08" data-viz="hybrid">
+      <header class="module-head">
+        <span class="kicker">模块 08 · 混合系统</span>
+        <h2 class="module-title">连续 / 离散混合自动机</h2>
+        <p class="module-desc">混合自动机在离散迁移之外加入 <b>连续流</b>（ODE），刻画物理量演化与离散跳变的耦合。弹跳球是经典示例：自由下落与触地反弹。</p>
+      </header>
+      <div class="card">
+        <div class="viz-box">
+          <svg class="viz" viewBox="0 0 560 280" role="img" aria-label="混合系统弹跳球">
+            <line class="axis" x1="60" y1="40" x2="60" y2="240"></line>
+            <line class="ground" x1="40" y1="240" x2="520" y2="240"></line>
+            <text class="axis-label" x="44" y="48">h</text>
+            <text class="axis-label" x="500" y="256">t</text>
+            <polyline class="trail" id="hybridTrail" points=""></polyline>
+            <circle class="token-halo hybrid-halo" cx="280" cy="240" r="18"></circle>
+            <circle class="token hybrid-ball" cx="280" cy="240" r="12"></circle>
+            <text class="edge-label" x="300" y="80" id="hybridMode">连续流：&#7745; = v, v&#775; = -g</text>
+          </svg>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary ctrl-play">播放</button>
+          <button class="btn ctrl-step">重新抛出</button>
+          <button class="btn ctrl-reset">重置</button>
+          <span class="status ctrl-status">静止</span>
+        </div>
+        <div class="detail-box">连续阶段遵循 <code>h&#775;=v, v&#775;=-g</code>（抛物线轨迹）；触地 <code>h=0</code> 时触发离散跳变 <code>v := -e&middot;v</code>（e 为恢复系数），能量逐次衰减。</div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-label">高度 h</span><span class="stat-value" id="s08-height">0</span></div>
+          <div class="stat"><span class="stat-label">速度 v</span><span class="stat-value" id="s08-velocity">0</span></div>
+          <div class="stat"><span class="stat-label">弹跳次数</span><span class="stat-value" id="s08-bounces">0</span></div>
+          <div class="stat"><span class="stat-label">当前模式</span><span class="stat-value warn" id="s08-mode">静止</span></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function reduceMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  function el(tag, attrs){
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs){ if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+  function setStat(id, v){ var e = document.getElementById(id); if (e) e.textContent = v; }
+  function setStatClass(id, cls){
+    var e = document.getElementById(id); if (!e) return;
+    e.classList.remove('good','bad','warn'); if (cls) e.classList.add(cls);
+  }
+  function tween2(getXY, setXY, toXY, dur){
+    if (reduceMotion() || dur <= 0){ setXY(toXY[0], toXY[1]); return; }
+    var fx = getXY()[0], fy = getXY()[1], tx = toXY[0], ty = toXY[1];
+    var start = performance.now();
+    function step(t){
+      var k = Math.min(1, (t - start) / dur);
+      var e = k < .5 ? 2*k*k : 1 - Math.pow(-2*k+2, 2)/2;
+      setXY(fx + (tx-fx)*e, fy + (ty-fy)*e);
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* base class */
+  function Viz(root){
+    this.root = root;
+    this.svg = root.querySelector('svg.viz');
+    this.playBtn = root.querySelector('.ctrl-play');
+    this.stepBtn = root.querySelector('.ctrl-step');
+    this.resetBtn = root.querySelector('.ctrl-reset');
+    this.statusEl = root.querySelector('.ctrl-status');
+    this.playing = false;
+    this.rafId = null;
+    this.lastT = 0;
+    this.acc = 0;
+    var self = this;
+    if (this.playBtn) this.playBtn.addEventListener('click', function(){ self.toggle(); });
+    if (this.stepBtn) this.stepBtn.addEventListener('click', function(){ self.pause(); self.step(); });
+    if (this.resetBtn) this.resetBtn.addEventListener('click', function(){ self.pause(); self.reset(); });
+    this.reset();
+  }
+  Viz.prototype.toggle = function(){ this.playing ? this.pause() : this.play(); };
+  Viz.prototype.play = function(){
+    if (this.playing) return;
+    this.playing = true;
+    if (this.playBtn) this.playBtn.textContent = '暂停';
+    this.lastT = performance.now();
+    var self = this;
+    function loop(t){
+      if (!self.playing) return;
+      var dt = Math.min(0.05, (t - self.lastT) / 1000);
+      self.lastT = t;
+      self.frame(dt);
+      self.rafId = requestAnimationFrame(loop);
+    }
+    this.rafId = requestAnimationFrame(loop);
+  };
+  Viz.prototype.pause = function(){
+    this.playing = false;
+    if (this.playBtn) this.playBtn.textContent = '播放';
+    if (this.rafId){ cancelAnimationFrame(this.rafId); this.rafId = null; }
+  };
+  Viz.prototype.setStatus = function(s){ if (this.statusEl) this.statusEl.textContent = s; };
+  Viz.prototype.frame = function(dt){};
+  Viz.prototype.step = function(){};
+  Viz.prototype.reset = function(){};
+
+  /* 01 TLA+ */
+  function TLAViz(root){ Viz.call(this, root); }
+  TLAViz.prototype = Object.create(Viz.prototype);
+  TLAViz.prototype.constructor = TLAViz;
+  TLAViz.prototype.pts = [[60,110],[200,110],[340,110],[480,110]];
+  TLAViz.prototype.reset = function(){
+    this.idx = 0; this.reached = false; this.acc = 0; this.trans = 0; this.interval = 1.0;
+    this.place(0, true); this.update();
+  };
+  TLAViz.prototype.step = function(){
+    this.idx = (this.idx + 1) % 4;
+    if (this.idx === 3) this.reached = true;
+    this.trans++;
+    this.place(this.idx, false); this.update();
+  };
+  TLAViz.prototype.frame = function(dt){
+    this.acc += dt;
+    if (this.acc >= this.interval){ this.acc -= this.interval; this.step(); }
+  };
+  TLAViz.prototype.place = function(i, instant){
+    var x = this.pts[i][0];
+    var token = this.svg.querySelector('.tla-token');
+    var halo = this.svg.querySelector('.tla-halo');
+    var self = this;
+    var cur = parseFloat(token.dataset.x);
+    if (isNaN(cur)) cur = x;
+    function set(v){ token.setAttribute('transform','translate('+v+',110)'); token.dataset.x = v; halo.setAttribute('transform','translate('+v+',110)'); }
+    if (instant || reduceMotion()){ token.dataset.x = x; set(x); }
+    else { tween2(function(){ return [parseFloat(token.dataset.x)||x, 110]; }, function(vx){ set(vx); }, [x,110], 360); }
+  };
+  TLAViz.prototype.update = function(){
+    var states = ['s01-s0','s01-s1','s01-s2','s01-s3'];
+    for (var i=0;i<states.length;i++){
+      var e = document.getElementById(states[i]);
+      if (e) e.classList.toggle('state-active', i === this.idx);
+    }
+    setStat('s01-state', 'S'+this.idx);
+    setStat('s01-trans', this.trans);
+    if (this.reached){ setStat('s01-liveness','\u2713 已达成'); setStatClass('s01-liveness','good'); }
+    else { setStat('s01-liveness','… 等待'); setStatClass('s01-liveness','warn'); }
+    this.setStatus(this.reached ? '活性已达成，循环继续' : '运行中：S'+this.idx);
+  };
+
+  /* 02 Alloy */
+  function AlloyViz(root){ Viz.call(this, root); }
+  AlloyViz.prototype = Object.create(Viz.prototype);
+  AlloyViz.prototype.constructor = AlloyViz;
+  AlloyViz.prototype.pts = [[140,70],[420,70],[140,170],[420,170]];
+  AlloyViz.prototype.labels = ['A','B','C','D'];
+  AlloyViz.prototype.reset = function(){ this.acc = 0; this.interval = 1.8; this.draw(true); };
+  AlloyViz.prototype.step = function(){ this.draw(false); };
+  AlloyViz.prototype.frame = function(dt){ this.acc += dt; if (this.acc >= this.interval){ this.acc -= this.interval; this.draw(false); } };
+  AlloyViz.prototype.draw = function(clear){
+    var gE = this.svg.querySelector('.alloy-edges');
+    var gN = this.svg.querySelector('.alloy-nodes');
+    gE.innerHTML = ''; gN.innerHTML = '';
+    if (clear){
+      setStat('s02-edges','0'); setStat('s02-sat','—'); setStat('s02-cex','—');
+      this.setStatus('已清空');
+      return;
+    }
+    var n = 4, adj = [[false,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false]];
+    var ec = 0;
+    for (var i=0;i<n;i++) for (var j=0;j<n;j++) if (i!==j && Math.random()<0.34){ adj[i][j]=true; ec++; }
+    if (ec === 0){ adj[0][1]=true; ec=1; }
+    function shorten(x1,y1,x2,y2,back){
+      var dx=x2-x1, dy=y2-y1, d=Math.hypot(dx,dy)||1;
+      return { x1:x1+dx/d*back, y1:y1+dy/d*back, x2:x2-dx/d*back, y2:y2-dy/d*back };
+    }
+    for (var a=0;a<n;a++) for (var b=0;b<n;b++) if (adj[a][b]){
+      var p = shorten(this.pts[a][0],this.pts[a][1],this.pts[b][0],this.pts[b][1],20);
+      var ln = el('line',{x1:p.x1,y1:p.y1,x2:p.x2,y2:p.y2});
+      ln.setAttribute('class','edge'); ln.setAttribute('marker-end','url(#arrow-accent)');
+      gE.appendChild(ln);
+    }
+    var cex = [];
+    for (var k=0;k<n;k++){
+      var outDeg = 0; for (var m=0;m<n;m++) if (adj[k][m]) outDeg++;
+      if (outDeg===0) cex.push(this.labels[k]);
+      var c = el('circle',{cx:this.pts[k][0],cy:this.pts[k][1],r:18});
+      c.setAttribute('class','state'+(outDeg===0?' state-bad':' state-active'));
+      gN.appendChild(c);
+      var t = el('text',{x:this.pts[k][0],y:this.pts[k][1]});
+      t.setAttribute('class','node-label'); t.textContent = this.labels[k];
+      gN.appendChild(t);
+    }
+    setStat('s02-edges', ec);
+    var sat = cex.length===0;
+    setStat('s02-sat', sat?'\u2713 满足':'\u2717 有反例');
+    setStatClass('s02-sat', sat?'good':'bad');
+    setStat('s02-cex', cex.length? cex.join(', ') : '—');
+    setStatClass('s02-cex', cex.length?'bad':'');
+    this.setStatus(sat? '实例满足约束' : '反例：节点 '+cex.join(', ')+' 无朋友');
+  };
+
+  /* 03 SPIN */
+  function SPINViz(root){ Viz.call(this, root); }
+  SPINViz.prototype = Object.create(Viz.prototype);
+  SPINViz.prototype.constructor = SPINViz;
+  SPINViz.prototype.pts = [[70,110],[200,62],[200,158],[340,62],[340,158],[480,110]];
+  SPINViz.prototype.path = [0,1,4];
+  SPINViz.prototype.reset = function(){ this.pi = 0; this.acc = 0; this.interval = 1.1; this.place(0, true); this.update(); };
+  SPINViz.prototype.step = function(){ this.pi = (this.pi + 1) % this.path.length; this.place(this.path[this.pi], false); this.update(); };
+  SPINViz.prototype.frame = function(dt){ this.acc += dt; if (this.acc >= this.interval){ this.acc -= this.interval; this.step(); } };
+  SPINViz.prototype.place = function(nodeIdx, instant){
+    var p = this.pts[nodeIdx];
+    var token = this.svg.querySelector('.spin-token');
+    var halo = this.svg.querySelector('.spin-halo');
+    var cur = token.dataset.xy ? token.dataset.xy.split(',').map(Number) : p;
+    function set(x,y){ token.setAttribute('transform','translate('+x+','+y+')'); token.dataset.xy = x+','+y; halo.setAttribute('transform','translate('+x+','+y+')'); }
+    if (instant || reduceMotion()){ set(p[0],p[1]); }
+    else { tween2(function(){ return token.dataset.xy ? token.dataset.xy.split(',').map(Number) : p; }, function(x,y){ set(x,y); }, p, 420); }
+  };
+  SPINViz.prototype.update = function(){
+    var cur = this.path[this.pi];
+    setStat('s03-cur', 'N'+cur);
+    setStatClass('s03-cur', cur===4?'bad':'warn');
+    this.setStatus(cur===4 ? '反例：进入 N4 (q)，性质被违反' : '回放反例路径 … N'+cur);
+  };
+
+  /* 04 Coq */
+  function CoqViz(root){ Viz.call(this, root); }
+  CoqViz.prototype = Object.create(Viz.prototype);
+  CoqViz.prototype.constructor = CoqViz;
+  CoqViz.prototype.reset = function(){
+    this.steps = Array.prototype.slice.call(this.svg.querySelectorAll('[data-step]'));
+    this.steps.sort(function(a,b){ return (+a.getAttribute('data-step')) - (+b.getAttribute('data-step')); });
+    this.si = 0; this.proved = 0; this.acc = 0; this.interval = 1.2;
+    var self = this;
+    this.steps.forEach(function(s){ s.classList.remove('shown'); });
+    var banner = document.getElementById('coq-banner');
+    if (banner) banner.textContent = '按“单步”依次应用 tactic …';
+    this.update();
+  };
+  CoqViz.prototype.step = function(){
+    if (this.si < this.steps.length){
+      this.steps[this.si].classList.add('shown');
+      this.si++;
+      if (this.si === 3) this.proved = 1;
+      if (this.si === 6) this.proved = 2;
+      this.update();
+    }
+  };
+  CoqViz.prototype.frame = function(dt){
+    this.acc += dt;
+    if (this.acc >= this.interval){
+      this.acc -= this.interval;
+      if (this.si < this.steps.length) this.step();
+      else this.pause();
+    }
+  };
+  CoqViz.prototype.update = function(){
+    var remaining = 2 - this.proved;
+    setStat('s04-goals', remaining); setStatClass('s04-goals', remaining===0?'good':'warn');
+    setStat('s04-proved', this.proved+'/2');
+    setStat('s04-tactics', this.si);
+    setStat('s04-step', this.si+' / 6');
+    this.setStatus(remaining===0 ? 'Qed. 证明完成' : '剩余目标：'+remaining);
+    var banner = document.getElementById('coq-banner');
+    if (banner){
+      if (this.si === 0) banner.textContent = '按“单步”依次应用 tactic …';
+      else if (remaining === 0) banner.textContent = 'Qed. 证明完成';
+      else banner.textContent = '已应用 '+this.si+' 步 tactic …';
+    }
+  };
+
+  /* 05 Z3 */
+  function Z3Viz(root){ Viz.call(this, root); }
+  Z3Viz.prototype = Object.create(Viz.prototype);
+  Z3Viz.prototype.constructor = Z3Viz;
+  Z3Viz.prototype.ox = 60; Z3Viz.prototype.oy = 230; Z3Viz.prototype.sx = 38; Z3Viz.prototype.sy = 18;
+  Z3Viz.prototype.cands = [[0,0],[9,9],[5,5],[8,3],[2,8]];
+  Z3Viz.prototype.reset = function(){ this.ci = 0; this.acc = 0; this.interval = 0.9; this.place(this.cands[0], true); this.update(); };
+  Z3Viz.prototype.step = function(){ this.ci = Math.min(this.ci+1, this.cands.length-1); this.place(this.cands[this.ci], false); this.update(); };
+  Z3Viz.prototype.frame = function(dt){ this.acc += dt; if (this.acc >= this.interval){ this.acc -= this.interval; if (this.ci < this.cands.length-1) this.step(); else this.pause(); } };
+  Z3Viz.prototype.toSvg = function(p){ return [this.ox + p[0]*this.sx, this.oy - p[1]*this.sy]; };
+  Z3Viz.prototype.place = function(p, instant){
+    var s = this.toSvg(p);
+    var pt = this.svg.querySelector('.z3-point');
+    var halo = this.svg.querySelector('.z3-halo');
+    var self = this;
+    function set(x,y){ pt.setAttribute('transform','translate('+x+','+y+')'); pt.dataset.xy = x+','+y; halo.setAttribute('transform','translate('+x+','+y+')'); }
+    if (instant || reduceMotion()){ set(s[0],s[1]); }
+    else { tween2(function(){ return pt.dataset.xy ? pt.dataset.xy.split(',').map(Number) : s; }, function(x,y){ set(x,y); }, s, 380); }
+  };
+  Z3Viz.prototype.update = function(){
+    var p = this.cands[this.ci];
+    var feasible = p[0]>=2 && p[1]>=3 && p[0]<=8 && p[1]<=8 && p[0]+p[1]>=10;
+    var done = this.ci >= this.cands.length-1;
+    setStat('s05-status', done?'sat':'搜索中'); setStatClass('s05-status', done?'good':'warn');
+    setStat('s05-sol','('+p[0]+', '+p[1]+')');
+    this.setStatus(done ? 'sat · 求解成功 ('+p[0]+', '+p[1]+')' : (feasible?'候选满足约束':'候选不可行，继续搜索'));
+  };
+
+  /* 06 Process algebra */
+  function ProcViz(root){ Viz.call(this, root); }
+  ProcViz.prototype = Object.create(Viz.prototype);
+  ProcViz.prototype.constructor = ProcViz;
+  ProcViz.prototype.pPos = [[140,40],[140,134],[80,222],[200,222]];
+  ProcViz.prototype.qPos = [[420,40],[362,134],[486,134],[362,222],[486,222]];
+  // sequence of (pIndex, qIndex, label)
+  ProcViz.prototype.seq = [[0,0,''],[1,1,'a'],[2,3,'a·b'],[0,0,'reset'],[1,2,'a'],[3,4,'a·c']];
+  ProcViz.prototype.reset = function(){ this.si = 0; this.acc = 0; this.interval = 1.3; this.place(this.seq[0], true); this.update(); };
+  ProcViz.prototype.step = function(){ this.si = (this.si + 1) % this.seq.length; this.place(this.seq[this.si], false); this.update(); };
+  ProcViz.prototype.frame = function(dt){ this.acc += dt; if (this.acc >= this.interval){ this.acc -= this.interval; this.step(); } };
+  ProcViz.prototype.place = function(frame, instant){
+    var pp = this.pPos[frame[0]], qp = this.qPos[frame[1]];
+    var tp = this.svg.querySelector('.proc-token-p'), hp = this.svg.querySelector('.proc-halo-p');
+    var tq = this.svg.querySelector('.proc-token-q'), hq = this.svg.querySelector('.proc-halo-q');
+    function setP(x,y){ tp.setAttribute('transform','translate('+x+','+y+')'); tp.dataset.xy=x+','+y; hp.setAttribute('transform','translate('+x+','+y+')'); }
+    function setQ(x,y){ tq.setAttribute('transform','translate('+x+','+y+')'); tq.dataset.xy=x+','+y; hq.setAttribute('transform','translate('+x+','+y+')'); }
+    if (instant || reduceMotion()){ setP(pp[0],pp[1]); setQ(qp[0],qp[1]); }
+    else {
+      tween2(function(){ return tp.dataset.xy?tp.dataset.xy.split(',').map(Number):pp; }, function(x,y){ setP(x,y); }, pp, 420);
+      tween2(function(){ return tq.dataset.xy?tq.dataset.xy.split(',').map(Number):qp; }, function(x,y){ setQ(x,y); }, qp, 420);
+    }
+  };
+  ProcViz.prototype.update = function(){
+    var frame = this.seq[this.si];
+    setStat('s06-trace', frame[2] || '—');
+    this.setStatus(frame[2] ? '同步动作：'+frame[2] : '初始状态');
+  };
+
+  /* 07 Timed automata */
+  function TimedViz(root){ Viz.call(this, root); }
+  TimedViz.prototype = Object.create(Viz.prototype);
+  TimedViz.prototype.constructor = TimedViz;
+  TimedViz.prototype.locs = [[180,110],[380,110]];
+  TimedViz.prototype.reset = function(){ this.loc = 0; this.x = 0; this.trans = 0; this.place(true); this.update(); };
+  TimedViz.prototype.guard = function(l){ return l===0 ? 3 : 2; };
+  TimedViz.prototype.inv = function(l){ return l===0 ? 5 : 4; };
+  TimedViz.prototype.frame = function(dt){
+    this.x += dt;
+    var g = this.guard(this.loc), iv = this.inv(this.loc);
+    if (this.x >= g){ this.loc = 1 - this.loc; this.x = 0; this.trans++; }
+    if (this.x > iv) this.x = iv;
+    this.place(false); this.update();
+  };
+  TimedViz.prototype.step = function(){
+    // jump to next transition
+    this.x = this.guard(this.loc);
+    this.loc = 1 - this.loc; this.x = 0; this.trans++;
+    this.place(false); this.update();
+  };
+  TimedViz.prototype.place = function(instant){
+    var p = this.locs[this.loc];
+    var token = this.svg.querySelector('.timed-token');
+    var halo = this.svg.querySelector('.timed-halo');
+    var fill = document.getElementById('clockFill');
+    var maxBar = 220, frac = Math.min(1, this.x / 5);
+    if (fill) fill.setAttribute('width', String(frac * maxBar));
+    document.getElementById('tloc-0').classList.toggle('state-active', this.loc===0);
+    document.getElementById('tloc-1').classList.toggle('state-active', this.loc===1);
+    function set(x,y){ token.setAttribute('transform','translate('+x+','+y+')'); halo.setAttribute('transform','translate('+x+','+y+')'); }
+    if (instant || reduceMotion()){ set(p[0],p[1]); }
+    else { tween2(function(){ var t=token.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)/); return t?[+t[1],+t[2]]:p; }, function(x,y){ set(x,y); }, p, 300); }
+  };
+  TimedViz.prototype.update = function(){
+    var xs = this.x.toFixed(2);
+    setStat('s07-clock', xs);
+    setStat('s07-loc', 'L'+this.loc);
+    setStat('s07-inv', 'x\u2264'+this.inv(this.loc));
+    setStat('s07-trans', this.trans);
+    var ct = document.getElementById('clockText'); if (ct) ct.textContent = xs;
+    this.setStatus('L'+this.loc+' · x='+xs);
+  };
+
+  /* 08 Hybrid */
+  function HybridViz(root){ Viz.call(this, root); }
+  HybridViz.prototype = Object.create(Viz.prototype);
+  HybridViz.prototype.constructor = HybridViz;
+  HybridViz.prototype.ground = 240;
+  HybridViz.prototype.g = 900;
+  HybridViz.prototype.reset = function(){
+    this.y = 240; this.v = -420; this.bounces = 0; this.mode = '静止';
+    this.trailPts = [];
+    var tr = document.getElementById('hybridTrail'); if (tr) tr.setAttribute('points','');
+    this.place(); this.update();
+    this.setStatus('静止');
+  };
+  HybridViz.prototype.frame = function(dt){
+    this.v += this.g * dt;
+    this.y += this.v * dt;
+    this.mode = '连续流';
+    if (this.y >= this.ground){
+      this.y = this.ground;
+      if (Math.abs(this.v) < 70){ this.v = 0; this.mode = '静止'; }
+      else { this.v = -this.v * 0.78; this.bounces++; this.mode = '离散跳变'; }
+    }
+    this.trailPts.push([280, this.y]);
+    if (this.trailPts.length > 140) this.trailPts.shift();
+    this.place(); this.update();
+  };
+  HybridViz.prototype.step = function(){ this.reset(); this.v = -420; this.mode='连续流'; this.place(); this.update(); };
+  HybridViz.prototype.place = function(){
+    var ball = this.svg.querySelector('.hybrid-ball');
+    var halo = this.svg.querySelector('.hybrid-halo');
+    if (ball) ball.setAttribute('cy', String(this.y));
+    if (halo) halo.setAttribute('cy', String(this.y));
+    var tr = document.getElementById('hybridTrail');
+    if (tr) tr.setAttribute('points', this.trailPts.map(function(p){ return p[0]+','+p[1]; }).join(' '));
+    var m = document.getElementById('hybridMode');
+    if (m) m.textContent = this.mode === '连续流' ? '连续流：h\u0307=v, v\u0307=-g' : (this.mode === '离散跳变' ? '离散跳变：v := -e\u00b7v' : '静止');
+  };
+  HybridViz.prototype.update = function(){
+    setStat('s08-height', Math.max(0, Math.round(this.ground - this.y)));
+    setStat('s08-velocity', Math.round(this.v));
+    setStat('s08-bounces', this.bounces);
+    setStat('s08-mode', this.mode);
+    setStatClass('s08-mode', this.mode==='离散跳变'?'bad':(this.mode==='连续流'?'warn':''));
+    this.setStatus(this.mode);
+  };
+
+  var REGISTRY = { tla: TLAViz, alloy: AlloyViz, spin: SPINViz, coq: CoqViz, z3: Z3Viz, proc: ProcViz, timed: TimedViz, hybrid: HybridViz };
+  var roots = document.querySelectorAll('[data-viz]');
+  for (var i=0;i<roots.length;i++){
+    var id = roots[i].getAttribute('data-viz');
+    var Cls = REGISTRY[id];
+    if (Cls) new Cls(roots[i]);
+  }
+
+  /* progress bar */
+  var fill = document.getElementById('progressFill');
+  var ticking = false;
+  function updateProgress(){
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function(){
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      var p = max > 0 ? (h.scrollTop || document.body.scrollTop) / max : 0;
+      if (fill) fill.style.width = (Math.min(1, Math.max(0, p)) * 100) + '%';
+      ticking = false;
+    });
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+
+  /* fade-in via IntersectionObserver */
+  var fadeEls = document.querySelectorAll('.fade-in');
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting){ en.target.classList.add('visible'); io.unobserve(en.target); } });
+    }, { threshold: 0.12 });
+    fadeEls.forEach(function(e){ io.observe(e); });
+  } else {
+    fadeEls.forEach(function(e){ e.classList.add('visible'); });
+  }
+
+  /* sidebar active link */
+  var modules = document.querySelectorAll('.module');
+  var sideLinks = document.querySelectorAll('.side-link');
+  if ('IntersectionObserver' in window){
+    var sio = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting){
+          var id = en.target.id;
+          sideLinks.forEach(function(l){ l.classList.toggle('active', l.getAttribute('href') === '#'+id); });
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    modules.forEach(function(m){ sio.observe(m); });
+  }
+})();
+</script>
+</body>
+</html>

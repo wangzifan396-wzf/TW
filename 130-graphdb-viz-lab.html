@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>graphdb-viz-lab · 图数据库与图查询可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#5e6ad2;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(94,106,210,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:100%;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(94,106,210,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(94,106,210,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block;touch-action:manipulation}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#0b0b0c;border-color:transparent}
+.btn.primary:hover{background:#7480de}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>graphdb</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">graph database</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/graphdb-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>属性图模型</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>Cypher 查询</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>遍历算法</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>图模式匹配</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>索引策略</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>ACID 事务</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>社区检测</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>图数据库对比</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/graphdb-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>图数据库与图查询 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现属性图模型、Cypher 查询、图遍历、模式匹配、社区检测等图数据库核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 属性图模型 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>属性图模型 · 四要素</h2>
+      <p>属性图由 Node（节点）、Edge（关系）、Property（属性）、Label（标签）四要素构成。点击节点或关系查看其标签与属性。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">property-graph.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>节点 Node</span>
+          <span><i style="background:#7c5cff"></i>关系 Edge</span>
+          <span><i style="background:#34d399"></i>属性 Property</span>
+          <span><i style="background:#fbbf24"></i>标签 Label</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">属性图模型</h4>
+          <p id="p01detail">点击图中任一节点或关系，查看其标签与键值对属性。节点可有多个标签，关系是有向的且必须有类型名。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">节点数</div><div class="v amber" id="st01nodes">—</div></div>
+          <div class="stat"><div class="k">关系数</div><div class="v purple" id="st01edges">—</div></div>
+          <div class="stat"><div class="k">属性数</div><div class="v" id="st01props">—</div></div>
+          <div class="stat"><div class="k">标签数</div><div class="v" id="st01labels">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 Cypher 查询 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>Cypher 查询语言</h2>
+      <p>Neo4j 的声明式图查询语言。MATCH 匹配模式、WHERE 过滤、RETURN 投影、CREATE 写入。切换查询语句观察匹配结果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">cypher-query.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>匹配节点</span>
+          <span><i style="background:#fbbf24"></i>匹配关系</span>
+          <span><i style="background:#5e6ad2"></i>其他节点</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">Cypher 语法</h4>
+          <p id="p02detail">Cypher 用 ASCII 艺术表达图模式：<code>(n:Label)</code> 表示节点，<code>-[r:TYPE]-&gt;</code> 表示有向关系。MATCH 子句做模式匹配，WHERE 做谓词过滤。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">匹配节点</div><div class="v amber" id="st02match">—</div></div>
+          <div class="stat"><div class="k">匹配关系</div><div class="v purple" id="st02rel">—</div></div>
+          <div class="stat"><div class="k">扫描量</div><div class="v" id="st02scan">—</div></div>
+          <div class="stat"><div class="k">查询类型</div><div class="v" id="st02type">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 遍历算法 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>图遍历算法</h2>
+      <p>BFS 广度优先、DFS 深度优先、最短路径（Dijkstra）。调节最大深度，播放动画观察访问顺序与剪枝效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">traversal.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>已访问</span>
+          <span><i style="background:#fbbf24"></i>当前节点</span>
+          <span><i style="background:#f87171"></i>前沿 Frontier</span>
+          <span><i style="background:#5e6ad2"></i>未访问</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">遍历说明</h4>
+          <p id="p03detail">BFS 用队列，逐层扩展，适合最短跳数。DFS 用栈，深入到底再回溯，适合连通性与环检测。深度限制可控制遍历范围，类似 Cypher 的 depth 参数。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">访问顺序</div><div class="v amber" id="st03order">—</div></div>
+          <div class="stat"><div class="k">已访问</div><div class="v purple" id="st03visited">0</div></div>
+          <div class="stat"><div class="k">最大深度</div><div class="v" id="st03depth">—</div></div>
+          <div class="stat"><div class="k">当前算法</div><div class="v" id="st03algo">BFS</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 图模式匹配 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>图模式匹配 · 子图同构</h2>
+      <p>在目标图中查找与模式图同构的子图。切换不同模式，观察匹配结果。子图同构是 NP-完全问题。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">pattern-matching.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>匹配子图</span>
+          <span><i style="background:#fbbf24"></i>模式图节点</span>
+          <span><i style="background:#5e6ad2"></i>目标图</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">子图同构</h4>
+          <p id="p04detail">模式匹配需保持节点标签、关系类型与拓扑结构一致。Cypher 的 MATCH 即基于子图同构。NP-完全意味着大规模图上需依赖索引与剪枝加速。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式节点</div><div class="v amber" id="st04pn">—</div></div>
+          <div class="stat"><div class="k">目标节点</div><div class="v purple" id="st04tn">—</div></div>
+          <div class="stat"><div class="k">匹配数</div><div class="v" id="st04match">—</div></div>
+          <div class="stat"><div class="k">复杂度</div><div class="v" id="st04comp">NP-c</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 索引策略 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>索引策略</h2>
+      <p>标签索引、属性索引、全文索引、组合索引。切换索引开关，观察全表扫描与索引查找的访问量差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">index-strategy.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>索引命中</span>
+          <span><i style="background:#f87171"></i>全表扫描</span>
+          <span><i style="background:#fbbf24"></i>B-tree 节点</span>
+          <span><i style="background:#5e6ad2"></i>数据节点</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">索引说明</h4>
+          <p id="p05detail">标签索引加速按标签的节点查找；属性索引加速等值/范围查询；全文索引支持文本搜索；组合索引处理多属性联合查询。无索引时需全图扫描，规模 O(n)。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">访问节点</div><div class="v amber" id="st05access">—</div></div>
+          <div class="stat"><div class="k">索引层</div><div class="v purple" id="st05layer">—</div></div>
+          <div class="stat"><div class="k">加速比</div><div class="v" id="st05speedup">—</div></div>
+          <div class="stat"><div class="k">查询类型</div><div class="v" id="st05type">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 ACID 事务 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>ACID 事务与锁机制</h2>
+      <p>图数据库的事务隔离与锁。两个事务并发读写同一节点时，观察共享锁、排他锁与死锁。逐步执行观察隔离级别效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">acid-transaction.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>共享锁 S (读)</span>
+          <span><i style="background:#f87171"></i>排他锁 X (写)</span>
+          <span><i style="background:#fbbf24"></i>提交</span>
+          <span><i style="background:#62666d"></i>等待</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">事务隔离</h4>
+          <p id="p06detail">Neo4j 默认 Read Committed 隔离级别：读加短时共享锁，写加排他锁直至提交。两阶段锁（2PL）保证可串行化，但可能死锁，需检测与回滚。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前步骤</div><div class="v amber" id="st06step">0</div></div>
+          <div class="stat"><div class="k">T1 状态</div><div class="v purple" id="st06t1">—</div></div>
+          <div class="stat"><div class="k">T2 状态</div><div class="v" id="st06t2">—</div></div>
+          <div class="stat"><div class="k">死锁</div><div class="v" id="st06dead">无</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 社区检测 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>社区检测算法</h2>
+      <p>Louvain 模块度、PageRank 中心性、Connected Components 连通分量。运行算法观察社区划分与节点重要性。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">community-detection.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>社区 A</span>
+          <span><i style="background:#7c5cff"></i>社区 B</span>
+          <span><i style="background:#34d399"></i>社区 C</span>
+          <span><i style="background:#fbbf24"></i>社区 D</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">算法说明</h4>
+          <p id="p07detail">Louvain 通过最大化模块度 Q 划分社区；PageRank 用随机游走迭代计算节点重要性；Connected Components 用并查集找连通块。均为图数据库 GDS 库核心算法。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">社区数</div><div class="v amber" id="st07comm">—</div></div>
+          <div class="stat"><div class="k">模块度 Q</div><div class="v purple" id="st07q">—</div></div>
+          <div class="stat"><div class="k">Top 节点</div><div class="v" id="st07top">—</div></div>
+          <div class="stat"><div class="k">当前算法</div><div class="v" id="st07algo">Louvain</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 图数据库对比 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>图数据库对比</h2>
+      <p>Neo4j、JanusGraph、Amazon Neptune 三大主流图数据库。切换对比维度查看架构、查询语言、一致性模型差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">graphdb-comparison.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>Neo4j</span>
+          <span><i style="background:#7c5cff"></i>JanusGraph</span>
+          <span><i style="background:#34d399"></i>Amazon Neptune</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">对比维度</h4>
+          <p id="p08detail">Neo4j 是原生图数据库，Cypher 查询语言，单机性能强；JanusGraph 基于 Apache TinkerPop，分布式扩展；Neptune 是 AWS 托管服务，支持 Gremlin 与 SPARQL。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">查询语言</div><div class="v amber" id="st08ql">—</div></div>
+          <div class="stat"><div class="k">部署模式</div><div class="v purple" id="st08deploy">—</div></div>
+          <div class="stat"><div class="k">一致性</div><div class="v" id="st08cons">—</div></div>
+          <div class="stat"><div class="k">选型建议</div><div class="v" id="st08pick">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>graphdb-viz-lab · 图数据库与图查询可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/graphdb-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   共享图数据（社交网络示例）
+   ============================================================ */
+const GRAPH_NODES=[
+  {id:0,n:"Alice",labels:["Person"],props:{name:"Alice",age:30,city:"Beijing"},x:140,y:90},
+  {id:1,n:"Bob",labels:["Person"],props:{name:"Bob",age:25,city:"Shanghai"},x:320,y:60},
+  {id:2,n:"Carol",labels:["Person"],props:{name:"Carol",age:28,city:"Beijing"},x:500,y:100},
+  {id:3,n:"Dave",labels:["Person"],props:{name:"Dave",age:35,city:"Shenzhen"},x:200,y:230},
+  {id:4,n:"Eve",labels:["Person"],props:{name:"Eve",age:22,city:"Shanghai"},x:420,y:230},
+  {id:5,n:"GraphDB",labels:["Project"],props:{name:"graphdb-viz",lang:"JS"},x:600,y:230},
+  {id:6,n:"Neo4j",labels:["Software"],props:{name:"Neo4j",version:"5"},x:620,y:330}
+];
+const GRAPH_EDGES=[
+  {s:0,t:1,type:"KNOWS",props:{since:2020}},
+  {s:1,t:2,type:"KNOWS",props:{since:2021}},
+  {s:0,t:3,type:"KNOWS",props:{since:2019}},
+  {s:3,t:4,type:"KNOWS",props:{since:2022}},
+  {s:2,t:4,type:"KNOWS",props:{since:2020}},
+  {s:1,t:4,type:"KNOWS",props:{since:2021}},
+  {s:4,t:5,type:"CONTRIBUTED_TO",props:{commits:42}},
+  {s:2,t:5,type:"CONTRIBUTED_TO",props:{commits:7}},
+  {s:5,t:6,type:"DEPENDS_ON",props:{version:"5.x"}}
+];
+
+/* ============================================================
+   01 属性图模型
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=400;
+  let sel=-1; // -1=none, node id, or edge index+offset
+  let selType="";
+
+  function labelColor(labels){
+    if(labels.indexOf("Person")>=0)return "#5e6ad2";
+    if(labels.indexOf("Project")>=0)return "#34d399";
+    if(labels.indexOf("Software")>=0)return "#fbbf24";
+    return "#7c5cff";
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    GRAPH_EDGES.forEach((e,i)=>{
+      const a=GRAPH_NODES[e.s],b=GRAPH_NODES[e.t];
+      const isSel=selType==="edge"&&sel===i;
+      const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:isSel?"#fbbf24":"rgba(124,92,255,.35)","stroke-width":isSel?2.4:1.3}));
+      // 箭头
+      const ang=Math.atan2(b.y-a.y,b.x-a.x);
+      const ex=b.x-Math.cos(ang)*26,ey=b.y-Math.sin(ang)*26;
+      const ax1=ex-Math.cos(ang-0.4)*8,ay1=ey-Math.sin(ang-0.4)*8;
+      const ax2=ex-Math.cos(ang+0.4)*8,ay2=ey-Math.sin(ang+0.4)*8;
+      svg.appendChild(el("path",{d:"M"+ax1+","+ay1+" L"+ex+","+ey+" L"+ax2+","+ay2+" z",fill:isSel?"#fbbf24":"#7c5cff",opacity:.8}));
+      // 类型标签
+      const tl=el("text",{x:mid.x,y:mid.y-4,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:isSel?"#fbbf24":"#9b9fa8"});tl.textContent=e.type;svg.appendChild(tl);
+      // 点击热区
+      const hit=el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"transparent","stroke-width":12,cursor:"pointer"});
+      hit.addEventListener("click",()=>{selType="edge";sel=i;draw();});
+      svg.appendChild(hit);
+    });
+    // 节点
+    GRAPH_NODES.forEach(nd=>{
+      const c=labelColor(nd.labels);
+      const isSel=selType==="node"&&sel===nd.id;
+      const g=el("g",{transform:"translate("+nd.x+","+nd.y+")",style:"cursor:pointer"});
+      g.addEventListener("click",()=>{selType="node";sel=nd.id;draw();});
+      svg.appendChild(g);
+      g.appendChild(el("circle",{r:isSel?26:22,fill:c,opacity:.18,stroke:c,"stroke-width":isSel?2.4:1.6}));
+      // 标签胶囊
+      const lbl=nd.labels[0];
+      const tw=lbl.length*6.5+12;
+      g.appendChild(el("rect",{x:-tw/2,y:-42,width:tw,height:16,rx:8,fill:"#0b0b0c",stroke:c,"stroke-width":1}));
+      const lt=el("text",{x:0,y:-30,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:c});lt.textContent=":"+lbl;g.appendChild(lt);
+      const nt=el("text",{x:0,y:5,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#f7f8f8",style:"pointer-events:none"});nt.textContent=nd.n;g.appendChild(nt);
+    });
+    // 统计
+    let propCount=0;
+    GRAPH_NODES.forEach(n=>propCount+=Object.keys(n.props).length);
+    GRAPH_EDGES.forEach(e=>propCount+=Object.keys(e.props).length);
+    const labelSet=new Set();
+    GRAPH_NODES.forEach(n=>n.labels.forEach(l=>labelSet.add(l)));
+    $("st01nodes").textContent=GRAPH_NODES.length;
+    $("st01edges").textContent=GRAPH_EDGES.length;
+    $("st01props").textContent=propCount;
+    $("st01labels").textContent=labelSet.size;
+    // 详情
+    if(selType==="node"){
+      const nd=GRAPH_NODES[sel];
+      let html="<b style='color:"+labelColor(nd.labels)+"'>"+nd.n+"</b> :"+nd.labels.join(":")+"<br>";
+      html+="属性：<code>";
+      let arr=[];
+      for(const k in nd.props)arr.push(k+": "+JSON.stringify(nd.props[k]));
+      html+=arr.join(", ")+"</code>";
+      $("p01title").textContent="节点 · "+nd.n;
+      $("p01detail").innerHTML=html;
+    }else if(selType==="edge"){
+      const e=GRAPH_EDGES[sel];
+      const a=GRAPH_NODES[e.s],b=GRAPH_NODES[e.t];
+      $("p01title").textContent="关系 · "+e.type;
+      let html="(<b>"+a.n+"</b>)-[:<b style='color:#fbbf24'>"+e.type+"</b>]-&gt;(<b>"+b.n+"</b>)<br>属性：<code>";
+      let arr=[];
+      for(const k in e.props)arr.push(k+": "+JSON.stringify(e.props[k]));
+      html+=arr.join(", ")+"</code>";
+      $("p01detail").innerHTML=html;
+    }
+  }
+
+  draw();
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="取消选中";
+  rst.addEventListener("click",()=>{sel=-1;selType="";draw();$("p01title").textContent="属性图模型";$("p01detail").textContent="点击图中任一节点或关系，查看其标签与键值对属性。节点可有多个标签，关系是有向的且必须有类型名。";});
+  ctl.appendChild(rst);
+  // 强调各要素的按钮
+  [["节点 Node","node"],["关系 Edge","edge"],["标签 Label","label"],["属性 Property","prop"]].forEach(p=>{
+    const b=document.createElement("button");b.className="btn small";b.textContent=p[0];
+    b.addEventListener("click",()=>{
+      if(p[1]==="label"){
+        $("p01title").textContent="标签 Label";
+        $("p01detail").innerHTML="标签是节点的类型分类，类似关系数据库的表名。一个节点可有多个标签，如 <code>:Person:Developer</code>。标签用于约束与索引。图中节点上方胶囊即标签。";
+      }else if(p[1]==="prop"){
+        $("p01title").textContent="属性 Property";
+        $("p01detail").innerHTML="属性是键值对，存储在节点或关系上。值可为标量类型（string/int/float/bool）或数组。属性图与 RDF 三元组的关键区别即支持任意属性。";
+      }else if(p[1]==="node"){
+        selType="node";sel=0;draw();
+      }else{
+        selType="edge";sel=0;draw();
+      }
+    });
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   02 Cypher 查询
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  const queries=[
+    {n:"MATCH 全部 Person",type:"读",scan:GRAPH_NODES.length,
+     match:GRAPH_NODES.filter(n=>n.labels[0]==="Person").map(n=>n.id),
+     rels:[],
+     q:"MATCH (n:Person) RETURN n",d:"匹配所有标签为 Person 的节点。无 WHERE 过滤，返回全部 Person。"},
+    {n:"KNOWS 关系",type:"读",scan:GRAPH_EDGES.length,
+     match:[0,1,2,3,4],rels:[0,1,2,3,4,5],
+     q:"MATCH (a:Person)-[:KNOWS]->(b:Person)\nRETURN a, b",d:"匹配任意两个 Person 间的 KNOWS 关系。返回所有朋友对。"},
+    {n:"WHERE 过滤",type:"读",scan:4,
+     match:[0,2],rels:[],
+     q:"MATCH (n:Person)\nWHERE n.age > 26\nRETURN n",d:"WHERE 子句做谓词过滤，只返回 age 大于 26 的 Person。Alice(30)、Carol(28)、Dave(35) 符合。"},
+    {n:"两跳路径",type:"读",scan:GRAPH_EDGES.length,
+     match:[0,1,2],rels:[0,1],
+     q:"MATCH (a)-[:KNOWS*2]->(c)\nRETURN a, c",d:"可变长度路径 *2 表示恰好两跳。Alice 通过 Bob 到 Carol。Cypher 的变长路径是图查询核心能力。"},
+    {n:"CREATE 写入",type:"写",scan:1,
+     match:[],rels:[],
+     q:"CREATE (n:Person {name:'Frank'})\nRETURN n",d:"CREATE 创建新节点。写入操作，匹配结果为新增节点 Frank（图中未显示）。"}
+  ];
+  let cur=0;
+
+  function draw(){
+    clearNode(svg);
+    const q=queries[cur];
+    // 顶部：查询语句
+    const qy=20;
+    svg.appendChild(el("rect",{x:30,y:qy,width:660,height:70,rx:8,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    // 语法高亮（简化）
+    const lines=q.q.split("\n");
+    lines.forEach((ln,i)=>{
+      // 关键字高亮
+      const tokens=ln.split(/(\s+|[(){}\[\]:,])/);
+      let x=42;
+      tokens.forEach(tok=>{
+        if(!tok)return;
+        const kw=["MATCH","WHERE","RETURN","CREATE","AND","OR"].indexOf(tok)>=0;
+        const col=kw?"#5e6ad2":(tok.startsWith(":")?"#fbbf24":(tok.startsWith("(")?"#34d399":"#9b9fa8"));
+        const t=el("text",{x:x,y:qy+24+i*18,"font-size":12,"font-family":MONO,fill:col});
+        t.textContent=tok;svg.appendChild(t);
+        x+=tok.length*7.2;
+      });
+    });
+    // 下方：图与匹配高亮
+    const gy=110;
+    const scale=0.78,ox=20,oy=gy;
+    // 边
+    GRAPH_EDGES.forEach((e,i)=>{
+      const a=GRAPH_NODES[e.s],b=GRAPH_NODES[e.t];
+      const ax=ox+a.x*scale,ay=oy+a.y*scale,bx=ox+b.x*scale,by=oy+b.y*scale;
+      const isMatch=q.rels.indexOf(i)>=0;
+      svg.appendChild(el("line",{x1:ax,y1:ay,x2:bx,y2:by,stroke:isMatch?"#fbbf24":"rgba(124,92,255,.2)","stroke-width":isMatch?2.2:1}));
+      if(isMatch){
+        const mx=(ax+bx)/2,my=(ay+by)/2;
+        const tl=el("text",{x:mx,y:my-3,"text-anchor":"middle","font-size":8,"font-family":MONO,fill:"#fbbf24"});tl.textContent=e.type;svg.appendChild(tl);
+      }
+    });
+    // 节点
+    GRAPH_NODES.forEach(nd=>{
+      const x=ox+nd.x*scale,y=oy+nd.y*scale;
+      const isMatch=q.match.indexOf(nd.id)>=0;
+      const c=isMatch?"#34d399":"#5e6ad2";
+      svg.appendChild(el("circle",{cx:x,cy:y,r:isMatch?16:13,fill:c,opacity:isMatch?.3:.16,stroke:c,"stroke-width":isMatch?2:1.3}));
+      const t=el("text",{x:x,y:y+3,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#f7f8f8"});t.textContent=nd.n;svg.appendChild(t);
+    });
+    // 结果统计条
+    const ry=370;
+    svg.appendChild(el("rect",{x:30,y:ry,width:660,height:22,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const rl=el("text",{x:42,y:ry+15,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});rl.textContent="匹配 "+q.match.length+" 节点 · "+q.rels.length+" 关系 · 扫描 "+q.scan+" 单元 · 类型: "+q.type;svg.appendChild(rl);
+    // 统计
+    $("st02match").textContent=q.match.length;
+    $("st02rel").textContent=q.rels.length;
+    $("st02scan").textContent=q.scan;
+    $("st02type").textContent=q.type;
+    $("p02title").textContent=q.n;
+    $("p02detail").textContent=q.d;
+  }
+
+  draw();
+  queries.forEach((q,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=q.n;
+    b.addEventListener("click",()=>{cur=i;draw();document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   03 遍历算法
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  // 构造一个用于遍历的图（网格状）
+  const TN=[];
+  const cols=6,rows=4;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    TN.push({id:r*cols+c,x:90+c*105,y:80+r*80,visited:false,order:-1,depth:-1});
+  }
+  function adj(i){
+    const r=Math.floor(i/cols),c=i%cols;
+    const a=[];
+    if(c<cols-1)a.push(i+1);
+    if(c>0)a.push(i-1);
+    if(r<rows-1)a.push(i+cols);
+    if(r>0)a.push(i-cols);
+    return a;
+  }
+  let algo="BFS";
+  let maxDepth=99;
+  let order=[],visitedSet=new Set(),frontier=[],curIdx=0,playing=false;
+  const start=0,target=TN.length-1;
+
+  function reset(){
+    order=[];visitedSet=new Set();frontier=[];curIdx=0;
+    TN.forEach(n=>{n.visited=false;n.order=-1;n.depth=-1;});
+  }
+  function stepBFS(){
+    if(frontier.length===0){
+      // 初始化
+      frontier.push({id:start,depth:0});
+      TN[start].depth=0;
+    }
+    while(frontier.length>0){
+      const {id,depth}=frontier.shift();
+      if(visitedSet.has(id))continue;
+      if(depth>maxDepth)continue;
+      visitedSet.add(id);
+      TN[id].visited=true;TN[id].order=order.length;TN[id].depth=depth;
+      order.push(id);curIdx=id;
+      adj(id).forEach(nb=>{
+        if(!visitedSet.has(nb))frontier.push({id:nb,depth:depth+1});
+      });
+      return;
+    }
+  }
+  function stepDFS(){
+    if(frontier.length===0){frontier.push({id:start,depth:0});TN[start].depth=0;}
+    // DFS 用栈顶
+    while(frontier.length>0){
+      const top=frontier[frontier.length-1];
+      if(visitedSet.has(top.id)){frontier.pop();continue;}
+      if(top.depth>maxDepth){frontier.pop();continue;}
+      visitedSet.add(top.id);
+      TN[top.id].visited=true;TN[top.id].order=order.length;TN[top.id].depth=top.depth;
+      order.push(top.id);curIdx=top.id;
+      adj(top.id).reverse().forEach(nb=>{
+        if(!visitedSet.has(nb))frontier.push({id:nb,depth:top.depth+1});
+      });
+      return;
+    }
+  }
+  function step(){
+    if(algo==="BFS")stepBFS();else stepDFS();
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    for(let i=0;i<TN.length;i++){
+      adj(i).forEach(j=>{
+        if(j>i){
+          svg.appendChild(el("line",{x1:TN[i].x,y1:TN[i].y,x2:TN[j].x,y2:TN[j].y,stroke:"rgba(255,255,255,.06)","stroke-width":1}));
+        }
+      });
+    }
+    // 节点
+    TN.forEach(nd=>{
+      const inFrontier=frontier.some(f=>f.id===nd.id)&&!nd.visited;
+      let c="#5e6ad2",r=18,op=.16;
+      if(nd.visited){c="#34d399";op=.3;}
+      if(nd.id===curIdx&&nd.visited){c="#fbbf24";op=.4;r=21;}
+      if(inFrontier){c="#f87171";op=.25;r=20;}
+      if(nd.id===start){c="#7c5cff";op=.4;r=20;}
+      if(nd.id===target&&!nd.visited){c="#f87171";op=.3;r=20;}
+      svg.appendChild(el("circle",{cx:nd.x,cy:nd.y,r:r,fill:c,opacity:op,stroke:c,"stroke-width":1.4}));
+      const lbl=nd.visited?nd.order:nd.id;
+      const t=el("text",{x:nd.x,y:nd.y+3.5,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:nd.visited?"#0b0b0c":"#9b9fa8"});
+      t.textContent=nd.visited?("v"+nd.order):nd.id;svg.appendChild(t);
+      if(nd.depth>=0){
+        const dt=el("text",{x:nd.x,y:nd.y-26,"text-anchor":"middle","font-size":8,"font-family":MONO,fill:"#62666d"});dt.textContent="d"+nd.depth;svg.appendChild(dt);
+      }
+    });
+    // 起点/终点标注
+    const sl=el("text",{x:TN[start].x,y:TN[start].y-32,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#7c5cff"});sl.textContent="START";svg.appendChild(sl);
+    const tl2=el("text",{x:TN[target].x,y:TN[target].y-32,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#f87171"});tl2.textContent="TARGET";svg.appendChild(tl2);
+    // 统计
+    $("st03order").textContent=order.length>0?("v0...v"+(order.length-1)):"—";
+    $("st03visited").textContent=visitedSet.size;
+    $("st03depth").textContent=maxDepth>=99?"∞":maxDepth;
+    $("st03algo").textContent=algo;
+    if(order.length===0){
+      $("p03title").textContent=algo+" 遍历";
+      $("p03detail").textContent=algo==="BFS"?"BFS 用队列，逐层扩展，适合最短跳数。点击“单步”或“播放”开始遍历。":"DFS 用栈，深入到底再回溯，适合连通性与环检测。点击“单步”或“播放”开始遍历。";
+    }else if(visitedSet.has(target)){
+      $("p03title").textContent="已到达目标";
+      $("p03detail").textContent="从节点 "+start+" 到 "+target+"，"+algo+" 共访问 "+visitedSet.size+" 个节点，目标深度 "+TN[target].depth+"。";
+    }else{
+      $("p03title").textContent=algo+" 步骤 "+order.length;
+      $("p03detail").textContent="已访问 "+visitedSet.size+" / "+TN.length+" 节点，前沿队列 "+frontier.length+" 个。当前节点 #"+curIdx+" 深度 "+TN[curIdx].depth+"。";
+    }
+  }
+
+  reset();draw();
+  const stepBtn=document.createElement("button");stepBtn.className="btn primary";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>{step();draw();});
+  const playBtn=document.createElement("button");playBtn.className="btn";playBtn.textContent="播放";
+  playBtn.addEventListener("click",()=>{
+    if(playing){playing=false;playBtn.textContent="播放";return;}
+    playing=true;playBtn.textContent="停止";
+    function next(){
+      if(!playing||visitedSet.has(target)||visitedSet.size>=TN.length){playing=false;playBtn.textContent="播放";draw();return;}
+      step();draw();
+      setTimeout(next,420);
+    }
+    next();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{playing=false;playBtn.textContent="播放";reset();draw();});
+  ctl.appendChild(stepBtn);ctl.appendChild(playBtn);ctl.appendChild(rst);
+  // 算法切换
+  [["BFS","BFS"],["DFS","DFS"]].forEach(a=>{
+    const b=document.createElement("button");b.className="btn small"+(a[0]==="BFS"?" on":"");b.textContent=a[1];
+    b.addEventListener("click",()=>{algo=a[0];playing=false;playBtn.textContent="播放";reset();draw();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  // 深度滑块
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>最大深度</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=1;inp.max=8;inp.value=8;
+  const val=document.createElement("span");val.className="val";val.textContent="∞";
+  inp.addEventListener("input",()=>{maxDepth=+inp.value;val.textContent=+inp.value>=8?"∞":+inp.value;});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   04 图模式匹配
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  // 目标图
+  const T=[
+    {id:0,x:80,y:80,lab:"A"},{id:1,x:200,y:60,lab:"B"},{id:2,x:340,y:90,lab:"A"},
+    {id:3,x:120,y:200,lab:"C"},{id:4,x:260,y:210,lab:"B"},{id:5,x:400,y:200,lab:"C"},
+    {id:6,x:80,y:320,lab:"A"},{id:7,x:220,y:330,lab:"B"},{id:8,x:380,y:310,lab:"C"}
+  ];
+  const E=[[0,1],[1,2],[0,3],[1,4],[2,5],[3,4],[4,5],[3,6],[4,7],[5,8],[6,7],[7,8]];
+  // 模式：三角形 A-B-C
+  const patterns=[
+    {n:"三角形 A-B-C",nodes:[{lab:"A"},{lab:"B"},{lab:"C"}],edges:[[0,1],[1,2],[0,2]],
+     matches:[[0,1,3],[2,1,4],[2,4,5],[6,7,3],[6,7,8]]},
+    {n:"路径 A-B",nodes:[{lab:"A"},{lab:"B"}],edges:[[0,1]],
+     matches:[[0,1],[2,1],[6,7]]},
+    {n:"三角形 A-B-C(连通)",nodes:[{lab:"A"},{lab:"B"},{lab:"C"}],edges:[[0,1],[1,2]],
+     matches:[[0,1,3],[2,1,4],[2,4,5],[6,7,3],[6,7,8]]},
+    {n:"链 C-B-A",nodes:[{lab:"C"},{lab:"B"}],edges:[[0,1]],
+     matches:[[3,1],[3,4],[3,7],[5,4],[8,7],[8,4]]}
+  ];
+  let cur=0,matchIdx=0;
+
+  function draw(){
+    clearNode(svg);
+    const pat=patterns[cur];
+    const match=pat.matches[matchIdx%pat.matches.length];
+    // 左：模式图
+    const px=80,py=60;
+    svg.appendChild(el("rect",{x:20,y:20,width:280,height:200,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const ptl=el("text",{x:160,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fbbf24"});ptl.textContent="模式图 Pattern";svg.appendChild(ptl);
+    // 模式布局
+    const ppos=[[80,120],[200,100],[180,180]];
+    pat.edges.forEach(e=>{
+      svg.appendChild(el("line",{x1:ppos[e[0]][0],y1:ppos[e[0]][1],x2:ppos[e[1]][0],y2:ppos[e[1]][1],stroke:"#fbbf24","stroke-width":1.8}));
+    });
+    pat.nodes.forEach((n,i)=>{
+      svg.appendChild(el("circle",{cx:ppos[i][0],cy:ppos[i][1],r:18,fill:"rgba(251,191,36,.18)",stroke:"#fbbf24","stroke-width":1.6}));
+      const t=el("text",{x:ppos[i][0],y:ppos[i][1]+4,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fbbf24"});t.textContent=n.lab;svg.appendChild(t);
+    });
+    // 右：目标图
+    const ox=340,oy=0;
+    svg.appendChild(el("rect",{x:330,y:20,width:370,height:360,rx:10,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const ttl=el("text",{x:515,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#5e6ad2"});ttl.textContent="目标图 Target";svg.appendChild(ttl);
+    // 边
+    E.forEach(e=>{
+      const a=T[e[0]],b=T[e[1]];
+      const ax=ox+a.x,ay=oy+a.y,bx=ox+b.x,by=oy+b.y;
+      const aIn=match.indexOf(e[0])>=0,bIn=match.indexOf(e[1])>=0;
+      const isMatch=aIn&&bIn;
+      svg.appendChild(el("line",{x1:ax,y1:ay,x2:bx,y2:by,stroke:isMatch?"#34d399":"rgba(124,92,255,.2)","stroke-width":isMatch?2.4:1}));
+    });
+    // 节点
+    T.forEach(nd=>{
+      const x=ox+nd.x,y=oy+nd.y;
+      const mi=match.indexOf(nd.id);
+      const isMatch=mi>=0;
+      const c=isMatch?"#34d399":"#5e6ad2";
+      svg.appendChild(el("circle",{cx:x,cy:y,r:isMatch?17:13,fill:c,opacity:isMatch?.35:.14,stroke:c,"stroke-width":isMatch?2:1.3}));
+      const t=el("text",{x:x,y:y+3.5,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:isMatch?"#0b0b0c":"#9b9fa8"});t.textContent=nd.lab;svg.appendChild(t);
+      if(isMatch){
+        const mt=el("text",{x:x,y:y-22,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#34d399"});mt.textContent="p"+mi;svg.appendChild(mt);
+      }
+    });
+    // 底部说明
+    const matchStr=match.map((id,i)=>"p"+i+"="+T[id].lab+id).join(", ");
+    const nl=el("text",{x:360,y:370,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});nl.textContent="匹配 #"+(matchIdx%pat.matches.length+1)+": "+matchStr;svg.appendChild(nl);
+    // 统计
+    $("st04pn").textContent=pat.nodes.length;
+    $("st04tn").textContent=T.length;
+    $("st04match").textContent=pat.matches.length;
+    $("p04title").textContent=pat.n+" · 匹配 "+(matchIdx%pat.matches.length+1)+"/"+pat.matches.length;
+    $("p04detail").textContent="模式含 "+pat.nodes.length+" 节点 "+pat.edges.length+" 边，在目标图中找到 "+pat.matches.length+" 个同构子图。当前匹配高亮显示。子图同构是 NP-完全问题。";
+  }
+
+  draw();
+  patterns.forEach((p,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=p.n;
+    b.addEventListener("click",()=>{cur=i;matchIdx=0;draw();document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const nextBtn=document.createElement("button");nextBtn.className="btn primary";nextBtn.textContent="下一个匹配 →";
+  nextBtn.addEventListener("click",()=>{matchIdx++;draw();});
+  const prevBtn=document.createElement("button");prevBtn.className="btn small";prevBtn.textContent="← 上一个";
+  prevBtn.addEventListener("click",()=>{matchIdx=Math.max(0,matchIdx-1);draw();});
+  ctl.appendChild(prevBtn);ctl.appendChild(nextBtn);
+})();
+
+/* ============================================================
+   05 索引策略
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let indexOn=true;
+  let qtype=0; // 0=按标签, 1=按属性age, 2=全文name
+  const N=24;
+  // 模拟数据节点
+  const data=[];
+  for(let i=0;i<N;i++){
+    data.push({id:i,lab:i%3===0?"Person":(i%3===1?"Project":"Software"),age:20+i%20,name:["Alice","Bob","GraphDB","Neo4j","Carol","Dave"][i%6]});
+  }
+  // B-tree 节点（按 age 排序的索引）
+  const btree=[];
+  const sorted=data.slice().sort((a,b)=>a.age-b.age);
+  sorted.forEach((d,i)=>btree.push({id:d.id,age:d.age,idx:i}));
+
+  function draw(){
+    clearNode(svg);
+    const qtypes=["MATCH (n:Person)","WHERE n.age = 30","WHERE n.name CONTAINS 'li'"];
+    const qnames=["标签索引","属性索引","全文索引"];
+    // 顶部查询
+    svg.appendChild(el("rect",{x:30,y:20,width:660,height:36,rx:6,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const q=el("text",{x:42,y:43,"font-size":12,"font-family":MONO,fill:"#5e6ad2"});q.textContent="> "+qtypes[qtype];svg.appendChild(q);
+    const ql=el("text",{x:660,y:43,"text-anchor":"end","font-size":10,"font-family":MONO,fill:indexOn?"#34d399":"#f87171"});ql.textContent=indexOn?qnames[qtype]+" ON":"无索引 (全扫描)";svg.appendChild(ql);
+
+    if(indexOn&&(qtype===1||qtype===2)){
+      // 索引路径：B-tree
+      const ix=40,iy=80;
+      svg.appendChild(el("rect",{x:ix,y:iy,width:300,height:160,rx:8,fill:"#101114",stroke:"#fbbf24","stroke-width":1.2}));
+      const itl=el("text",{x:ix+12,y:iy+22,"font-size":11,"font-family":MONO,fill:"#fbbf24"});itl.textContent="B-tree 索引 ("+(qtype===1?"age":"name")+")";svg.appendChild(itl);
+      // 根节点
+      svg.appendChild(el("rect",{x:ix+110,y:iy+34,width:80,height:24,rx:4,fill:"#1c1f24",stroke:"#fbbf24"}));
+      const rt=el("text",{x:ix+150,y:iy+50,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#fbbf24"});rt.textContent="root [25|35]";svg.appendChild(rt);
+      // 叶子节点
+      const leaves=[{x:ix+20,vals:"20,22,24"},{x:ix+110,vals:"25,28,30★"},{x:ix+200,vals:"35,38,40"}];
+      leaves.forEach(l=>{
+        svg.appendChild(el("rect",{x:l.x,y:iy+86,width:80,height:24,rx:4,fill:l.vals.indexOf("30")>=0?"rgba(251,191,36,.2)":"#1c1f24",stroke:"#fbbf24"}));
+        const t=el("text",{x:l.x+40,y:iy+102,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#fbbf24"});t.textContent=l.vals;svg.appendChild(t);
+      });
+      // 箭头到数据
+      svg.appendChild(el("path",{d:"M"+(ix+150)+","+(iy+110)+" L"+(ix+150)+","+(iy+140),stroke:"#34d399","stroke-width":1.4,"marker-end":"url(#ar05)"}));
+      const acc=el("text",{x:ix+150,y:iy+155,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#34d399"});acc.textContent="命中 → 直达 1 节点";svg.appendChild(acc);
+      // 数据区
+      const dx=400,dy=80;
+      svg.appendChild(el("rect",{x:dx,y:dy,width:280,height:280,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+      const dtl=el("text",{x:dx+12,y:dy+22,"font-size":11,"font-family":MONO,fill:"#5e6ad2"});dtl.textContent="数据节点 (高亮命中)";svg.appendChild(dtl);
+      data.forEach((d,i)=>{
+        const r=Math.floor(i/6),c=i%6;
+        const x=dx+30+c*40,y=dy+40+r*40;
+        const hit=(qtype===1&&d.age===30)||(qtype===2&&d.name.toLowerCase().indexOf("li")>=0);
+        svg.appendChild(el("circle",{cx:x,cy:y,r:hit?12:9,fill:hit?"#34d399":"#5e6ad2",opacity:hit?.6:.16,stroke:hit?"#34d399":"#5e6ad2","stroke-width":1.2}));
+      });
+      const dl2=el("text",{x:dx+140,y:dy+270,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"});dl2.textContent="访问 4 个索引节点 + 1 数据节点";svg.appendChild(dl2);
+      $("st05access").textContent="5";
+      $("st05layer").textContent="2";
+      $("st05speedup").textContent=(N/5).toFixed(1)+"x";
+    }else if(indexOn&&qtype===0){
+      // 标签索引
+      const lx=40,ly=80;
+      svg.appendChild(el("rect",{x:lx,y:ly,width:640,height:280,rx:8,fill:"#101114",stroke:"#fbbf24","stroke-width":1.2}));
+      const tl=el("text",{x:lx+16,y:ly+24,"font-size":12,"font-family":MONO,fill:"#fbbf24"});tl.textContent="标签索引 :Person → 节点列表";svg.appendChild(tl);
+      const persons=data.filter(d=>d.lab==="Person");
+      svg.appendChild(el("rect",{x:lx+30,y:ly+50,width:200,height:30,rx:5,fill:"#1c1f24",stroke:"#fbbf24"}));
+      const h=el("text",{x:lx+130,y:ly+70,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#fbbf24"});h.textContent=":Person → ["+persons.map(p=>p.id).join(",")+"]";svg.appendChild(h);
+      // 数据区
+      const dx=lx+30,dy=ly+110;
+      data.forEach((d,i)=>{
+        const r=Math.floor(i/8),c=i%8;
+        const x=dx+c*70,y=dy+r*50;
+        const hit=d.lab==="Person";
+        svg.appendChild(el("circle",{cx:x,cy:y,r:hit?12:9,fill:hit?"#34d399":"#5e6ad2",opacity:hit?.5:.16,stroke:hit?"#34d399":"#5e6ad2","stroke-width":1.2}));
+        const t=el("text",{x:x,y:y+24,"text-anchor":"middle","font-size":8,"font-family":MONO,fill:"#9b9fa8"});t.textContent=d.lab;svg.appendChild(t);
+      });
+      const nl=el("text",{x:lx+320,y:ly+260,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"});nl.textContent="直接命中 "+persons.length+" 个 :Person 节点";svg.appendChild(nl);
+      $("st05access").textContent=persons.length+1;
+      $("st05layer").textContent="1";
+      $("st05speedup").textContent=(N/(persons.length+1)).toFixed(1)+"x";
+    }else{
+      // 全扫描
+      const dx=40,dy=80;
+      svg.appendChild(el("rect",{x:dx,y:dy,width:640,height:280,rx:8,fill:"#101114",stroke:"#f87171","stroke-width":1.2}));
+      const tl=el("text",{x:dx+16,y:dy+24,"font-size":12,"font-family":MONO,fill:"#f87171"});tl.textContent="无索引 · 全图扫描 "+N+" 节点";svg.appendChild(tl);
+      data.forEach((d,i)=>{
+        const r=Math.floor(i/8),c=i%8;
+        const x=dx+40+c*70,y=dy+50+r*40;
+        const hit=(qtype===0&&d.lab==="Person")||(qtype===1&&d.age===30)||(qtype===2&&d.name.toLowerCase().indexOf("li")>=0);
+        svg.appendChild(el("circle",{cx:x,cy:y,r:hit?11:8,fill:hit?"#34d399":"#f87171",opacity:hit?.6:.14,stroke:hit?"#34d399":"#f87171","stroke-width":1}));
+      });
+      const nl=el("text",{x:dx+320,y:dy+260,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#f87171"});nl.textContent="扫描全部 "+N+" 节点才找到匹配";svg.appendChild(nl);
+      $("st05access").textContent=N;
+      $("st05layer").textContent="0";
+      $("st05speedup").textContent="1.0x";
+    }
+    // 箭头
+    const defs=el("defs");const mk=el("marker",{id:"ar05",viewBox:"0 0 10 10",refX:8,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});
+    mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs.appendChild(mk);svg.appendChild(defs);
+    // 统计
+    $("st05type").textContent=["标签查找","属性等值","全文搜索"][qtype];
+    $("p05title").textContent=qnames[qtype]+(indexOn?" (开启)":" (关闭)");
+    $("p05detail").textContent=indexOn?
+      ("索引加速：访问 "+$("st05access").textContent+" 单元即可定位，相比全扫描 "+N+" 加速 "+$("st05speedup").textContent+"。"):
+      ("无索引需扫描全部 "+N+" 个节点，时间复杂度 O(n)。生产环境务必为高频查询字段建索引。");
+  }
+
+  draw();
+  // 索引开关
+  const toggle=document.createElement("button");toggle.className="btn small on";toggle.textContent="索引: 开启";
+  toggle.addEventListener("click",()=>{indexOn=!indexOn;toggle.textContent="索引: "+(indexOn?"开启":"关闭");toggle.classList.toggle("on",indexOn);draw();});
+  ctl.appendChild(toggle);
+  // 查询类型
+  [["标签 :Person",0],["属性 age=30",1],["全文 name CONTAINS 'li'",2]].forEach(q=>{
+    const b=document.createElement("button");b.className="btn small"+(q[1]===0?" on":"");b.textContent=q[0];
+    b.addEventListener("click",()=>{
+      qtype=q[1];
+      document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      if(indexOn)toggle.classList.add("on");
+      draw();
+    });
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   06 ACID 事务
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  // 场景：T1 读X后写Y，T2 读Y后写X → 死锁
+  const steps=[
+    {t1:"R(X) S锁",t2:"—",t1stat:"持有 S(X)",t2stat:"空闲",dead:false,d:"T1 读取节点 X，获得共享锁 S(X)。共享锁允许其他事务也读 X。"},
+    {t1:"—",t2:"R(Y) S锁",t1stat:"持有 S(X)",t2stat:"持有 S(Y)",dead:false,d:"T2 读取节点 Y，获得共享锁 S(Y)。此时两事务各自持有不同锁，无冲突。"},
+    {t1:"W(X) 请求 X锁",t2:"—",t1stat:"等待 X(X)（被T2的S阻塞）",t2stat:"持有 S(Y)",dead:false,d:"T1 想升级为排他锁写 X，但 X 上有 T2 的共享锁（虽然此处简化），T1 等待。实际 2PL 中 T1 需先释放 S 再请求 X。"},
+    {t1:"等待…",t2:"W(Y) 请求 X锁",t1stat:"等待",t2stat:"等待 X(Y)（被T1的S阻塞）",dead:true,d:"T2 想写 Y，但 Y 上有 T1 的锁。两事务互相等待对方释放锁——死锁！Neo4j 检测到死锁后会回滚其中一个事务。"},
+    {t1:"回滚 (ABORT)",t2:"—",t1stat:"已回滚，释放所有锁",t2stat:"获取 X(Y)，继续",dead:false,d:"Neo4j 选择牺牲者（通常锁少的事务）回滚。T1 回滚释放 S(X)，T2 获得 X(Y) 后可继续执行并提交。死锁解除。"},
+    {t1:"—",t2:"COMMIT",t1stat:"已回滚",t2stat:"已提交，释放所有锁",dead:false,d:"T2 提交并释放所有锁。系统恢复一致状态。ACID 的 I（隔离性）通过锁机制保证，A（原子性）通过回滚保证。"}
+  ];
+  let cur=0;
+
+  function draw(){
+    clearNode(svg);
+    // 两条时间线
+    const t1y=80,t2y=220;
+    // T1
+    svg.appendChild(el("rect",{x:30,y:t1y-30,width:660,height:130,rx:8,fill:"#101114",stroke:"rgba(94,106,210,.3)"}));
+    const t1l=el("text",{x:44,y:t1y-12,"font-size":13,"font-family":MONO,fill:"#5e6ad2"});t1l.textContent="事务 T1";svg.appendChild(t1l);
+    // T2
+    svg.appendChild(el("rect",{x:30,y:t2y-30,width:660,height:130,rx:8,fill:"#101114",stroke:"rgba(124,92,255,.3)"}));
+    const t2l=el("text",{x:44,y:t2y-12,"font-size":13,"font-family":MONO,fill:"#7c5cff"});t2l.textContent="事务 T2";svg.appendChild(t2l);
+    // 步骤进度
+    steps.forEach((s,i)=>{
+      const x=60+i*100;
+      const on=i<=cur;
+      // T1 节点
+      const t1c=i===cur?"#fbbf24":(on?"#34d399":"#1c1f24");
+      svg.appendChild(el("circle",{cx:x,cy:t1y+10,r:9,fill:t1c==="transparent"?"#1c1f24":t1c,opacity:.4,stroke:t1c,"stroke-width":1.4}));
+      if(i>0)svg.appendChild(el("line",{x1:x-100,y1:t1y+10,x2:x-9,y2:t1y+10,stroke:on?"rgba(94,106,210,.4)":"rgba(255,255,255,.1)","stroke-width":1}));
+      // T2 节点
+      const t2c=i===cur?"#fbbf24":(on?"#34d399":"#1c1f24");
+      svg.appendChild(el("circle",{cx:x,cy:t2y+10,r:9,fill:t2c==="transparent"?"#1c1f24":t2c,opacity:.4,stroke:t2c,"stroke-width":1.4}));
+      if(i>0)svg.appendChild(el("line",{x1:x-100,y1:t2y+10,x2:x-9,y2:t2y+10,stroke:on?"rgba(124,92,255,.4)":"rgba(255,255,255,.1)","stroke-width":1}));
+      // 锁标记
+      if(on&&i<=cur){
+        const sl=el("text",{x:x,y:t1y-22,"text-anchor":"middle","font-size":8.5,"font-family":MONO,fill:"#9b9fa8"});sl.textContent=steps[i].t1.split(" ")[0];svg.appendChild(sl);
+        const s2=el("text",{x:x,y:t2y-22,"text-anchor":"middle","font-size":8.5,"font-family":MONO,fill:"#9b9fa8"});s2.textContent=steps[i].t2.split(" ")[0];svg.appendChild(s2);
+      }
+    });
+    // 死锁标识
+    if(steps[cur].dead){
+      svg.appendChild(el("rect",{x:280,y:170,width:160,height:36,rx:8,fill:"rgba(248,113,113,.18)",stroke:"#f87171","stroke-width":1.6}));
+      const dl=el("text",{x:360,y:192,"text-anchor":"middle","font-size":14,"font-weight":"700","font-family":MONO,fill:"#f87171"});dl.textContent="⚠ 死锁 DEADLOCK";svg.appendChild(dl);
+    }
+    // 当前操作
+    const cy=360;
+    svg.appendChild(el("rect",{x:30,y:cy-16,width:660,height:40,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const cl=el("text",{x:44,y:cy+8,"font-size":12,"font-family":MONO,fill:"#f7f8f8"});cl.textContent="步骤 "+(cur+1)+": T1 ["+steps[cur].t1+"]  |  T2 ["+steps[cur].t2+"]";svg.appendChild(cl);
+    // 统计
+    $("st06step").textContent=cur+1;
+    $("st06t1").textContent=steps[cur].t1stat;
+    $("st06t2").textContent=steps[cur].t2stat;
+    $("st06dead").textContent=steps[cur].dead?"检测到":"无";
+    $("st06dead").style.color=steps[cur].dead?"#f87171":"#34d399";
+    $("p06title").textContent="步骤 "+(cur+1)+" / "+steps.length;
+    $("p06detail").textContent=steps[cur].d;
+  }
+
+  draw();
+  const prev=document.createElement("button");prev.className="btn small";prev.textContent="← 上一步";
+  prev.addEventListener("click",()=>{cur=Math.max(0,cur-1);draw();});
+  const next=document.createElement("button");next.className="btn primary";next.textContent="下一步 →";
+  next.addEventListener("click",()=>{cur=Math.min(steps.length-1,cur+1);draw();});
+  const play=document.createElement("button");play.className="btn";play.textContent="播放";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing){playing=false;play.textContent="播放";return;}
+    playing=true;play.textContent="停止";
+    function next2(){
+      if(!playing||cur>=steps.length-1){playing=false;play.textContent="播放";return;}
+      cur++;draw();setTimeout(next2,1500);
+    }
+    setTimeout(next2,500);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{playing=false;play.textContent="播放";cur=0;draw();});
+  ctl.appendChild(prev);ctl.appendChild(next);ctl.appendChild(play);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   07 社区检测
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  // 生成一个有明显社区结构的图
+  const N=[
+    // 社区 A
+    {id:0,x:90,y:90,comm:0},{id:1,x:160,y:60,comm:0},{id:2,x:140,y:140,comm:0},{id:3,x:80,y:160,comm:0},
+    // 社区 B
+    {id:4,x:340,y:80,comm:1},{id:5,x:420,y:60,comm:1},{id:6,x:400,y:140,comm:1},{id:7,x:340,y:160,comm:1},
+    // 社区 C
+    {id:8,x:580,y:90,comm:2},{id:9,x:640,y:140,comm:2},{id:10,x:580,y:200,comm:2},
+    // 社区 D
+    {id:11,x:200,y:300,comm:3},{id:12,x:300,y:320,comm:3},{id:13,x:420,y:300,comm:3},{id:14,x:520,y:320,comm:3}
+  ];
+  const E=[
+    [0,1],[0,2],[0,3],[1,2],[2,3],[1,3],
+    [4,5],[4,6],[4,7],[5,6],[6,7],[5,7],
+    [8,9],[8,10],[9,10],
+    [11,12],[12,13],[13,14],[11,13],[12,14],
+    // 桥接边
+    [2,4],[6,8],[7,12],[3,11],[10,14]
+  ];
+  let algo=0; // 0=Louvain, 1=PageRank, 2=CC
+  const commColors=["#5e6ad2","#7c5cff","#34d399","#fbbf24"];
+  let pr=[];
+  let cc=0;
+
+  function pagerank(){
+    const n=N.length;
+    pr=new Array(n).fill(1/n);
+    const d=0.85,iter=30;
+    const adj={};
+    N.forEach(x=>adj[x.id]=[]);
+    E.forEach(e=>{adj[e[0]].push(e[1]);adj[e[1]].push(e[0]);});
+    for(let it=0;it<iter;it++){
+      const next=new Array(n).fill(0);
+      N.forEach(node=>{
+        const i=node.id;
+        let s=0;
+        adj[i].forEach(j=>s+=pr[j]/adj[j].length);
+        next[i]=(1-d)/n+d*s;
+      });
+      pr=next;
+    }
+    // 归一化
+    const sum=pr.reduce((a,b)=>a+b,0);
+    pr=pr.map(v=>v/sum);
+  }
+  function connectedComponents(){
+    const parent=N.map((_,i)=>i);
+    function find(x){while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;}
+    function union(a,b){const ra=find(a),rb=find(b);if(ra!==rb)parent[ra]=rb;}
+    E.forEach(e=>union(e[0],e[1]));
+    const roots=new Set();
+    N.forEach((_,i)=>roots.add(find(i)));
+    return roots.size;
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    E.forEach(e=>{
+      const a=N[e[0]],b=N[e[1]];
+      svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"rgba(255,255,255,.06)","stroke-width":1}));
+    });
+    // 节点
+    N.forEach(nd=>{
+      let r=12,col=commColors[nd.comm];
+      if(algo===1){
+        // PageRank: 半径与 PR 成正比
+        r=8+pr[nd.id]*200;
+        col=pr[nd.id]>0.09?"#fbbf24":"#5e6ad2";
+      }else if(algo===2){
+        // CC: 用社区颜色（这里社区=连通分量，全连通）
+        col="#34d399";
+      }
+      svg.appendChild(el("circle",{cx:nd.x,cy:nd.y,r:r,fill:col,opacity:.25,stroke:col,"stroke-width":1.4}));
+      const t=el("text",{x:nd.x,y:nd.y+3,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#f7f8f8",style:"pointer-events:none"});t.textContent=nd.id;svg.appendChild(t);
+    });
+    // 社区标注（Louvain）
+    if(algo===0){
+      const comms={};
+      N.forEach(n=>{if(!comms[n.comm])comms[n.comm]=[];comms[n.comm].push(n);});
+      Object.keys(comms).forEach(k=>{
+        const nodes=comms[k];
+        const cx=nodes.reduce((s,n)=>s+n.x,0)/nodes.length;
+        const cy=nodes.reduce((s,n)=>s+n.y,0)/nodes.length;
+        // 虚线包围圈
+        svg.appendChild(el("circle",{cx:cx,cy:cy,r:60,fill:"none",stroke:commColors[+k],"stroke-width":1.2,"stroke-dasharray":"4 4",opacity:.4}));
+        const l=el("text",{x:cx,y:cy-66,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:commColors[+k]});l.textContent="社区 "+String.fromCharCode(65+ +k);svg.appendChild(l);
+      });
+    }
+    // 统计
+    if(algo===0){
+      const nc=new Set(N.map(n=>n.comm)).size;
+      $("st07comm").textContent=nc;
+      $("st07q").textContent="0.62";
+      $("st07top").textContent="—";
+      $("st07algo").textContent="Louvain";
+    }else if(algo===1){
+      const maxIdx=pr.indexOf(Math.max(...pr));
+      $("st07comm").textContent="—";
+      $("st07q").textContent="—";
+      $("st07top").textContent="#"+maxIdx+" ("+(pr[maxIdx]*100).toFixed(1)+"%)";
+      $("st07algo").textContent="PageRank";
+    }else{
+      $("st07comm").textContent=cc;
+      $("st07q").textContent="—";
+      $("st07top").textContent="—";
+      $("st07algo").textContent="ConnComp";
+    }
+    // 说明
+    if(algo===0){
+      $("p07title").textContent="Louvain 模块度";
+      $("p07detail").textContent="Louvain 贪心最大化模块度 Q="+$("st07q").textContent+"，迭代合并节点到邻居社区使 Q 增大。检测到 "+$("st07comm").textContent+" 个社区，虚线圈为划分结果。";
+    }else if(algo===1){
+      $("p07title").textContent="PageRank 中心性";
+      $("p07detail").textContent="PageRank 模拟随机游走，节点重要性由入链贡献。阻尼系数 d=0.85。节点大小正比 PR 值，最重要节点 "+$("st07top").textContent+"。桥接节点通常 PR 较高。";
+    }else{
+      $("p07title").textContent="Connected Components";
+      $("p07detail").textContent="用并查集（Union-Find）找连通分量。当前图有 "+cc+" 个连通分量（全连通则=1）。时间复杂度近线性 O(n α(n))。适合找孤立子图。";
+    }
+  }
+
+  pagerank();cc=connectedComponents();draw();
+  [["Louvain 社区",0],["PageRank 中心性",1],["连通分量",2]].forEach(a=>{
+    const b=document.createElement("button");b.className="btn small"+(a[1]===0?" on":"");b.textContent=a[0];
+    b.addEventListener("click",()=>{algo=a[1];draw();document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const anim=document.createElement("button");anim.className="btn ghost small";anim.textContent="重新计算";
+  anim.addEventListener("click",()=>{
+    // 重新计算并动画展示
+    if(algo===0){
+      // 简单动画：节点淡入
+      animate(800,p=>{
+        clearNode(svg);
+        draw();
+        const ov=el("rect",{x:0,y:0,width:W,height:H,fill:"#08090a",opacity:1-p});
+        svg.appendChild(ov);
+      });
+    }else{pagerank();cc=connectedComponents();draw();}
+  });
+  ctl.appendChild(anim);
+})();
+
+/* ============================================================
+   08 图数据库对比
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420;
+  const dbs=[
+    {n:"Neo4j",c:"#5e6ad2",
+     ql:"Cypher / openCypher / GQL",
+     deploy:"原生单机/集群 (Causal Cluster)",
+     cons:"ACID (Read Committed)",
+     arch:"原生图存储 (免索引邻接)",
+     scale:"亿级节点 (集群)",
+     pick:"中小规模、低延迟、Cypher 生态"},
+    {n:"JanusGraph",c:"#7c5cff",
+     ql:"Gremlin (TinkerPop)",
+     deploy:"分布式 (HBase/Cassandra 后端)",
+     cons:"可调 (最终/强一致)",
+     arch:"分层架构 (存储+索引分离)",
+     scale:"万亿级节点 (分布式)",
+     pick:"超大规模、Hadoop 生态集成"},
+    {n:"Amazon Neptune",c:"#34d399",
+     ql:"Gremlin + SPARQL + openCypher",
+     deploy:"AWS 托管 (Serverless)",
+     cons:"ACID (4 种隔离级别)",
+     arch:"云原生 (存储计算分离)",
+     scale:"十亿级 (可扩展)",
+     pick:"AWS 云原生、多模型查询"}
+  ];
+  const dims=["查询语言","部署模式","一致性","架构","扩展性","选型"];
+  let cur=0;
+
+  function draw(){
+    clearNode(svg);
+    const db=dbs[cur];
+    // 三列卡片
+    const cw=220,gap=15;
+    const xs=[30,30+cw+gap,30+(cw+gap)*2];
+    dbs.forEach((d,i)=>{
+      const on=i===cur;
+      const x=xs[i],y=30;
+      svg.appendChild(el("rect",{x:x,y:y,width:cw,height:340,rx:10,fill:on?"rgba(94,106,210,.08)":"#101114",stroke:on?d.c:"rgba(255,255,255,.07)","stroke-width":on?1.8:1}));
+      // logo 圈
+      svg.appendChild(el("circle",{cx:x+cw/2,cy:y+50,r:24,fill:d.c,opacity:.18,stroke:d.c,"stroke-width":1.6}));
+      // 图标：图节点
+      svg.appendChild(el("circle",{cx:x+cw/2-8,cy:y+46,r:4,fill:d.c}));
+      svg.appendChild(el("circle",{cx:x+cw/2+8,cy:y+50,r:4,fill:d.c}));
+      svg.appendChild(el("circle",{cx:x+cw/2,cy:y+58,r:4,fill:d.c}));
+      svg.appendChild(el("line",{x1:x+cw/2-8,y1:y+46,x2:x+cw/2+8,y2:y+50,stroke:d.c,"stroke-width":1}));
+      svg.appendChild(el("line",{x1:x+cw/2-8,y1:y+46,x2:x+cw/2,y2:y+58,stroke:d.c,"stroke-width":1}));
+      svg.appendChild(el("line",{x1:x+cw/2+8,y1:y+50,x2:x+cw/2,y2:y+58,stroke:d.c,"stroke-width":1}));
+      // 名称
+      const nm=el("text",{x:x+cw/2,y:y+95,"text-anchor":"middle","font-size":15,"font-weight":"700","font-family":MONO,fill:d.c});nm.textContent=d.n;svg.appendChild(nm);
+      // 维度
+      const items=[d.ql,d.deploy,d.cons,d.arch,d.scale,d.pick];
+      items.forEach((v,j)=>{
+        const yy=y+120+j*34;
+        // 标签
+        const kl=el("text",{x:x+16,y:yy,"font-size":9.5,"font-family":MONO,fill:"#62666d"});kl.textContent=dims[j];svg.appendChild(kl);
+        // 值（换行简化）
+        const lines=wrapCmp(v,cw-32);
+        lines.forEach((ln,k)=>{
+          const vl=el("text",{x:x+16,y:yy+14+k*13,"font-size":10,"font-family":MONO,fill:on?"#f7f8f8":"#9b9fa8"});vl.textContent=ln;svg.appendChild(vl);
+        });
+      });
+    });
+    // 底部对比条
+    const by=390;
+    svg.appendChild(el("rect",{x:30,y:by,width:660,height:24,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const bl=el("text",{x:42,y:by+16,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});bl.textContent="对比维度: "+dims.join(" · ");svg.appendChild(bl);
+    // 统计
+    $("st08ql").textContent=db.ql;
+    $("st08deploy").textContent=db.deploy;
+    $("st08cons").textContent=db.cons;
+    $("st08pick").textContent=db.pick;
+    $("p08title").textContent=db.n+" 详情";
+    $("p08detail").textContent=db.n+"："+db.arch+"。"+db.pick+"。"+(db.n==="Neo4j"?"原生图数据库，免索引邻接（index-free adjacency）是其核心优势，O(1) 邻居访问。":db.n==="JanusGraph"?"基于 Apache TinkerPop，可插拔存储后端（HBase/Cassandra）与索引后端（ES/Solr），适合超大规模。":"AWS 全托管，支持 Gremlin/SPARQL/Cypher 多种查询语言，存储计算分离架构。");
+  }
+  function wrapCmp(str,maxW){
+    const max=Math.floor(maxW/6);
+    if(str.length<=max)return [str];
+    const out=[];let c="";
+    for(let i=0;i<str.length;i++){c+=str[i];if(c.length>=max){out.push(c);c="";}}
+    if(c)out.push(c);
+    return out.slice(0,2);
+  }
+
+  draw();
+  dbs.forEach((d,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=d.n;
+    b.addEventListener("click",()=>{cur=i;draw();document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const cmp=document.createElement("button");cmp.className="btn ghost small";cmp.textContent="并排对比";
+  cmp.addEventListener("click",()=>{
+    $("p08title").textContent="三库并排对比";
+    $("p08detail").textContent="Neo4j 单机性能最强但扩展受限；JanusGraph 分布式扩展性最佳但运维复杂；Neptune 全托管免运维但锁定 AWS。查询语言方面 Neo4j 主推 Cypher（声明式），JanusGraph/Neptune 支持 Gremlin（命令式遍历）。选型需权衡规模、运维成本与查询模式。";
+  });
+  ctl.appendChild(cmp);
+})();
+
+</script>
+</body>
+</html>

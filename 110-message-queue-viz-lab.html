@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>message-queue-viz-lab · 消息队列内部机制可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fb7185;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,113,133,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#fbbf24;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,113,133,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,113,133,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a0a0e;border-color:transparent}
+.btn.primary:hover{background:#fc8a9b}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+.search-input{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 11px;font-size:13px;font-family:var(--mono);width:180px;
+}
+.search-input::placeholder{color:var(--faint)}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.rose{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>message-queue</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">message queue internals</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/message-queue-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>分区与副本</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>消费者组与 Offset</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>RabbitMQ 交换器</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>消息确认机制</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>消息顺序性</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>死信队列</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>积压与背压</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>Exactly-Once</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/message-queue-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>消息队列内部机制 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 Kafka 分区/副本、消费者组、RabbitMQ 交换器、消息确认等消息中间件核心机制。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 Kafka 分区与副本 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>Kafka 分区与副本</h2>
+      <p>Topic 被切分为多个 Partition，每个 Partition 有一个 Leader 与若干 Follower 副本。ISR（In-Sync Replicas）是当前与 Leader 保持同步的副本集合。生产消息先写 Leader，再复制到 Followers。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">partition-replica.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>Leader</span>
+          <span><i style="background:#7c5cff"></i>Follower (ISR)</span>
+          <span><i style="background:#62666d"></i>失联 Follower</span>
+          <span><i style="background:#fbbf24"></i>消息</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">分区与副本</h4>
+          <p id="p01detail">点击“生产消息”观察消息写入 Leader 并复制到 ISR 副本；切换某副本失联可观察 ISR 收缩与 under-replicated 状态。acks=all 时需所有 ISR 副本确认才视为提交。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">分区数</div><div class="v rose" id="st01p">3</div></div>
+          <div class="stat"><div class="k">副本因子</div><div class="v purple" id="st01rf">3</div></div>
+          <div class="stat"><div class="k">ISR 副本</div><div class="v" id="st01isr">—</div></div>
+          <div class="stat"><div class="k">消息数</div><div class="v" id="st01msg">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 消费者组与 Offset ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>消费者组与 Offset</h2>
+      <p>同一消费者组内每个 Partition 只被一个消费者消费，实现并行扩展。消费者维护 Offset 进度并提交。增减消费者触发 Rebalance，分区重新分配。点击观察消费推进与 Rebalance。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">consumer-offset.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>消费者 A</span>
+          <span><i style="background:#7c5cff"></i>消费者 B</span>
+          <span><i style="background:#34d399"></i>消费者 C</span>
+          <span><i style="background:#fbbf24"></i>已提交 Offset</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">消费进度</h4>
+          <p id="p02detail">每个分区当前消费 Offset 与已提交 Offset。Rebalance 后分区在消费者间重新分配，可能造成短暂重复消费（at-least-once）或需要 seek 恢复。auto.offset.commit=enable 时周期性提交。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">消费者数</div><div class="v rose" id="st02c">2</div></div>
+          <div class="stat"><div class="k">分区数</div><div class="v purple" id="st02p">4</div></div>
+          <div class="stat"><div class="k">已消费</div><div class="v" id="st02done">0</div></div>
+          <div class="stat"><div class="k">Lag</div><div class="v" style="color:#f87171" id="st02lag">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 RabbitMQ 交换器 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>RabbitMQ 交换器四种路由</h2>
+      <p>Direct 按 routing key 精确匹配；Fanout 广播到所有绑定队列；Topic 按模式匹配（* 一词，# 零词或多词）；Header 按消息头属性匹配。切换类型并发送消息观察路由差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">exchange-routing.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>Exchange</span>
+          <span><i style="background:#7c5cff"></i>绑定</span>
+          <span><i style="background:#34d399"></i>命中队列</span>
+          <span><i style="background:#fbbf24"></i>消息</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">Direct 交换器</h4>
+          <p id="p03detail">routing key 与 binding key 完全相等才路由。输入 routing key 后发送，只有绑定了相同 key 的队列会收到消息。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">交换器类型</div><div class="v rose" id="st03type">direct</div></div>
+          <div class="stat"><div class="k">绑定队列</div><div class="v purple" id="st03q">4</div></div>
+          <div class="stat"><div class="k">命中数</div><div class="v" style="color:#34d399" id="st03hit">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 消息确认机制 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>消息确认 ACK / NACK 与幂等</h2>
+      <p>消费者处理完成后 ACK 确认；失败则 NACK 并 requeue 重投，可能造成重复消费。通过去重表（幂等消费）实现 at-least-once 语义下业务 Exactly-Once。模拟消费者故障观察重投。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ack-nack.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>ACK 成功</span>
+          <span><i style="background:#f87171"></i>NACK 失败</span>
+          <span><i style="background:#fbbf24"></i>重投</span>
+          <span><i style="background:#7c5cff"></i>幂等去重</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">投递语义</h4>
+          <p id="p04detail">auto-ack 关闭后，broker 在收到 ACK 前不会删除消息；消费者崩溃则消息 requeue 重投，导致 at-least-once。幂等消费用唯一 msg_id 在去重表标记，重复消息被跳过。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">投递总数</div><div class="v" id="st04del">0</div></div>
+          <div class="stat"><div class="k">ACK</div><div class="v" style="color:#34d399" id="st04ack">0</div></div>
+          <div class="stat"><div class="k">NACK 重投</div><div class="v" style="color:#f87171" id="st04nack">0</div></div>
+          <div class="stat"><div class="k">去重命中</div><div class="v purple" id="st04dedup">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 消息顺序性 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>消息顺序性：分区有序 vs 全局有序</h2>
+      <p>Kafka 仅保证单 Partition 内消息有序；多 Partition 并行消费会打破全局顺序。需要全局有序时只能用单 Partition（牺牲并行度）或顺序锁按 key 路由。切换模式对比。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ordering.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>分区 1</span>
+          <span><i style="background:#7c5cff"></i>分区 2</span>
+          <span><i style="background:#34d399"></i>分区 3</span>
+          <span><i style="background:#fbbf24"></i>乱序</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">顺序保证</h4>
+          <p id="p05detail">分区有序：同一 key 路由到同一分区，分区内严格有序。全局有序：仅 1 个分区，所有消息串行，吞吐受限。顺序消费端用单线程 per-partition 消费保证处理顺序。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v rose" id="st05mode">分区有序</div></div>
+          <div class="stat"><div class="k">分区数</div><div class="v purple" id="st05p">3</div></div>
+          <div class="stat"><div class="k">乱序消息</div><div class="v" style="color:#f87171" id="st05oo">0</div></div>
+          <div class="stat"><div class="k">吞吐</div><div class="v" style="color:#34d399" id="st05tput">高</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 死信队列 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>死信队列与重试退避</h2>
+      <p>消费失败的消息经重试退避（指数退避）后仍失败，进入死信队列（DLQ）隔离处理。持续失败无法处理的消息称为毒丸（Poison Pill），需人工介入。模拟消费失败观察 DLQ 流转。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">dlq-retry.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>正常消费</span>
+          <span><i style="background:#fbbf24"></i>重试中</span>
+          <span><i style="background:#f87171"></i>DLQ</span>
+          <span><i style="background:#7c5cff"></i>毒丸</span>
+        </div>
+        <div class="detail-box">
+          <h4>重试与死信</h4>
+          <p>最大重试次数（如 3）内每次失败按指数退避（1s/2s/4s）延迟重投；超过阈值则转入 DLQ。毒丸消息永远失败，应设置最大重试避免无限重投阻塞队列。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">成功</div><div class="v" style="color:#34d399" id="st06ok">0</div></div>
+          <div class="stat"><div class="k">重试</div><div class="v" style="color:#fbbf24" id="st06retry">0</div></div>
+          <div class="stat"><div class="k">DLQ</div><div class="v" style="color:#f87171" id="st06dlq">0</div></div>
+          <div class="stat"><div class="k">毒丸</div><div class="v purple" id="st06pp">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 消息积压与背压 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>消息积压与背压 Backpressure</h2>
+      <p>生产速率大于消费速率时形成积压（Lag）。背压机制通过反馈调节生产速率或扩容消费者，防止系统过载。拖动滑块调节两侧速率观察积压与背压效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">backpressure.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#fb7185"></i>生产速率</span>
+          <span><i style="background:#34d399"></i>消费速率</span>
+          <span><i style="background:#f87171"></i>积压</span>
+          <span><i style="background:#fbbf24"></i>背压触发</span>
+        </div>
+        <div class="detail-box">
+          <h4>背压策略</h4>
+          <p>背压实现：①拒绝/限流生产者（Reject / 429）②有界队列阻塞生产者线程③扩容消费者分区。当积压超过阈值（如 10000）触发背压，生产速率被压低至消费速率附近。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">生产速率</div><div class="v rose" id="st07prod">—</div></div>
+          <div class="stat"><div class="k">消费速率</div><div class="v" style="color:#34d399" id="st07cons">—</div></div>
+          <div class="stat"><div class="k">积压</div><div class="v" style="color:#f87171" id="st07lag">0</div></div>
+          <div class="stat"><div class="k">背压状态</div><div class="v" id="st07bp">正常</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 Exactly-Once 语义 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>Exactly-Once 语义</h2>
+      <p>Exactly-Once 通过事务消息（两阶段提交：Init→Begin→Produce→Commit）与幂等生产者（PID + 序列号去重）共同实现。对比 At-Least-Once 可能重复，Exactly-Once 保证消息不重不漏。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">exactly-once.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>提交</span>
+          <span><i style="background:#f87171"></i>中止</span>
+          <span><i style="background:#fbbf24"></i>幂等去重</span>
+          <span><i style="background:#7c5cff"></i>事务</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">Exactly-Once 实现</h4>
+          <p id="p08detail">幂等生产者：每个 producer 分配 PID，每条消息带递增 seq，broker 按 <code>(PID, partition, seq)</code> 去重，网络重试不会产生重复。事务：跨分区多消息原子写入，消费者 read_committed 只读已提交消息。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">语义</div><div class="v rose" id="st08sem">exactly-once</div></div>
+          <div class="stat"><div class="k">提交事务</div><div class="v" style="color:#34d399" id="st08commit">0</div></div>
+          <div class="stat"><div class="k">中止事务</div><div class="v" style="color:#f87171" id="st08abort">0</div></div>
+          <div class="stat"><div class="k">去重消息</div><div class="v purple" id="st08dedup">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>message-queue-viz-lab · 消息队列内部机制可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/message-queue-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function mono(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 Kafka 分区与副本
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  const P=3,RF=3; // 3 partitions, replication factor 3
+  // partitions: each has leader broker + followers on brokers
+  // brokers: 0,1,2,3,4
+  // replica assignment: partition -> [leader, follower, follower]
+  const brokers=[0,1,2,3,4];
+  const partitions=[
+    {id:0,leader:0,replicas:[0,1,2],inSync:[true,true,true],msgs:[]},
+    {id:1,leader:1,replicas:[1,2,3],inSync:[true,true,true],msgs:[]},
+    {id:2,leader:2,replicas:[2,3,4],inSync:[true,true,true],msgs:[]}
+  ];
+  let msgCounter=0;
+  // broker positions on a row
+  const brokerX=[120,240,360,480,600];
+  const brokerY=300;
+
+  function draw(flying){
+    clearNode(svg);
+    // brokers
+    brokerX.forEach((x,i)=>{
+      svg.appendChild(el("circle",{cx:x,cy:brokerY,r:20,fill:"#16181c",stroke:"rgba(255,255,255,.2)","stroke-width":1.3}));
+      const t=el("text",{x:x,y:brokerY+4,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#f7f8f8"});t.textContent="B"+i;svg.appendChild(t);
+      const lb=el("text",{x:x,y:brokerY+34,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});lb.textContent="broker";svg.appendChild(lb);
+    });
+    // partitions as rows above brokers
+    const pY=70;
+    partitions.forEach((p,pi)=>{
+      const y=pY+pi*0; // each partition handled in its own lane
+      const laneY=70+pi*55;
+      // partition label
+      const pl=el("text",{x:40,y:laneY+18,"font-size":12,"font-family":mono(),fill:"#fb7185"});pl.textContent="P"+p.id;svg.appendChild(pl);
+      // draw replicas on their brokers
+      p.replicas.forEach((bk,ri)=>{
+        const x=brokerX[bk];
+        const isLeader=ri===0;
+        const inSync=p.inSync[ri];
+        const col=isLeader?"#fb7185":"#7c5cff";
+        const ring=el("rect",{x:x-30,y:laneY,width:60,height:32,rx:6,fill:inSync?col+"22":"#1c1f24",stroke:inSync?col:"#62666d","stroke-width":isLeader?1.8:1.2});
+        if(isLeader)ring.setAttribute("stroke-dasharray","");
+        svg.appendChild(ring);
+        const rl=el("text",{x:x,y:laneY+14,"text-anchor":"middle","font-size":9.5,"font-family":mono(),fill:inSync?col:"#62666d"});
+        rl.textContent=isLeader?"Leader":"Follower";svg.appendChild(rl);
+        const sl=el("text",{x:x,y:laneY+26,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:inSync?"#9b9fa8":"#f87171"});
+        sl.textContent=inSync?"ISR":"OUT";svg.appendChild(sl);
+        // connection to broker
+        svg.appendChild(el("line",{x1:x,y1:laneY+32,x2:x,y2:brokerY-20,stroke:"rgba(255,255,255,.1)","stroke-width":1}));
+      });
+      // messages on leader (stacked dots)
+      p.msgs.forEach((m,mi)=>{
+        const lx=brokerX[p.leader];
+        const dot=el("circle",{cx:lx-14+mi*7,cy:laneY+38,r:3,fill:"#fbbf24"});
+        svg.appendChild(dot);
+      });
+    });
+    // flying message
+    if(flying){
+      svg.appendChild(el("circle",{cx:flying.x,cy:flying.y,r:5,fill:"#fbbf24",opacity:.95}));
+    }
+    // ISR stats
+    const totalISR=partitions.reduce((a,p)=>a+p.inSync.filter(Boolean).length,0);
+    const totalReplicas=partitions.length*RF;
+    $("st01isr").textContent=totalISR+"/"+totalReplicas;
+    $("st01msg").textContent=msgCounter;
+  }
+  draw();
+
+  function produce(){
+    // produce to a round-robin partition
+    const p=partitions[msgCounter%P];
+    const fromX=60,fromY=180;
+    const toX=brokerX[p.leader],toY=70+partitions.indexOf(p)*55+16;
+    // animate to leader
+    animate(500,t=>{
+      const x=fromX+(toX-fromX)*t,y=fromY+(toY-fromY)*t;
+      draw({x:x,y:y});
+    },()=>{
+      // replicate to followers in ISR
+      const followers=p.replicas.slice(1).filter((bk,i)=>p.inSync[i+1]);
+      let done=0;
+      if(followers.length===0){p.msgs.push(msgCounter);msgCounter++;draw();return;}
+      followers.forEach((bk,fi)=>{
+        const fx=brokerX[bk],fy=70+partitions.indexOf(p)*55+16;
+        animate(600+fi*100,t=>{
+          const x=toX+(fx-toX)*t,y=toY+(fy-toY)*t;
+          draw({x:x,y:y});
+        },()=>{
+          done++;
+          if(done===followers.length){
+            p.msgs.push(msgCounter);msgCounter++;draw();
+          }
+        });
+      });
+    });
+  }
+
+  const prod=document.createElement("button");prod.className="btn primary";prod.textContent="生产消息";
+  prod.addEventListener("click",produce);
+  // toggle follower failures
+  const fail=document.createElement("button");fail.className="btn small";fail.textContent="切换副本故障";
+  fail.addEventListener("click",()=>{
+    // randomly toggle one follower out of sync
+    const p=partitions[Math.floor(Math.random()*P)];
+    const idx=1+Math.floor(Math.random()*2);
+    p.inSync[idx]=!p.inSync[idx];
+    draw();
+    const isr=p.inSync.filter(Boolean).length;
+    $("p01detail").innerHTML="分区 P"+p.id+" 副本 "+(p.inSync[idx]?"恢复同步":"失联")+"，当前 ISR="+isr+"/"+RF+(isr<RF?"，处于 under-replicated 状态":"")+"。";
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{
+    partitions.forEach(p=>{p.inSync=[true,true,true];p.msgs.length=0;});
+    msgCounter=0;draw();
+    $("p01detail").textContent="点击“生产消息”观察消息写入 Leader 并复制到 ISR 副本；切换某副本失联可观察 ISR 收缩与 under-replicated 状态。";
+  });
+  ctl.appendChild(prod);ctl.appendChild(fail);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 消费者组与 Offset
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  const PARTS=4;
+  let consumers=["A","B"];
+  let offsets=[0,0,0,0]; // consumed offset per partition
+  let committed=[0,0,0,0];
+  let total=20; // messages per partition
+  let assignment=[]; // partition -> consumer index
+  function rebalance(){
+    assignment=[];
+    consumers.forEach((c,ci)=>{
+      // assign partitions round-robin
+    });
+    for(let p=0;p<PARTS;p++){
+      assignment[p]=p%consumers.length;
+    }
+  }
+  rebalance();
+  const cColors={A:"#fb7185",B:"#7c5cff",C:"#34d399",D:"#fbbf24"};
+
+  function draw(){
+    clearNode(svg);
+    const padL=60,padR=30,padT=40;
+    const laneH=(H-80)/PARTS;
+    // partitions as horizontal lanes
+    for(let p=0;p<PARTS;p++){
+      const y=padT+p*laneH;
+      const ci=assignment[p];
+      const col=cColors[consumers[ci]]||"#9b9fa8";
+      // lane bg
+      svg.appendChild(el("rect",{x:padL,y:y,width:W-padL-padR,height:laneH-8,rx:6,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+      // partition label
+      const pl=el("text",{x:padL-10,y:y+laneH/2+2,"text-anchor":"end","font-size":12,"font-family":mono(),fill:col});pl.textContent="P"+p;svg.appendChild(pl);
+      // consumer badge
+      const cb=el("rect",{x:padL+6,y:y+4,width:54,height:laneH-16,rx:5,fill:col,opacity:.18,stroke:col,"stroke-width":1});
+      svg.appendChild(cb);
+      const cl=el("text",{x:padL+33,y:y+laneH/2+2,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:col});cl.textContent="C"+consumers[ci];svg.appendChild(cl);
+      // message cells
+      const cellStart=padL+72,cellW=(W-padL-padR-80)/total;
+      for(let m=0;m<total;m++){
+        const x=cellStart+m*cellW;
+        const consumed=m<offsets[p];
+        const isCommitted=m<committed[p];
+        svg.appendChild(el("rect",{x:x,y:y+8,width:cellW-2,height:laneH-24,rx:2,fill:consumed?col:"#1c1f24",stroke:consumed?"transparent":"rgba(255,255,255,.06)","stroke-width":0.5,opacity:consumed?(isCommitted?.9:.5):1}));
+      }
+      // offset markers
+      const ox=cellStart+offsets[p]*cellW;
+      svg.appendChild(el("line",{x1:ox,y1:y+4,x2:ox,y2:y+laneH-12,stroke:"#fbbf24","stroke-width":1.6}));
+      const cx2=cellStart+committed[p]*cellW;
+      svg.appendChild(el("line",{x1:cx2,y1:y+4,x2:cx2,y2:y+laneH-12,stroke:"#34d399","stroke-width":1.2,"stroke-dasharray":"3 2"}));
+      // offset text
+      const ol=el("text",{x:ox,y:y+laneH-12,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#fbbf24"});ol.textContent=offsets[p];svg.appendChild(ol);
+    }
+    // stats
+    const done=offsets.reduce((a,b)=>a+b,0);
+    const allTotal=PARTS*total;
+    $("st02c").textContent=consumers.length;
+    $("st02p").textContent=PARTS;
+    $("st02done").textContent=done;
+    $("st02lag").textContent=allTotal-done;
+  }
+  draw();
+
+  function consume(){
+    // advance one offset in a random partition that hasn't finished
+    const avail=[];
+    for(let p=0;p<PARTS;p++)if(offsets[p]<total)avail.push(p);
+    if(!avail.length)return;
+    const p=avail[Math.floor(Math.random()*avail.length)];
+    // animate
+    const fromX=60,fromY=200;
+    const ci=assignment[p];
+    const laneH=(H-80)/PARTS;
+    const y=40+p*laneH+laneH/2;
+    const cellStart=60+72,cellW=(W-60-30-80)/total;
+    const toX=cellStart+offsets[p]*cellW;
+    animate(450,t=>{
+      // redraw with moving token
+      draw();
+      const x=fromX+(toX-fromX)*t,ty=fromY+(y-fromY)*t;
+      svg.appendChild(el("circle",{cx:x,cy:ty,r:4,fill:"#fbbf24",opacity:.9}));
+    },()=>{offsets[p]++;draw();});
+  }
+  function commitAll(){
+    committed=offsets.slice();
+    draw();
+    $("p02detail").innerHTML="已提交所有分区 Offset。Rebalance 后消费者从已提交 Offset 恢复消费，未提交部分可能重复消费。";
+  }
+  function toggleConsumer(){
+    if(consumers.length<3){consumers.push(String.fromCharCode(65+consumers.length));}
+    else{consumers.pop();}
+    rebalance();draw();
+    $("p02title").textContent="Rebalance 完成";
+    $("p02detail").innerHTML="当前消费者组："+consumers.join(", ")+"。分区按 round-robin 重新分配，共 "+PARTS+" 个分区。"+(consumers.length>=PARTS?"消费者数已达分区数，多出的消费者将空闲。":"");
+  }
+  const cBtn=document.createElement("button");cBtn.className="btn primary";cBtn.textContent="消费 1 条";
+  cBtn.addEventListener("click",consume);
+  const commit=document.createElement("button");commit.className="btn small";commit.textContent="提交 Offset";
+  commit.addEventListener("click",commitAll);
+  const reb=document.createElement("button");reb.className="btn small";reb.textContent="增/减消费者";
+  reb.addEventListener("click",toggleConsumer);
+  ctl.appendChild(cBtn);ctl.appendChild(commit);ctl.appendChild(reb);
+})();
+
+/* ============================================================
+   03 RabbitMQ 交换器
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let type="direct";
+  let rk="order.create";
+  let msgHdr={k:"event",v:"order"};
+  // queues with binding keys + header bindings
+  const queues=[
+    {n:"q.pay",bk:"order.create",hdr:{k:"event",v:"order"},x:560,y:60},
+    {n:"q.stock",bk:"order.cancel",hdr:{k:"event",v:"refund"},x:560,y:140},
+    {n:"q.log",bk:"order.*",hdr:{k:"level",v:"info"},x:560,y:220},
+    {n:"q.audit",bk:"order.#",hdr:{k:"priority",v:"high"},x:560,y:300}
+  ];
+  const exX=180,exY=180;
+
+  function match(q){
+    if(type==="direct")return q.bk===rk;
+    if(type==="fanout")return true;
+    if(type==="topic")return topicMatch(q.bk,rk);
+    if(type==="header")return q.hdr.k===msgHdr.k&&q.hdr.v===msgHdr.v;
+    return false;
+  }
+  function topicMatch(pattern,key){
+    const ps=pattern.split("."),ks=key.split(".");
+    let pi=0,ki=0;
+    function rec(pi,ki){
+      while(pi<ps.length&&ki<ks.length){
+        if(ps[pi]==="#"){return rec(pi+1,ki)||ki<ks.length&&rec(pi,ki+1)||rec(pi+1,ki);}
+        if(ps[pi]==="*"||ps[pi]===ks[ki]){pi++;ki++;continue;}
+        return false;
+      }
+      while(pi<ps.length&&ps[pi]==="#")pi++;
+      return pi===ps.length&&ki===ks.length;
+    }
+    return rec(pi,ki);
+  }
+
+  function draw(flying){
+    clearNode(svg);
+    // exchange
+    svg.appendChild(el("circle",{cx:exX,cy:exY,r:34,fill:"rgba(251,113,133,.18)",stroke:"#fb7185","stroke-width":1.8}));
+    const et=el("text",{x:exX,y:exY-2,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#fb7185"});et.textContent="X";svg.appendChild(et);
+    const es=el("text",{x:exX,y:exY+12,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});es.textContent=type;svg.appendChild(es);
+    // producer arrow
+    svg.appendChild(el("line",{x1:40,y1:exY,x2:exX-34,y2:exY,stroke:"rgba(255,255,255,.2)","stroke-width":1.4,"marker-end":"url(#ar03)"}));
+    const pt=el("text",{x:40,y:exY-8,"font-size":10,"font-family":mono(),fill:"#62666d"});pt.textContent="producer";svg.appendChild(pt);
+    const defs=el("defs");const m=el("marker",{id:"ar03",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // queues + bindings
+    let hitCount=0;
+    queues.forEach(q=>{
+      const hit=match(q);
+      if(hit)hitCount++;
+      const col=hit?"#34d399":"#62666d";
+      // binding line
+      svg.appendChild(el("path",{d:"M"+(exX+30)+","+(exY-10)+" Q"+(exX+200)+","+q.y+" "+(q.x-6)+","+q.y,fill:"none",stroke:hit?"#7c5cff":"rgba(255,255,255,.08)","stroke-width":hit?1.8:1,opacity:hit?.9:.4}));
+      // queue box
+      svg.appendChild(el("rect",{x:q.x,y:q.y-16,width:110,height:32,rx:6,fill:hit?"rgba(52,211,153,.12)":"#101114",stroke:col,"stroke-width":1.3}));
+      const ql=el("text",{x:q.x+55,y:q.y-2,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:hit?"#34d399":"#9b9fa8"});ql.textContent=q.n;svg.appendChild(ql);
+      const bl=el("text",{x:q.x+55,y:q.y+10,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:"#62666d"});bl.textContent=type==="header"?("hdr: "+q.hdr.k+"="+q.hdr.v):("bk: "+q.bk);svg.appendChild(bl);
+    });
+    // flying message(s)
+    if(flying){
+      flying.forEach(f=>{
+        svg.appendChild(el("circle",{cx:f.x,cy:f.y,r:4,fill:"#fbbf24",opacity:.95}));
+      });
+    }
+    $("st03type").textContent=type;
+    $("st03hit").textContent=hitCount;
+  }
+  function updateDetail(){
+    const info={
+      direct:{t:"Direct 交换器",d:"routing key 与 binding key 完全相等才路由。输入 routing key 后发送，只有绑定了相同 key 的队列会收到消息。"},
+      fanout:{t:"Fanout 交换器",d:"忽略 routing key，广播到所有绑定的队列。适合广播通知、配置推送。"},
+      topic:{t:"Topic 交换器",d:"按模式匹配：<code>*</code> 匹配一个单词，<code>#</code> 匹配零个或多个单词。如 order.* 匹配 order.create，order.# 匹配 order.create.paid。"},
+      header:{t:"Header 交换器",d:"忽略 routing key，按消息头 <code>headers</code> 属性匹配（x-match=all/any）。当前消息头 <code>"+msgHdr.k+"="+msgHdr.v+"</code>，命中绑定相同头条件的队列。适合多条件复杂路由。"}
+    }[type];
+    $("p03title").textContent=info.t;
+    $("p03detail").innerHTML=info.d;
+  }
+  draw();updateDetail();
+
+  [["direct","Direct"],["fanout","Fanout"],["topic","Topic"],["header","Header"]].forEach(([v,n])=>{
+    const b=document.createElement("button");b.className="btn small"+(v===type?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{type=v;draw();updateDetail();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  // routing key input
+  const inp=document.createElement("input");inp.className="search-input";inp.style.fontFamily=mono();inp.value=rk;
+  inp.placeholder="routing key";
+  inp.addEventListener("input",()=>{rk=inp.value;draw();});
+  ctl.appendChild(inp);
+  // send button
+  const send=document.createElement("button");send.className="btn primary";send.textContent="发送";
+  send.addEventListener("click",()=>{
+    const hits=queues.filter(match);
+    let done=0;
+    hits.forEach(q=>{
+      const fromX=exX,fromY=exY;
+      animate(600,t=>{
+        // bezier interp
+        const u=1-t;
+        const cx=exX+200;
+        const x=u*u*fromX+2*u*t*cx+t*t*q.x;
+        const y=u*u*fromY+2*u*t*q.y+t*t*q.y;
+        draw([{x:x,y:y}]);
+      },()=>{done++;if(done===hits.length)draw();});
+    });
+    if(hits.length===0)draw();
+  });
+  ctl.appendChild(send);
+  // quick rk presets for topic
+  const presets=document.createElement("select");presets.className="select";
+  [["order.create","order.create"],["order.cancel","order.cancel"],["order.create.paid","order.create.paid"],["order.ship.done","order.ship.done"]].forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];presets.appendChild(op);});
+  presets.addEventListener("change",()=>{rk=presets.value;inp.value=rk;draw();});
+  ctl.appendChild(presets);
+  // message header selector (header mode)
+  const hdrSel=document.createElement("select");hdrSel.className="select";
+  [["event","order","headers: event=order"],["event","refund","headers: event=refund"],["level","info","headers: level=info"],["priority","high","headers: priority=high"]].forEach(o=>{const op=document.createElement("option");op.value=o[0]+"|"+o[1];op.textContent=o[2];hdrSel.appendChild(op);});
+  hdrSel.addEventListener("change",()=>{const parts=hdrSel.value.split("|");msgHdr={k:parts[0],v:parts[1]};draw();});
+  ctl.appendChild(hdrSel);
+})();
+
+/* ============================================================
+   04 消息确认 ACK/NACK
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let stats={del:0,ack:0,nack:0,dedup:0};
+  let dedupSet={};
+  let msgId=0;
+  let inflight=[]; // {id, x, y, retries, poison}
+  let processed=[];
+  let failureMode=false;
+
+  function draw(){
+    clearNode(svg);
+    // broker
+    svg.appendChild(el("rect",{x:40,y:160,width:90,height:80,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const bt=el("text",{x:85,y:195,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});bt.textContent="Broker";svg.appendChild(bt);
+    const bt2=el("text",{x:85,y:212,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});bt2.textContent="queue";svg.appendChild(bt2);
+    // consumer
+    svg.appendChild(el("rect",{x:560,y:140,width:110,height:120,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const ct=el("text",{x:615,y:180,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});ct.textContent="Consumer";svg.appendChild(ct);
+    const ct2=el("text",{x:615,y:197,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});ct2.textContent="process";svg.appendChild(ct2);
+    // dedup table
+    svg.appendChild(el("rect",{x:560,y:270,width:110,height:60,rx:6,fill:"rgba(124,92,255,.1)",stroke:"#7c5cff","stroke-width":1.2}));
+    const dt=el("text",{x:615,y:290,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:"#7c5cff"});dt.textContent="去重表";svg.appendChild(dt);
+    const dt2=el("text",{x:615,y:308,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});dt2.textContent=Object.keys(dedupSet).length+" 条";svg.appendChild(dt2);
+    // DLQ
+    svg.appendChild(el("rect",{x:300,y:330,width:120,height:50,rx:6,fill:"rgba(248,113,113,.1)",stroke:"#f87171","stroke-width":1.2}));
+    const dl=el("text",{x:360,y:352,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#f87171"});dl.textContent="Requeue";svg.appendChild(dl);
+    const dl2=el("text",{x:360,y:368,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});dl2.textContent="重投";svg.appendChild(dl2);
+    // arrows
+    svg.appendChild(el("line",{x1:130,y1:200,x2:555,y2:200,stroke:"rgba(255,255,255,.12)","stroke-width":1.2,"marker-end":"url(#ar04)"}));
+    const defs=el("defs");const m=el("marker",{id:"ar04",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // inflight messages
+    inflight.forEach(m=>{
+      const c=m.poison?"#7c5cff":(m.retries>0?"#fbbf24":"#f7f8f8");
+      svg.appendChild(el("circle",{cx:m.x,cy:m.y,r:6,fill:c,stroke:"#0b0b0c","stroke-width":1}));
+      const t=el("text",{x:m.x,y:m.y-10,"text-anchor":"middle","font-size":8.5,"font-family":mono(),fill:"#9b9fa8"});t.textContent="#"+m.id+(m.retries>0?" r"+m.retries:"");svg.appendChild(t);
+    });
+    // processed log
+    const pl=el("text",{x:40,y:120,"font-size":11,"font-family":mono(),fill:"#34d399"});pl.textContent="ACK: "+stats.ack+"  NACK: "+stats.nack+"  去重: "+stats.dedup;svg.appendChild(pl);
+    // stats
+    $("st04del").textContent=stats.del;
+    $("st04ack").textContent=stats.ack;
+    $("st04nack").textContent=stats.nack;
+    $("st04dedup").textContent=stats.dedup;
+  }
+  draw();
+
+  function deliver(){
+    msgId++;
+    const id=msgId;
+    const poison=Math.random()<0.2; // 20% poison pill
+    const m={id:id,x:130,y:200,retries:0,poison:poison};
+    inflight.push(m);
+    stats.del++;
+    draw();
+    // animate to consumer
+    const idx=inflight.indexOf(m);
+    animate(700,t=>{
+      m.x=130+(555-130)*t;m.y=200+Math.sin(t*Math.PI)*-20;
+      draw();
+    },()=>{
+      // consumer processes
+      setTimeout(()=>{
+        // dedup check
+        if(dedupSet[id]){
+          stats.dedup++;
+          inflight.splice(inflight.indexOf(m),1);
+          draw();
+          $("p04detail").innerHTML="消息 #"+id+" 命中去重表，跳过处理（幂等消费）。去重表记录已处理 msg_id，防止 at-least-once 重复消费导致业务重复。";
+          return;
+        }
+        const fail=failureMode||m.poison||Math.random()<0.25;
+        if(fail){
+          stats.nack++;m.retries++;
+          dedupSet[id]=false; // not yet successfully processed
+          // requeue animation
+          animate(600,t=>{
+            m.x=555+(130-555)*t;m.y=200+Math.sin(t*Math.PI)*40;
+            draw();
+          },()=>{
+            if(m.retries>=3){
+              // to DLQ
+              inflight.splice(inflight.indexOf(m),1);
+              draw();
+              $("p04detail").innerHTML="消息 #"+id+" 重试 "+m.retries+" 次仍失败，转入 DLQ（毒丸）。应设置最大重试次数避免无限重投。";
+            }else{
+              // back to queue, will be redelivered
+              inflight.splice(inflight.indexOf(m),1);
+              draw();
+              $("p04detail").innerHTML="消息 #"+id+" NACK 并 requeue，第 "+m.retries+" 次重投。未 ACK 的消息 broker 不会删除，消费者崩溃后重新投递。";
+              // re-deliver after delay
+              setTimeout(()=>{
+                if(dedupSet[id]===false){
+                  const m2={id:id,x:130,y:200,retries:m.retries,poison:m.poison};
+                  inflight.push(m2);stats.del++;draw();
+                }
+              },500);
+            }
+          });
+        }else{
+          stats.ack++;dedupSet[id]=true;
+          inflight.splice(inflight.indexOf(m),1);
+          draw();
+          $("p04detail").innerHTML="消息 #"+id+" 处理成功，ACK 确认。broker 删除消息。若开启幂等，msg_id 已记入去重表。";
+        }
+      },300);
+    });
+  }
+  const send=document.createElement("button");send.className="btn primary";send.textContent="投递消息";
+  send.addEventListener("click",deliver);
+  const failBtn=document.createElement("button");failBtn.className="btn small";failBtn.textContent="消费者故障";
+  failBtn.addEventListener("click",()=>{failureMode=!failureMode;failBtn.classList.toggle("on",failureMode);failBtn.textContent=failureMode?"故障中(点恢复)":"消费者故障";});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{stats={del:0,ack:0,nack:0,dedup:0};dedupSet={};inflight=[];msgId=0;failureMode=false;failBtn.classList.remove("on");failBtn.textContent="消费者故障";draw();});
+  ctl.appendChild(send);ctl.appendChild(failBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   05 消息顺序性
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let mode="partition"; // partition / global
+  const P=3;
+  // messages with global sequence and key
+  let msgs=[];
+  function gen(){
+    msgs=[];
+    for(let i=0;i<12;i++){
+      msgs.push({seq:i,key:"k"+(i%3)});
+    }
+  }
+  gen();
+  // partition assignment by mode
+  function partOf(m,mi){
+    if(mode==="global")return 0;
+    return mi%P; // partition by round robin to show ordering
+  }
+  const pColors=["#fb7185","#7c5cff","#34d399"];
+
+  function draw(){
+    clearNode(svg);
+    const padL=80,padR=30,padT=50;
+    const lanes=mode==="global"?1:P;
+    const laneH=(H-80)/lanes;
+    // partition labels
+    for(let p=0;p<lanes;p++){
+      const y=padT+p*laneH;
+      svg.appendChild(el("rect",{x:padL,y:y,width:W-padL-padR,height:laneH-10,rx:6,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+      const pl=el("text",{x:padL-10,y:y+laneH/2+2,"text-anchor":"end","font-size":12,"font-family":mono(),fill:pColors[p]});pl.textContent="P"+p;svg.appendChild(pl);
+    }
+    // group messages by partition
+    const byP={};
+    msgs.forEach((m,mi)=>{const p=partOf(m,mi);if(!byP[p])byP[p]=[];byP[p].push({m:m,mi:mi});});
+    let outOfOrder=0;
+    Object.keys(byP).forEach(p=>{
+      const pi=+p;
+      const arr=byP[p];
+      const y=padT+pi*laneH;
+      const cellW=(W-padL-padR-20)/12;
+      arr.forEach((it,i)=>{
+        const x=padL+10+i*cellW;
+        svg.appendChild(el("rect",{x:x,y:y+10,width:cellW-4,height:laneH-30,rx:4,fill:pColors[pi],opacity:.7}));
+        const t=el("text",{x:x+cellW/2-2,y:y+laneH/2+2,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:"#0b0b0c"});t.textContent=it.m.seq;svg.appendChild(t);
+      });
+    });
+    // consumer side: show processing order
+    const cy=H-30;
+    const cl=el("text",{x:padL,y:cy-4,"font-size":10,"font-family":mono(),fill:"#9b9fa8"});cl.textContent="消费顺序: ";svg.appendChild(cl);
+    // in partition mode, consumers read in parallel -> global order may break
+    let order=[];
+    if(mode==="global"){order=msgs.map(m=>m.seq);}
+    else{
+      // interleave partitions round-robin (simulating parallel consumers)
+      const ps=[[],[],[]];
+      msgs.forEach((m,mi)=>{ps[partOf(m,mi)].push(m.seq);});
+      let ptr=[0,0,0],any=true;
+      while(any){
+        any=false;
+        for(let p=0;p<P;p++){if(ptr[p]<ps[p].length){order.push(ps[p][ptr[p]++]);any=true;}}
+      }
+      // count out of order vs global seq
+      for(let i=1;i<order.length;i++){if(order[i]<order[i-1])outOfOrder++;}
+    }
+    // draw order
+    const ow=Math.min(36,(W-padL-100)/order.length);
+    order.forEach((s,i)=>{
+      const x=padL+80+i*ow;
+      const ooo=i>0&&s<order[i-1];
+      svg.appendChild(el("circle",{cx:x,cy:cy,r:9,fill:ooo?"#fbbf24":"#1c1f24",stroke:ooo?"#fbbf24":"#62666d","stroke-width":1}));
+      const t=el("text",{x:x,y:cy+3,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:ooo?"#0b0b0c":"#9b9fa8"});t.textContent=s;svg.appendChild(t);
+    });
+    $("st05mode").textContent=mode==="global"?"全局有序":"分区有序";
+    $("st05p").textContent=mode==="global"?1:P;
+    $("st05oo").textContent=outOfOrder;
+    $("st05tput").textContent=mode==="global"?"低":"高";
+    $("p05detail").innerHTML=mode==="global"?"单分区模式：所有消息进入 P0，消费端单线程串行，全局顺序严格保持 seq=0→11，但吞吐受限（无法并行）。":"分区模式：消息按 key/round-robin 分散到 3 个分区并行消费，分区内有序但全局顺序被打乱（黄色为相对前一条乱序）。吞吐高但只能保证分区内有序。";
+  }
+  draw();
+  [["partition","分区有序"],["global","全局有序"]].forEach(([v,n])=>{
+    const b=document.createElement("button");b.className="btn small"+(v===mode?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=v;draw();document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const regen=document.createElement("button");regen.className="btn small";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   06 死信队列
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let stats={ok:0,retry:0,dlq:0,pp:0};
+  let msgs=[]; // {id, state: queue/retry/dlq, retries, poison}
+  let mid=0;
+  const MAX_RETRY=3;
+  function gen(){
+    mid++;
+    const poison=Math.random()<0.15;
+    msgs.push({id:mid,state:"queue",retries:0,poison:poison,x:60,y:90});
+    if(msgs.length>10)msgs.shift();
+  }
+  function draw(){
+    clearNode(svg);
+    // main queue
+    svg.appendChild(el("rect",{x:40,y:60,width:140,height:90,rx:8,fill:"#101114",stroke:"rgba(52,211,153,.4)","stroke-width":1.2}));
+    const qt=el("text",{x:110,y:80,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#34d399"});qt.textContent="主队列";svg.appendChild(qt);
+    // consumer
+    svg.appendChild(el("rect",{x:280,y:60,width:120,height:90,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const ct=el("text",{x:340,y:100,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#f7f8f8"});ct.textContent="Consumer";svg.appendChild(ct);
+    // retry queue
+    svg.appendChild(el("rect",{x:280,y:200,width:120,height:70,rx:8,fill:"rgba(251,191,36,.08)",stroke:"#fbbf24","stroke-width":1.2}));
+    const rt=el("text",{x:340,y:225,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#fbbf24"});rt.textContent="重试队列";svg.appendChild(rt);
+    const rt2=el("text",{x:340,y:242,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});rt2.textContent="指数退避";svg.appendChild(rt2);
+    // DLQ
+    svg.appendChild(el("rect",{x:540,y:60,width:140,height:90,rx:8,fill:"rgba(248,113,113,.1)",stroke:"#f87171","stroke-width":1.2}));
+    const dt=el("text",{x:610,y:100,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#f87171"});dt.textContent="DLQ 死信队列";svg.appendChild(dt);
+    const dt2=el("text",{x:610,y:118,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});dt2.textContent="人工介入";svg.appendChild(dt2);
+    // arrows
+    svg.appendChild(el("line",{x1:180,y1:105,x2:280,y2:105,stroke:"rgba(255,255,255,.2)","stroke-width":1.2,"marker-end":"url(#ar06)"}));
+    svg.appendChild(el("line",{x1:340,y1:150,x2:340,y2:200,stroke:"#fbbf24","stroke-width":1.2,"stroke-dasharray":"4 3","marker-end":"url(#ar06)"}));
+    svg.appendChild(el("line",{x1:400,y1:235,x2:540,y2:100,stroke:"#f87171","stroke-width":1.2,"stroke-dasharray":"4 3","marker-end":"url(#ar06)"}));
+    svg.appendChild(el("path",{d:"M280,235 Q200,235 200,150 L200,150",fill:"none",stroke:"#fbbf24","stroke-width":1,"stroke-dasharray":"3 3","marker-end":"url(#ar06)"}));
+    const defs=el("defs");const m=el("marker",{id:"ar06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // messages
+    msgs.forEach((m,i)=>{
+      let x,y,col;
+      if(m.state==="queue"){x=60+i*14;y=110;col="#34d399";}
+      else if(m.state==="retry"){x=300+i*10;y=235;col="#fbbf24";}
+      else if(m.state==="dlq"){x=560+i*10;y=110;col="#f87171";}
+      svg.appendChild(el("rect",{x:x,y:y-8,width:12,height:16,rx:2,fill:col,opacity:.85}));
+      if(m.poison&&m.state==="dlq"){
+        svg.appendChild(el("text",{x:x+6,y:y+22,"text-anchor":"middle","font-size":8,"font-family":mono(),fill:"#7c5cff"})).textContent="PP";
+      }
+    });
+    // stats labels
+    const sl=el("text",{x:40,y:40,"font-size":11,"font-family":mono(),fill:"#9b9fa8"});sl.textContent="成功 "+stats.ok+" · 重试 "+stats.retry+" · DLQ "+stats.dlq+" · 毒丸 "+stats.pp;svg.appendChild(sl);
+    $("st06ok").textContent=stats.ok;
+    $("st06retry").textContent=stats.retry;
+    $("st06dlq").textContent=stats.dlq;
+    $("st06pp").textContent=stats.pp;
+  }
+  draw();
+  function process(){
+    if(msgs.length===0)return;
+    const m=msgs[0];
+    // animate to consumer
+    const fromX=60,fromY=110,toX=340,toY=105;
+    animate(500,t=>{
+      m.x=fromX+(toX-fromX)*t;m.y=fromY+(toY-fromY)*t;
+      m.state="moving";draw();
+    },()=>{
+      // process
+      const fail=m.poison||Math.random()<0.3;
+      if(fail){
+        m.retries++;
+        stats.retry++;
+        if(m.retries>=MAX_RETRY){
+          m.state="dlq";stats.dlq++;if(m.poison)stats.pp++;
+          msgs.shift();
+        }else{
+          m.state="retry";
+          // requeue after backoff
+          setTimeout(()=>{
+            m.state="queue";
+            draw();
+          },(1<<m.retries)*400);
+        }
+        draw();
+      }else{
+        stats.ok++;msgs.shift();draw();
+      }
+    });
+  }
+  const add=document.createElement("button");add.className="btn small";add.textContent="添加消息";
+  add.addEventListener("click",gen);
+  const proc=document.createElement("button");proc.className="btn primary";proc.textContent="消费处理";
+  proc.addEventListener("click",process);
+  const batch=document.createElement("button");batch.className="btn small";batch.textContent="批量处理 5";
+  batch.addEventListener("click",()=>{let i=0;function go(){if(i>=5)return;process();i++;setTimeout(go,800);}go();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{stats={ok:0,retry:0,dlq:0,pp:0};msgs=[];mid=0;draw();});
+  ctl.appendChild(add);ctl.appendChild(proc);ctl.appendChild(batch);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   07 消息积压与背压
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let prodRate=80,consRate=50;
+  let backlog=0;
+  let bpActive=false;
+  let history=[]; // backlog history
+  let running=false,acc=0;
+
+  function effProd(){
+    return bpActive?Math.min(prodRate,consRate*1.1):prodRate;
+  }
+  function tick(){
+    const p=effProd(),c=consRate;
+    backlog+=p-c;
+    if(backlog<0)backlog=0;
+    if(backlog>10000&&!bpActive){bpActive=true;}
+    if(backlog<3000&&bpActive){bpActive=false;}
+    history.push(backlog);
+    if(history.length>60)history.shift();
+  }
+  function draw(){
+    clearNode(svg);
+    const padL=50,padR=20,padT=24,padB=38;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // grid
+    const mx=Math.max(10000,...history,backlog)*1.1;
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=Math.round(mx*i/4);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // threshold line
+    const thY=padT+plotH-(10000/mx)*plotH;
+    svg.appendChild(el("line",{x1:padL,y1:thY,x2:padL+plotW,y2:thY,stroke:"#fbbf24","stroke-width":1.3,"stroke-dasharray":"6 4",opacity:.7}));
+    const tl=el("text",{x:padL+plotW-6,y:thY-4,"text-anchor":"end","font-size":9.5,"font-family":mono(),fill:"#fbbf24"});tl.textContent="背压阈值 10k";svg.appendChild(tl);
+    // backlog area
+    if(history.length>1){
+      let d="";
+      history.forEach((v,i)=>{const x=padL+(i/59)*plotW;const y=padT+plotH-(Math.min(v,mx)/mx)*plotH;d+=(i===0?"M":"L")+x+","+y+" ";});
+      let da=d+"L"+(padL+(history.length-1)/59*plotW)+","+(padT+plotH)+" L"+padL+","+(padT+plotH)+" z";
+      svg.appendChild(el("path",{d:da,fill:bpActive?"#f87171":"#fb7185",opacity:.2}));
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:bpActive?"#f87171":"#fb7185","stroke-width":2}));
+    }
+    // rates bar (top right)
+    const bx=padL+plotW-160,by=padT+10;
+    svg.appendChild(el("rect",{x:bx,y:by,width:150,height:8,rx:4,fill:"#1c1f24"}));
+    const ep=effProd();
+    svg.appendChild(el("rect",{x:bx,y:by,width:150*(ep/100),height:8,rx:4,fill:"#fb7185"}));
+    svg.appendChild(el("rect",{x:bx,y:by+16,width:150,height:8,rx:4,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:bx,y:by+16,width:150*(consRate/100),height:8,rx:4,fill:"#34d399"}));
+    const r1=el("text",{x:bx-6,y:by+7,"text-anchor":"end","font-size":9,"font-family":mono(),fill:"#fb7185"});r1.textContent="prod "+ep;svg.appendChild(r1);
+    const r2=el("text",{x:bx-6,y:by+23,"text-anchor":"end","font-size":9,"font-family":mono(),fill:"#34d399"});r2.textContent="cons "+consRate;svg.appendChild(r2);
+    // stats
+    $("st07prod").textContent=ep+"/s";
+    $("st07cons").textContent=consRate+"/s";
+    $("st07lag").textContent=Math.round(backlog);
+    const bp=$("st07bp");bp.textContent=bpActive?"触发":(backlog>5000?"告警":"正常");bp.style.color=bpActive?"#f87171":(backlog>5000?"#fbbf24":"#34d399");
+  }
+  function loop(){
+    if(!running)return;
+    tick();draw();
+    setTimeout(loop,200);
+  }
+  draw();
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>生产</span>';
+  const inp1=document.createElement("input");inp1.type="range";inp1.min=10;inp1.max=100;inp1.value=80;
+  const v1=document.createElement("span");v1.className="val";v1.textContent="80/s";
+  inp1.addEventListener("input",()=>{prodRate=+inp1.value;v1.textContent=prodRate+"/s";draw();});
+  sg1.appendChild(inp1);sg1.appendChild(v1);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>消费</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=10;inp2.max=100;inp2.value=50;
+  const v2=document.createElement("span");v2.className="val";v2.textContent="50/s";
+  inp2.addEventListener("input",()=>{consRate=+inp2.value;v2.textContent=consRate+"/s";draw();});
+  sg2.appendChild(inp2);sg2.appendChild(v2);
+  const start=document.createElement("button");start.className="btn primary";start.textContent="运行";
+  start.addEventListener("click",()=>{running=!running;start.textContent=running?"停止":"运行";if(running)loop();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{backlog=0;history=[];bpActive=false;running=false;start.textContent="运行";draw();});
+  ctl.appendChild(sg1);ctl.appendChild(sg2);ctl.appendChild(start);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   08 Exactly-Once 语义
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  let sem="exactly"; // exactly / atleast
+  let stats={commit:0,abort:0,dedup:0};
+  let seq=0; // producer sequence number
+  let pid="PID-7c5c";
+  let txnState="idle"; // idle/init/begin/produce/commit/abort
+  let txnProgress=0;
+  let sent=[]; // {seq, committed, duplicate}
+
+  function draw(){
+    clearNode(svg);
+    // producer
+    svg.appendChild(el("rect",{x:40,y:140,width:110,height:90,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const pt=el("text",{x:95,y:175,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});pt.textContent="Producer";svg.appendChild(pt);
+    const pt2=el("text",{x:95,y:195,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#7c5cff"});pt2.textContent=pid;svg.appendChild(pt2);
+    const pt3=el("text",{x:95,y:210,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});pt3.textContent="seq="+seq;svg.appendChild(pt3);
+    // broker
+    svg.appendChild(el("rect",{x:300,y:140,width:120,height:90,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const bt=el("text",{x:360,y:180,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});bt.textContent="Broker";svg.appendChild(bt);
+    const bt2=el("text",{x:360,y:200,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});bt2.textContent="txn log";svg.appendChild(bt2);
+    // consumer
+    svg.appendChild(el("rect",{x:560,y:140,width:120,height:90,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.14)"}));
+    const ct=el("text",{x:620,y:180,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});ct.textContent="Consumer";svg.appendChild(ct);
+    const ct2=el("text",{x:620,y:200,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#9b9fa8"});ct2.textContent=sem==="exactly"?"read_committed":"read_uncommitted";svg.appendChild(ct2);
+    // arrows
+    svg.appendChild(el("line",{x1:150,y1:185,x2:300,y2:185,stroke:"rgba(255,255,255,.2)","stroke-width":1.2,"marker-end":"url(#ar08)"}));
+    svg.appendChild(el("line",{x1:420,y1:185,x2:560,y2:185,stroke:"rgba(255,255,255,.2)","stroke-width":1.2,"marker-end":"url(#ar08)"}));
+    const defs=el("defs");const m=el("marker",{id:"ar08",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // transaction state machine (bottom)
+    const smY=290;
+    const states=["Init","Begin","Produce","Commit"];
+    states.forEach((s,i)=>{
+      const x=120+i*140;
+      const active=txnState===s.toLowerCase();
+      svg.appendChild(el("rect",{x:x-45,y:smY,width:90,height:34,rx:7,fill:active?"rgba(124,92,255,.2)":"#16181c",stroke:active?"#7c5cff":"rgba(255,255,255,.1)","stroke-width":active?1.6:1}));
+      const t=el("text",{x:x,y:smY+21,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:active?"#7c5cff":"#9b9fa8"});t.textContent=s;svg.appendChild(t);
+      if(i<3)svg.appendChild(el("line",{x1:x+45,y1:smY+17,x2:x+95,y2:smY+17,stroke:"rgba(255,255,255,.15)","stroke-width":1.2,"marker-end":"url(#ar08)"}));
+    });
+    const sl=el("text",{x:60,y:smY+21,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#9b9fa8"});sl.textContent="事务:";svg.appendChild(sl);
+    // sent messages visualization (top)
+    sent.slice(-8).forEach((s,i)=>{
+      const x=200+i*40,y=70;
+      const col=s.committed?"#34d399":(s.duplicate?"#fbbf24":"#f87171");
+      svg.appendChild(el("rect",{x:x,y:y,width:32,height:24,rx:4,fill:col,opacity:.85}));
+      const t=el("text",{x:x+16,y:y+15,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#0b0b0c"});t.textContent="#"+s.seq;svg.appendChild(t);
+    });
+    const sl2=el("text",{x:40,y:85,"font-size":10,"font-family":mono(),fill:"#9b9fa8"});sl2.textContent="消息:";svg.appendChild(sl2);
+    // stats
+    $("st08sem").textContent=sem==="exactly"?"exactly-once":"at-least-once";
+    $("st08commit").textContent=stats.commit;
+    $("st08abort").textContent=stats.abort;
+    $("st08dedup").textContent=stats.dedup;
+  }
+  draw();
+
+  function runTxn(){
+    if(txnState!=="idle")return;
+    const states=["init","begin","produce","commit"];
+    let i=0;
+    function next(){
+      if(i>=states.length){
+        txnState="idle";
+        // commit: mark sent as committed
+        sent.forEach(s=>{if(!s.committed)s.committed=true;});
+        stats.commit++;
+        draw();
+        $("p08detail").innerHTML="事务提交成功。所有消息原子可见，消费者 read_committed 只读到已提交消息。Exactly-Once 保证不重不漏。";
+        return;
+      }
+      txnState=states[i];
+      draw();
+      if(txnState==="produce"){
+        // produce 2 messages with seq
+        for(let k=0;k<2;k++){
+          sent.push({seq:seq,committed:false,duplicate:false});
+          seq++;
+        }
+        // in at-least-once mode, simulate a retry duplicate
+        if(sem==="atleast"&&Math.random()<0.5){
+          sent.push({seq:seq-1,committed:false,duplicate:true});
+          $("p08detail").innerHTML="At-Least-Once：网络重试导致重复消息 seq="+(seq-1)+" 被再次发送，消费者可能重复处理。";
+        }else if(sem==="exactly"){
+          // idempotent: broker dedup by (PID,partition,seq)
+          stats.dedup++;
+        }
+        draw();
+      }
+      i++;
+      setTimeout(next,500);
+    }
+    next();
+  }
+  function abortTxn(){
+    if(txnState!=="idle")return;
+    stats.abort++;
+    // last uncommitted messages aborted
+    sent.forEach(s=>{if(!s.committed){s.committed=false;s.aborted=true;}});
+    sent=sent.filter(s=>!s.aborted);
+    $("p08detail").innerHTML="事务中止（Abort）。所有未提交消息丢弃，消费者不会看到。两阶段提交保证原子性。";
+    draw();
+  }
+  [["exactly","Exactly-Once"],["atleast","At-Least-Once"]].forEach(([v,n])=>{
+    const b=document.createElement("button");b.className="btn small"+(v===sem?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{sem=v;draw();document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+      $("p08detail").innerHTML=v==="exactly"?"幂等生产者：每个 producer 分配 PID，每条消息带递增 seq，broker 按 <code>(PID, partition, seq)</code> 去重，网络重试不会产生重复。事务：跨分区多消息原子写入，消费者 read_committed 只读已提交消息。":"At-Least-Once：生产者重试可能产生重复消息（黄色），消费者需自行幂等处理。无事务时消息独立提交，无法原子写入多个分区。";});
+    ctl.appendChild(b);
+  });
+  const run=document.createElement("button");run.className="btn primary";run.textContent="提交事务";
+  run.addEventListener("click",runTxn);
+  const abort=document.createElement("button");abort.className="btn small";abort.textContent="中止事务";
+  abort.addEventListener("click",abortTxn);
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{stats={commit:0,abort:0,dedup:0};seq=0;sent=[];txnState="idle";draw();});
+  ctl.appendChild(run);ctl.appendChild(abort);ctl.appendChild(rst);
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stochastic-process-viz-lab · 随机过程与马尔可夫可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(52,211,153,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(52,211,153,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#04150d;border-color:transparent}
+.btn.primary:hover{background:#5be0b0}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>stochastic-process</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">stochastic processes</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/stochastic-process-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>马尔可夫链</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>MCMC 采样</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>泊松过程</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>布朗运动</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>隐马尔可夫</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>排队模型</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>更新过程</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>鞅与停时</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/stochastic-process-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>随机过程与马尔可夫 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现马尔可夫链、MCMC、泊松过程、布朗运动、HMM 等随机过程核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 马尔可夫链 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>马尔可夫链 — 转移矩阵与平稳分布</h2>
+      <p>离散马尔可夫链满足无记忆性：P(Xₙ₊₁|Xₙ,...,X₀)=P(Xₙ₊₁|Xₙ)。状态转移矩阵 P 的行和为 1。不可约非周期链存在唯一平稳分布 π，满足 πP=π。点击状态模拟转移。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">markov-chain.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>当前状态</span>
+          <span><i style="background:#7c5cff"></i>转移边</span>
+          <span><i style="background:#fbbf24"></i>π 分布</span>
+          <span><i style="background:#f87171"></i>自环</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">三状态马尔可夫链</h4>
+          <p id="p01detail">天气模型：晴→晴 0.7，晴→雨 0.2，晴→阴 0.1。点击状态触发转移，观察轨迹。右侧 π 条形图显示经验分布随时间收敛到平稳分布。</p>
+          <code class="formula">π = πP  →  π 是 Pᵀ 的特征值为 1 的左特征向量</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">状态数</div><div class="v amber">3</div></div>
+          <div class="stat"><div class="k">当前步</div><div class="v" id="st01step">0</div></div>
+          <div class="stat"><div class="k">当前状态</div><div class="v purple" id="st01cur">晴</div></div>
+          <div class="stat"><div class="k">经验分布</div><div class="v" id="st01dist">—</div></div>
+          <div class="stat"><div class="k">π 平稳</div><div class="v" id="st01pi" style="color:#fbbf24">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 MCMC 采样 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>MCMC 采样 — Metropolis-Hastings</h2>
+      <p>Metropolis-Hastings 算法从不可归一化的目标分布 π*(x) 采样：提议 q(x→y)，接受率 α=min(1, π*(y)q(y→x)/π*(x)q(x→y))。样本轨迹逐步覆盖目标分布。Mixing 时间衡量收敛速度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">mcmc-mh.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>接受样本</span>
+          <span><i style="background:#f87171"></i>拒绝</span>
+          <span><i style="background:#7c5cff"></i>目标分布 π*(x)</span>
+          <span><i style="background:#fbbf24"></i>当前提议</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">Metropolis-Hastings 采样双峰分布</h4>
+          <p id="p02detail">目标为混合高斯 π*(x)=0.6N(−2,1)+0.4N(2,0.8)。对称高斯提议 q=N(x,σ²)。点击“采样”逐步生成。接受率过低说明步长过大，过高则探索不足。</p>
+          <code class="formula">α(x,y) = min(1, π*(y)/π*(x))   (对称提议)</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">样本数</div><div class="v amber" id="st02n">0</div></div>
+          <div class="stat"><div class="k">接受数</div><div class="v" id="st02acc" style="color:#34d399">0</div></div>
+          <div class="stat"><div class="k">接受率</div><div class="v purple" id="st02rate">—</div></div>
+          <div class="stat"><div class="k">提议 σ</div><div class="v" id="st02sigma">1.0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 泊松过程 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>泊松过程 — 到达与计数</h2>
+      <p>齐次泊松过程：事件到达率 λ，间隔服从 Exp(λ)，计数 N(t)~Poisson(λt)。独立增量、平稳增量。点击“生成事件”观察到达时间轴与计数过程 N(t) 的阶梯增长。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">poisson-process.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>到达事件</span>
+          <span><i style="background:#7c5cff"></i>N(t) 计数</span>
+          <span><i style="background:#fbbf24"></i>E[N(t)]=λt</span>
+          <span><i style="background:#f87171"></i>间隔 Exp(λ)</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">泊松过程 N(t) 计数曲线</h4>
+          <p id="p03detail">时间轴上标记事件到达时刻 Tᵢ=Tᵢ₋₁+Δᵢ，Δᵢ~Exp(λ)。N(t) 为阶梯函数。黄色虚线为期望 E[N(t)]=λt。调整 λ 观察到达密度变化。</p>
+          <code class="formula">P(N(t)=k) = (λt)ᵏe⁻λᵗ/k!,   E[Δ]=1/λ,   Var[Δ]=1/λ²</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">到达率 λ</div><div class="v amber" id="st03lambda">1.0</div></div>
+          <div class="stat"><div class="k">事件数</div><div class="v" id="st03n">0</div></div>
+          <div class="stat"><div class="k">N(T)</div><div class="v purple" id="st03nt">0</div></div>
+          <div class="stat"><div class="k">E[N(T)]</div><div class="v" id="st03exp" style="color:#fbbf24">—</div></div>
+          <div class="stat"><div class="k">平均间隔</div><div class="v" id="st03gap">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 布朗运动 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>布朗运动 — 随机游走与方差</h2>
+      <p>标准布朗运动 W(t)：连续路径、独立增量、W(t)~N(0,t)。带漂移 X(t)=μt+σW(t)，几何布朗 S(t)=S₀exp((μ−σ²/2)t+σW(t))（Black-Scholes 资产模型）。方差随 t 线性增长。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">brownian-motion.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>路径 W(t)</span>
+          <span><i style="background:#7c5cff"></i>μt 漂移</span>
+          <span><i style="background:#fbbf24"></i>±σ√t 包络</span>
+          <span><i style="background:#f87171"></i>几何布朗</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">布朗运动路径模拟</h4>
+          <p id="p04detail">离散化 ΔW~N(0,Δt)。绿色为 W(t)，紫色虚线为漂移 μt，黄色为 ±σ√t 标准差包络。多条路径叠加显示方差扩散。切换几何布朗观察资产价格行为。</p>
+          <code class="formula">Var[W(t)] = t,   X(t)=μt+σW(t),   S(t)=S₀·exp((μ−σ²/2)t+σW(t))</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v amber" id="st04mode">标准</div></div>
+          <div class="stat"><div class="k">漂移 μ</div><div class="v" id="st04mu">0</div></div>
+          <div class="stat"><div class="k">波动 σ</div><div class="v" id="st04sigma">1.0</div></div>
+          <div class="stat"><div class="k">路径数</div><div class="v purple" id="st04paths">5</div></div>
+          <div class="stat"><div class="k">Var[T]</div><div class="v" id="st04var" style="color:#fbbf24">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 隐马尔可夫 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>隐马尔可夫模型 — Viterbi 解码</h2>
+      <p>HMM 三要素：初始 π、转移 A、发射 B。观测序列可见，隐状态不可见。Viterbi 算法动态规划求最可能隐状态路径；前向算法计算观测序列概率 P(O|λ)。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">hmm-viterbi.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>Viterbi 最优路径</span>
+          <span><i style="background:#7c5cff"></i>真实隐状态</span>
+          <span><i style="background:#fbbf24"></i>观测符号</span>
+          <span><i style="background:#f87171"></i>发射概率</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">Viterbi 解码 (天气 HMM)</h4>
+          <p id="p05detail">隐状态 {晴,雨}，观测 {散步,购物,打扫}。给定观测序列，Viterbi 递推 δₜ(j)=max_i δₜ₋₁(i)·aᵢⱼ·bⱼ(oₜ)，回溯得最优隐状态序列。点击“解码”分步执行。</p>
+          <code class="formula">δₜ(j) = max_i [δₜ₋₁(i)·aᵢⱼ]·bⱼ(oₜ),   ψₜ(j)=argmax_i</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">观测长 T</div><div class="v amber">8</div></div>
+          <div class="stat"><div class="k">隐状态</div><div class="v">2</div></div>
+          <div class="stat"><div class="k">解码步骤</div><div class="v" id="st05step">0</div></div>
+          <div class="stat"><div class="k">准确率</div><div class="v purple" id="st05acc">—</div></div>
+          <div class="stat"><div class="k">P(O|λ)</div><div class="v" id="st05prob" style="color:#34d399">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 排队模型 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>M/M/1 排队模型</h2>
+      <p>M/M/1：到达泊松(λ)、服务指数(μ)、单服务台。稳定条件 ρ=λ/μ&lt;1。稳态队长分布 P(n)=(1−ρ)ρⁿ，平均队长 L=ρ/(1−ρ)，平均等待 W=1/(μ−λ)。Little 定律 L=λW。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">mm1-queue.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>服务中</span>
+          <span><i style="background:#fbbf24"></i>排队等待</span>
+          <span><i style="background:#7c5cff"></i>到达</span>
+          <span><i style="background:#f87171"></i>系统饱和</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">M/M/1 排队动态模拟</h4>
+          <p id="p06detail">顾客按 Poisson(λ) 到达，服务时间 Exp(μ)。点击“运行”模拟。利用率 ρ=λ/μ 必须 &lt; 1 才稳定。ρ→1 时队列爆炸，等待时间趋于无穷。</p>
+          <code class="formula">L=ρ/(1−ρ),  W=1/(μ−λ),  P(n)=(1−ρ)ρⁿ,  Little: L=λW</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">到达率 λ</div><div class="v amber" id="st06lambda">0.6</div></div>
+          <div class="stat"><div class="k">服务率 μ</div><div class="v" id="st06mu">1.0</div></div>
+          <div class="stat"><div class="k">利用率 ρ</div><div class="v purple" id="st06rho">0.6</div></div>
+          <div class="stat"><div class="k">当前队长</div><div class="v" id="st06len">0</div></div>
+          <div class="stat"><div class="k">平均等待</div><div class="v" id="st06w" style="color:#fbbf24">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 更新过程 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>更新过程 — Renewal Theory</h2>
+      <p>更新过程：独立同分布间隔 {Xᵢ}，到达时刻 Sₙ=ΣXᵢ，计数 N(t)=max{n:Sₙ≤t}。更新函数 m(t)=E[N(t)]。大数定律 Sₙ/n→μ。关键更新定理刻画长期更新率 1/μ。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">renewal-process.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>更新事件</span>
+          <span><i style="background:#7c5cff"></i>N(t) 计数</span>
+          <span><i style="background:#fbbf24"></i>m(t)=E[N(t)]</span>
+          <span><i style="background:#f87171"></i>t/μ 渐近线</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">更新过程与大数定律</h4>
+          <p id="p07detail">间隔分布可选 Exp(泊松特例)、Gamma、Uniform。紫色阶梯为 N(t)，黄色为更新函数 m(t)，红色虚线为渐近线 t/μ。切换分布观察 m(t) 趋近 t/μ 的速度。</p>
+          <code class="formula">Sₙ/n → μ  a.s.,   m(t)/t → 1/μ,   关键更新定理: U*h → h/μ</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">分布</div><div class="v amber" id="st07dist">Exp</div></div>
+          <div class="stat"><div class="k">均值 μ</div><div class="v" id="st07mu">1.0</div></div>
+          <div class="stat"><div class="k">更新数</div><div class="v" id="st07n">0</div></div>
+          <div class="stat"><div class="k">N(T)</div><div class="v purple" id="st07nt">0</div></div>
+          <div class="stat"><div class="k">T/μ</div><div class="v" id="st07asymp" style="color:#f87171">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 鞅与停时 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>鞅与停时 — 公平博弈</h2>
+      <p>鞅：E[Xₙ₊₁|Fₙ]=Xₙ，即给定历史期望不变（公平博弈）。停时 T 是不依赖未来的随机时刻。可选停时定理：若 T 有界或条件满足，则 E[X_T]=E[X₀]。鞅收敛定理保证 L¹ 有界鞅几乎必然收敛。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">martingale.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>鞅路径 Xₙ</span>
+          <span><i style="background:#7c5cff"></i>上停时 T₊</span>
+          <span><i style="background:#f87171"></i>下停时 T₋</span>
+          <span><i style="background:#fbbf24"></i>E[Xₙ]=X₀</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">对称随机游走鞅模拟</h4>
+          <p id="p08detail">Xₙ=Σξᵢ，ξᵢ=±1 等概率，是关于自然流的鞅。设定上下边界 a, b 作为停时（首次到达）。点击“运行”观察多条路径，到达边界即停止。验证 E[X_T]≈X₀（需停时有界条件）。</p>
+          <code class="formula">E[Xₙ₊₁|Fₙ]=Xₙ,   T=inf{n:Xₙ∉(−a,b)},   E[X_T]=X₀ (条件成立时)</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">初始 X₀</div><div class="v amber">0</div></div>
+          <div class="stat"><div class="k">上界 +a</div><div class="v" id="st08a">5</div></div>
+          <div class="stat"><div class="k">下界 −b</div><div class="v" id="st08b">5</div></div>
+          <div class="stat"><div class="k">停时 T</div><div class="v purple" id="st08t">—</div></div>
+          <div class="stat"><div class="k">E[X_T]</div><div class="v" id="st08ex" style="color:#fbbf24">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>stochastic-process-viz-lab · 随机过程与马尔可夫可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/stochastic-process-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function randn(){
+  // Box-Muller
+  let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 马尔可夫链
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const states=["晴","雨","阴"];
+  const P=[
+    [0.7,0.2,0.1],
+    [0.3,0.4,0.3],
+    [0.2,0.3,0.5]
+  ];
+  // 平稳分布（解析）
+  function stationary(){
+    // 解 πP=π, sum π=1
+    // 用幂迭代
+    let pi=[1/3,1/3,1/3];
+    for(let i=0;i<500;i++){
+      const np=[0,0,0];
+      for(let j=0;j<3;j++)for(let k=0;k<3;k++)np[j]+=pi[k]*P[k][j];
+      pi=np;
+    }
+    return pi;
+  }
+  const piTrue=stationary();
+  let cur=0,step=0;
+  let counts=[0,0,0];
+  const pos=[[180,150],[420,150],[300,300]];
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    for(let i=0;i<3;i++){
+      for(let j=0;j<3;j++){
+        if(P[i][j]>0.001&&i!==j){
+          const a=pos[i],b=pos[j];
+          const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+          // 曲线
+          const dx=b[0]-a[0],dy=b[1]-a[1];
+          const len=Math.hypot(dx,dy);
+          const nx=-dy/len,ny=dx/len;
+          const cpx=mx+nx*20,cpy=my+ny*20;
+          const path=el("path",{d:"M"+a[0]+","+a[1]+" Q"+cpx+","+cpy+" "+b[0]+","+b[1],fill:"none",stroke:"#7c5cff","stroke-width":1+P[i][j]*3,opacity:.4});
+          // 箭头
+          svg.appendChild(path);
+          // 概率标签
+          const lx=mx+nx*30,ly=my+ny*30;
+          const t=el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+          t.textContent=P[i][j].toFixed(1);svg.appendChild(t);
+        }
+        if(i===j){
+          // 自环
+          const a=pos[i];
+          const ring=el("path",{d:"M"+(a[0]-18)+","+(a[1]-28)+" A14,14 0 1,1 "+(a[0]+18)+","+(a[1]-28),fill:"none",stroke:"#f87171","stroke-width":1+P[i][j]*2,opacity:.5});
+          svg.appendChild(ring);
+          const t=el("text",{x:a[0],y:a[1]-44,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+          t.textContent=P[i][j].toFixed(1);svg.appendChild(t);
+        }
+      }
+    }
+    // 节点
+    states.forEach((s,i)=>{
+      const isCur=i===cur;
+      const c=el("circle",{cx:pos[i][0],cy:pos[i][1],r:24,fill:isCur?"rgba(52,211,153,.25)":"#1c1f24",stroke:isCur?"#34d399":"rgba(255,255,255,.2)","stroke-width":isCur?2:1.3});
+      c.style.cursor="pointer";
+      svg.appendChild(c);
+      const t=el("text",{x:pos[i][0],y:pos[i][1]+5,"text-anchor":"middle","font-size":14,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:isCur?"#34d399":"#f7f8f8"});
+      t.textContent=s;svg.appendChild(t);
+      c.addEventListener("click",()=>{cur=i;step++;counts[i]++;draw();updateStats();});
+    });
+
+    // 右侧 π 分布条
+    const bx=520,by=60,bw=160,bh=30;
+    const tlbl=el("text",{x:bx+bw/2,y:by-10,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    tlbl.textContent="经验分布 vs π 平稳";svg.appendChild(tlbl);
+    const tot=counts.reduce((a,b)=>a+b,0)||1;
+    const emp=counts.map(c=>c/tot);
+    states.forEach((s,i)=>{
+      const y=by+i*50;
+      // 经验
+      svg.appendChild(el("rect",{x:bx,y:y,width:bw,height:14,rx:3,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      svg.appendChild(el("rect",{x:bx,y:y,width:bw*emp[i],height:14,rx:3,fill:"#34d399",opacity:.7}));
+      // π
+      svg.appendChild(el("rect",{x:bx,y:y+16,width:bw*piTrue[i],height:6,rx:2,fill:"#fbbf24",opacity:.8}));
+      const t=el("text",{x:bx+bw+8,y:y+10,"font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+      t.textContent=s+": "+emp[i].toFixed(2)+" / π="+piTrue[i].toFixed(2);svg.appendChild(t);
+    });
+  }
+  function updateStats(){
+    $("st01step").textContent=step;
+    $("st01cur").textContent=states[cur];
+    const tot=counts.reduce((a,b)=>a+b,0)||1;
+    $("st01dist").textContent="["+counts.map(c=>(c/tot).toFixed(2)).join(",")+"]";
+    $("st01pi").textContent="["+piTrue.map(p=>p.toFixed(2)).join(",")+"]";
+  }
+
+  function transition(){
+    const r=Math.random();let acc=0;
+    for(let j=0;j<3;j++){acc+=P[cur][j];if(r<acc){cur=j;break;}}
+    step++;counts[cur]++;
+    draw();updateStats();
+  }
+
+  draw();updateStats();
+  const stepBtn=document.createElement("button");stepBtn.className="btn primary";stepBtn.textContent="单步转移";
+  stepBtn.addEventListener("click",transition);
+  const autoBtn=document.createElement("button");autoBtn.className="btn";autoBtn.textContent="自动运行";
+  let autoOn=false;
+  autoBtn.addEventListener("click",()=>{
+    if(autoOn){autoOn=false;autoBtn.textContent="自动运行";return;}
+    autoOn=true;autoBtn.textContent="停止";
+    function loop(){if(!autoOn)return;transition();setTimeout(loop,250);}
+    loop();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{cur=0;step=0;counts=[0,0,0];draw();updateStats();});
+  ctl.appendChild(stepBtn);ctl.appendChild(autoBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 MCMC Metropolis-Hastings
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420,padL=40,padR=20,padT=20,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const xMin=-6,xMax=6;
+  let sigma=1.0;
+  let samples=[],accepted=0,rejected=0;
+  let cur=-4;
+
+  function target(x){
+    return 0.6*Math.exp(-(x+2)*(x+2)/2)+0.4*Math.exp(-(x-2)*(x-2)/(2*0.64));
+  }
+  function sx(x){return padL+((x-xMin)/(xMax-xMin))*plotW;}
+  function sy(p){return padT+plotH-p*plotH*0.8;}
+
+  function draw(proposal,accepted2){
+    clearNode(svg);
+    // 网格
+    for(let i=0;i<=6;i++){
+      const y=padT+(i/6)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    // 目标分布
+    let d="";
+    for(let i=0;i<=plotW;i+=2){
+      const x=xMin+(xMax-xMin)*i/plotW;
+      d+=(i===0?"M":"L")+sx(x)+","+sy(target(x));
+    }
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#7c5cff","stroke-width":2}));
+    // x 轴
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=6;i++){
+      const x=padL+(i/6)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=(xMin+(xMax-xMin)*i/6).toFixed(0);svg.appendChild(t);
+    }
+    // 样本直方图（底部小条）
+    const bins=30,binW=plotW/bins;
+    const hist=new Array(bins).fill(0);
+    samples.forEach(s=>{const b=Math.floor((s-xMin)/(xMax-xMin)*bins);if(b>=0&&b<bins)hist[b]++;});
+    const maxH=Math.max(1,...hist);
+    hist.forEach((h,i)=>{
+      if(h>0){
+        const x=padL+i*binW;
+        const hh=h/maxH*60;
+        svg.appendChild(el("rect",{x:x,y:padT+plotH-hh,width:binW-1,height:hh,fill:"#34d399",opacity:.4}));
+      }
+    });
+    // 样本轨迹（小点）
+    samples.forEach((s,i)=>{
+      const x=sx(s),y=padT+plotH-10-(i%8)*3;
+      svg.appendChild(el("circle",{cx:x,cy:y,r:1.5,fill:"#34d399",opacity:.5}));
+    });
+    // 当前点
+    svg.appendChild(el("circle",{cx:sx(cur),cy:sy(target(cur)),r:5,fill:"#34d399",stroke:"#fff","stroke-width":1.2}));
+    // 提议点
+    if(proposal!=null){
+      const col=accepted2?"#34d399":"#f87171";
+      svg.appendChild(el("circle",{cx:sx(proposal),cy:sy(target(proposal)),r:5,fill:col,opacity:.7}));
+      svg.appendChild(el("line",{x1:sx(cur),y1:sy(target(cur)),x2:sx(proposal),y2:sy(target(proposal)),stroke:col,"stroke-width":1.2,"stroke-dasharray":"3 2"}));
+    }
+    // 标签
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="x";svg.appendChild(xl);
+
+    $("st02n").textContent=samples.length;
+    $("st02acc").textContent=accepted;
+    $("st02rate").textContent=samples.length>0?(accepted/samples.length*100).toFixed(0)+"%":"—";
+    $("st02sigma").textContent=sigma.toFixed(1);
+  }
+
+  function step(){
+    const proposal=cur+randn()*sigma;
+    const ratio=target(proposal)/target(cur);
+    const accept=Math.random()<Math.min(1,ratio);
+    draw(proposal,accept);
+    // 延迟更新状态
+    setTimeout(()=>{
+      if(accept){cur=proposal;samples.push(cur);accepted++;}
+      else{samples.push(cur);rejected++;}
+      draw();
+    },200);
+  }
+
+  draw();
+  const stepBtn=document.createElement("button");stepBtn.className="btn primary";stepBtn.textContent="采样 1 步";
+  stepBtn.addEventListener("click",step);
+  const autoBtn=document.createElement("button");autoBtn.className="btn";autoBtn.textContent="自动采样";
+  let autoOn=false;
+  autoBtn.addEventListener("click",()=>{
+    if(autoOn){autoOn=false;autoBtn.textContent="自动采样";return;}
+    autoOn=true;autoBtn.textContent="停止";
+    function loop(){if(!autoOn)return;step();setTimeout(loop,300);}
+    loop();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{samples=[];accepted=0;rejected=0;cur=-4;draw();});
+  ctl.appendChild(stepBtn);ctl.appendChild(autoBtn);ctl.appendChild(rst);
+  // sigma 滑块
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>提议 σ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.2;inp.max=4;inp.step=0.1;inp.value=1;
+  const val=document.createElement("span");val.className="val";val.textContent="1.0";
+  inp.addEventListener("input",()=>{sigma=+inp.value;val.textContent=sigma.toFixed(1);$("st02sigma").textContent=sigma.toFixed(1);});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   03 泊松过程
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420,padL=40,padR=20,padT=30,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let lambda=1.0;
+  let arrivals=[];
+  const Tmax=10;
+
+  function gen(){
+    arrivals=[];
+    let t=0;
+    while(t<Tmax){
+      const dt=-Math.log(1-Math.random())/lambda;
+      t+=dt;
+      if(t<Tmax)arrivals.push(t);
+    }
+  }
+  function sx(t){return padL+(t/Tmax)*plotW;}
+  function sy(n){return padT+plotH-(n/Math.max(10,arrivals.length+2))*plotH;}
+
+  function draw(){
+    clearNode(svg);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=Math.round((arrivals.length+2)*i/5);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=10;i++){
+      const x=padL+(i/10)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=i;svg.appendChild(t);
+    }
+    // 期望线 E[N(t)]=λt
+    svg.appendChild(el("line",{x1:sx(0),y1:sy(0),x2:sx(Tmax),y2:sy(lambda*Tmax),stroke:"#fbbf24","stroke-width":1.4,"stroke-dasharray":"5 4"}));
+    // N(t) 阶梯
+    let d="M"+sx(0)+","+sy(0);
+    let n=0;
+    arrivals.forEach(t=>{
+      d+=" L"+sx(t)+","+sy(n);
+      n++;
+      d+=" L"+sx(t)+","+sy(n);
+    });
+    d+=" L"+sx(Tmax)+","+sy(n);
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#7c5cff","stroke-width":2}));
+    // 到达点
+    arrivals.forEach((t,i)=>{
+      svg.appendChild(el("circle",{cx:sx(t),cy:sy(i+1),r:4,fill:"#34d399",stroke:"#0b0b0c","stroke-width":1}));
+      // 时间轴标记
+      svg.appendChild(el("line",{x1:sx(t),y1:padT+plotH,x2:sx(t),y2:padT+plotH+5,stroke:"#34d399","stroke-width":1.5}));
+    });
+    // 标签
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="时间 t";svg.appendChild(xl);
+    const elbl=el("text",{x:sx(Tmax)-8,y:sy(lambda*Tmax)-6,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+    elbl.textContent="E[N(t)]="+lambda+"t";svg.appendChild(elbl);
+
+    $("st03n").textContent=arrivals.length;
+    $("st03nt").textContent=arrivals.length;
+    $("st03exp").textContent=(lambda*Tmax).toFixed(1);
+    $("st03gap").textContent=arrivals.length>0?(Tmax/arrivals.length).toFixed(2):"—";
+  }
+
+  gen();draw();
+  const genBtn=document.createElement("button");genBtn.className="btn primary";genBtn.textContent="生成事件";
+  genBtn.addEventListener("click",()=>{gen();draw();});
+  const animBtn=document.createElement("button");animBtn.className="btn";animBtn.textContent="动画展开";
+  animBtn.addEventListener("click",()=>{
+    const all=arrivals.slice();arrivals=[];
+    draw();
+    let i=0;
+    function next(){
+      if(i>=all.length)return;
+      arrivals.push(all[i]);draw();i++;setTimeout(next,200);
+    }
+    next();
+  });
+  ctl.appendChild(genBtn);ctl.appendChild(animBtn);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>λ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.2;inp.max=3;inp.step=0.1;inp.value=1;
+  const val=document.createElement("span");val.className="val";val.textContent="1.0";
+  inp.addEventListener("input",()=>{lambda=+inp.value;val.textContent=lambda.toFixed(1);$("st03lambda").textContent=lambda.toFixed(1);gen();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+})();
+
+/* ============================================================
+   04 布朗运动
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420,padL=40,padR=20,padT=20,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const T=1,N=200,dt=T/N;
+  let mu=0,sigma=1.0;
+  let mode="standard"; // standard / drift / gbm
+  let paths=[];
+
+  function genPath(){
+    const p=[mode==="gbm"?1:0];
+    for(let i=1;i<=N;i++){
+      const dW=randn()*Math.sqrt(dt);
+      if(mode==="gbm"){
+        const prev=p[i-1];
+        p.push(prev*Math.exp((mu-sigma*sigma/2)*dt+sigma*dW));
+      }else{
+        p.push(p[i-1]+mu*dt+sigma*dW);
+      }
+    }
+    return p;
+  }
+  function gen(){paths=[];for(let i=0;i<5;i++)paths.push(genPath());}
+
+  function sx(i){return padL+(i/N)*plotW;}
+  function sy(v){
+    if(mode==="gbm"){
+      const yMax=3,yMin=0;
+      return padT+plotH-((v-yMin)/(yMax-yMin))*plotH;
+    }
+    const yMax=4,yMin=-4;
+    return padT+plotH-((v-yMin)/(yMax-yMin))*plotH;
+  }
+
+  function draw(){
+    clearNode(svg);
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // 0 线
+    const zy=mode==="gbm"?sy(1):sy(0);
+    svg.appendChild(el("line",{x1:padL,y1:zy,x2:padL+plotW,y2:zy,stroke:"rgba(255,255,255,.1)","stroke-width":1,"stroke-dasharray":"3 3"}));
+    // 包络 ±σ√t
+    if(mode!=="gbm"){
+      let d1="",d2="";
+      for(let i=0;i<=N;i+=4){
+        const t=i*dt;
+        d1+=(i===0?"M":"L")+sx(i)+","+sy(sigma*Math.sqrt(t));
+        d2+=(i===0?"M":"L")+sx(i)+","+sy(-sigma*Math.sqrt(t));
+      }
+      svg.appendChild(el("path",{d:d1,fill:"none",stroke:"#fbbf24","stroke-width":1.2,opacity:.5,"stroke-dasharray":"4 3"}));
+      svg.appendChild(el("path",{d:d2,fill:"none",stroke:"#fbbf24","stroke-width":1.2,opacity:.5,"stroke-dasharray":"4 3"}));
+      // 漂移线
+      if(mu!==0){
+        let dm="";
+        for(let i=0;i<=N;i+=4)dm+=(i===0?"M":"L")+sx(i)+","+sy(mu*i*dt);
+        svg.appendChild(el("path",{d:dm,fill:"none",stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"5 3"}));
+      }
+    }
+    // 路径
+    paths.forEach((p,idx)=>{
+      let d="";
+      for(let i=0;i<=N;i+=2)d+=(i===0?"M":"L")+sx(i)+","+sy(p[i]);
+      const col=idx===0?"#34d399":"rgba(52,211,153,"+(0.3+0.15*(5-idx))+")";
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:col,"stroke-width":idx===0?1.8:1}));
+    });
+    // x 轴
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=(T*i/5).toFixed(1);svg.appendChild(t);
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="时间 t";svg.appendChild(xl);
+
+    $("st04mode").textContent=mode==="standard"?"标准":mode==="drift"?"漂移":"几何";
+    $("st04mu").textContent=mu.toFixed(1);
+    $("st04sigma").textContent=sigma.toFixed(1);
+    $("st04var").textContent=(sigma*sigma*T).toFixed(2);
+  }
+
+  gen();draw();
+  const genBtn=document.createElement("button");genBtn.className="btn primary";genBtn.textContent="重新生成";
+  genBtn.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(genBtn);
+  // 模式
+  [["标准","standard"],["漂移","drift"],["几何GBM","gbm"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m==="standard"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{mode=m;document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");gen();draw();});
+    ctl.appendChild(b);
+  });
+  // mu
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>μ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=-2;inp.max=2;inp.step=0.1;inp.value=0;
+  const val=document.createElement("span");val.className="val";val.textContent="0.0";
+  inp.addEventListener("input",()=>{mu=+inp.value;val.textContent=mu.toFixed(1);gen();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  // sigma
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>σ</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=0.2;inp.max=2;inp2.step=0.1;inp2.value=1;
+  const val2=document.createElement("span");val2.className="val";val2.textContent="1.0";
+  inp2.addEventListener("input",()=>{sigma=+inp2.value;val2.textContent=sigma.toFixed(1);gen();draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+})();
+
+/* ============================================================
+   05 隐马尔可夫 Viterbi
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  // 状态 0=晴 1=雨, 观测 0=散步 1=购物 2=打扫
+  const pi=[0.6,0.4];
+  const A=[[0.7,0.3],[0.4,0.6]];
+  const B=[[0.5,0.4,0.1],[0.1,0.3,0.6]];
+  const stateNames=["晴","雨"];
+  const obsNames=["散步","购物","打扫"];
+  let obs=[],trueStates=[];
+  let step=0;
+
+  function gen(){
+    obs=[];trueStates=[];
+    let s=Math.random()<pi[0]?0:1;
+    for(let t=0;t<8;t++){
+      trueStates.push(s);
+      const r=Math.random();let acc=0,o=0;
+      for(let k=0;k<3;k++){acc+=B[s][k];if(r<acc){o=k;break;}}
+      obs.push(o);
+      const r2=Math.random();s=r2<A[s][0]?0:1;
+    }
+    step=0;
+  }
+
+  function viterbi(){
+    const T=obs.length;
+    const delta=[],psi=[];
+    for(let j=0;j<2;j++){delta.push([pi[j]*B[j][obs[0]]]);psi.push([0]);}
+    for(let t=1;t<T;t++){
+      for(let j=0;j<2;j++){
+        let mx=-1,mi=0;
+        for(let i=0;i<2;i++){const v=delta[i][t-1]*A[i][j];if(v>mx){mx=v;mi=i;}}
+        delta[j].push(mx*B[j][obs[t]]);
+        psi[j].push(mi);
+      }
+    }
+    // 回溯
+    const path=[];
+    let mx=-1,mi=0;
+    for(let j=0;j<2;j++)if(delta[j][T-1]>mx){mx=delta[j][T-1];mi=j;}
+    path[T-1]=mi;
+    for(let t=T-2;t>=0;t--)path[t]=psi[path[t+1]][t+1];
+    return path;
+  }
+
+  function draw(){
+    clearNode(svg);
+    const cellW=70,cellH=50;
+    const startX=80,startY=60;
+    const T=obs.length;
+    const vpath=viterbi();
+    // 观测行
+    const ol=el("text",{x:startX-10,y:startY-16,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+    ol.textContent="观测 O:";svg.appendChild(ol);
+    for(let t=0;t<T;t++){
+      const x=startX+t*cellW+cellW/2;
+      const isDone=t<step;
+      svg.appendChild(el("rect",{x:x-28,y:startY-14,width:56,height:24,rx:5,fill:"rgba(251,191,36,.12)",stroke:"#fbbf24"}));
+      const t2=el("text",{x:x,y:startY+3,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+      t2.textContent=obsNames[obs[t]];svg.appendChild(t2);
+    }
+    // 真实状态行
+    const rl=el("text",{x:startX-10,y:startY+30,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#7c5cff"});
+    rl.textContent="真实:";svg.appendChild(rl);
+    for(let t=0;t<T;t++){
+      const x=startX+t*cellW+cellW/2;
+      svg.appendChild(el("rect",{x:x-22,y:startY+18,width:44,height:24,rx:4,fill:"rgba(124,92,255,.1)",stroke:"#7c5cff"}));
+      const t2=el("text",{x:x,y:startY+35,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#7c5cff"});
+      t2.textContent=stateNames[trueStates[t]];svg.appendChild(t2);
+    }
+    // Viterbi 行
+    const vl=el("text",{x:startX-10,y:startY+76,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    vl.textContent="Viterbi:";svg.appendChild(vl);
+    for(let t=0;t<T;t++){
+      const x=startX+t*cellW+cellW/2;
+      const done=t<step;
+      svg.appendChild(el("rect",{x:x-22,y:startY+64,width:44,height:24,rx:4,fill:done?"rgba(52,211,153,.15)":"#16181c",stroke:done?"#34d399":"rgba(255,255,255,.1)"}));
+      const t2=el("text",{x:x,y:startY+81,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:done?"#34d399":"#62666d"});
+      t2.textContent=done?stateNames[vpath[t]]:"?";svg.appendChild(t2);
+    }
+    // delta 矩阵
+    const dy=startY+120;
+    const dl=el("text",{x:startX-10,y:dy+14,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    dl.textContent="δₜ(j):";svg.appendChild(dl);
+    // 计算 delta
+    const delta=[];
+    for(let j=0;j<2;j++)delta.push([pi[j]*B[j][obs[0]]]);
+    for(let t=1;t<T;t++)for(let j=0;j<2;j++){let mx=0;for(let i=0;i<2;i++)mx=Math.max(mx,delta[i][t-1]*A[i][j]);delta[j].push(mx*B[j][obs[t]]);}
+    for(let j=0;j<2;j++){
+      const yy=dy+j*28+14;
+      const sl=el("text",{x:startX-40,y:yy+4,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:stateNames?"#9b9fa8":"#9b9fa8"});
+      sl.textContent=stateNames[j]+":";svg.appendChild(sl);
+      for(let t=0;t<T;t++){
+        const x=startX+t*cellW+cellW/2;
+        const done=t<step;
+        const t2=el("text",{x:x,y:yy+4,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:done?"#34d399":"#62666d"});
+        t2.textContent=delta[j][t].toFixed(3);svg.appendChild(t2);
+      }
+    }
+    // 最优路径连线
+    if(step>0){
+      let d="";
+      for(let t=0;t<Math.min(step,T);t++){
+        const x=startX+t*cellW+cellW/2;
+        const y=startY+76;
+        d+=(t===0?"M":"L")+x+","+y;
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":1.8,opacity:.6}));
+    }
+    // 回溯箭头（完成后）
+    if(step>=T){
+      let d="";
+      for(let t=T-1;t>=0;t--){
+        const x=startX+t*cellW+cellW/2;
+        d+=(t===T-1?"M":"L")+x+","+(startY+76);
+      }
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:"#34d399","stroke-width":1.4,opacity:.4,"stroke-dasharray":"3 3"}));
+      const note=el("text",{x:360,y:startY+220,"text-anchor":"middle","font-size":12,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+      note.textContent="✓ 回溯完成，得到最优隐状态路径";svg.appendChild(note);
+    }
+
+    // 准确率
+    let correct=0;
+    for(let t=0;t<Math.min(step,T);t++)if(vpath[t]===trueStates[t])correct++;
+    $("st05step").textContent=step;
+    $("st05acc").textContent=step>0?(correct/step*100).toFixed(0)+"%":"—";
+    // 前向概率
+    let fwd=[pi[0]*B[0][obs[0]],pi[1]*B[1][obs[0]]];
+    for(let t=1;t<T;t++){
+      const nf=[0,0];
+      for(let j=0;j<2;j++)for(let i=0;i<2;i++)nf[j]+=fwd[i]*A[i][j]*B[j][obs[t]];
+      fwd=nf;
+    }
+    $("st05prob").textContent=(fwd[0]+fwd[1]).toExponential(2);
+  }
+
+  gen();draw();
+  const decBtn=document.createElement("button");decBtn.className="btn primary";decBtn.textContent="解码下一步";
+  decBtn.addEventListener("click",()=>{step++;draw();});
+  const autoBtn=document.createElement("button");autoBtn.className="btn";autoBtn.textContent="自动解码";
+  let autoOn=false;
+  autoBtn.addEventListener("click",()=>{
+    if(autoOn){autoOn=false;autoBtn.textContent="自动解码";return;}
+    autoOn=true;autoBtn.textContent="停止";
+    function loop(){if(!autoOn)return;step++;draw();if(step>obs.length){autoOn=false;autoBtn.textContent="自动解码";return;}setTimeout(loop,400);}
+    loop();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="新序列";
+  rst.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(decBtn);ctl.appendChild(autoBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   06 M/M/1 排队
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  let lambda=0.6,mu=1.0;
+  let queue=[]; // 顾客到达时间
+  let serving=null; // {arrive, start}
+  let t=0;
+  let history=[]; // {t, len}
+  let served=0,totalWait=0;
+  let running=false;
+
+  function draw(){
+    clearNode(svg);
+    const rho=lambda/mu;
+    // 排队区域
+    const qx=80,qy=180,qw=480,qh=60;
+    svg.appendChild(el("rect",{x:qx,y:qy,width:qw,height:qh,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const qlbl=el("text",{x:qx,y:qy-8,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    qlbl.textContent="队列 (等待中): "+queue.length;svg.appendChild(qlbl);
+    // 排队的人
+    queue.forEach((c,i)=>{
+      const cx=qx+15+i*22;
+      svg.appendChild(el("circle",{cx:cx,cy:qy+qh/2,r:9,fill:"#fbbf24",opacity:.8}));
+    });
+    // 服务台
+    const sx=600,sy=qy+qh/2;
+    svg.appendChild(el("rect",{x:sx-30,y:sy-25,width:60,height:50,rx:8,fill:serving?"rgba(52,211,153,.15)":"#16181c",stroke:"#34d399","stroke-width":1.5}));
+    const slbl=el("text",{x:sx,y:sy-32,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#34d399"});
+    slbl.textContent="服务台 μ="+mu.toFixed(1);svg.appendChild(slbl);
+    if(serving){
+      svg.appendChild(el("circle",{cx:sx,cy:sy,r:10,fill:"#34d399"}));
+      // 服务进度
+      const prog=Math.min(1,(t-serving.start)/(1/mu));
+      svg.appendChild(el("path",{d:"M"+(sx-26)+","+(sy+30)+" L"+(sx-26+52*prog)+","+(sy+30),stroke:"#34d399","stroke-width":3,"stroke-linecap":"round"}));
+    }
+    // 到达箭头
+    svg.appendChild(el("path",{d:"M30,"+sy+" L"+(qx-5)+","+sy,stroke:"#7c5cff","stroke-width":1.5,fill:"none","marker-end":"url(#arr06)"}));
+    const defs=el("defs");const m=el("marker",{id:"arr06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(m);svg.appendChild(defs);
+    const al=el("text",{x:30,y:sy-10,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#7c5cff"});
+    al.textContent="到达 λ="+lambda.toFixed(1);svg.appendChild(al);
+    // 离开箭头
+    svg.appendChild(el("path",{d:"M"+(sx+32)+","+sy+" L"+(sx+70)+","+sy,stroke:"#34d399","stroke-width":1.5,fill:"none","marker-end":"url(#arr06b)"}));
+    const defs2=el("defs");const m2=el("marker",{id:"arr06b",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});m2.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#34d399"}));defs2.appendChild(m2);svg.appendChild(defs2);
+
+    // 队长历史曲线
+    const hx=40,hy=270,hw=640,hh=120;
+    svg.appendChild(el("rect",{x:hx,y:hy,width:hw,height:hh,rx:6,fill:"#0b0b0c",stroke:"rgba(255,255,255,.07)"}));
+    const hl=el("text",{x:hx+8,y:hy+16,"font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    hl.textContent="队长 N(t) 历史";svg.appendChild(hl);
+    if(history.length>1){
+      const maxT=history[history.length-1].t;
+      const maxN=Math.max(5,...history.map(h=>h.len));
+      let d="";
+      history.forEach((h,i)=>{
+        const x=hx+(h.t/Math.max(maxT,20))*hw;
+        const y=hy+hh-(h.len/maxN)*hh;
+        d+=(i===0?"M":"L")+x+","+y;
+      });
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:"#7c5cff","stroke-width":1.5}));
+    }
+
+    // 稳定性警告
+    if(rho>=1){
+      const warn=el("text",{x:360,y:120,"text-anchor":"middle","font-size":13,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+      warn.textContent="⚠ ρ="+rho.toFixed(2)+" ≥ 1 · 系统不稳定，队列爆炸";svg.appendChild(warn);
+    }
+
+    $("st06rho").textContent=rho.toFixed(2);
+    $("st06len").textContent=queue.length+(serving?1:0);
+    $("st06w").textContent=served>0?(totalWait/served).toFixed(2):"—";
+  }
+
+  function tick(){
+    if(!running)return;
+    const dt=0.1;
+    t+=dt;
+    // 到达
+    if(Math.random()<lambda*dt){
+      queue.push({arrive:t});
+    }
+    // 服务完成
+    if(serving&&t-serving.start>=1/mu){
+      totalWait+=serving.start-serving.arrive;
+      served++;
+      serving=null;
+    }
+    // 取下一个
+    if(!serving&&queue.length>0){
+      serving={...queue.shift(),start:t};
+    }
+    history.push({t:t,len:queue.length+(serving?1:0)});
+    if(history.length>500)history.shift();
+    draw();
+    setTimeout(tick,80);
+  }
+
+  draw();
+  const runBtn=document.createElement("button");runBtn.className="btn primary";runBtn.textContent="运行";
+  runBtn.addEventListener("click",()=>{
+    if(running){running=false;runBtn.textContent="运行";return;}
+    running=true;runBtn.textContent="暂停";tick();
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{running=false;runBtn.textContent="运行";queue=[];serving=null;t=0;history=[];served=0;totalWait=0;draw();});
+  ctl.appendChild(runBtn);ctl.appendChild(rst);
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>λ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=0.1;inp.max=1.5;inp.step=0.05;inp.value=0.6;
+  const val=document.createElement("span");val.className="val";val.textContent="0.60";
+  inp.addEventListener("input",()=>{lambda=+inp.value;val.textContent=lambda.toFixed(2);$("st06lambda").textContent=lambda.toFixed(2);draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>μ</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=0.2;inp2.max=2;inp2.step=0.05;inp2.value=1;
+  const val2=document.createElement("span");val2.className="val";val2.textContent="1.00";
+  inp2.addEventListener("input",()=>{mu=+inp2.value;val2.textContent=mu.toFixed(2);$("st06mu").textContent=mu.toFixed(2);draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+})();
+
+/* ============================================================
+   07 更新过程
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420,padL=40,padR=20,padT=30,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let dist="exp"; // exp / gamma / uniform
+  let arrivals=[];
+  const Tmax=20;
+
+  function sample(){
+    if(dist==="exp")return -Math.log(1-Math.random());
+    if(dist==="gamma"){let s=0;for(let i=0;i<2;i++)s+=-Math.log(1-Math.random());return s;}
+    return Math.random()*2;
+  }
+  function mean(){return dist==="exp"?1:dist==="gamma"?2:1;}
+  function gen(){
+    arrivals=[];
+    let t=0;
+    while(t<Tmax){
+      const dt=sample();
+      t+=dt;
+      if(t<Tmax)arrivals.push(t);
+    }
+  }
+  function sx(t){return padL+(t/Tmax)*plotW;}
+  function sy(n){return padT+plotH-(n/Math.max(20,arrivals.length+5))*plotH;}
+
+  function draw(){
+    clearNode(svg);
+    for(let i=0;i<=5;i++){
+      const y=padT+(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    for(let i=0;i<=10;i++){
+      const x=padL+(i/10)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=(Tmax*i/10).toFixed(0);svg.appendChild(t);
+    }
+    // 渐近线 t/μ
+    const mu=mean();
+    svg.appendChild(el("line",{x1:sx(0),y1:sy(0),x2:sx(Tmax),y2:sy(Tmax/mu),stroke:"#f87171","stroke-width":1.3,"stroke-dasharray":"5 4"}));
+    const al=el("text",{x:sx(Tmax)-8,y:sy(Tmax/mu)-6,"text-anchor":"end","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+    al.textContent="t/μ="+Tmax+"/"+mu.toFixed(1);svg.appendChild(al);
+    // m(t) 更新函数 (近似: 多次平均)
+    // 简化: 用 E[N(t)]=t/μ 作为近似 + 偏移
+    let dm="";
+    for(let i=0;i<=plotW;i+=4){
+      const t=Tmax*i/plotW;
+      // 简化 m(t): 对非指数分布加一个修正项
+      const mt=dist==="exp"?t/mu:t/mu+0.3*Math.sin(t)*Math.exp(-t/3);
+      dm+=(i===0?"M":"L")+sx(t)+","+sy(Math.max(0,mt));
+    }
+    svg.appendChild(el("path",{d:dm,fill:"none",stroke:"#fbbf24","stroke-width":1.6}));
+    // N(t) 阶梯
+    let d="M"+sx(0)+","+sy(0);
+    let n=0;
+    arrivals.forEach(t=>{
+      d+=" L"+sx(t)+","+sy(n);n++;d+=" L"+sx(t)+","+sy(n);
+    });
+    d+=" L"+sx(Tmax)+","+sy(n);
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#7c5cff","stroke-width":2}));
+    // 到达点
+    arrivals.forEach((t,i)=>svg.appendChild(el("circle",{cx:sx(t),cy:sy(i+1),r:3.5,fill:"#34d399"})));
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="时间 t";svg.appendChild(xl);
+
+    $("st07dist").textContent=dist==="exp"?"Exp":dist==="gamma"?"Gamma":"Uniform";
+    $("st07mu").textContent=mu.toFixed(1);
+    $("st07n").textContent=arrivals.length;
+    $("st07nt").textContent=arrivals.length;
+    $("st07asymp").textContent=(Tmax/mu).toFixed(1);
+  }
+
+  gen();draw();
+  const genBtn=document.createElement("button");genBtn.className="btn primary";genBtn.textContent="重新生成";
+  genBtn.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(genBtn);
+  [["Exp(1)","exp"],["Gamma(2,1)","gamma"],["Uniform(0,2)","uniform"]].forEach(([n,d])=>{
+    const b=document.createElement("button");b.className="btn small"+(d==="exp"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{dist=d;document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");gen();draw();});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   08 鞅与停时
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=420,padL=40,padR=20,padT=20,padB=40;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let a=5,b=5;
+  let paths=[]; // {path, T, end}
+  const maxStep=200;
+
+  function genPath(){
+    let x=0,path=[0];
+    for(let n=0;n<maxStep;n++){
+      x+=Math.random()<0.5?-1:1;
+      path.push(x);
+      if(x>=a||x<=-b)return {path,T:n+1,end:x};
+    }
+    return {path,T:maxStep,end:x};
+  }
+  function gen(){paths=[];for(let i=0;i<8;i++)paths.push(genPath());}
+
+  function sx(n){return padL+(n/maxStep)*plotW;}
+  function sy(x){const yMax=Math.max(a,b)+1;return padT+plotH/2-(x/yMax)*plotH/2;}
+
+  function draw(){
+    clearNode(svg);
+    // 网格
+    for(let i=0;i<=4;i++){
+      const y=padT+(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // 0 线 (E[X_n]=X_0)
+    svg.appendChild(el("line",{x1:padL,y1:sy(0),x2:padL+plotW,y2:sy(0),stroke:"#fbbf24","stroke-width":1.2,"stroke-dasharray":"5 4"}));
+    const el0=el("text",{x:padL+8,y:sy(0)-6,"font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#fbbf24"});
+    el0.textContent="E[Xₙ]=X₀=0";svg.appendChild(el0);
+    // 边界
+    svg.appendChild(el("line",{x1:padL,y1:sy(a),x2:padL+plotW,y2:sy(a),stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    svg.appendChild(el("line",{x1:padL,y1:sy(-b),x2:padL+plotW,y2:sy(-b),stroke:"#f87171","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+    const ua=el("text",{x:padL+plotW-8,y:sy(a)-6,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#7c5cff"});
+    ua.textContent="上界 +a="+a;svg.appendChild(ua);
+    const lb=el("text",{x:padL+plotW-8,y:sy(-b)+14,"text-anchor":"end","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#f87171"});
+    lb.textContent="下界 −b="+b;svg.appendChild(lb);
+    // 路径
+    paths.forEach((p,idx)=>{
+      let d="";
+      p.path.forEach((x,n)=>{d+=(n===0?"M":"L")+sx(n)+","+sy(x);});
+      const col=p.end>=a?"#7c5cff":p.end<=-b?"#f87171":"#34d399";
+      svg.appendChild(el("path",{d:d,fill:"none",stroke:col,"stroke-width":1.3,opacity:.5}));
+      // 终点
+      svg.appendChild(el("circle",{cx:sx(p.T),cy:sy(p.end),r:3,fill:col}));
+    });
+    // x 轴
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      const t=el("text",{x:x,y:padT+plotH+16,"text-anchor":"middle","font-size":10,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#62666d"});
+      t.textContent=Math.round(maxStep*i/5);svg.appendChild(t);
+    }
+    const xl=el("text",{x:padL+plotW/2,y:H-6,"text-anchor":"middle","font-size":11,"font-family":"ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace",fill:"#9b9fa8"});
+    xl.textContent="步数 n";svg.appendChild(xl);
+
+    // 统计
+    const stopped=paths.filter(p=>p.end>=a||p.end<=-b);
+    const upHits=paths.filter(p=>p.end>=a).length;
+    const downHits=paths.filter(p=>p.end<=-b).length;
+    const avgT=stopped.length>0?stopped.reduce((s,p)=>s+p.T,0)/stopped.length:0;
+    const ex=stopped.length>0?stopped.reduce((s,p)=>s+p.end,0)/stopped.length:0;
+    $("st08a").textContent=a;
+    $("st08b").textContent=b;
+    $("st08t").textContent=stopped.length>0?avgT.toFixed(1):"—";
+    $("st08ex").textContent=stopped.length>0?ex.toFixed(2):"—";
+  }
+
+  gen();draw();
+  const genBtn=document.createElement("button");genBtn.className="btn primary";genBtn.textContent="重新生成";
+  genBtn.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(genBtn);
+  // a 滑块
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>+a</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=2;inp.max=12;inp.step=1;inp.value=5;
+  const val=document.createElement("span");val.className="val";val.textContent=5;
+  inp.addEventListener("input",()=>{a=+inp.value;val.textContent=a;gen();draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  // b 滑块
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>−b</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=2;inp2.max=12;inp2.step=1;inp2.value=5;
+  const val2=document.createElement("span");val2.className="val";val2.textContent=5;
+  inp2.addEventListener("input",()=>{b=+inp2.value;val2.textContent=b;gen();draw();});
+  sg2.appendChild(inp2);sg2.appendChild(val2);ctl.appendChild(sg2);
+})();
+
+</script>
+</body>
+</html>

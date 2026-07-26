@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rag-advanced-viz-lab · RAG 进阶可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#34d399;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(52,211,153,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(52,211,153,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#04130c;border-color:transparent}
+.btn.primary:hover{background:#5fe5b3}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:54px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>rag-advanced</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">advanced retrieval-augmented generation</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/rag-advanced-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>GraphRAG</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>多跳推理</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>自适应检索</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>混合检索</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>重排序</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>查询改写</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>上下文压缩</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>评估指标</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/rag-advanced-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>RAG 进阶 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 GraphRAG、多跳推理、自适应检索、混合检索等 RAG 前沿技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 GraphRAG ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>GraphRAG：知识图谱增强检索</h2>
+      <p>从文档中抽取实体与关系构建知识图谱，再用社区检测聚类形成主题社区，检索时通过图遍历聚合多跳证据。点击实体查看其社区与邻居。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">graphrag.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>实体节点</span>
+          <span><i style="background:#7c5cff"></i>关系边</span>
+          <span><i style="background:#fbbf24"></i>社区</span>
+          <span><i style="background:#2dd4ff"></i>当前选中</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">知识图谱 + 社区检测</h4>
+          <p id="p01detail">GraphRAG 分两阶段：① 离线抽取实体/关系建图，并用社区检测（如 Leiden）把图划分主题社区，为每个社区生成摘要；② 在线查询时，可走“全局”路径（社区摘要）或“局部”路径（实体邻居遍历）。点击图中实体查看其所属社区与邻居。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">实体数</div><div class="v amber" id="st01ent">—</div></div>
+          <div class="stat"><div class="k">关系数</div><div class="v purple" id="st01rel">—</div></div>
+          <div class="stat"><div class="k">社区数</div><div class="v" id="st01com">—</div></div>
+          <div class="stat"><div class="k">当前社区</div><div class="v" style="color:#fbbf24" id="st01cur">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 多跳推理 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>多跳推理检索</h2>
+      <p>复杂问题需经多步推理：每跳检索证据片段，结合证据生成下一跳子查询，最终聚合多跳证据回答。点击播放观察推理链路逐跳展开。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">multi-hop.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>子查询</span>
+          <span><i style="background:#7c5cff"></i>证据片段</span>
+          <span><i style="background:#fbbf24"></i>中间结论</span>
+          <span><i style="background:#2dd4ff"></i>最终答案</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">推理链路</h4>
+          <p id="p02detail">多跳检索把复杂问题拆为若干子查询：第 1 跳检索直接证据，由阅读器抽取中间结论；据此生成第 2 跳子查询继续检索……多跳证据最终聚合（如沿路径合并）得到答案。相比单跳，它能回答“X 的创立者的母校在哪国”这类需链接多个事实的问题。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">跳数</div><div class="v amber" id="st02hop">0</div></div>
+          <div class="stat"><div class="k">证据数</div><div class="v purple" id="st02evi">—</div></div>
+          <div class="stat"><div class="k">当前阶段</div><div class="v" id="st02stage">—</div></div>
+          <div class="stat"><div class="k">总跳数</div><div class="v" style="color:#34d399" id="st02tot">3</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 自适应检索 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>自适应检索 (Self-RAG / CRAG)</h2>
+      <p>模型自行判断是否需要检索、检索结果是否相关：检索评估器给出相关性评分，据此决定接受、修正或重检索。切换样本观察决策路径。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">adaptive-retrieval.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>接受</span>
+          <span><i style="background:#fbbf24"></i>修正 (CRAG)</span>
+          <span><i style="background:#f87171"></i>重检索</span>
+          <span><i style="background:#7c5cff"></i>相关性分数</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">检索触发与评估</h4>
+          <p id="p03detail">Self-RAG 训练模型输出反思 token：[Retrieve] 判断是否检索，[Relevant] 判断证据是否相关，[Supported] 判断答案是否有据。CRAG 用检索评估器打分：高→接受，中→“知识精炼”再生成，低→用 web 检索重试。这样既避免无关检索的噪声，又能在知识不足时补救。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">样本</div><div class="v amber" id="st03case">—</div></div>
+          <div class="stat"><div class="k">相关性分</div><div class="v purple" id="st03rel">—</div></div>
+          <div class="stat"><div class="k">决策</div><div class="v" id="st03dec">—</div></div>
+          <div class="stat"><div class="k">检索次数</div><div class="v" style="color:#34d399" id="st03n">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 混合检索 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>混合检索与 RRF 融合</h2>
+      <p>BM25 稀疏检索捕获关键词命中，Dense 向量检索捕获语义相似。两者用倒数秩融合 (RRF) 合并排序，兼顾字面与语义。拖动权重观察融合效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">hybrid-rrf.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>BM25 (sparse)</span>
+          <span><i style="background:#7c5cff"></i>Dense (vector)</span>
+          <span><i style="background:#fbbf24"></i>RRF 融合</span>
+          <span><i style="background:#2dd4ff"></i>最相关</span>
+        </div>
+        <div class="detail-box">
+          <h4>RRF 倒数秩融合</h4>
+          <p id="p04detail">RRF 公式：score(d)=Σ 1/(k+rank_i(d))，对每个检索器的文档排名取倒数并求和。它无需校准分数尺度、对不同检索器稳健，是工业界最常用的混合融合方法。k 通常取 60。也可用加权 RRF 给某检索器更高权重。</p>
+          <code class="formula">RRF(d) = Σ_i 1 / (k + rank_i(d))</code>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">文档数</div><div class="v amber" id="st04doc">8</div></div>
+          <div class="stat"><div class="k">BM25 权重</div><div class="v purple" id="st04bw">0.5</div></div>
+          <div class="stat"><div class="k">Dense 权重</div><div class="v" id="st04dw">0.5</div></div>
+          <div class="stat"><div class="k">k 参数</div><div class="v" style="color:#34d399" id="st04k">60</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 重排序 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>重排序：双塔 vs 交叉编码器</h2>
+      <p>第一阶段用双塔 (Bi-encoder) 快速召回，第二阶段用交叉编码器 (Cross-encoder) 对 query 与每个候选拼接后精排。切换模型观察精度与代价差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">rerank.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>双塔 (Bi-encoder)</span>
+          <span><i style="background:#7c5cff"></i>交叉编码器 (Cross)</span>
+          <span><i style="background:#fbbf24"></i>最终分数</span>
+          <span><i style="background:#2dd4ff"></i>已重排</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">两阶段检索</h4>
+          <p id="p05detail">双塔：query 和文档独立编码为向量，用内积/余弦相似度排序，可预计算索引、O(1) 查询，但精度有限。交叉编码器：把 [query, doc] 拼接送入 Transformer，输出相关性分数，精度高但每对都要前向，不可预计算。典型流程：双塔召回 top-k → 交叉编码器精排。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">模式</div><div class="v amber" id="st05mode">双塔</div></div>
+          <div class="stat"><div class="k">候选数</div><div class="v purple" id="st05n">8</div></div>
+          <div class="stat"><div class="k">计算量</div><div class="v" id="st05cx">—</div></div>
+          <div class="stat"><div class="k">top-1 准确</div><div class="v" style="color:#34d399" id="st05acc">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 查询改写 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>查询改写：HyDE 与子查询分解</h2>
+      <p>HyDE 先让 LLM 生成假设答案再用其向量检索；Query Decomposition 把复杂查询拆为子查询分别检索再合并。切换策略观察改写流程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">query-rewrite.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>原始查询</span>
+          <span><i style="background:#7c5cff"></i>改写</span>
+          <span><i style="background:#fbbf24"></i>子查询/假设</span>
+          <span><i style="background:#2dd4ff"></i>检索结果</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">查询改写策略</h4>
+          <p id="p06detail">HyDE（Hypothetical Document Embedding）：先让 LLM 对查询生成一个“假设答案”，用假设答案的向量去检索——因为答案与文档更同构，比用问题检索更准。Query Decomposition：把“X 与 Y 的关系”拆为“X 是什么”“Y 是什么”等子查询分别检索。Step-back prompting 则先抽取更抽象的概念查询。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">策略</div><div class="v amber" id="st06strat">HyDE</div></div>
+          <div class="stat"><div class="k">子查询数</div><div class="v purple" id="st06sub">—</div></div>
+          <div class="stat"><div class="k">LLM 调用</div><div class="v" id="st06llm">—</div></div>
+          <div class="stat"><div class="k">检索数</div><div class="v" style="color:#34d399" id="st06ret">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 上下文压缩 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>上下文压缩与冗余过滤</h2>
+      <p>检索回来的长上下文含大量冗余。上下文压缩器按与查询的相关性过滤片段、抽取关键句，降低噪声与 token 成本。调节阈值观察压缩效果。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">context-compress.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>保留 (高相关)</span>
+          <span><i style="background:#62666d"></i>过滤 (低相关)</span>
+          <span><i style="background:#fbbf24"></i>关键句</span>
+          <span><i style="background:#7c5cff"></i>查询</span>
+        </div>
+        <div class="detail-box">
+          <h4>上下文压缩 (Contextual Compression)</h4>
+          <p id="p07detail">检索后压缩分两步：① 文档级——过滤整段低相关文档；② 片段级——把文档切成句/段，保留与查询高相关的片段。LLMChainExtractor 用 LLM 抽取必要片段；EmbeddingsFilter 用向量相似度过滤。阈值越高压缩越狠、召回越低，需在精简与完整间权衡。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">原始片段</div><div class="v amber" id="st07orig">—</div></div>
+          <div class="stat"><div class="k">保留片段</div><div class="v purple" id="st07keep">—</div></div>
+          <div class="stat"><div class="k">压缩率</div><div class="v" id="st07ratio">—</div></div>
+          <div class="stat"><div class="k">阈值</div><div class="v" style="color:#34d399" id="st07th">0.5</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 评估指标 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>RAG 评估指标与 RAGAS 框架</h2>
+      <p>RAGAS 从四个维度评估 RAG 系统：Faithfulness（答案是否忠于上下文）、Answer Relevance（答案是否切题）、Context Precision（检索是否命中金标）、Context Recall（是否召回全部金标）。切换样本查看打分。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ragas-metrics.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 440"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>Faithfulness</span>
+          <span><i style="background:#7c5cff"></i>Answer Relevance</span>
+          <span><i style="background:#fbbf24"></i>Context Precision</span>
+          <span><i style="background:#2dd4ff"></i>Context Recall</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">RAGAS 四维评估</h4>
+          <p id="p08detail">RAGAS 大量使用 LLM-as-judge：Faithfulness 把答案拆为陈述，逐条判断是否被上下文支持；Answer Relevance 反向从答案生成问题看与原问题是否一致；Context Precision 检索上下文中是否含金标且排序靠前；Context Recall 金标答案的信息是否都能在上下文中找到。无需人工标注即可评估。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">样本</div><div class="v amber" id="st08case">1</div></div>
+          <div class="stat"><div class="k">Faithfulness</div><div class="v purple" id="st08f">—</div></div>
+          <div class="stat"><div class="k">Ans Relev</div><div class="v" id="st08ar">—</div></div>
+          <div class="stat"><div class="k">Ctx Rec</div><div class="v" style="color:#34d399" id="st08cr">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>rag-advanced-viz-lab · RAG 进阶可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/rag-advanced-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   各模块
+   ============================================================ */
+/* ============================================================
+   01 GraphRAG
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  // 实体节点（位置预设，按社区聚集）
+  const nodes=[
+    {id:0,n:"OpenAI",com:0,x:140,y:90},
+    {id:1,n:"Sam Altman",com:0,x:80,y:170},
+    {id:2,n:"GPT-4",com:0,x:200,y:170},
+    {id:3,n:"Microsoft",com:0,x:140,y:240},
+    {id:4,n:"Transformer",com:1,x:380,y:90},
+    {id:5,n:"Google",com:1,x:340,y:180},
+    {id:6,n:"Attention",com:1,x:460,y:180},
+    {id:7,n:"BERT",com:1,x:400,y:250},
+    {id:8,n:"LLM",com:2,x:600,y:110},
+    {id:9,n:"RLHF",com:2,x:560,y:200},
+    {id:10,n:"GPT",com:2,x:640,y:200},
+    {id:11,n:"InstructGPT",com:2,x:590,y:280}
+  ];
+  const edges=[
+    [0,1,"CEO"],[0,2,"开发"],[0,3,"投资"],[2,3,"部署"],
+    [4,5,"提出"],[4,6,"机制"],[5,7,"开发"],[4,7,"基础"],
+    [8,9,"训练"],[8,10,"属于"],[9,11,"应用"],[10,11,"前身"],
+    [2,8,"属于"],[7,8,"属于"],[4,8,"基础"]
+  ];
+  const coms=["社区 A: OpenAI 生态","社区 B: Transformer 起源","社区 C: LLM 与对齐"];
+  const comColors=["#34d399","#7c5cff","#fbbf24"];
+  let sel=-1;
+
+  function draw(){
+    clearNode(svg);
+    // 社区背景（凸包近似：用大圆）
+    for(let c=0;c<3;c++){
+      const cn=nodes.filter(n=>n.com===c);
+      let cx=0,cy=0;cn.forEach(n=>{cx+=n.x;cy+=n.y;});cx/=cn.length;cy/=cn.length;
+      let r=0;cn.forEach(n=>{r=Math.max(r,Math.hypot(n.x-cx,n.y-cy));});r+=38;
+      svg.appendChild(el("circle",{cx:cx,cy:cy,r:r,fill:comColors[c],opacity:.07,stroke:comColors[c],"stroke-width":1,"stroke-dasharray":"4 3",opacity2:0.1}));
+      // 社区标签
+      const lbl=el("text",{x:cx,y:cy-r+12,"text-anchor":"middle","font-size":10,fill:comColors[c],opacity:.8});lbl.textContent=String.fromCharCode(65+c);svg.appendChild(lbl);
+    }
+    // 边
+    edges.forEach(e=>{
+      const a=nodes[e[0]],b=nodes[e[1]];
+      const active=sel===a.id||sel===b.id;
+      const l=el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:active?"#2dd4ff":"rgba(124,92,255,.4)","stroke-width":active?1.8:1});
+      svg.appendChild(l);
+      if(active){
+        const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+        const t=el("text",{x:mx,y:my-3,"text-anchor":"middle","font-size":9,fill:"#2dd4ff"});
+        t.textContent=e[2];svg.appendChild(t);
+      }
+    });
+    // 节点
+    nodes.forEach(n=>{
+      const isSel=sel===n.id;
+      const dim=sel>=0&&!isSel&&!(edges.some(e=>(e[0]===sel&&e[1]===n.id)||(e[1]===sel&&e[0]===n.id)));
+      svg.appendChild(el("circle",{cx:n.x,cy:n.y,r:isSel?14:11,fill:comColors[n.com],opacity:dim?.3:1,stroke:isSel?"#2dd4ff":comColors[n.com],"stroke-width":isSel?2.5:1.3}));
+      const t=el("text",{x:n.x,y:n.y-16,"text-anchor":"middle","font-size":10.5,fill:dim?"#62666d":"#f7f8f8"});t.textContent=n.n;svg.appendChild(t);
+      const g=document.createElementNS(NS,"g");g.style.cursor="pointer";
+      const hit=el("circle",{cx:n.x,cy:n.y,r:18,fill:"transparent"});g.appendChild(hit);
+      g.addEventListener("click",()=>{sel=sel===n.id?-1:n.id;draw();});
+      svg.appendChild(g);
+    });
+    // 右侧：检索路径说明
+    const rx=520,ry=320;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:180,height:80,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tl=el("text",{x:rx+90,y:ry+18,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});tl.textContent="GraphRAG 检索";svg.appendChild(tl);
+    if(sel>=0){
+      const n=nodes[sel];
+      const nbrs=edges.filter(e=>e[0]===sel||e[1]===sel).map(e=>e[2]);
+      const tt=el("text",{x:rx+12,y:ry+38,"font-size":10.5,fill:"#2dd4ff"});tt.textContent="选中: "+n.n;svg.appendChild(tt);
+      const cc=el("text",{x:rx+12,y:ry+54,"font-size":10,fill:comColors[n.com]});cc.textContent=coms[n.com].split(":")[0];svg.appendChild(cc);
+      const nn=el("text",{x:rx+12,y:ry+70,"font-size":10,fill:"#9b9fa8"});nn.textContent="邻居: "+nbrs.join(", ");svg.appendChild(nn);
+    }else{
+      const tt=el("text",{x:rx+90,y:ry+44,"text-anchor":"middle","font-size":10.5,fill:"#62666d"});tt.textContent="点击实体查看社区与邻居";svg.appendChild(tt);
+      const tt2=el("text",{x:rx+90,y:ry+62,"text-anchor":"middle","font-size":9.5,fill:"#62666d"});tt2.textContent="同色 = 同社区";svg.appendChild(tt2);
+    }
+    // stats
+    $("st01ent").textContent=nodes.length;
+    $("st01rel").textContent=edges.length;
+    $("st01com").textContent=3;
+    $("st01cur").textContent=sel>=0?String.fromCharCode(65+nodes[sel].com):"—";
+    $("p01detail").textContent=sel>=0?"选中实体「"+nodes[sel].n+"」，属于"+coms[nodes[sel].com]+"。GraphRAG 局部检索从此实体出发沿边遍历邻居，聚合多跳证据；全局检索则直接使用社区摘要。同色节点表示同社区（社区检测聚类结果）。":"GraphRAG 分两阶段：① 离线抽取实体/关系建图，并用社区检测（如 Leiden）把图划分主题社区，为每个社区生成摘要；② 在线查询时，可走“全局”路径（社区摘要）或“局部”路径（实体邻居遍历）。点击图中实体查看其所属社区与邻居。";
+  }
+  draw();
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置选中";
+  rst.addEventListener("click",()=>{sel=-1;draw();});
+  ctl.appendChild(rst);
+  const glob=document.createElement("button");glob.className="btn small";glob.textContent="全局检索路径";
+  glob.addEventListener("click",()=>{
+    // 依次高亮三个社区
+    let c=0;sel=-1;draw();
+    function next(){
+      if(c>=3)return;
+      const cn=nodes.find(n=>n.com===c);
+      sel=cn.id;draw();c++;setTimeout(next,800);
+    }
+    next();
+  });
+  ctl.appendChild(glob);
+  const loc=document.createElement("button");loc.className="btn small";loc.textContent="局部遍历路径";
+  loc.addEventListener("click",()=>{
+    // 从 OpenAI 出发遍历
+    sel=0;draw();
+    let i=0;const path=[0,2,8,10,11];
+    function next(){if(i>=path.length-1)return;sel=path[i+1];draw();i++;setTimeout(next,800);}
+    setTimeout(next,600);
+  });
+  ctl.appendChild(loc);
+})();
+
+/* ============================================================
+   02 多跳推理
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=420;
+  const query="GPT-4 的开发者的母校所在国家?";
+  const hops=[
+    {sub:"GPT-4 的开发者是谁?",evi:"OpenAI 于 2023 年发布 GPT-4。",con:"OpenAI"},
+    {sub:"OpenAI 的创始人/CEO 是谁?",evi:"Sam Altman 是 OpenAI 的联合创始人兼 CEO。",con:"Sam Altman"},
+    {sub:"Sam Altman 的母校在哪国?",evi:"Sam Altman 曾就读于斯坦福大学，位于美国。",con:"美国"}
+  ];
+  const answer="美国";
+  let pos=0,playing=false;
+  function sub(i){return ["₀","₁","₂","₃","₄"][i]||i;}
+  function draw(){
+    clearNode(svg);
+    const xQuery=60,xHop=230,xEvi=440,xAns=620;
+    // 列标题
+    svg.appendChild(el("text",{x:xQuery,y:40,"text-anchor":"start","font-size":11,fill:"#62666d"})).textContent="查询/结论";
+    svg.appendChild(el("text",{x:xHop,y:40,"font-size":11,fill:"#62666d"})).textContent="子查询";
+    svg.appendChild(el("text",{x:xEvi,y:40,"font-size":11,fill:"#62666d"})).textContent="证据片段";
+    svg.appendChild(el("text",{x:xAns,y:40,"font-size":11,fill:"#62666d"})).textContent="答案";
+    // 起始查询
+    const qy=80;
+    svg.appendChild(el("rect",{x:xQuery,y:qy,width:140,height:40,rx:8,fill:"rgba(52,211,153,.14)",stroke:"#34d399","stroke-width":1.4}));
+    const qt=el("text",{x:xQuery+70,y:qy+18,"text-anchor":"middle","font-size":10,fill:"#34d399"});qt.textContent="查询";svg.appendChild(qt);
+    const qtx=el("text",{x:xQuery+70,y:qy+32,"text-anchor":"middle","font-size":8.5,fill:"#9b9fa8"});qtx.textContent=query.slice(0,12)+"...";svg.appendChild(qtx);
+    // 各跳
+    const rowH=85,baseY=150;
+    for(let i=0;i<hops.length;i++){
+      const active=i<pos;
+      const cur=i===pos-1;
+      const y=baseY+i*rowH;
+      // 子查询
+      svg.appendChild(el("rect",{x:xHop-5,y:y-22,width:170,height:50,rx:7,fill:active?"rgba(124,92,255,.14)":"#16181c",stroke:cur?"#7c5cff":"rgba(255,255,255,.14)","stroke-width":cur?1.6:1}));
+      const st=el("text",{x:xHop+2,y:y-6,"font-size":9.5,fill:active?"#7c5cff":"#62666d"});st.textContent="Hop "+(i+1)+" 子查询";svg.appendChild(st);
+      const s2=el("text",{x:xHop+2,y:y+8,"font-size":9,fill:active?"#f7f8f8":"#62666d"});s2.textContent=hops[i].sub.slice(0,16);svg.appendChild(s2);
+      const s3=el("text",{x:xHop+2,y:y+20,"font-size":9,fill:active?"#f7f8f8":"#62666d"});s3.textContent=hops[i].sub.slice(16,32);svg.appendChild(s3);
+      // 证据
+      if(active){
+        svg.appendChild(el("rect",{x:xEvi-5,y:y-22,width:160,height:50,rx:7,fill:"rgba(251,191,36,.1)",stroke:"#fbbf24","stroke-width":1}));
+        const et=el("text",{x:xEvi+2,y:y-6,"font-size":9.5,fill:"#fbbf24"});et.textContent="证据"+sub(i+1);svg.appendChild(et);
+        const e2=el("text",{x:xEvi+2,y:y+8,"font-size":8.5,fill:"#9b9fa8"});e2.textContent=hops[i].evi.slice(0,18);svg.appendChild(e2);
+        const e3=el("text",{x:xEvi+2,y:y+20,"font-size":8.5,fill:"#9b9fa8"});e3.textContent=hops[i].evi.slice(18,36);svg.appendChild(e3);
+        // 结论
+        svg.appendChild(el("rect",{x:xQuery+2,y:y-12,width:130,height:30,rx:7,fill:"rgba(52,211,153,.12)",stroke:"#34d399","stroke-width":1.3}));
+        const ct=el("text",{x:xQuery+67,y:y+8,"text-anchor":"middle","font-size":11,fill:"#34d399"});ct.textContent="→ "+hops[i].con;svg.appendChild(ct);
+      }
+      // 连接箭头
+      if(active){
+        svg.appendChild(el("line",{x1:xQuery+132,y1:y-2,x2:xHop-5,y2:y,"stroke-width":1.2,stroke:"#34d399","marker-end":"url(#a02)"}));
+        svg.appendChild(el("line",{x1:xHop+165,y1:y,x2:xEvi-5,y2:y,"stroke-width":1.2,stroke:"#7c5cff","marker-end":"url(#a02)"}));
+      }
+    }
+    // 箭头 marker
+    const defs=el("defs");const m=el("marker",{id:"a02",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(m);svg.appendChild(defs);
+    // 最终答案
+    if(pos>=hops.length){
+      const ay=baseY+hops.length*rowH-20;
+      svg.appendChild(el("rect",{x:xAns-5,y:ay,width:90,height:40,rx:8,fill:"rgba(45,212,255,.18)",stroke:"#2dd4ff","stroke-width":1.8}));
+      const at=el("text",{x:xAns+40,y:ay+18,"text-anchor":"middle","font-size":10,fill:"#2dd4ff"});at.textContent="最终答案";svg.appendChild(at);
+      const a2=el("text",{x:xAns+40,y:ay+32,"text-anchor":"middle","font-size":13,fill:"#2dd4ff"});a2.textContent=answer;svg.appendChild(a2);
+      svg.appendChild(el("line",{x1:xEvi+155,y1:ay+20,x2:xAns-5,y2:ay+20,"stroke-width":1.4,stroke:"#2dd4ff","marker-end":"url(#a02)"}));
+    }
+    // stats
+    $("st02hop").textContent=Math.min(pos,hops.length);
+    $("st02evi").textContent=Math.min(pos,hops.length);
+    $("st02stage").textContent=pos===0?"待开始":(pos>=hops.length?"完成":"Hop "+pos);
+    $("p02detail").textContent=pos===0?"复杂问题「"+query+"」需要多跳推理：第 1 跳找出 GPT-4 开发者，第 2 跳找出其创始人，第 3 跳查母校所在国。点击播放观察推理链逐跳展开。":"当前已完成 "+Math.min(pos,hops.length)+" 跳，中间结论: "+(pos>0?hops[pos-1].con:"—")+"。每跳检索证据片段，由阅读器抽取结论并据此生成下一跳子查询，最终聚合得到答案「"+answer+"」。";
+  }
+  draw();
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放推理链";
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="推理中…";pos=0;draw();
+    function next(){if(pos>=hops.length){playing=false;play.textContent="播放推理链";return;}pos++;draw();setTimeout(next,1200);}
+    setTimeout(next,400);
+  });
+  const step=document.createElement("button");step.className="btn";step.textContent="单跳 →";
+  step.addEventListener("click",()=>{pos=Math.min(pos+1,hops.length+1);if(pos>hops.length)pos=hops.length;draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{pos=0;playing=false;play.textContent="播放推理链";draw();});
+  ctl.appendChild(play);ctl.appendChild(step);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   03 自适应检索 (Self-RAG / CRAG)
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=420;
+  const cases=[
+    {q:"Transformer 的注意力机制是什么?",need:true,rel:0.92,dec:"接受",n:1},
+    {q:"今天北京天气如何?",need:true,rel:0.88,dec:"接受",n:1},
+    {q:"1+1 等于几?",need:false,rel:0,dec:"不检索",n:0},
+    {q:"2026 年最新 AI 模型排名?",need:true,rel:0.35,dec:"重检索",n:2},
+    {q:"OpenAI 的 CEO 是谁?",need:true,rel:0.55,dec:"修正(CRAG)",n:1}
+  ];
+  let ci=0;
+  function draw(){
+    clearNode(svg);
+    const c=cases[ci];
+    // 流程节点位置
+    const nodes=[
+      {x:90,y:90,w:120,l:"查询",c:"#34d399"},
+      {x:90,y:200,w:120,l:"[Retrieve]\n判断检索?",c:"#7c5cff"},
+      {x:90,y:310,w:120,l:"检索器",c:"#62666d"}
+    ];
+    // 查询节点
+    drawBox(60,60,150,40,"查询","#34d399",c.q.slice(0,14));
+    // Retrieve 判断
+    drawBox(60,140,150,40,"[Retrieve] token","#7c5cff",c.need?"需要检索":"无需检索");
+    // 箭头
+    svg.appendChild(el("line",{x1:135,y1:100,x2:135,y2:140,stroke:"#7c5cff","stroke-width":1.4,"marker-end":"url(#a03)"}));
+    if(!c.need){
+      // 直接生成
+      drawBox(60,230,150,40,"直接生成","#34d399","(无检索)");
+      svg.appendChild(el("line",{x1:135,y1:180,x2:135,y2:230,stroke:"#34d399","stroke-width":1.4,"marker-end":"url(#a03)"}));
+      $("st03rel").textContent="—";
+      $("st03dec").textContent="不检索";
+      $("st03n").textContent="0";
+      $("p03detail").textContent="Self-RAG 输出 [Retrieve]=No：模型认为该问题可由参数知识直接回答（如算术、常识），跳过检索避免噪声。这是自适应检索的核心——并非每个问题都需要检索。";
+    }else{
+      // 检索
+      drawBox(60,230,150,40,"检索 Top-k","#62666d","k=5");
+      svg.appendChild(el("line",{x1:135,y1:180,x2:135,y2:230,stroke:"#62666d","stroke-width":1.4,"marker-end":"url(#a03)"}));
+      // 相关性评估
+      const relColor=c.rel>0.7?"#34d399":(c.rel>0.4?"#fbbf24":"#f87171");
+      drawBox(60,310,150,40,"[Relevant] 评估",relColor,"rel="+c.rel.toFixed(2));
+      svg.appendChild(el("line",{x1:135,y1:270,x2:135,y2:310,stroke:relColor,"stroke-width":1.4,"marker-end":"url(#a03)"}));
+      // 决策分支
+      const decX=320,decY=200;
+      if(c.dec==="接受"){
+        drawBox(decX,decY-30,150,50,"接受 (Correct)","#34d399","用检索结果生成");
+        svg.appendChild(el("path",{d:"M210,330 Q280,330 320,"+(decY-5),stroke:"#34d399","stroke-width":1.6,fill:"none","marker-end":"url(#a03)"}));
+        $("p03detail").textContent="相关性分 "+c.rel.toFixed(2)+" > 0.7：CRAG 判定检索结果相关，直接接受进入生成。Self-RAG 输出 [Relevant]=Yes、[Supported]=Yes，用检索上下文约束生成。";
+      }else if(c.dec==="修正(CRAG)"){
+        drawBox(decX,decY-30,150,50,"知识精炼","#fbbf24","CRAG: 去噪后重写");
+        drawBox(decX,decY+60,150,50,"生成","#34d399","用精炼后上下文");
+        svg.appendChild(el("path",{d:"M210,330 Q280,330 320,"+(decY-5),stroke:"#fbbf24","stroke-width":1.6,fill:"none","marker-end":"url(#a03)"}));
+        svg.appendChild(el("line",{x1:decX+75,y1:decY+20,x2:decX+75,y2:decY+60,stroke:"#fbbf24","stroke-width":1.4,"marker-end":"url(#a03)"}));
+        $("p03detail").textContent="相关性分 "+c.rel.toFixed(2)+" ∈ (0.4, 0.7)：CRAG 判定为“模糊”，触发知识精炼——对检索结果去噪/重写后再用于生成。Self-RAG 输出 [Relevant]=Partially。";
+      }else if(c.dec==="重检索"){
+        drawBox(decX,decY-30,150,50,"重检索 (Wrong)","#f87171","web 搜索重试");
+        drawBox(decX,decY+60,150,50,"生成","#34d399","用新检索结果");
+        svg.appendChild(el("path",{d:"M210,330 Q280,330 320,"+(decY-5),stroke:"#f87171","stroke-width":1.6,fill:"none","marker-end":"url(#a03)"}));
+        svg.appendChild(el("line",{x1:decX+75,y1:decY+20,x2:decX+75,y2:decY+60,stroke:"#f87171","stroke-width":1.4,"marker-end":"url(#a03)"}));
+        $("p03detail").textContent="相关性分 "+c.rel.toFixed(2)+" < 0.4：CRAG 判定检索结果无关，丢弃并用 web 搜索重新检索。Self-RAG 输出 [Relevant]=No，触发 [Retrieve] 再次检索。共检索 "+c.n+" 次。";
+      }
+      $("st03rel").textContent=c.rel.toFixed(2);
+      $("st03dec").textContent=c.dec;
+      $("st03n").textContent=c.n;
+    }
+    // 右侧：相关性评分条
+    const barX=540,barY=80,barW=140,barH=200;
+    svg.appendChild(el("rect",{x:barX,y:barY,width:barW,height:barH,rx:6,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const bl=el("text",{x:barX+barW/2,y:barY-8,"text-anchor":"middle","font-size":10,fill:"#9b9fa8"});bl.textContent="相关性评分";svg.appendChild(bl);
+    // 刻度
+    for(let i=0;i<=10;i++){
+      const y=barY+barH-8-(i/10)*(barH-16);
+      svg.appendChild(el("line",{x1:barX+8,y1:y,x2:barX+18,y2:y,stroke:"#62666d","stroke-width":1}));
+      if(i%2===0){
+        const t=el("text",{x:barX+22,y:y+3,"font-size":8,fill:"#62666d"});t.textContent=(i/10).toFixed(1);svg.appendChild(t);
+      }
+    }
+    // 评分填充
+    if(c.need){
+      const fillH=(barH-16)*c.rel;
+      const fillY=barY+barH-8-fillH;
+      const fc=c.rel>0.7?"#34d399":(c.rel>0.4?"#fbbf24":"#f87171");
+      svg.appendChild(el("rect",{x:barX+10,y:fillY,width:30,height:fillH,fill:fc,opacity:.8}));
+      // 阈值线
+      const thY=barY+barH-8-0.7*(barH-16);
+      svg.appendChild(el("line",{x1:barX+8,y1:thY,x2:barX+barW-8,y2:thY,stroke:"#34d399","stroke-width":1,"stroke-dasharray":"3 2",opacity:.5}));
+      const th2Y=barY+barH-8-0.4*(barH-16);
+      svg.appendChild(el("line",{x1:barX+8,y1:th2Y,x2:barX+barW-8,y2:th2Y,stroke:"#f87171","stroke-width":1,"stroke-dasharray":"3 2",opacity:.5}));
+    }
+    $("st03case").textContent="案例 "+(ci+1);
+    function drawBox(x,y,w,h,title,color,sub){
+      svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:8,fill:"rgba(52,211,153,.06)",stroke:color,"stroke-width":1.4}));
+      const t=el("text",{x:x+w/2,y:y+16,"text-anchor":"middle","font-size":10,fill:color});t.textContent=title;svg.appendChild(t);
+      if(sub){const s=el("text",{x:x+w/2,y:y+30,"text-anchor":"middle","font-size":9,fill:"#9b9fa8"});s.textContent=sub;svg.appendChild(s);}
+    }
+  }
+  const defs=el("defs");
+  const m=el("marker",{id:"a03",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+  m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(m);svg.appendChild(defs);
+  draw();
+  // 控制
+  const prev=document.createElement("button");prev.className="btn";prev.textContent="‹ 上一案例";
+  prev.addEventListener("click",()=>{ci=(ci-1+cases.length)%cases.length;draw();});
+  const nxt=document.createElement("button");nxt.className="btn primary";nxt.textContent="下一案例 ›";
+  nxt.addEventListener("click",()=>{ci=(ci+1)%cases.length;draw();});
+  ctl.appendChild(prev);ctl.appendChild(nxt);
+})();
+
+/* ============================================================
+   04 混合检索与 RRF 融合
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=420;
+  const docs=[
+    {id:"D1",bm25:1,dense:3,text:"Transformer 注意力机制"},
+    {id:"D2",bm25:3,dense:1,text:"Self-Attention 公式"},
+    {id:"D3",bm25:2,dense:5,text:"BERT 预训练模型"},
+    {id:"D4",bm25:5,dense:2,text:"多头注意力 Multi-Head"},
+    {id:"D5",bm25:4,dense:6,text:"GPT 自回归生成"},
+    {id:"D6",bm25:6,dense:4,text:"位置编码 Positional"},
+    {id:"D7",bm25:7,dense:7,text:"LayerNorm 层归一化"},
+    {id:"D8",bm25:8,dense:8,text:"残差连接 Residual"}
+  ];
+  let bw=0.5,dw=0.5,k=60;
+  function rrf(){
+    return docs.map(d=>{
+      const bm25Rrf=bw*(1/(k+d.bm25));
+      const denseRrf=dw*(1/(k+d.dense));
+      return {id:d.id,score:bm25Rrf+denseRrf,bm25Rank:d.bm25,denseRank:d.dense,text:d.text};
+    }).sort((a,b)=>b.score-a.score);
+  }
+  function draw(){
+    clearNode(svg);
+    const fused=rrf();
+    const rowH=32,baseY=80;
+    const colX=[40,180,320,460,600];
+    const colTitle=["文档","BM25 排名","Dense 排名","RRF 分数","融合排名"];
+    colTitle.forEach((t,i)=>{
+      const te=el("text",{x:colX[i],y:50,"font-size":10,fill:"#62666d"});te.textContent=t;svg.appendChild(te);
+    });
+    docs.forEach((d,i)=>{
+      const y=baseY+i*rowH;
+      const f=fused.findIndex(x=>x.id===d.id);
+      const fusedRank=f+1;
+      const isTop=fusedRank===1;
+      // 文档名
+      const dt=el("text",{x:colX[0],y:y+12,"font-size":10,fill:isTop?"#2dd4ff":"#f7f8f8"});dt.textContent=d.id+" "+d.text.slice(0,10);svg.appendChild(dt);
+      // BM25 排名条
+      const bmW=80-d.bm25*9;
+      svg.appendChild(el("rect",{x:colX[1],y:y,width:bmW,height:18,rx:3,fill:"rgba(52,211,153,.2)",stroke:"#34d399","stroke-width":1}));
+      const bt=el("text",{x:colX[1]+bmW+6,y:y+12,"font-size":9,fill:"#34d399"});bt.textContent="#"+d.bm25;svg.appendChild(bt);
+      // Dense 排名条
+      const dnW=80-d.dense*9;
+      svg.appendChild(el("rect",{x:colX[2],y:y,width:dnW,height:18,rx:3,fill:"rgba(124,92,255,.2)",stroke:"#7c5cff","stroke-width":1}));
+      const nt=el("text",{x:colX[2]+dnW+6,y:y+12,"font-size":9,fill:"#7c5cff"});nt.textContent="#"+d.dense;svg.appendChild(nt);
+      // RRF 分数
+      const fr=fused[f];
+      const scoreW=fr.score/(1/(k+1)*2)*60;
+      svg.appendChild(el("rect",{x:colX[3],y:y,width:Math.max(scoreW,8),height:18,rx:3,fill:"rgba(251,191,36,.2)",stroke:"#fbbf24","stroke-width":1}));
+      const st=el("text",{x:colX[3]+scoreW+6,y:y+12,"font-size":9,fill:"#fbbf24"});st.textContent=fr.score.toFixed(4);svg.appendChild(st);
+      // 融合排名
+      const rankColor=isTop?"#2dd4ff":(fusedRank<=3?"#34d399":"#62666d");
+      svg.appendChild(el("circle",{cx:colX[4]+20,cy:y+9,r:11,fill:isTop?"rgba(45,212,255,.2)":"#16181c",stroke:rankColor,"stroke-width":1.4}));
+      const rt=el("text",{x:colX[4]+20,y:y+13,"text-anchor":"middle","font-size":11,fill:rankColor});rt.textContent=fusedRank;svg.appendChild(rt);
+    });
+    // 底部公式
+    const fy=baseY+docs.length*rowH+20;
+    const ft=el("text",{x:W/2,y:fy,"text-anchor":"middle","font-size":11,fill:"#9b9fa8"});ft.textContent="RRF(d) = "+bw.toFixed(1)+"·1/(60+bm25) + "+dw.toFixed(1)+"·1/(60+dense)";svg.appendChild(ft);
+    $("st04bw").textContent=bw.toFixed(1);
+    $("st04dw").textContent=dw.toFixed(1);
+    $("p04detail").textContent="当前 BM25 权重 "+bw.toFixed(1)+"、Dense 权重 "+dw.toFixed(1)+"、k="+k+"。融合后 top-1 为 "+fused[0].id+"（"+fused[0].text+"），RRF 分数 "+fused[0].score.toFixed(4)+"。BM25 在 D1 命中关键词“Transformer”排第 1，Dense 因语义相似把 D2 排第 1；RRF 综合两者排名，避免单一检索器的偏差。";
+  }
+  draw();
+  // 滑块：BM25 权重
+  const lbl1=document.createElement("span");lbl1.className="ctl-lbl";lbl1.textContent="BM25 权重:";
+  const s1=document.createElement("input");s1.type="range";s1.min="0";s1.max="1";s1.step="0.1";s1.value="0.5";
+  s1.addEventListener("input",()=>{bw=parseFloat(s1.value);dw=1-bw;const s2v=ctl.querySelector('input[data-k="dense"]');if(s2v)s2v.value=dw;draw();});
+  const lbl2=document.createElement("span");lbl2.className="ctl-lbl";lbl2.textContent="Dense 权重:";
+  const s2=document.createElement("input");s2.type="range";s2.min="0";s2.max="1";s2.step="0.1";s2.value="0.5";s2.setAttribute("data-k","dense");
+  s2.addEventListener("input",()=>{dw=parseFloat(s2.value);bw=1-dw;s1.value=bw;draw();});
+  ctl.appendChild(lbl1);ctl.appendChild(s1);ctl.appendChild(lbl2);ctl.appendChild(s2);
+})();
+
+/* ============================================================
+   05 重排序：双塔 vs 交叉编码器
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=420;
+  const query="什么是多头注意力机制?";
+  const cands=[
+    {id:"D1",text:"Multi-Head Attention 把 Q,K,V 分成 h 个头分别注意力",bi:0.92,cross:0.95},
+    {id:"D2",text:"Self-Attention 计算 softmax(QK^T/√d)V",bi:0.85,cross:0.88},
+    {id:"D3",text:"Transformer 用位置编码注入序列顺序",bi:0.71,cross:0.45},
+    {id:"D4",text:"BERT 用 Masked Language Model 预训练",bi:0.68,cross:0.32},
+    {id:"D5",text:"LayerNorm 对每个样本归一化特征",bi:0.55,cross:0.18},
+    {id:"D6",text:"残差连接帮助梯度流动",bi:0.48,cross:0.12},
+    {id:"D7",text:"GPT 用自回归方式生成文本",bi:0.42,cross:0.08},
+    {id:"D8",text:"Dropout 随机丢弃神经元",bi:0.35,cross:0.05}
+  ];
+  let mode="bi"; // bi | cross
+  function sorted(){
+    const key=mode==="bi"?"bi":"cross";
+    return [...cands].map(c=>({id:c.id,text:c.text,score:c[key],bi:c.bi,cross:c.cross})).sort((a,b)=>b.score-a.score);
+  }
+  function draw(){
+    clearNode(svg);
+    const arr=sorted();
+    const barX=200,barMaxW=320,rowH=36,baseY=70;
+    // 查询框
+    svg.appendChild(el("rect",{x:30,y:20,width:180,height:36,rx:8,fill:"rgba(52,211,153,.14)",stroke:"#34d399","stroke-width":1.4}));
+    const qt=el("text",{x:40,y:42,"font-size":10,fill:"#34d399"});qt.textContent="Q: "+query.slice(0,14);svg.appendChild(qt);
+    // 模式标签
+    const mc=mode==="bi"?"#34d399":"#7c5cff";
+    const mt=el("text",{x:barX,y:55,"font-size":11,fill:mc});mt.textContent=mode==="bi"?"双塔 Bi-encoder 分数":"交叉编码器 Cross-encoder 分数";svg.appendChild(mt);
+    // 架构图示
+    if(mode==="bi"){
+      // 双塔：Q和D独立编码
+      svg.appendChild(el("rect",{x:540,y:20,width:70,height:28,rx:6,fill:"rgba(52,211,153,.1)",stroke:"#34d399","stroke-width":1}));
+      const t1=el("text",{x:575,y:38,"text-anchor":"middle","font-size":9,fill:"#34d399"});t1.textContent="Encoder_Q";svg.appendChild(t1);
+      svg.appendChild(el("rect",{x:630,y:20,width:70,height:28,rx:6,fill:"rgba(52,211,153,.1)",stroke:"#34d399","stroke-width":1}));
+      const t2=el("text",{x:665,y:38,"text-anchor":"middle","font-size":9,fill:"#34d399"});t2.textContent="Encoder_D";svg.appendChild(t2);
+      svg.appendChild(el("text",{x:620,y:65,"text-anchor":"middle","font-size":9,fill:"#62666d"})).textContent="cos(q,d)";
+    }else{
+      // 交叉：拼接后编码
+      svg.appendChild(el("rect",{x:540,y:20,width:160,height:28,rx:6,fill:"rgba(124,92,255,.1)",stroke:"#7c5cff","stroke-width":1}));
+      const t1=el("text",{x:620,y:38,"text-anchor":"middle","font-size":9,fill:"#7c5cff"});t1.textContent="[Q, D] → Transformer";svg.appendChild(t1);
+      svg.appendChild(el("text",{x:620,y:65,"text-anchor":"middle","font-size":9,fill:"#62666d"})).textContent="score";
+    }
+    // 候选条形
+    arr.forEach((c,i)=>{
+      const y=baseY+i*rowH;
+      const barW=c.score*barMaxW;
+      const isTop=i===0;
+      // 排名
+      svg.appendChild(el("circle",{cx:50,cy:y+12,r:11,fill:isTop?"rgba(45,212,255,.15)":"#16181c",stroke:isTop?"#2dd4ff":"#62666d","stroke-width":1.3}));
+      const rt=el("text",{x:50,y:y+16,"text-anchor":"middle","font-size":10,fill:isTop?"#2dd4ff":"#9b9fa8"});rt.textContent=i+1;svg.appendChild(rt);
+      // 文本
+      const dt=el("text",{x:70,y:y+16,"font-size":10,fill:isTop?"#2dd4ff":"#f7f8f8"});dt.textContent=c.id+" "+c.text.slice(0,16);svg.appendChild(dt);
+      // 条形
+      svg.appendChild(el("rect",{x:barX,y:y,width:barW,height:20,rx:4,fill:isTop?"rgba(45,212,255,.2)":"rgba(52,211,153,.1)",stroke:mc,"stroke-width":1}));
+      const st=el("text",{x:barX+barW+6,y:y+14,"font-size":9,fill:mc});st.textContent=c.score.toFixed(2);svg.appendChild(st);
+    });
+    // stats
+    $("st05mode").textContent=mode==="bi"?"双塔":"交叉";
+    $("st05cx").textContent=mode==="bi"?"O(N)":"O(N×L)";
+    $("st05acc").textContent=arr[0].id;
+    $("p05detail").textContent=mode==="bi"
+      ?"双塔模式：query 与每个文档独立编码为向量，用余弦相似度排序。优势是文档向量可预计算索引，查询时 O(1) 检索；劣势是 query 与 doc 无交互，精度有限。当前 top-1 为 "+arr[0].id+"（分数 "+arr[0].score.toFixed(2)+"）。"
+      :"交叉编码器模式：把 [query, doc] 拼接送入 Transformer，自注意力让两者充分交互，输出相关性分数。精度更高（"+arr[0].score.toFixed(2)+"），但每个 query-doc 对都要前向，无法预计算，仅用于第二阶段精排 top-k。";
+  }
+  draw();
+  const b1=document.createElement("button");b1.className="btn primary";b1.textContent="双塔 Bi-encoder";
+  b1.addEventListener("click",()=>{mode="bi";draw();});
+  const b2=document.createElement("button");b2.className="btn";b2.textContent="交叉编码器";
+  b2.addEventListener("click",()=>{mode="cross";draw();});
+  ctl.appendChild(b1);ctl.appendChild(b2);
+})();
+
+/* ============================================================
+   06 查询改写：HyDE 与子查询分解
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  const strategies={
+    hyde:{
+      name:"HyDE",
+      q:"Transformer 的优势是什么?",
+      steps:[
+        {type:"query",text:"Transformer 的优势?",x:40,y:80},
+        {type:"llm",text:"LLM 生成假设答案",x:40,y:170,sub:"Transformer 用自注意力实现并行计算，避免了 RNN 的序列依赖..."},
+        {type:"embed",text:"假设文档 → 向量",x:40,y:260},
+        {type:"retrieve",text:"向量检索",x:40,y:340,sub:"命中 D2,D4 (答案同构)"}
+      ]
+    },
+    decomp:{
+      name:"Query Decomposition",
+      q:"比较 BERT 和 GPT 的架构差异",
+      steps:[
+        {type:"query",text:"比较 BERT 和 GPT",x:40,y:80},
+        {type:"llm",text:"LLM 拆分子查询",x:40,y:170},
+        {type:"sub",text:"Q1: BERT 架构?",x:300,y:120},
+        {type:"sub",text:"Q2: GPT 架构?",x:300,y:200},
+        {type:"sub",text:"Q3: 差异对比?",x:300,y:280},
+        {type:"retrieve",text:"分别检索 → 合并",x:40,y:340,sub:"D_BERT + D_GPT + D_diff"}
+      ]
+    },
+    stepback:{
+      name:"Step-back Prompting",
+      q:"2024 年 Llama 3 的训练数据量?",
+      steps:[
+        {type:"query",text:"Llama 3 训练数据量?",x:40,y:80},
+        {type:"llm",text:"抽象概念查询",x:40,y:170},
+        {type:"sub",text:"Llama 系列训练数据演进",x:300,y:170},
+        {type:"retrieve",text:"检索背景知识",x:40,y:260},
+        {type:"retrieve",text:"具体检索+背景",x:40,y:340,sub:"背景辅助精确回答"}
+      ]
+    }
+  };
+  let cur="hyde";
+  function draw(){
+    clearNode(svg);
+    const s=strategies[cur];
+    const colors={query:"#34d399",llm:"#7c5cff",embed:"#fbbf24",sub:"#fbbf24",retrieve:"#2dd4ff"};
+    // 流程
+    s.steps.forEach((step,i)=>{
+      const c=colors[step.type]||"#9b9fa8";
+      const w=step.sub?180:160;
+      svg.appendChild(el("rect",{x:step.x,y:step.y,width:w,height:step.sub?60:40,rx:8,fill:"rgba(52,211,153,.06)",stroke:c,"stroke-width":1.4}));
+      const t=el("text",{x:step.x+w/2,y:step.y+16,"text-anchor":"middle","font-size":10,fill:c});t.textContent=step.text;svg.appendChild(t);
+      if(step.sub){
+        const st=el("text",{x:step.x+w/2,y:step.y+36,"text-anchor":"middle","font-size":8.5,fill:"#9b9fa8"});st.textContent=step.sub.slice(0,22);svg.appendChild(st);
+        const s2=el("text",{x:step.x+w/2,y:step.y+50,"text-anchor":"middle","font-size":8.5,fill:"#9b9fa8"});s2.textContent=step.sub.slice(22,44);svg.appendChild(s2);
+      }
+      // 连接到下一步（同列）
+      if(i<s.steps.length-1){
+        const next=s.steps[i+1];
+        if(next.x===step.x){
+          svg.appendChild(el("line",{x1:step.x+w/2,y1:step.y+(step.sub?60:40),x2:next.x+w/2,y2:next.y,stroke:c,"stroke-width":1.2,opacity:.6,"marker-end":"url(#a06)"}));
+        }
+      }
+    });
+    // 子查询分支线（decomp 模式）
+    if(cur==="decomp"){
+      const llmStep=s.steps[1];
+      [s.steps[2],s.steps[3],s.steps[4]].forEach(sub=>{
+        svg.appendChild(el("path",{d:"M"+(llmStep.x+160)+","+(llmStep.y+20)+" Q"+(llmStep.x+200)+","+(llmStep.y+20)+" "+sub.x+","+sub.y,stroke:"#fbbf24","stroke-width":1.2,fill:"none",opacity:.5,"marker-end":"url(#a06)"}));
+      });
+      // 合并线
+      const ret=s.steps[5];
+      [s.steps[2],s.steps[3],s.steps[4]].forEach(sub=>{
+        svg.appendChild(el("path",{d:"M"+(sub.x+160)+","+(sub.y+20)+" Q"+(sub.x+200)+","+(sub.y+20)+" "+(ret.x+90)+","+ret.y,stroke:"#2dd4ff","stroke-width":1,fill:"none",opacity:.4,"marker-end":"url(#a06)"}));
+      });
+    }
+    if(cur==="stepback"){
+      const llmStep=s.steps[1];
+      const sub=s.steps[2];
+      svg.appendChild(el("path",{d:"M"+(llmStep.x+160)+","+(llmStep.y+20)+" Q"+(llmStep.x+200)+","+(llmStep.y+20)+" "+sub.x+","+sub.y,stroke:"#fbbf24","stroke-width":1.2,fill:"none",opacity:.5,"marker-end":"url(#a06)"}));
+      svg.appendChild(el("path",{d:"M"+(sub.x+160)+","+(sub.y+20)+" Q"+(sub.x+200)+","+(sub.y+20)+" "+(s.steps[3].x+90)+","+s.steps[3].y,stroke:"#2dd4ff","stroke-width":1,fill:"none",opacity:.4,"marker-end":"url(#a06)"}));
+    }
+    // 右侧说明
+    const infoX=520,infoY=80;
+    svg.appendChild(el("rect",{x:infoX,y:infoY,width:180,height:140,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    const it=el("text",{x:infoX+12,y:infoY+20,"font-size":11,fill:"#34d399"});it.textContent=s.name;svg.appendChild(it);
+    const descs={
+      hyde:["1. 用 LLM 生成假设答案","2. 答案与文档更同构","3. 用假设答案向量检索","4. 比直接用问题检索更准","LLM 调用: 1 次","检索: 1 次"],
+      decomp:["1. 拆分复杂查询为子查询","2. 各子查询独立检索","3. 合并结果生成答案","4. 适合多方面对比问题","LLM 调用: 1+次","检索: N 次"],
+      stepback:["1. 先抽象更高层概念","2. 检索背景知识","3. 再检索具体问题","4. 背景辅助精确回答","LLM 调用: 1 次","检索: 2 次"]
+    };
+    descs[cur].forEach((line,i)=>{
+      const t=el("text",{x:infoX+12,y:infoY+40+i*16,"font-size":9,fill:"#9b9fa8"});t.textContent=line;svg.appendChild(t);
+    });
+    // stats
+    const stats={hyde:{sub:0,llm:1,ret:1},decomp:{sub:3,llm:1,ret:3},stepback:{sub:1,llm:1,ret:2}};
+    $("st06strat").textContent=s.name;
+    $("st06sub").textContent=stats[cur].sub;
+    $("st06llm").textContent=stats[cur].llm;
+    $("st06ret").textContent=stats[cur].ret;
+    $("p06detail").textContent=({
+      hyde:"HyDE：先让 LLM 对查询「"+s.q+"」生成一个假设答案，再用假设答案的向量检索。因为答案与文档在表述上更同构（都是陈述句），比用问句检索更易命中相关文档。代价是多一次 LLM 调用。",
+      decomp:"Query Decomposition：把「"+s.q+"」拆为 3 个子查询分别检索，再合并。适合需要多方面对比的复杂问题，每个子查询更简单、检索更准。代价是检索次数增加。",
+      stepback:"Step-back Prompting：对「"+s.q+"」先抽象出更高层概念（Llama 系列训练数据演进），检索背景知识后再检索具体问题，背景辅助精确回答。"
+    })[cur];
+  }
+  const defs=el("defs");
+  const m=el("marker",{id:"a06",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto"});
+  m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"#7c5cff"}));defs.appendChild(m);svg.appendChild(defs);
+  draw();
+  const b1=document.createElement("button");b1.className="btn primary";b1.textContent="HyDE";
+  b1.addEventListener("click",()=>{cur="hyde";draw();});
+  const b2=document.createElement("button");b2.className="btn";b2.textContent="分解";
+  b2.addEventListener("click",()=>{cur="decomp";draw();});
+  const b3=document.createElement("button");b3.className="btn";b3.textContent="Step-back";
+  b3.addEventListener("click",()=>{cur="stepback";draw();});
+  ctl.appendChild(b1);ctl.appendChild(b2);ctl.appendChild(b3);
+})();
+
+/* ============================================================
+   07 上下文压缩与冗余过滤
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=420;
+  const query="多头注意力机制";
+  const docs=[
+    {id:"D1",segs:[
+      {t:"Multi-Head Attention 把 Q,K,V 分成 h 个头",rel:0.95,key:true},
+      {t:"每个头独立计算注意力再拼接",rel:0.88,key:true},
+      {t:"这让模型能关注不同表示子空间",rel:0.72,key:false},
+      {t:"公式: head_i = Attention(QW_i, KW_i, VW_i)",rel:0.82,key:true}
+    ]},
+    {id:"D2",segs:[
+      {t:"Transformer 由 encoder 和 decoder 组成",rel:0.35,key:false},
+      {t:"每层包含自注意力和前馈网络",rel:0.42,key:false},
+      {t:"多头注意力是核心组件之一",rel:0.78,key:false},
+      {t:"LayerNorm 用于稳定训练",rel:0.15,key:false}
+    ]},
+    {id:"D3",segs:[
+      {t:"BERT 是基于 Transformer 的预训练模型",rel:0.28,key:false},
+      {t:"使用 Masked Language Model 任务",rel:0.12,key:false},
+      {t:"GPT 使用自回归生成方式",rel:0.18,key:false}
+    ]}
+  ];
+  let threshold=0.5;
+  function draw(){
+    clearNode(svg);
+    const padX=40,baseY=60,rowH=28;
+    let totalSegs=0,keptSegs=0;
+    let y=baseY;
+    docs.forEach(doc=>{
+      // 文档标题
+      svg.appendChild(el("rect",{x:padX,y:y,width:640,height:24,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+      const dt=el("text",{x:padX+12,y:y+16,"font-size":10,fill:"#9b9fa8"});dt.textContent=doc.id+" ("+doc.segs.length+" 段)";svg.appendChild(dt);
+      y+=30;
+      doc.segs.forEach(seg=>{
+        totalSegs++;
+        const kept=seg.rel>=threshold;
+        if(kept)keptSegs++;
+        const c=seg.key?"#fbbf24":(kept?"#34d399":"#62666d");
+        const bg=seg.key?"rgba(251,191,36,.12)":(kept?"rgba(52,211,153,.08)":"rgba(98,102,109,.05)");
+        svg.appendChild(el("rect",{x:padX,y:y,width:640,height:rowH-4,rx:4,fill:bg,stroke:c,"stroke-width":kept?1:0.5,opacity:kept?1:0.5}));
+        // 文本
+        const tt=el("text",{x:padX+12,y:y+15,"font-size":9.5,fill:kept?"#f7f8f8":"#62666d"});tt.textContent=seg.t.slice(0,38);svg.appendChild(tt);
+        // 相关性
+        const relX=padX+480;
+        const relW=seg.rel*100;
+        svg.appendChild(el("rect",{x:relX,y:y+4,width:100,height:10,rx:3,fill:"#08090a",stroke:"rgba(255,255,255,.05)"}));
+        svg.appendChild(el("rect",{x:relX,y:y+4,width:relW,height:10,rx:3,fill:c,opacity:.6}));
+        const rt=el("text",{x:relX+108,y:y+13,"font-size":9,fill:c});rt.textContent=seg.rel.toFixed(2);svg.appendChild(rt);
+        // 标记
+        if(seg.key){
+          const kt=el("text",{x:padX+610,y:y+15,"font-size":8,fill:"#fbbf24"});kt.textContent="★关键";svg.appendChild(kt);
+        }
+        y+=rowH;
+      });
+      y+=8;
+    });
+    // 阈值线说明
+    const thy=y+10;
+    svg.appendChild(el("line",{x1:padX+480,x2:padX+580,y1:thy,y2:thy,stroke:"#34d399","stroke-width":1,"stroke-dasharray":"3 2"}));
+    const tl=el("text",{x:padX+590,y:thy+4,"font-size":9,fill:"#34d399"});tl.textContent="阈值 "+threshold.toFixed(2);svg.appendChild(tl);
+    $("st07orig").textContent=totalSegs;
+    $("st07keep").textContent=keptSegs;
+    $("st07ratio").textContent=Math.round(keptSegs/totalSegs*100)+"%";
+    $("st07th").textContent=threshold.toFixed(2);
+    $("p07detail").textContent="共 "+totalSegs+" 个片段，阈值 "+threshold.toFixed(2)+" 下保留 "+keptSegs+" 个（压缩率 "+Math.round((1-keptSegs/totalSegs)*100)+"%）。标★为 LLMChainExtractor 抽取的关键句。D1 与查询「"+query+"」高度相关全部保留；D2 部分相关被过滤；D3 几乎无关被丢弃。阈值越高越精简但可能漏掉信息，需权衡。";
+  }
+  draw();
+  const lbl=document.createElement("span");lbl.className="ctl-lbl";lbl.textContent="相关性阈值:";
+  const s=document.createElement("input");s.type="range";s.min="0";s.max="1";s.step="0.05";s.value="0.5";
+  s.addEventListener("input",()=>{threshold=parseFloat(s.value);draw();});
+  ctl.appendChild(lbl);ctl.appendChild(s);
+})();
+
+/* ============================================================
+   08 RAGAS 评估指标
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=440;
+  const samples=[
+    {
+      q:"什么是 Flash Attention?",
+      ans:"Flash Attention 通过分块计算和 IO 感知优化注意力，减少 HBM 访问。",
+      ctx:["Flash Attention 用 tiling 把 Q,K,V 分块在 SRAM 计算","减少 HBM 读写次数","IO 复杂度 O(N²/M)"],
+      gold:"Flash Attention 是一种 IO 感知的注意力算法，通过分块减少内存访问。",
+      metrics:{faith:0.90,rel:0.85,prec:0.92,rec:0.88}
+    },
+    {
+      q:"Mamba 的核心机制?",
+      ans:"Mamba 用 RNN 做序列建模，速度很快。",
+      ctx:["Mamba 基于状态空间模型 SSM","选择性扫描机制","A/B/C/D 矩阵"],
+      gold:"Mamba 基于选择性状态空间模型，通过选择性扫描实现线性复杂度。",
+      metrics:{faith:0.60,rel:0.70,prec:0.75,rec:0.50}
+    },
+    {
+      q:"RWKV 的 WKV 机制?",
+      ans:"RWKV 的 WKV 机制基于状态空间模型实现线性 RNN。",
+      ctx:["RWKV 是线性 RNN","WKV = Weight-Key-Value","time-mixing 和 channel-mixing"],
+      gold:"RWKV 的 WKV 机制通过加权历史 Key-Value 实现线性复杂度的注意力替代。",
+      metrics:{faith:0.40,rel:0.65,prec:0.80,rec:0.60}
+    }
+  ];
+  let si=0;
+  function draw(){
+    clearNode(svg);
+    const s=samples[si];
+    const cx=200,cy=220,r=140;
+    // 雷达图
+    const metrics=[
+      {key:"faith",label:"Faithfulness",val:s.metrics.faith,color:"#34d399"},
+      {key:"rel",label:"Answer\nRelevance",val:s.metrics.rel,color:"#7c5cff"},
+      {key:"prec",label:"Context\nPrecision",val:s.metrics.prec,color:"#fbbf24"},
+      {key:"rec",label:"Context\nRecall",val:s.metrics.rec,color:"#2dd4ff"}
+    ];
+    const N=metrics.length;
+    // 网格
+    for(let g=1;g<=4;g++){
+      const pts=[];
+      for(let i=0;i<N;i++){
+        const ang=-Math.PI/2+i*2*Math.PI/N;
+        const rr=r*g/4;
+        pts.push(cx+rr*Math.cos(ang),cy+rr*Math.sin(ang));
+      }
+      svg.appendChild(el("polygon",{points:pts.join(" "),fill:"none",stroke:"rgba(255,255,255,.06)","stroke-width":1}));
+    }
+    // 轴线
+    for(let i=0;i<N;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/N;
+      svg.appendChild(el("line",{x1:cx,y1:cy,x2:cx+r*Math.cos(ang),y2:cy+r*Math.sin(ang),stroke:"rgba(255,255,255,.06)","stroke-width":1}));
+    }
+    // 数据多边形
+    const dataPts=[];
+    for(let i=0;i<N;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/N;
+      const rr=r*metrics[i].val;
+      dataPts.push(cx+rr*Math.cos(ang),cy+rr*Math.sin(ang));
+    }
+    svg.appendChild(el("polygon",{points:dataPts.join(" "),fill:"rgba(52,211,153,.15)",stroke:"#34d399","stroke-width":1.6}));
+    // 数据点
+    for(let i=0;i<N;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/N;
+      const rr=r*metrics[i].val;
+      const px=cx+rr*Math.cos(ang),py=cy+rr*Math.sin(ang);
+      svg.appendChild(el("circle",{cx:px,cy:py,r:4,fill:metrics[i].color,stroke:"#08090a","stroke-width":1.5}));
+    }
+    // 标签
+    for(let i=0;i<N;i++){
+      const ang=-Math.PI/2+i*2*Math.PI/N;
+      const lr=r+22;
+      const lx=cx+lr*Math.cos(ang),ly=cy+lr*Math.sin(ang);
+      const lines=metrics[i].label.split("\n");
+      lines.forEach((line,j)=>{
+        const t=el("text",{x:lx,y:ly+j*12-6,"text-anchor":"middle","font-size":10,fill:metrics[i].color});t.textContent=line;svg.appendChild(t);
+      });
+      // 分数
+      const vt=el("text",{x:lx,y:ly+lines.length*12,"text-anchor":"middle","font-size":11,fill:"#f7f8f8"});vt.textContent=metrics[i].val.toFixed(2);svg.appendChild(vt);
+    }
+    // 右侧：样本详情
+    const dx=440,dw=260,dy=40;
+    svg.appendChild(el("rect",{x:dx,y:dy,width:dw,height:360,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.07)"}));
+    let ty=dy+20;
+    const q=el("text",{x:dx+12,y:ty,"font-size":10,fill:"#34d399"});q.textContent="Q: "+s.q;svg.appendChild(q);ty+=20;
+    const a=el("text",{x:dx+12,y:ty,"font-size":9,fill:"#9b9fa8"});a.textContent="Ans: "+s.ans.slice(0,28);svg.appendChild(a);ty+=14;
+    const a2=el("text",{x:dx+12,y:ty,"font-size":9,fill:"#9b9fa8"});a2.textContent=s.ans.slice(28,56);svg.appendChild(a2);ty+=20;
+    const ch=el("text",{x:dx+12,y:ty,"font-size":9,fill:"#fbbf24"});ch.textContent="Ctx ("+s.ctx.length+"):";svg.appendChild(ch);ty+=14;
+    s.ctx.forEach(c=>{
+      const ct=el("text",{x:dx+16,y:ty,"font-size":8.5,fill:"#62666d"});ct.textContent="• "+c.slice(0,28);svg.appendChild(ct);ty+=14;
+    });
+    ty+=6;
+    const gh=el("text",{x:dx+12,y:ty,"font-size":9,fill:"#2dd4ff"});gh.textContent="Gold: "+s.gold.slice(0,28);svg.appendChild(gh);ty+=14;
+    const g2=el("text",{x:dx+12,y:ty,"font-size":8.5,fill:"#2dd4ff"});g2.textContent=s.gold.slice(28,56);svg.appendChild(g2);ty+=20;
+    // 评分细则
+    const dh=el("text",{x:dx+12,y:ty,"font-size":9,fill:"#f7f8f8"});dh.textContent="评分细则:";svg.appendChild(dh);ty+=14;
+    const details=[
+      ["Faithfulness",s.metrics.faith,"#34d399"],
+      ["Ans Relevance",s.metrics.rel,"#7c5cff"],
+      ["Ctx Precision",s.metrics.prec,"#fbbf24"],
+      ["Ctx Recall",s.metrics.rec,"#2dd4ff"]
+    ];
+    details.forEach(d=>{
+      svg.appendChild(el("rect",{x:dx+12,y:ty-9,width:d[1]*80,height:10,rx:2,fill:d[2],opacity:.6}));
+      const dt=el("text",{x:dx+12,y:ty,"font-size":8.5,fill:"#9b9fa8"});dt.textContent=d[0]+": "+d[1].toFixed(2);svg.appendChild(dt);ty+=14;
+    });
+    // stats
+    $("st08case").textContent="样本 "+(si+1);
+    $("st08f").textContent=s.metrics.faith.toFixed(2);
+    $("st08ar").textContent=s.metrics.rel.toFixed(2);
+    $("st08cr").textContent=s.metrics.rec.toFixed(2);
+    $("p08detail").textContent="样本 "+(si+1)+"：「"+s.q+"」Faithfulness="+s.metrics.faith.toFixed(2)+"（答案是否忠于上下文），Answer Relevance="+s.metrics.rel.toFixed(2)+"（答案是否切题），Context Precision="+s.metrics.prec.toFixed(2)+"（检索是否命中金标），Context Recall="+s.metrics.rec.toFixed(2)+"（金标信息是否都在上下文）。RAGAS 用 LLM-as-judge 自动评估，无需人工标注。";
+  }
+  draw();
+  const prev=document.createElement("button");prev.className="btn";prev.textContent="‹ 上一样本";
+  prev.addEventListener("click",()=>{si=(si-1+samples.length)%samples.length;draw();});
+  const nxt=document.createElement("button");nxt.className="btn primary";nxt.textContent="下一样本 ›";
+  nxt.addEventListener("click",()=>{si=(si+1)%samples.length;draw();});
+  ctl.appendChild(prev);ctl.appendChild(nxt);
+})();
+</script>
+</body>
+</html>

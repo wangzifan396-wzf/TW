@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wasm-viz-lab · WebAssembly 运行时可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#5e6ad2;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(94,106,210,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(94,106,210,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(94,106,210,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#0a0e24;border-color:transparent}
+.btn.primary:hover{background:#6e7ae0}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>wasm</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">webassembly runtime</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/wasm-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>WASM 指令集</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>编译到 WASM</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>内存模型</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>WASI 接口</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>模块加载</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>JIT 编译</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>安全沙箱</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>性能对比</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/wasm-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>WebAssembly 运行时 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 WASM 指令集、编译流程、内存模型、WASI 接口、JIT 编译等 WebAssembly 核心技术。八个模块，纯原生实现，可直接在浏览器中探索 WASM 运行时的核心结构。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 WASM 指令集 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>WASM 指令集：栈式虚拟机</h2>
+      <p>WebAssembly 采用栈式虚拟机，指令操作隐式栈顶。i32/i64/f32/f64 四种值类型。逐步执行一段加法与乘法程序，观察操作数 push/pop 与执行过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">stack-vm.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>i32 值</span>
+          <span><i style="background:#7c5cff"></i>i64 值</span>
+          <span><i style="background:#34d399"></i>f64 值</span>
+          <span><i style="background:#fbbf24"></i>当前指令</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">栈式执行模型</h4>
+          <p id="p01detail">点击“单步”逐步执行 WASM 字节码。每条指令从栈顶弹出操作数、计算后压回结果。栈式设计让编码紧凑（无寄存器字段），但需要更多指令完成同一运算。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前指令</div><div class="v amber" id="st01inst">—</div></div>
+          <div class="stat"><div class="k">栈深度</div><div class="v purple" id="st01depth">0</div></div>
+          <div class="stat"><div class="k">已执行</div><div class="v" id="st01pc">0 / 9</div></div>
+          <div class="stat"><div class="k">结果</div><div class="v" id="st01res" style="color:#34d399">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 编译到 WASM ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>编译到 WASM</h2>
+      <p>C/C++/Rust 源码经 LLVM 前端生成 LLVM IR，再由 LLVM WASM 后端或 Wasm-ld 产出 .wasm 字节码。逐步观察从源码到字节码的编译流水线。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">compile-pipeline.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>源码</span>
+          <span><i style="background:#7c5cff"></i>LLVM IR</span>
+          <span><i style="background:#34d399"></i>WASM 字节码</span>
+          <span><i style="background:#fbbf24"></i>当前阶段</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">编译阶段</h4>
+          <p id="p02detail">点击“单步”推进编译流水线。Clang/rustc 把源码解析为 AST 并生成 LLVM IR（SSA 形式）；LLVM 经过优化 pass 后由 WASM 后端 lowering 为字节码；wasm-ld 链接多个模块并产出最终 .wasm。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前阶段</div><div class="v amber" id="st02stage">source</div></div>
+          <div class="stat"><div class="k">前端</div><div class="v purple" id="st02fe">clang</div></div>
+          <div class="stat"><div class="k">优化级</div><div class="v" id="st02opt">O2</div></div>
+          <div class="stat"><div class="k">产物</div><div class="v" id="st02out" style="font-size:12px">app.wasm</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 内存模型 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>内存模型：线性内存</h2>
+      <p>WASM 使用一段连续可增长的 Linear Memory（默认 1 页=64KB）。栈向下生长、堆向上分配，i32/i64 load/store 通过基址+偏移访问。触发 memory.grow 观察扩容。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">linear-memory.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>已用内存</span>
+          <span><i style="background:#7c5cff"></i>栈区</span>
+          <span><i style="background:#34d399"></i>堆区</span>
+          <span><i style="background:#fbbf24"></i>空闲页</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">线性内存说明</h4>
+          <p id="p03detail">Linear Memory 是一段 ArrayBuffer，最大 4GB（i32 索引）。WASM 模块不直接管理堆，由嵌入语言或 WASI libc malloc 分配。memory.grow 申请追加整数页，返回旧大小（页数）。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前页数</div><div class="v amber" id="st03pages">1</div></div>
+          <div class="stat"><div class="k">总容量</div><div class="v purple" id="st03size">64 KB</div></div>
+          <div class="stat"><div class="k">栈指针</div><div class="v" id="st03sp">0xFFC0</div></div>
+          <div class="stat"><div class="k">堆指针</div><div class="v" id="st03hp">0x0400</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 WASI 接口 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>WASI 接口</h2>
+      <p>WebAssembly System Interface 为 WASM 提供能力化（capability）系统调用抽象。fd/path/sock 三类接口通过预开放句柄访问，杜绝全局文件系统。切换接口观察调用链。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">wasi-interface.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>WASM 模块</span>
+          <span><i style="background:#7c5cff"></i>WASI 接口</span>
+          <span><i style="background:#34d399"></i>能力句柄</span>
+          <span><i style="background:#f87171"></i>禁止访问</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">WASI 接口说明</h4>
+          <p id="p04detail">WASI 采用 capability-based 安全模型：模块只能通过显式传入的 preopened fd 访问文件，无全局 root。fd_read/fd_write 处理 I/O；path_open 在已授权目录下打开；sock_accept 处理网络。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前接口</div><div class="v amber" id="st04iface">fd</div></div>
+          <div class="stat"><div class="k">已授权句柄</div><div class="v purple" id="st04caps">3</div></div>
+          <div class="stat"><div class="k">访问模式</div><div class="v" id="st04mode">capability</div></div>
+          <div class="stat"><div class="k">全局 FS</div><div class="v" style="color:#f87171" id="st04fs">禁用</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 模块加载 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>模块加载与链接</h2>
+      <p>WASM 模块生命周期：fetch 字节码 → WebAssembly.compile 编译为 Module → instantiate 实例化（绑定 import）→ 获得 export 调用。逐步观察 import/export 表链接。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">module-loading.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>字节码</span>
+          <span><i style="background:#7c5cff"></i>Module</span>
+          <span><i style="background:#34d399"></i>Instance</span>
+          <span><i style="background:#fbbf24"></i>import/export 链接</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">加载阶段</h4>
+          <p id="p05detail">compile 阶段做验证与编译（同步或 WebAssembly.compileStreaming 流式）；instantiate 阶段把 import 表（函数/内存/表/全局）绑定到宿主提供的对象，再执行 start 函数初始化；导出的函数可被 JS 调用。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前阶段</div><div class="v amber" id="st05stage">fetch</div></div>
+          <div class="stat"><div class="k">import 数</div><div class="v purple" id="st05imp">2</div></div>
+          <div class="stat"><div class="k">export 数</div><div class="v" id="st05exp">3</div></div>
+          <div class="stat"><div class="k">状态</div><div class="v" id="st05st" style="font-size:12px">uncompiled</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 JIT 编译 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>JIT 编译：分层 tier-up</h2>
+      <p>浏览器 WASM 引擎采用分层编译：解释器 / 基线编译器（Liftoff/Tier-1）快速产出机器码；热点函数由优化编译器（TurboFan/Maglev/Tier-2）重编译。触发热点观察 tier-up。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">tiered-jit.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>解释器</span>
+          <span><i style="background:#5e6ad2"></i>基线编译 (Tier-1)</span>
+          <span><i style="background:#34d399"></i>优化编译 (Tier-2)</span>
+          <span><i style="background:#fbbf24"></i>调用计数</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">分层编译策略</h4>
+          <p id="p06detail">函数首次调用走解释器；调用计数达阈值后 Liftoff 快速生成未优化机器码（启动快）；累计更多调用后 TurboFan 基于类型反馈重编译，内联与寄存器分配使性能接近原生。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前 tier</div><div class="v amber" id="st06tier">interp</div></div>
+          <div class="stat"><div class="k">调用次数</div><div class="v purple" id="st06calls">0</div></div>
+          <div class="stat"><div class="k">编译耗时</div><div class="v" id="st06time">0 ms</div></div>
+          <div class="stat"><div class="k">相对性能</div><div class="v" id="st06perf">30%</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 安全沙箱 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>安全沙箱模型</h2>
+      <p>WASM 默认运行在零信任沙箱：默认无 I/O、无网络、无文件系统。能力（capability）必须显式授予；同源策略与 CSP 限制模块来源；线性内存隔离。切换能力观察边界。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">security-sandbox.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#5e6ad2"></i>WASM 沙箱</span>
+          <span><i style="background:#34d399"></i>已授予能力</span>
+          <span><i style="background:#f87171"></i>禁止操作</span>
+          <span><i style="background:#fbbf24"></i>同源/CSP</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">安全机制</h4>
+          <p id="p07detail">WASM 模块只能调用宿主显式提供的 import 函数——默认无任何系统访问。线性内存与执行栈独立、控制流验证保证安全；CSP 限制可加载的 .wasm 来源；COOP/COEP 启用后可使用 SharedArrayBuffer 多线程。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">已授予能力</div><div class="v amber" id="st07caps">0 / 5</div></div>
+          <div class="stat"><div class="k">默认 I/O</div><div class="v" style="color:#f87171" id="st07io">禁用</div></div>
+          <div class="stat"><div class="k">默认网络</div><div class="v" style="color:#f87171" id="st07net">禁用</div></div>
+          <div class="stat"><div class="k">隔离强度</div><div class="v" id="st07iso" style="color:#34d399">强</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 性能对比 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>性能对比：JS vs WASM vs Native</h2>
+      <p>不同运行时在不同负载下表现差异：JS 依赖 JIT 与 GC；WASM 接近原生但跨边界有开销；Native 直接受益于 SIMD 与缓存。切换基准测试观察相对性能。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">perf-comparison.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>JavaScript</span>
+          <span><i style="background:#5e6ad2"></i>WebAssembly</span>
+          <span><i style="background:#34d399"></i>Native (C)</span>
+          <span><i style="background:#7c5cff"></i>AOT vs JIT</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">基准测试</h4>
+          <p id="p08detail">数值密集负载下 WASM 比 JS 快 1.5-3 倍（无 GC、可预测类型）；与 Native 差距约 10-30%（边界开销、缺少自动 SIMD）。DOM/字符串操作 JS 更优（已有优化）。AOT 编译消除启动 JIT 开销。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">JS 相对</div><div class="v amber" id="st08js">—</div></div>
+          <div class="stat"><div class="k">WASM 相对</div><div class="v" style="color:#5e6ad2" id="st08wasm">—</div></div>
+          <div class="stat"><div class="k">Native 基准</div><div class="v" style="color:#34d399" id="st08nat">100%</div></div>
+          <div class="stat"><div class="k">当前测试</div><div class="v" id="st08bench" style="font-size:12px">fibonacci</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>wasm-viz-lab · WebAssembly 运行时可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/wasm-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+// requestAnimationFrame 包装：reduced-motion 时直接跳到末态
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+// 侧边栏 active 状态
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 WASM 指令集 栈式虚拟机
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  // 程序: 计算 (2 + 3) * 4 = 20
+  const prog=[
+    {op:"i32.const",arg:"2",type:"i32",d:"压入常量 2 到栈顶"},
+    {op:"i32.const",arg:"3",type:"i32",d:"压入常量 3 到栈顶"},
+    {op:"i32.add",arg:null,type:"i32",d:"弹出栈顶两个 i32 (2,3)，相加得 5 压回"},
+    {op:"i32.const",arg:"4",type:"i32",d:"压入常量 4 到栈顶"},
+    {op:"i32.mul",arg:null,type:"i32",d:"弹出 5 与 4，相乘得 20 压回"},
+    {op:"local.set",arg:"$r",type:"i32",d:"弹出栈顶 20 存入局部变量 $r"},
+    {op:"local.get",arg:"$r",type:"i32",d:"读取 $r (20) 压回栈顶"},
+    {op:"i32.const",arg:"1",type:"i32",d:"压入 1"},
+    {op:"i32.add",arg:null,type:"i32",d:"20 + 1 = 21 作为返回值"}
+  ];
+  let pc=0;
+  let stack=[];
+  let locals={};
+
+  function typeColor(t){return {i32:"#5e6ad2",i64:"#7c5cff",f32:"#a3e635",f64:"#34d399"}[t]||"#9b9fa8";}
+
+  function draw(){
+    clearNode(svg);
+    // 左：栈可视化
+    const sx=80,sw=160;
+    svg.appendChild(el("rect",{x:sx,y:50,width:sw,height:300,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const st=el("text",{x:sx+sw/2,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});st.textContent="操作数栈";svg.appendChild(st);
+    // 栈元素从底部向上
+    const cellH=34;
+    stack.forEach((v,i)=>{
+      const idx=stack.length-1-i;
+      const y=50+300-(i+1)*cellH-6;
+      const c=typeColor(v.type);
+      svg.appendChild(el("rect",{x:sx+14,y:y,width:sw-28,height:cellH-4,rx:6,fill:c+"22",stroke:c,"stroke-width":1.2}));
+      const t=el("text",{x:sx+sw/2,y:y+cellH/2+3,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:c});t.textContent=v.type+" "+v.val;svg.appendChild(t);
+      if(i===0){
+        const tk=el("text",{x:sx+sw-10,y:y+cellH/2+3,"text-anchor":"end","font-size":9,"font-family":MONO,fill:"#62666d"});tk.textContent="top";svg.appendChild(tk);
+      }
+    });
+    // 局部变量
+    const lx=270,lw=160;
+    svg.appendChild(el("rect",{x:lx,y:50,width:lw,height:140,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const lt=el("text",{x:lx+lw/2,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});lt.textContent="局部变量";svg.appendChild(lt);
+    Object.keys(locals).forEach((k,i)=>{
+      const y=70+i*26;
+      const t1=el("text",{x:lx+14,y:y,"font-size":11,"font-family":MONO,fill:"#9b9fa8"});t1.textContent=k;svg.appendChild(t1);
+      const t2=el("text",{x:lx+lw-14,y:y,"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#34d399"});t2.textContent=locals[k];svg.appendChild(t2);
+    });
+
+    // 右：程序字节码
+    const px=460,pw=240;
+    svg.appendChild(el("rect",{x:px,y:50,width:pw,height:300,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.12)"}));
+    const pt=el("text",{x:px+pw/2,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});pt.textContent="字节码 (PC)";svg.appendChild(pt);
+    prog.forEach((ins,i)=>{
+      const y=66+i*30;
+      const on=i===pc;
+      const done=i<pc;
+      if(on){svg.appendChild(el("rect",{x:px+6,y:y-12,width:pw-12,height:26,rx:5,fill:"rgba(251,191,36,.16)",stroke:"#fbbf24","stroke-width":1.2}));}
+      const num=el("text",{x:px+16,y:y+5,"font-size":10,"font-family":MONO,fill:on?"#fbbf24":(done?"#62666d":"#9b9fa8")});num.textContent=String(i).padStart(2,"0");svg.appendChild(num);
+      const op=el("text",{x:px+44,y:y+5,"font-size":11,"font-family":MONO,fill:on?"#fbbf24":(done?"#62666d":"#f7f8f8")});op.textContent=ins.op;svg.appendChild(op);
+      if(ins.arg){const a=el("text",{x:px+pw-16,y:y+5,"text-anchor":"end","font-size":11,"font-family":MONO,fill:on?"#fbbf24":"#7c5cff"});a.textContent=ins.arg;svg.appendChild(a);}
+    });
+  }
+
+  function execute(ins){
+    const t=ins.type;
+    if(ins.op==="i32.const"||ins.op==="i64.const"||ins.op==="f32.const"||ins.op==="f64.const"){
+      stack.push({type:t,val:ins.arg});
+    }else if(ins.op==="i32.add"){
+      const b=stack.pop(),a=stack.pop();
+      stack.push({type:t,val:String((+a.val)+( +b.val))});
+    }else if(ins.op==="i32.mul"){
+      const b=stack.pop(),a=stack.pop();
+      stack.push({type:t,val:String((+a.val)*(+b.val))});
+    }else if(ins.op==="local.set"){
+      locals[ins.arg]=stack.pop().val;
+    }else if(ins.op==="local.get"){
+      stack.push({type:t,val:locals[ins.arg]});
+    }
+  }
+
+  function step(){
+    if(pc>=prog.length)return;
+    const ins=prog[pc];
+    execute(ins);
+    pc++;
+    draw();
+    $("st01inst").textContent=ins.op+(ins.arg?" "+ins.arg:"");
+    $("st01depth").textContent=stack.length;
+    $("st01pc").textContent=pc+" / "+prog.length;
+    $("p01title").textContent=ins.op+(ins.arg?" "+ins.arg:"");
+    $("p01detail").textContent=ins.d+(pc<prog.length?"":"  执行完毕。")+(pc===prog.length&&stack.length?" 返回值 = "+stack[stack.length-1].val:"");
+    if(pc===prog.length&&stack.length){
+      $("st01res").textContent=stack[stack.length-1].val;
+    }
+  }
+  function reset(){
+    pc=0;stack=[];locals={};draw();
+    $("st01inst").textContent="—";$("st01depth").textContent="0";$("st01pc").textContent="0 / "+prog.length;
+    $("st01res").textContent="—";
+    $("p01title").textContent="栈式执行模型";
+    $("p01detail").textContent="点击“单步”逐步执行 WASM 字节码。每条指令从栈顶弹出操作数、计算后压回结果。栈式设计让编码紧凑（无寄存器字段），但需要更多指令完成同一运算。";
+  }
+
+  draw();
+  const stepBtn=document.createElement("button");stepBtn.className="btn primary";stepBtn.textContent="单步执行 →";
+  stepBtn.addEventListener("click",step);
+  const playBtn=document.createElement("button");playBtn.className="btn";playBtn.textContent="自动播放";
+  let pt=null;
+  playBtn.addEventListener("click",()=>{
+    if(pt){clearInterval(pt);pt=null;playBtn.textContent="自动播放";playBtn.classList.remove("on");return;}
+    if(pc>=prog.length)reset();
+    playBtn.classList.add("on");playBtn.textContent="停止";
+    pt=setInterval(()=>{if(pc>=prog.length){clearInterval(pt);pt=null;playBtn.textContent="自动播放";playBtn.classList.remove("on");return;}step();},700);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",reset);
+  ctl.appendChild(stepBtn);ctl.appendChild(playBtn);ctl.appendChild(rst);
+  $("st01pc").textContent="0 / "+prog.length;
+})();
+
+/* ============================================================
+   02 编译到 WASM
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  let step=0;
+  const stages=[
+    {n:"source",t:"源码 (C/Rust)",d:"C/C++ 源码经 Clang、Rust 经 rustc 解析为 AST。这是高级语言形态，包含类型、控制流与人类可读语法。"},
+    {n:"ir",t:"LLVM IR",d:"前端把 AST 翻译为 LLVM IR（SSA 形式）：寄存器式虚拟指令、显式类型、无限虚拟寄存器。可在此做跨语言优化。"},
+    {n:"opt",t:"优化 Pass",d:"LLVM 跑一系列优化 pass：内联、循环展开、死代码消除、向量化。O2/O3 在体积与性能间权衡。"},
+    {n:"wasm",t:"WASM 字节码",d:"WASM 后端把 IR lowering 为栈式字节码模块，包含类型段、函数段、代码段。wasm-ld 链接多模块产出最终 .wasm。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const xs=[60,220,380,540],y=140,w=140,h=90;
+    const colors=["#5e6ad2","#7c5cff","#fbbf24","#34d399"];
+    // 连线
+    for(let i=0;i<3;i++){
+      svg.appendChild(el("path",{d:"M"+(xs[i]+w)+","+(y+h/2)+" L"+xs[i+1]+","+(y+h/2),stroke:i<step?"#34d399":"rgba(255,255,255,.12)","stroke-width":1.6,fill:"none","marker-end":"url(#a02)"}));
+    }
+    stages.forEach((s,i)=>{
+      const on=i===step,done=i<step;
+      svg.appendChild(el("rect",{x:xs[i],y:y,width:w,height:h,rx:9,fill:on?colors[i]+"22":(done?"#16181c":"#16181c"),stroke:on?colors[i]:(done?"rgba(52,211,153,.4)":"rgba(255,255,255,.12)"),"stroke-width":on?1.7:1}));
+      const t=el("text",{x:xs[i]+w/2,y:y+30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:on?colors[i]:(done?"#9b9fa8":"#62666d")});t.textContent=s.t;svg.appendChild(t);
+      // 内容
+      const content=["int add(int a,b){\n  return a+b;\n}","define i32 @add\n  %r=add i32\n  %a,%b\n  ret i32 %r","%0 = ...\ninlining\nDCE · GVN ...","module\n  func add\n    local.get\n    local.get\n    i32.add"][i];
+      content.split("\n").forEach((line,li)=>{
+        const lt=el("text",{x:xs[i]+w/2,y:y+50+li*12,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:on?"#9b9fa8":"#3a3d42"});lt.textContent=line;svg.appendChild(lt);
+      });
+      // 箭头到顶部
+      if(on){
+        const up=el("path",{d:"M"+(xs[i]+w/2)+","+(y-30)+" L"+(xs[i]+w/2)+","+(y-6),stroke:"#fbbf24","stroke-width":1.4,fill:"none","marker-end":"url(#a02u)"});
+        svg.appendChild(up);
+        const ul=el("text",{x:xs[i]+w/2,y:y-36,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#fbbf24"});ul.textContent="← 当前";svg.appendChild(ul);
+      }
+    });
+
+    // 底部产物信息
+    const by=270;
+    svg.appendChild(el("rect",{x:60,y:by,width:600,height:100,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const meta=[["输入","app.c / main.rs","230 LOC"],["IR 指令","47 条","SSA"],["优化后","39 条","-17%"],["输出","app.wasm","1.8 KB"][0]?["输出","app.wasm","1.8 KB"]:["输出","app.wasm","1.8 KB"]][step];
+    // 显示当前阶段产物
+    const items=[["源码行数","230 LOC"],["IR 指令数","47 → 39"],["wasm 体积","1.8 KB"],["导出函数","add"]];
+    items.forEach((it,i)=>{
+      const col=i%4,x=80+i*145;
+      const t1=el("text",{x:x,y:by+24,"font-size":10,"font-family":MONO,fill:"#62666d"});t1.textContent=it[0];svg.appendChild(t1);
+      const t2=el("text",{x:x,y:by+44,"font-size":14,"font-family":MONO,fill:i<=step?"#5e6ad2":"#62666d"});t2.textContent=it[1];svg.appendChild(t2);
+    });
+    const fl=el("text",{x:80,y:by+76,"font-size":10,"font-family":MONO,fill:"#62666d"});fl.textContent="toolchain: clang 18 → llvm → wasm-ld";svg.appendChild(fl);
+
+    // defs
+    const defs=el("defs");
+    [["a02","#5e6ad2"],["a02u","#fbbf24"]].forEach(([id,c])=>{
+      const m=el("marker",{id:id,viewBox:"0 0 8 8",refX:7,refY:4,markerWidth:7,markerHeight:7,orient:"auto"});
+      m.appendChild(el("path",{d:"M0,0 L8,4 L0,8 z",fill:c}));defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+  }
+
+  function setStep(s){step=s;draw();$("st02stage").textContent=stages[step].n;$("st02fe").textContent=step===0?"clang/rustc":(step===1?"llvm":(step===2?"opt passes":"wasm-ld"));$("p02title").textContent=stages[step].t;$("p02detail").textContent=stages[step].d;}
+
+  draw();setStep(0);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放编译";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    function next(){if(step>=3){playing=false;play.textContent="播放编译";return;}setStep(step+1);setTimeout(next,1400);}
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>setStep((step+1)%4));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>setStep(0));
+  ctl.appendChild(play);ctl.appendChild(stepBtn);ctl.appendChild(rst);
+  stages.forEach((s,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=s.t;
+    b.addEventListener("click",()=>{setStep(i);document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   03 内存模型 线性内存
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let pages=1;
+  const pageSize=64; // KB
+  // 内存布局: 0..0x400 空闲, 0x400..0x4000 heap, top 0x40 stack
+  let heapPtr=0x400,stackPtr;
+
+  function draw(){
+    clearNode(svg);
+    const totalSize=pages*pageSize;
+    // 内存条
+    const mx=80,my=60,mw=560,mh=240;
+    svg.appendChild(el("rect",{x:mx,y:my,width:mw,height:mh,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.14)","stroke-width":1.4}));
+    const ht=el("text",{x:mx+mw/2,y:my-12,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#5e6ad2"});ht.textContent="Linear Memory ("+pages+" 页 · "+totalSize+" KB)";svg.appendChild(ht);
+    // 划分区域
+    const totalBytes=pages*64*1024;
+    // 栈区域 (顶部 ~256B)
+    const stackSize=64;
+    const stackY=my+8;
+    svg.appendChild(el("rect",{x:mx+8,y:stackY,width:mw-16,height:stackSize,rx:5,fill:"rgba(124,92,255,.18)",stroke:"#7c5cff","stroke-width":1}));
+    const stl=el("text",{x:mx+16,y:stackY+24,"font-size":11,"font-family":MONO,fill:"#7c5cff"});stl.textContent="栈区 (↓ SP)";svg.appendChild(stl);
+    const sp=el("text",{x:mx+mw-16,y:stackY+24,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#9b9fa8"});sp.textContent="SP = 0x"+(totalBytes-0x40).toString(16).toUpperCase();svg.appendChild(sp);
+
+    // 空闲区
+    const freeY=stackY+stackSize+6;
+    const freeH=mh-8-stackSize-6-stackSize-6-heapSize(mw-16);
+    svg.appendChild(el("rect",{x:mx+8,y:freeY,width:mw-16,height:Math.max(20,freeH),rx:5,fill:"rgba(251,191,36,.06)",stroke:"#fbbf24","stroke-width":1,"stroke-dasharray":"4 3"}));
+    const fl=el("text",{x:mx+mw/2,y:freeY+Math.max(28,freeH/2),"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#62666d"});fl.textContent="空闲 (未分配)";svg.appendChild(fl);
+
+    // 堆区 (底部)
+    const heapY=my+mh-8-stackSize;
+    svg.appendChild(el("rect",{x:mx+8,y:heapY,width:mw-16,height:stackSize,rx:5,fill:"rgba(52,211,153,.18)",stroke:"#34d399","stroke-width":1}));
+    const hl=el("text",{x:mx+16,y:heapY+24,"font-size":11,"font-family":MONO,fill:"#34d399"});hl.textContent="堆区 (↑ HP)";svg.appendChild(hl);
+    const hp=el("text",{x:mx+mw-16,y:heapY+24,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#9b9fa8"});hp.textContent="HP = 0x400";svg.appendChild(hp);
+
+    // 地址刻度
+    for(let i=0;i<=4;i++){
+      const y=my+mh-(i/4)*mh;
+      svg.appendChild(el("line",{x1:mx-4,y1:y,x2:mx,y2:y,stroke:"rgba(255,255,255,.2)"}));
+      const addr=Math.round((i/4)*totalBytes);
+      const t=el("text",{x:mx-8,y:y+4,"text-anchor":"end","font-size":9,"font-family":MONO,fill:"#62666d"});t.textContent="0x"+addr.toString(16).toUpperCase();svg.appendChild(t);
+    }
+
+    // 顶部 page 分割
+    for(let p=1;p<pages;p++){
+      const x=mx+(p/pages)*mw;
+      svg.appendChild(el("line",{x1:x,y1:my,x2:x,y2:my+mh,stroke:"#fbbf24","stroke-width":1,"stroke-dasharray":"3 3",opacity:.5}));
+      const t=el("text",{x:x,y:my-2,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#fbbf24"});t.textContent="p"+p;svg.appendChild(t);
+    }
+
+    // 底部说明
+    const ny=my+mh+30;
+    svg.appendChild(el("rect",{x:mx,y:ny,width:mw,height:60,rx:7,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const info=[
+      ["memory.grow","追加 1 页 (64KB)"],
+      ["load/store","基址 + 偏移访问"],
+      ["最大限制","4 GB (i32 索引)"],
+      ["共享内存","SharedArrayBuffer"]
+    ];
+    info.forEach((it,i)=>{
+      const x=mx+10+i*135;
+      const t1=el("text",{x:x,y:ny+22,"font-size":10,"font-family":MONO,fill:"#5e6ad2"});t1.textContent=it[0];svg.appendChild(t1);
+      const t2=el("text",{x:x,y:ny+40,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});t2.textContent=it[1];svg.appendChild(t2);
+    });
+  }
+  function heapSize(w){return 64;}
+
+  function grow(){
+    if(pages>=16)return;
+    pages++;
+    // 动画扩容
+    draw();
+    $("st03pages").textContent=pages;
+    $("st03size").textContent=(pages*64)+" KB";
+    const totalBytes=pages*64*1024;
+    $("st03sp").textContent="0x"+(totalBytes-0x40).toString(16).toUpperCase();
+    $("p03title").textContent="memory.grow → 追加 1 页";
+    $("p03detail").textContent="memory.grow(delta) 申请追加 delta 页（每页 64KB），返回旧页数。成功后线性内存扩容，新区域清零。当前总容量 "+(pages*64)+" KB。";
+  }
+  function shrink(){
+    if(pages<=1)return;
+    pages--;
+    draw();
+    $("st03pages").textContent=pages;
+    $("st03size").textContent=(pages*64)+" KB";
+    const totalBytes=pages*64*1024;
+    $("st03sp").textContent="0x"+(totalBytes-0x40).toString(16).toUpperCase();
+  }
+
+  draw();
+  const growBtn=document.createElement("button");growBtn.className="btn primary";growBtn.textContent="memory.grow +1";
+  growBtn.addEventListener("click",grow);
+  const shrinkBtn=document.createElement("button");shrinkBtn.className="btn small";shrinkBtn.textContent="缩容 -1";
+  shrinkBtn.addEventListener("click",shrink);
+  const storeBtn=document.createElement("button");storeBtn.className="btn small";storeBtn.textContent="i32.store 演示";
+  storeBtn.addEventListener("click",()=>{
+    // 高亮堆区写入
+    const r=el("rect",{x:88,y:60+240-8-64,width:560-16,height:64,rx:5,fill:"none",stroke:"#5e6ad2","stroke-width":2});
+    svg.appendChild(r);
+    animate(900,p=>{r.setAttribute("opacity",1-p);r.setAttribute("stroke-width",2+p*4);},()=>r.remove());
+    $("p03title").textContent="i32.store 写入堆";
+    $("p03detail").textContent="i32.store 0x400 把栈顶 i32 写入偏移 0x400。WASM 内存访问通过编译期偏移 + 运行时基址计算，越界访问 trap。";
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{pages=1;draw();$("st03pages").textContent="1";$("st03size").textContent="64 KB";$("st03sp").textContent="0xFFC0";});
+  ctl.appendChild(growBtn);ctl.appendChild(shrinkBtn);ctl.appendChild(storeBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   04 WASI 接口
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let iface="fd"; // fd / path / sock
+  const ifaces={
+    fd:{n:"fd I/O",calls:["fd_read","fd_write","fd_close","fd_seek"],d:"文件描述符读写。preopened fd 限定可访问范围。"},
+    path:{n:"path 操作",calls:["path_open","path_unlink","path_rename","path_create_directory"],d:"在已授权目录下操作路径。需要 preopen dir 能力。"},
+    sock:{n:"socket 网络",calls:["sock_open","sock_bind","sock_listen","sock_accept"],d:"网络套接字。需要显式授予网络能力。"}
+  };
+
+  function draw(){
+    clearNode(svg);
+    // WASM 模块
+    svg.appendChild(el("rect",{x:60,y:90,width:200,height:180,rx:10,fill:"rgba(94,106,210,.14)",stroke:"#5e6ad2","stroke-width":1.5}));
+    const mt=el("text",{x:160,y:120,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#5e6ad2"});mt.textContent="WASM Module";svg.appendChild(mt);
+    const mt2=el("text",{x:160,y:140,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});mt2.textContent="沙箱内";svg.appendChild(mt2);
+
+    // WASI 边界
+    svg.appendChild(el("rect",{x:280,y:90,width:160,height:180,rx:10,fill:"rgba(124,92,255,.12)",stroke:"#7c5cff","stroke-width":1.5,"stroke-dasharray":"5 3"}));
+    const wt=el("text",{x:360,y:118,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#7c5cff"});wt.textContent="WASI";svg.appendChild(wt);
+    const wt2=el("text",{x:360,y:136,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});wt2.textContent="capability gate";svg.appendChild(wt2);
+    // 接口列表
+    ifaces[iface].calls.forEach((c,i)=>{
+      const on=i===0;
+      const y=160+i*24;
+      svg.appendChild(el("rect",{x:296,y:y-12,width:128,height:20,rx:4,fill:on?"rgba(124,92,255,.2)":"#1c1f24",stroke:on?"#7c5cff":"rgba(255,255,255,.1)"}));
+      const t=el("text",{x:360,y:y+3,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:on?"#7c5cff":"#9b9fa8"});t.textContent=c;svg.appendChild(t);
+    });
+
+    // 宿主资源
+    const hx=480;
+    svg.appendChild(el("rect",{x:hx,y:60,width:180,height:120,rx:9,fill:"#16181c",stroke:"rgba(52,211,153,.4)","stroke-width":1.3}));
+    const ht=el("text",{x:hx+90,y:82,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"});ht.textContent="已授权资源";svg.appendChild(ht);
+    const granted=["fd 3: ./data/","fd 4: ./out/","fd 5: stdin"];
+    granted.forEach((g,i)=>{
+      const t=el("text",{x:hx+14,y:104+i*20,"font-size":10,"font-family":MONO,fill:"#9b9fa8"});t.textContent=g;svg.appendChild(t);
+    });
+
+    // 禁止访问
+    svg.appendChild(el("rect",{x:hx,y:200,width:180,height:130,rx:9,fill:"#16181c",stroke:"rgba(248,113,113,.4)","stroke-width":1.3}));
+    const bt=el("text",{x:hx+90,y:222,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#f87171"});bt.textContent="禁止访问";svg.appendChild(bt);
+    const denied=["/etc/passwd","/root/.ssh","全局 FS","raw socket"];
+    denied.forEach((g,i)=>{
+      const t=el("text",{x:hx+14,y:244+i*20,"font-size":10,"font-family":MONO,fill:"#62666d",opacity:.8});t.textContent="✕ "+g;svg.appendChild(t);
+    });
+
+    // 连线
+    svg.appendChild(el("path",{d:"M260,"+(180)+" L280,"+(180),stroke:"#7c5cff","stroke-width":1.6,fill:"none","marker-end":"url(#a04)"}));
+    svg.appendChild(el("path",{d:"M440,"+(150)+" L480,"+(150),stroke:"#34d399","stroke-width":1.6,fill:"none","marker-end":"url(#a04g)"}));
+    // 拒绝线
+    svg.appendChild(el("path",{d:"M440,"+(220)+" L480,"+(220),stroke:"#f87171","stroke-width":1.4,fill:"none","stroke-dasharray":"4 3",opacity:.6}));
+
+    // defs
+    const defs=el("defs");
+    [["a04","#7c5cff"],["a04g","#34d399"]].forEach(([id,c])=>{
+      const m=el("marker",{id:id,viewBox:"0 0 8 8",refX:7,refY:4,markerWidth:7,markerHeight:7,orient:"auto"});
+      m.appendChild(el("path",{d:"M0,0 L8,4 L0,8 z",fill:c}));defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+  }
+
+  function setIface(k){
+    iface=k;draw();
+    const m=ifaces[k];
+    $("st04iface").textContent=k;
+    $("p04title").textContent="WASI "+m.n+" 接口";
+    $("p04detail").textContent=m.d+" 主要函数："+m.calls.join(" / ")+". 所有调用必须通过预先授权的句柄完成，沙箱外资源被 WASI 拒绝。";
+  }
+
+  draw();setIface("fd");
+  [["fd I/O","fd"],["path 操作","path"],["socket 网络","sock"]].forEach(([n,k])=>{
+    const b=document.createElement("button");b.className="btn small"+(k==="fd"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{setIface(k);document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const callBtn=document.createElement("button");callBtn.className="btn primary";callBtn.textContent="调用演示";
+  callBtn.addEventListener("click",()=>{
+    // 闪烁接口连线
+    const lines=svg.querySelectorAll('path[stroke="#7c5cff"]');
+    lines.forEach(l=>{
+      const ring=el("path",{d:l.getAttribute("d"),stroke:"#fbbf24","stroke-width":2.5,fill:"none",opacity:.9});
+      svg.appendChild(ring);
+      animate(700,p=>{ring.setAttribute("opacity",.9*(1-p));},()=>ring.remove());
+    });
+    const cur=ifaces[iface].calls[0];
+    $("p04title").textContent="调用 "+cur+"()";
+    $("p04detail").textContent="模块调用 "+cur+" 时，WASI 检查传入 fd 是否在已授权句柄表中。命中则转发到宿主系统调用，否则返回 WASI EACCES 错误，沙箱保证最小权限。";
+  });
+  ctl.appendChild(callBtn);
+})();
+
+/* ============================================================
+   05 模块加载
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let step=0;
+  const stages=[
+    {n:"fetch",t:"fetch 字节码",d:"通过 fetch 或 streaming 拉取 .wasm 字节码。WebAssembly.compileStreaming 可边下载边编译。"},
+    {n:"compile",t:"compile → Module",d:"验证字节码合法性（类型、控制流、内存边界），编译为 Module 对象（可缓存、可多实例化）。"},
+    {n:"link",t:"绑定 import 表",d:"把模块声明的 import（函数/内存/表/全局）绑定到宿主提供的对象。缺失或类型不匹配会抛出 LinkError。"},
+    {n:"instantiate",t:"instantiate → Instance",d:"执行 start 函数初始化全局变量，生成 Instance。导出对象 (exports) 可被 JS 调用。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const xs=[60,220,380,540],y=120,w=140,h=80;
+    const colors=["#5e6ad2","#7c5cff","#fbbf24","#34d399"];
+    for(let i=0;i<3;i++){
+      svg.appendChild(el("line",{x1:xs[i]+w,y1:y+h/2,x2:xs[i+1],y2:y+h/2,stroke:i<step?"#34d399":"rgba(255,255,255,.12)","stroke-width":1.6}));
+    }
+    stages.forEach((s,i)=>{
+      const on=i===step,done=i<step;
+      svg.appendChild(el("rect",{x:xs[i],y:y,width:w,height:h,rx:9,fill:on?colors[i]+"22":"#16181c",stroke:on?colors[i]:(done?"rgba(52,211,153,.4)":"rgba(255,255,255,.12)"),"stroke-width":on?1.7:1}));
+      const t=el("text",{x:xs[i]+w/2,y:y+30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:on?colors[i]:(done?"#9b9fa8":"#62666d")});t.textContent=s.t;svg.appendChild(t);
+      // 图标
+      const icon=["{}","M","{}","()"][i];
+      const it=el("text",{x:xs[i]+w/2,y:y+56,"text-anchor":"middle","font-size":18,"font-family":MONO,fill:on?colors[i]:"#3a3d42"});it.textContent=icon;svg.appendChild(it);
+      if(on){
+        const ring=el("rect",{x:xs[i]-4,y:y-4,width:w+8,height:h+8,rx:11,fill:"none",stroke:colors[i],"stroke-width":1.4,opacity:.5});
+        svg.appendChild(ring);
+      }
+    });
+
+    // 下方 import/export 表
+    const ty=240;
+    if(step>=2){
+      // import 表
+      svg.appendChild(el("rect",{x:60,y:ty,width:280,height:120,rx:8,fill:"rgba(124,92,255,.10)",stroke:"#7c5cff","stroke-width":1.3}));
+      const it=el("text",{x:74,y:ty+22,"font-size":11,"font-family":MONO,fill:"#7c5cff"});it.textContent="import 表";svg.appendChild(it);
+      const imports=[["env.log","func (i32)"],["env.mem","memory 1"],["wasi.fd_write","func (...)"]];
+      imports.forEach((im,i)=>{
+        const y=ty+42+i*22;
+        const a=el("text",{x:74,y:y,"font-size":10,"font-family":MONO,fill:"#9b9fa8"});a.textContent=im[0];svg.appendChild(a);
+        const b=el("text",{x:326,y:y,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#62666d"});b.textContent=im[1];svg.appendChild(b);
+      });
+    }
+    if(step>=3){
+      svg.appendChild(el("rect",{x:380,y:ty,width:280,height:120,rx:8,fill:"rgba(52,211,153,.10)",stroke:"#34d399","stroke-width":1.3}));
+      const et=el("text",{x:394,y:ty+22,"font-size":11,"font-family":MONO,fill:"#34d399"});et.textContent="export 表";svg.appendChild(et);
+      const exports=[["add","func (i32,i32)→i32"],["memory","memory 1"],["__heap_base","global i32"]];
+      exports.forEach((ex,i)=>{
+        const y=ty+42+i*22;
+        const a=el("text",{x:394,y:y,"font-size":10,"font-family":MONO,fill:"#9b9fa8"});a.textContent=ex[0];svg.appendChild(a);
+        const b=el("text",{x:646,y:y,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#62666d"});b.textContent=ex[1];svg.appendChild(b);
+      });
+    }
+    // 调用箭头 (instantiate 后)
+    if(step>=3){
+      svg.appendChild(el("path",{d:"M620,80 L660,80 L660,"+(ty+60),stroke:"#fbbf24","stroke-width":1.4,fill:"none","stroke-dasharray":"3 2"}));
+      const cl=el("text",{x:666,y:100,"font-size":9.5,"font-family":MONO,fill:"#fbbf24"});cl.textContent="JS 调用";svg.appendChild(cl);
+    }
+  }
+
+  function setStep(s){step=s;draw();$("st05stage").textContent=stages[step].n;$("st05st").textContent={fetch:"downloading",compile:"compiled",link:"linking",instantiate:"ready"}[stages[step].n];$("p05title").textContent=stages[step].t;$("p05detail").textContent=stages[step].d;}
+
+  draw();setStep(0);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放加载";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    function next(){if(step>=3){playing=false;play.textContent="播放加载";return;}setStep(step+1);setTimeout(next,1300);}
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>setStep((step+1)%4));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>setStep(0));
+  ctl.appendChild(play);ctl.appendChild(stepBtn);ctl.appendChild(rst);
+  stages.forEach((s,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=s.t;
+    b.addEventListener("click",()=>{setStep(i);document.querySelectorAll("#ctl05 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   06 JIT 编译 分层
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let calls=0;
+  let tier=0; // 0 interp / 1 baseline / 2 optimized
+  const tierInfo=[
+    {n:"interp",t:"解释器",c:"#f87171",time:0,perf:30,d:"逐条解释执行 WASM 字节码，无编译开销，启动快但执行慢。"},
+    {n:"baseline",t:"Liftoff (Tier-1)",c:"#5e6ad2",time:8,perf:70,d:"调用计数达阈值（~100）后，Liftoff 快速生成未优化机器码。编译快、性能中等。"},
+    {n:"optimized",t:"TurboFan (Tier-2)",c:"#34d399",time:60,perf:95,d:"累计更多调用（~1000）后，TurboFan 基于类型反馈重编译：内联、寄存器分配、向量化。性能接近原生。"}
+  ];
+  const thresholds=[0,100,1000];
+
+  function draw(){
+    clearNode(svg);
+    // 三层 tier 卡
+    const ys=[60,150,240],w=460,x=160;
+    tierInfo.forEach((t,i)=>{
+      const on=i===tier;
+      svg.appendChild(el("rect",{x:x,y:ys[i],width:w,height:70,rx:9,fill:on?t.c+"22":"#16181c",stroke:on?t.c:"rgba(255,255,255,.12)","stroke-width":on?1.7:1}));
+      const nm=el("text",{x:x+18,y:ys[i]+26,"font-size":13,"font-family":MONO,fill:on?t.c:"#9b9fa8"});nm.textContent=t.t;svg.appendChild(nm);
+      const lb=el("text",{x:x+18,y:ys[i]+46,"font-size":10,"font-family":MONO,fill:"#62666d"});lb.textContent=["逐条解释","快速生成机器码","优化重编译"][i];svg.appendChild(lb);
+      // 阈值
+      const th=el("text",{x:x+w-18,y:ys[i]+26,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#fbbf24"});th.textContent=i===0?"启动":"> "+thresholds[i]+" 调用";svg.appendChild(th);
+      // 性能条
+      const pbx=x+w+20;
+      svg.appendChild(el("rect",{x:pbx,y:ys[i]+18,width:60,height:14,rx:3,fill:"#1c1f24",stroke:"rgba(255,255,255,.1)"}));
+      svg.appendChild(el("rect",{x:pbx,y:ys[i]+18,width:60*t.perf/100,height:14,rx:3,fill:t.c}));
+      const pt=el("text",{x:pbx+64,y:ys[i]+29,"font-size":10,"font-family":MONO,fill:on?t.c:"#62666d"});pt.textContent=t.perf+"%";svg.appendChild(pt);
+    });
+
+    // tier-up 箭头
+    [0,1].forEach(i=>{
+      const on=i<tier;
+      svg.appendChild(el("path",{d:"M"+(x+w/2)+","+(ys[i]+70)+" L"+(x+w/2)+","+(ys[i+1]-4),stroke:on?"#34d399":"rgba(255,255,255,.15)","stroke-width":on?1.8:1.2,fill:"none","marker-end":"url(#a06)"}));
+      if(on){
+        const t=el("text",{x:x+w/2+8,y:(ys[i]+70+ys[i+1])/2,"font-size":9.5,"font-family":MONO,fill:"#34d399"});t.textContent="tier-up ✓";svg.appendChild(t);
+      }
+    });
+
+    // 左侧调用计数
+    const cx=60;
+    svg.appendChild(el("rect",{x:cx,y:60,width:80,height:250,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const ct=el("text",{x:cx+40,y:82,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});ct.textContent="调用计数";svg.appendChild(ct);
+    // 进度条
+    const maxC=1200;
+    const barH=200;
+    const fillH=barH*Math.min(1,calls/maxC);
+    svg.appendChild(el("rect",{x:cx+20,y:90,width:40,height:barH,rx:5,fill:"#0b0b0c",stroke:"rgba(255,255,255,.1)"}));
+    svg.appendChild(el("rect",{x:cx+20,y:90+barH-fillH,width:40,height:fillH,rx:5,fill:"#fbbf24"}));
+    // 阈值线
+    [100,1000].forEach(th=>{
+      const ty=90+barH-barH*th/maxC;
+      svg.appendChild(el("line",{x1:cx+14,y1:ty,x2:cx+66,y2:ty,stroke:"#7c5cff","stroke-width":1,"stroke-dasharray":"3 2"}));
+      const t=el("text",{x:cx+68,y:ty+3,"font-size":9,"font-family":MONO,fill:"#7c5cff"});t.textContent=th;svg.appendChild(t);
+    });
+    const cnt=el("text",{x:cx+40,y:300,"text-anchor":"middle","font-size":16,"font-family":MONO,fill:"#fbbf24"});cnt.textContent=calls;svg.appendChild(cnt);
+  }
+
+  function update(){
+    draw();
+    const t=tierInfo[tier];
+    $("st06tier").textContent=t.n;
+    $("st06calls").textContent=calls;
+    $("st06time").textContent=t.time+" ms";
+    $("st06perf").textContent=t.perf+"%";
+    $("st06perf").style.color=t.c;
+    $("p06title").textContent="当前: "+t.t;
+    $("p06detail").textContent=t.d+(tier<2?" 累积更多调用将触发 tier-up。":" 已达最高 tier。");
+  }
+  function call(n){
+    for(let i=0;i<n;i++){
+      calls++;
+      if(tier===0&&calls>=thresholds[1])tier=1;
+      else if(tier===1&&calls>=thresholds[2])tier=2;
+    }
+    update();
+  }
+
+  draw();update();
+  const c1=document.createElement("button");c1.className="btn small";c1.textContent="+10 调用";
+  c1.addEventListener("click",()=>call(10));
+  const c100=document.createElement("button");c100.className="btn primary";c100.textContent="+100 调用";
+  c100.addEventListener("click",()=>call(100));
+  const c1000=document.createElement("button");c1000.className="btn small";c1000.textContent="+1000 调用";
+  c1000.addEventListener("click",()=>call(1000));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{calls=0;tier=0;update();});
+  ctl.appendChild(c1);ctl.appendChild(c100);ctl.appendChild(c1000);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   07 安全沙箱
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  const caps=[
+    {id:"mem",n:"线性内存",c:"#5e6ad2",d:"独立 ArrayBuffer，与宿主隔离。越界访问 trap。"},
+    {id:"io",n:"文件 I/O",c:"#34d399",d:"通过 WASI preopen fd 授权。默认禁用。"},
+    {id:"net",n:"网络访问",c:"#fbbf24",d:"通过 sock 接口授权。默认禁用。"},
+    {id:"time",n:"时钟",c:"#a3e635",d:"clock_time_get 读取时钟，可限制精度。"},
+    {id:"thread",n:"多线程",c:"#7c5cff",d:"需 SharedArrayBuffer + COOP/COEP。"}
+  ];
+  let granted=new Set(["mem"]); // 默认仅内存
+
+  function draw(){
+    clearNode(svg);
+    // 沙箱外框
+    svg.appendChild(el("rect",{x:80,y:60,width:560,height:200,rx:14,fill:"rgba(94,106,210,.08)",stroke:"#5e6ad2","stroke-width":1.6,"stroke-dasharray":"6 4"}));
+    const st=el("text",{x:360,y:48,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#5e6ad2"});st.textContent="WASM 沙箱边界 (默认零信任)";svg.appendChild(st);
+    // 模块
+    svg.appendChild(el("rect",{x:300,y:90,width:120,height:50,rx:8,fill:"rgba(94,106,210,.18)",stroke:"#5e6ad2","stroke-width":1.5}));
+    const mt=el("text",{x:360,y:120,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#5e6ad2"});mt.textContent="WASM Module";svg.appendChild(mt);
+
+    // 5 个能力块
+    caps.forEach((cap,i)=>{
+      const col=i%5;
+      const x=110+col*100,y=170;
+      const on=granted.has(cap.id);
+      svg.appendChild(el("rect",{x:x,y:y,width:84,height:70,rx:8,fill:on?cap.c+"22":"#16181c",stroke:on?cap.c:"rgba(255,255,255,.1)","stroke-width":on?1.5:1}));
+      const t=el("text",{x:x+42,y:y+28,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:on?cap.c:"#62666d"});t.textContent=cap.n;svg.appendChild(t);
+      const s=el("text",{x:x+42,y:y+50,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:on?"#34d399":"#f87171"});s.textContent=on?"已授予":"禁用";svg.appendChild(s);
+      // 点击区
+      const hit=el("rect",{x:x,y:y,width:84,height:70,rx:8,fill:"transparent",style:"cursor:pointer"});
+      hit.addEventListener("click",()=>toggle(cap.id));
+      svg.appendChild(hit);
+      // 连线
+      svg.appendChild(el("line",{x1:360,y1:140,x2:x+42,y2:y,stroke:on?cap.c:"#3a3d42","stroke-width":on?1.2:1,opacity:on?.7:.3}));
+    });
+
+    // 宿主
+    svg.appendChild(el("rect",{x:80,y:290,width:560,height:60,rx:9,fill:"#16181c",stroke:"rgba(255,255,255,.14)","stroke-width":1.3}));
+    const ht=el("text",{x:360,y:316,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#f7f8f8"});ht.textContent="Host (浏览器 / WASI 运行时)";svg.appendChild(ht);
+    const ht2=el("text",{x:360,y:334,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});ht2.textContent="同源策略 · CSP · COOP/COEP";svg.appendChild(ht2);
+
+    // 拒绝区
+    svg.appendChild(el("rect",{x:560,y:60,width:130,height:40,rx:7,fill:"rgba(248,113,113,.10)",stroke:"#f87171","stroke-width":1.2}));
+    const dt=el("text",{x:625,y:78,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#f87171"});dt.textContent="未授权";svg.appendChild(dt);
+    const dt2=el("text",{x:625,y:92,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#62666d"});dt2.textContent="→ trap";svg.appendChild(dt2);
+  }
+
+  function toggle(id){
+    if(granted.has(id))granted.delete(id);else granted.add(id);
+    draw();
+    const cap=caps.find(c=>c.id===id);
+    $("p07title").textContent=cap.n+" "+(granted.has(id)?"已授予":"已撤销");
+    $("p07detail").textContent=cap.d+(granted.has(id)?" 现在模块可使用此能力。":" 模块尝试访问将触发 trap 或返回错误。");
+    $("st07caps").textContent=granted.size+" / 5";
+    $("st07io").textContent=granted.has("io")?"授权":"禁用";
+    $("st07io").style.color=granted.has("io")?"#34d399":"#f87171";
+    $("st07net").textContent=granted.has("net")?"授权":"禁用";
+    $("st07net").style.color=granted.has("net")?"#34d399":"#f87171";
+    $("st07iso").textContent=granted.size<=2?"强":(granted.size<=4?"中":"弱");
+    $("st07iso").style.color=granted.size<=2?"#34d399":(granted.size<=4?"#fbbf24":"#f87171");
+  }
+
+  draw();
+  $("st07caps").textContent="1 / 5";
+  const allBtn=document.createElement("button");allBtn.className="btn primary small";allBtn.textContent="全部授予";
+  allBtn.addEventListener("click",()=>{granted=new Set(caps.map(c=>c.id));draw();$("st07caps").textContent="5 / 5";$("st07io").textContent="授权";$("st07io").style.color="#34d399";$("st07net").textContent="授权";$("st07net").style.color="#34d399";$("st07iso").textContent="弱";$("st07iso").style.color="#f87171";$("p07title").textContent="全部能力授予";$("p07detail").textContent="所有能力开放，沙箱接近原生权限。仅用于可信模块，不建议对不可信代码使用。";});
+  const minBtn=document.createElement("button");minBtn.className="btn small";minBtn.textContent="最小权限";
+  minBtn.addEventListener("click",()=>{granted=new Set(["mem"]);draw();$("st07caps").textContent="1 / 5";$("st07io").textContent="禁用";$("st07io").style.color="#f87171";$("st07net").textContent="禁用";$("st07net").style.color="#f87171";$("st07iso").textContent="强";$("st07iso").style.color="#34d399";$("p07title").textContent="最小权限 (仅内存)";$("p07detail").textContent="仅授予线性内存，无 I/O、无网络。纯计算模块的最安全配置，攻击面最小。";});
+  const hint=document.createElement("span");hint.style.cssText="font-size:12px;color:#62666d;margin-left:8px";hint.textContent="点击能力块切换";
+  ctl.appendChild(allBtn);ctl.appendChild(minBtn);ctl.appendChild(hint);
+})();
+
+/* ============================================================
+   08 性能对比
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  const benchmarks={
+    fib:{n:"fibonacci (递归)",js:35,wasm:60,native:100,unit:"%",d:"递归计算 fib(35)。WASM 比 JS 快约 1.7 倍，因无 GC 暂停、类型稳定。Native 最优。"},
+    matrix:{n:"矩阵乘法",js:25,wasm:75,native:100,unit:"%",d:"1024×1024 矩阵乘法。WASM 接近 Native（75%），SIMD 可进一步缩小差距。JS 受动态类型拖累。"},
+    string:{n:"字符串处理",js:70,wasm:55,native:100,unit:"%",d:"正则匹配/分割。JS 引擎已高度优化字符串，反而比 WASM 快。Native 仍最优。"},
+    sort:{n:"排序 (1M)",js:45,wasm:80,native:100,unit:"%",d:"快速排序 1M 整数。WASM 受益于紧凑内存布局与可预测类型，明显快于 JS。"},
+    dom:{n:"DOM 操作",js:95,wasm:30,native:0,unit:"%",d:"DOM 节点创建/修改。JS 直接调用浏览器 API，WASM 需跨边界调用反而更慢。Native 不适用。"}
+  };
+  let bench="fib";
+
+  function draw(){
+    clearNode(svg);
+    const b=benchmarks[bench];
+    const padL=60,padR=30,padT=40,padB=50;
+    const plotW=W-padL-padR,plotH=H-padT-padB;
+    // 网格
+    for(let i=0;i<=5;i++){
+      const y=padT+plotH-(i/5)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-8,y:y+4,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#62666d"});t.textContent=(i*20)+(i===5?"%":"");svg.appendChild(t);
+    }
+    // 轴
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const yl=el("text",{x:18,y:padT+plotH/2,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8",transform:"rotate(-90 18 "+(padT+plotH/2)+")"});yl.textContent="相对性能 (Native=100%)";svg.appendChild(yl);
+
+    // 三条
+    const runs=[
+      {n:"JavaScript",v:b.js,c:"#fbbf24"},
+      {n:"WebAssembly",v:b.wasm,c:"#5e6ad2"},
+      {n:"Native (C)",v:b.native,c:"#34d399"}
+    ];
+    const bw=80,gap=50;
+    const startX=padL+50;
+    runs.forEach((r,i)=>{
+      const x=startX+i*(bw+gap);
+      const h=(r.v/100)*plotH;
+      const y=padT+plotH-h;
+      // 柱
+      svg.appendChild(el("rect",{x:x,y:y,width:bw,height:h,rx:5,fill:r.c,opacity:.88}));
+      // 顶部值
+      const vt=el("text",{x:x+bw/2,y:y-8,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:r.c});vt.textContent=r.v+(r.v>0?"%":"N/A");svg.appendChild(vt);
+      // 底部标签
+      const lt=el("text",{x:x+bw/2,y:padT+plotH+18,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#f7f8f8"});lt.textContent=r.n;svg.appendChild(lt);
+    });
+
+    // AOT vs JIT 注释
+    svg.appendChild(el("rect",{x:padL,y:H-26,width:plotW,height:20,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const note=el("text",{x:padL+plotW/2,y:H-12,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#7c5cff"});
+    note.textContent="AOT (wasm 已编译) 启动无 JIT 预热 · JIT (JS/V8) 需热路径积累后达峰值";svg.appendChild(note);
+  }
+
+  function setBench(k){
+    bench=k;draw();
+    const b=benchmarks[k];
+    $("st08bench").textContent=k;
+    $("st08js").textContent=b.js+"%";
+    $("st08wasm").textContent=b.wasm+"%";
+    $("st08nat").textContent=b.native>0?b.native+"%":"N/A";
+    $("p08title").textContent="基准: "+b.n;
+    $("p08detail").textContent=b.d;
+  }
+
+  draw();setBench("fib");
+  Object.keys(benchmarks).forEach(k=>{
+    const b=document.createElement("button");b.className="btn small"+(k==="fib"?" on":"");b.textContent=benchmarks[k].n;
+    b.addEventListener("click",()=>{setBench(k);document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const animBtn=document.createElement("button");animBtn.className="btn";animBtn.textContent="动画扫描";
+  animBtn.addEventListener("click",()=>{
+    const keys=Object.keys(benchmarks);
+    let i=0;
+    function next(){
+      if(i>=keys.length)return;
+      setBench(keys[i]);
+      document.querySelectorAll("#ctl08 .small").forEach((x,xi)=>x.classList.toggle("on",xi===i));
+      i++;setTimeout(next,1100);
+    }
+    next();
+  });
+  ctl.appendChild(animBtn);
+})();
+
+</script>
+</body>
+</html>

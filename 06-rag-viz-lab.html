@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 可视化实验室 · Retrieval-Augmented Generation Visualizer</title>
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:260px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 20px)}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--ink);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+ul{list-style:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+.progress-bar{position:fixed;top:0;left:0;height:2px;width:0;z-index:1000;background:linear-gradient(90deg,var(--accent),var(--rose),var(--cyan));transition:width .1s linear;will-change:width;transform:translateZ(0)}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:900;background:rgba(8,9,10,.92);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px}
+.navbar .logo{font-weight:700;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.navbar .logo .dot{width:8px;height:8px;border-radius:50%;background:var(--rose);box-shadow:0 0 12px var(--rose)}
+.navbar .nav-links{margin-left:auto;display:flex;gap:24px;font-size:13px;color:var(--muted)}
+.navbar .nav-links a{transition:color .2s}
+.navbar .nav-links a:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:800;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:24px 0}
+.sidebar .side-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 20px;margin-bottom:12px}
+.sidebar .side-nav li a{display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:all .2s}
+.sidebar .side-nav li a .num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:20px}
+.sidebar .side-nav li a:hover{color:var(--ink);background:var(--surface-2)}
+.sidebar .side-nav li a.active{color:var(--rose);border-left-color:var(--rose);background:rgba(251,113,133,.08)}
+.sidebar .side-nav li a.active .num{color:var(--rose)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);min-height:calc(100vh - var(--nav-h))}
+.hero{min-height:calc(100vh - var(--nav-h));display:flex;flex-direction:column;justify-content:center;padding:0 64px;max-width:1100px;position:relative}
+.hero .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--rose);background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.25);padding:4px 12px;border-radius:20px;width:fit-content;margin-bottom:24px}
+.hero .badge .pulse{width:6px;height:6px;border-radius:50%;background:var(--rose);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{font-size:clamp(36px,5vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-bottom:20px}
+.hero h1 .grad{background:linear-gradient(135deg,var(--rose),var(--amber),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .subtitle{font-size:18px;color:var(--muted);max-width:580px;margin-bottom:48px;line-height:1.7}
+.hero .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:680px}
+.hero .stat{border-left:2px solid var(--border-strong);padding-left:16px}
+.hero .stat .val{font-size:28px;font-weight:800;letter-spacing:-.02em}
+.hero .stat .label{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.module{padding:64px;max-width:1100px;border-top:1px solid var(--border)}
+.module-header{margin-bottom:32px}
+.module-header .num{font-family:var(--font-mono);font-size:13px;color:var(--rose);margin-bottom:8px}
+.module-header h2{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.module-header .desc{color:var(--muted);font-size:15px;max-width:680px}
+.viz-container{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.viz-svg{display:block;width:100%;height:auto}
+.viz-controls{display:flex;flex-wrap:wrap;gap:8px;padding:16px;border-top:1px solid var(--border);background:var(--surface-2);align-items:center}
+.viz-controls .btn-sm{font-size:12px;padding:6px 14px;border-radius:6px;background:var(--surface-3);color:var(--muted);border:1px solid var(--border);transition:all .15s}
+.viz-controls .btn-sm:hover{color:var(--ink);border-color:var(--border-strong)}
+.viz-controls .btn-sm.active{background:var(--rose);color:#08090a;border-color:var(--rose);font-weight:600}
+.viz-controls .slider-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.viz-controls .slider-wrap input[type=range]{width:100px;accent-color:var(--rose)}
+.viz-controls .slider-wrap .val{color:var(--ink);font-family:var(--font-mono);min-width:32px}
+.viz-stats{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface-2)}
+.viz-stats .stat-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.viz-stats .stat-item .dot{width:8px;height:8px;border-radius:2px}
+.footer{padding:48px 64px;border-top:1px solid var(--border);text-align:center;color:var(--faint);font-size:13px}
+.footer a{color:var(--muted);transition:color .2s}
+.footer a:hover{color:var(--ink)}
+@media(max-width:900px){
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .hero,.module,.footer{padding-left:24px;padding-right:24px}
+}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav class="navbar"><div class="logo"><span class="dot"></span> RAG Viz Lab</div><div class="nav-links"><a href="#hero">首页</a><a href="#m1">模块</a><a href="#footer">关于</a></div></nav>
+<aside class="sidebar"><div class="side-title">可视化模块</div>
+<ul class="side-nav" id="sideNav">
+<li><a href="#hero"><span class="num">00</span> 首页</a></li>
+<li><a href="#m1"><span class="num">01</span> RAG 全流程</a></li>
+<li><a href="#m2"><span class="num">02</span> 文档分块</a></li>
+<li><a href="#m3"><span class="num">03</span> Embedding</a></li>
+<li><a href="#m4"><span class="num">04</span> 向量检索</a></li>
+<li><a href="#m5"><span class="num">05</span> 重排序</a></li>
+<li><a href="#m6"><span class="num">06</span> 上下文组装</a></li>
+<li><a href="#m7"><span class="num">07</span> 生成与引用</a></li>
+<li><a href="#m8"><span class="num">08</span> RAG 评估</a></li>
+</ul></aside>
+<main class="main">
+
+<section class="hero" id="hero">
+<div class="badge"><span class="pulse"></span> 交互式 RAG 检索增强生成可视化实验室</div>
+<h1>RAG<br><span class="grad">可视化实验室</span></h1>
+<p class="subtitle">从文档分块到向量检索，从重排序到生成引用，把 RAG 的每一步都拆成你能看见的零件。对标 LangChain RAG / LlamaIndex / RAGFlow 架构。</p>
+<div class="stats">
+<div class="stat"><div class="val">8</div><div class="label">可视化模块</div></div>
+<div class="stat"><div class="val">25+</div><div class="label">交互参数</div></div>
+<div class="stat"><div class="val">LangChain</div><div class="label">对标框架</div></div>
+<div class="stat"><div class="val">0</div><div class="label">外部依赖</div></div>
+</div>
+</section>
+
+<section class="module" id="m1">
+<div class="module-header"><div class="num">01</div><h2>RAG 全流程架构</h2><p class="desc">Query → Embed → Retrieve → Rerank → Generate。用户提问经过 Embedding 后在向量库中检索 Top-K，重排序后组装上下文，最终由 LLM 生成带引用的回答。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg1" viewBox="0 0 800 420"></svg><div class="viz-controls" id="ctrl1"></div><div class="viz-stats" id="stats1"></div></div>
+</section>
+
+<section class="module" id="m2">
+<div class="module-header"><div class="num">02</div><h2>文档分块策略</h2><p class="desc">Fixed-size 固定大小、Sentence 句子分割、Semantic 语义分块三种策略对比。分块大小直接影响检索精度。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg2" viewBox="0 0 800 440"></svg><div class="viz-controls" id="ctrl2"></div><div class="viz-stats" id="stats2"></div></div>
+</section>
+
+<section class="module" id="m3">
+<div class="module-header"><div class="num">03</div><h2>Embedding 嵌入空间</h2><p class="desc">文本如何变为向量。Token → Embedding 向量 → 高维空间中的点。相似文本在空间中距离更近。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg3" viewBox="0 0 800 400"></svg><div class="viz-controls" id="ctrl3"></div><div class="viz-stats" id="stats3"></div></div>
+</section>
+
+<section class="module" id="m4">
+<div class="module-header"><div class="num">04</div><h2>向量检索算法</h2><p class="desc">Brute-Force 暴力搜索、IVF 倒排索引、HNSW 层级导航小世界图三种检索算法对比。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg4" viewBox="0 0 800 400"></svg><div class="viz-controls" id="ctrl4"></div><div class="viz-stats" id="stats4"></div></div>
+</section>
+
+<section class="module" id="m5">
+<div class="module-header"><div class="num">05</div><h2>重排序 (Reranking)</h2><p class="desc">Bi-Encoder 双塔召回 vs Cross-Encoder 交叉编码精排。两阶段检索：先快召回 Top-K，再精排 Top-N。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg5" viewBox="0 0 800 400"></svg><div class="viz-controls" id="ctrl5"></div><div class="viz-stats" id="stats5"></div></div>
+</section>
+
+<section class="module" id="m6">
+<div class="module-header"><div class="num">06</div><h2>上下文窗口管理</h2><p class="desc">Token 预算分配：System Prompt + Retrieved Context + User Query + Response。上下文顺序影响生成质量。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg6" viewBox="0 0 800 420"></svg><div class="viz-controls" id="ctrl6"></div><div class="viz-stats" id="stats6"></div></div>
+</section>
+
+<section class="module" id="m7">
+<div class="module-header"><div class="num">07</div><h2>生成与引用</h2><p class="desc">LLM 如何利用检索到的上下文生成回答，并标注信息来源。Citation 引用链路可视化。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg7" viewBox="0 0 800 420"></svg><div class="viz-controls" id="ctrl7"></div><div class="viz-stats" id="stats7"></div></div>
+</section>
+
+<section class="module" id="m8">
+<div class="module-header"><div class="num">08</div><h2>RAG 评估指标</h2><p class="desc">Faithfulness 忠实度、Answer Relevance 答案相关性、Context Precision 上下文精确度、Context Recall 上下文召回率。RAGAS 框架核心指标。</p></div>
+<div class="viz-container"><svg class="viz-svg" id="svg8" viewBox="0 0 800 400"></svg><div class="viz-controls" id="ctrl8"></div><div class="viz-stats" id="stats8"></div></div>
+</section>
+
+</main>
+
+<footer class="footer" id="footer">
+<p>RAG 可视化实验室 · 纯 HTML/CSS/JS + SVG · 零外部依赖</p>
+<p style="margin-top:8px">对标框架：LangChain RAG · LlamaIndex · RAGFlow · RAGAS</p>
+<p style="margin-top:8px"><a href="https://github.com/wangzifan396-wzf/rag-viz-lab">GitHub Repository</a></p>
+</footer>
+
+<script>
+(function(){
+'use strict';
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',violet:'#a78bfa',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',accent2:'#7c5cff',s2:'#16181c',s3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+var DOC_COLORS=[C.rose,C.amber,C.cyan,C.emerald,C.violet];
+
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function rnd(a,b){return Math.random()*(b-a)+a;}
+function fmt(n,d){d=d||2;return Number(n).toFixed(d);}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* ===== M1: RAG 全流程 ===== */
+var m1Step=0,m1Timer=null;
+function initM1(){
+  var svg=document.getElementById('svg1'),ctrl=document.getElementById('ctrl1'),stats=document.getElementById('stats1');
+  ctrl.appendChild(makeBtn('▶ 动画',false,function(){runAnim();}));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){if(m1Timer){clearInterval(m1Timer);m1Timer=null;}}));
+  function runAnim(){
+    if(m1Timer)clearInterval(m1Timer);
+    m1Step=0;drawM1();
+    m1Timer=setInterval(function(){m1Step++;if(m1Step>6){clearInterval(m1Timer);m1Timer=null;m1Step=0;}drawM1();},1200);
+  }
+  function drawM1(){
+    clearSvg(svg);var W=800,H=420;
+    var stages=[
+      {label:'用户提问',en:'Query',desc:'"什么是向量数据库?"',color:C.cyan,x:60,w:130},
+      {label:'Embedding',en:'Embed',desc:'Query → Vector',color:C.violet,x:220,w:130},
+      {label:'向量检索',en:'Retrieve',desc:'Top-K = 5',color:C.amber,x:380,w:130},
+      {label:'重排序',en:'Rerank',desc:'Top-N = 3',color:C.rose,x:540,w:130},
+      {label:'LLM 生成',en:'Generate',desc:'Answer + Citations',color:C.emerald,x:700,w:90}
+    ];
+    var y=100;
+    stages.forEach(function(s,i){
+      var active=i<=m1Step;
+      /* Box */
+      svgEl(svg,'rect',{x:s.x,y:y,width:s.w,height:60,rx:10,fill:active?s.color:C.s2,stroke:s.color,'stroke-width':active?'2.5':'1','opacity':active?'0.15':'0.05'});
+      svgEl(svg,'rect',{x:s.x,y:y,width:s.w,height:60,rx:10,fill:'none',stroke:s.color,'stroke-width':active?'2.5':'1'});
+      svgEl(svg,'text',{x:s.x+s.w/2,y:y+22,'text-anchor':'middle',fill:active?s.color:C.muted,'font-size':'13px','font-weight':'700'}).textContent=s.label;
+      svgEl(svg,'text',{x:s.x+s.w/2,y:y+38,'text-anchor':'middle',fill:C.faint,'font-size':'9px'}).textContent=s.en;
+      svgEl(svg,'text',{x:s.x+s.w/2,y:y+52,'text-anchor':'middle',fill:active?C.ink:C.faint,'font-size':'9px','font-family':'monospace'}).textContent=s.desc;
+      /* Arrow to next */
+      if(i<stages.length-1){
+        var ax=s.x+s.w,ay=y+30;
+        var nx=stages[i+1].x;
+        var done=i<m1Step;
+        svgEl(svg,'path',{d:'M'+ax+' '+ay+' L'+(nx-2)+' '+ay+' M'+(nx-6)+' '+(ay-3)+' L'+(nx-2)+' '+ay+' L'+(nx-6)+' '+(ay+3),stroke:done?s.color:C.faint,'stroke-width':done?'2':'1','opacity':done?'0.7':'0.3',fill:'none'});
+      }
+    });
+    /* Vector DB */
+    if(m1Step>=2){
+      var dbX=380,dbY=200;
+      svgEl(svg,'rect',{x:dbX,y:dbY,width:130,height:80,rx:8,fill:C.s2,stroke:C.amber,'stroke-width':'1.5','stroke-dasharray':'4,3'});
+      svgEl(svg,'text',{x:dbX+65,y:dbY+20,'text-anchor':'middle',fill:C.amber,'font-size':'12px','font-weight':'700'}).textContent='Vector DB';
+      /* Mini vectors */
+      for(var i=0;i<8;i++){
+        var vx=dbX+15+(i%4)*30,vy=dbY+35+Math.floor(i/4)*25;
+        svgEl(svg,'circle',{cx:vx,cy:vy,r:4,fill:DOC_COLORS[i%5],'opacity':i<5?'0.8':'0.2'});
+      }
+      svgEl(svg,'text',{x:dbX+65,y:dbY+72,'text-anchor':'middle',fill:C.faint,'font-size':'9px'}).textContent='1M vectors';
+    }
+    /* Query embedding result */
+    if(m1Step>=1){
+      svgEl(svg,'text',{x:285,y:200,fill:C.violet,'font-size':'10px','font-family':'monospace'}).textContent='[0.12, 0.85, ...]';
+    }
+    /* Generated answer */
+    if(m1Step>=4){
+      var aY=310;
+      svgEl(svg,'rect',{x:200,y:aY,width:400,height:80,rx:10,fill:C.s2,stroke:C.emerald,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:400,y:aY+20,'text-anchor':'middle',fill:C.emerald,'font-size':'12px','font-weight':'700'}).textContent='生成回答';
+      var lines=['向量数据库是专门存储和检索高维向量的系统','常用于 RAG 中的语义相似度搜索 [1][3]','代表产品: Pinecone, Milvus, Qdrant [2]'];
+      lines.forEach(function(l,i){
+        svgEl(svg,'text',{x:220,y:aY+40+i*14,fill:C.muted,'font-size':'10px'}).textContent=l;
+      });
+    }
+    setStats(stats,[{color:C.cyan,label:'Query',val:1},{color:C.violet,label:'Embed',val:384},{color:C.amber,label:'Retrieve',val:'5/1M'},{color:C.emerald,label:'Answer',val:'✓'}]);
+  }
+  drawM1();
+}
+
+/* ===== M2: 文档分块 ===== */
+var m2ChunkSize=200,m2Strategy='fixed';
+function initM2(){
+  var svg=document.getElementById('svg2'),ctrl=document.getElementById('ctrl2'),stats=document.getElementById('stats2');
+  ctrl.appendChild(makeSlider('块大小 =',50,500,50,m2ChunkSize,'字',function(v){m2ChunkSize=v;drawM2();}));
+  [['固定大小','fixed'],['句子分割','sentence'],['语义分块','semantic']].forEach(function(m,i){
+    ctrl.appendChild(makeBtn(m[0],i===0,function(btn){
+      ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      m2Strategy=m[1];
+      drawM2();
+    }));
+  });
+  function drawM2(){
+    clearSvg(svg);var W=800,H=440;
+    var docText='向量数据库是专门用于存储和检索高维向量的系统。在RAG架构中，文档首先被切分为chunk。每个chunk经过embedding模型转换为向量。这些向量存入向量数据库，支持语义相似度搜索。常用的向量数据库包括Pinecone、Milvus和Qdrant。检索时，用户查询也被embedding，然后在数据库中找到最相似的chunk。最后将这些chunk作为上下文传给LLM生成回答。';
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='分块策略: '+{fixed:'Fixed-size 固定大小',sentence:'Sentence 句子分割',semantic:'Semantic 语义分块'}[m2Strategy];
+    /* Original document */
+    var docX=30,docY=50,docW=740;
+    svgEl(svg,'rect',{x:docX,y:docY,width:docW,height:24,rx:4,fill:C.s2,stroke:C.border,'stroke-width':'1'});
+    svgEl(svg,'text',{x:docX+8,y:docY+16,fill:C.faint,'font-size':'10px','font-family':'monospace'}).textContent='原文 ('+docText.length+'字)';
+    /* Chunks */
+    var chunks=[];
+    if(m2Strategy==='fixed'){
+      for(var i=0;i<docText.length;i+=m2ChunkSize){
+        chunks.push(docText.substring(i,i+m2ChunkSize));
+      }
+    }else if(m2Strategy==='sentence'){
+      var sentences=docText.split('。');
+      var cur='';
+      sentences.forEach(function(s){
+        if(s.length===0)return;
+        if((cur+s).length>m2ChunkSize&&cur.length>0){
+          chunks.push(cur);
+          cur=s+'。';
+        }else{
+          cur+=s+'。';
+        }
+      });
+      if(cur)chunks.push(cur);
+    }else{
+      /* Semantic: split by topic keywords */
+      var semanticBoundaries=[0];
+      var keywords=['向量数据库','RAG','embedding','向量数据库','检索','LLM'];
+      var lastIdx=0;
+      keywords.forEach(function(kw){
+        var idx=docText.indexOf(kw,lastIdx);
+        if(idx>lastIdx+30){
+          semanticBoundaries.push(idx);
+          lastIdx=idx;
+        }
+      });
+      semanticBoundaries.push(docText.length);
+      for(var b=0;b<semanticBoundaries.length-1;b++){
+        chunks.push(docText.substring(semanticBoundaries[b],semanticBoundaries[b+1]));
+      }
+    }
+    var chunkY=90,chunkH=50,gap=8;
+    var totalH=chunks.length*(chunkH+gap);
+    var startY=chunkY;
+    if(totalH>H-120){
+      chunkH=Math.max(20,(H-120-chunks.length*gap)/chunks.length);
+    }
+    chunks.forEach(function(c,i){
+      var y=startY+i*(chunkH+gap);
+      var color=DOC_COLORS[i%5];
+      svgEl(svg,'rect',{x:docX,y:y,width:docW,height:chunkH,rx:6,fill:color,'opacity':'0.08',stroke:color,'stroke-width':'1'});
+      svgEl(svg,'text',{x:docX+8,y:y+14,fill:color,'font-size':'10px','font-weight':'600','font-family':'monospace'}).textContent='chunk['+i+'] ('+c.length+'字)';
+      /* Preview text */
+      var preview=c.substring(0,Math.floor(docW/8));
+      svgEl(svg,'text',{x:docX+8,y:y+Math.min(chunkH-4,30),fill:C.muted,'font-size':'9px'}).textContent=preview+(c.length>preview.length?'...':'');
+      /* Size indicator */
+      var fillW=docW*Math.min(1,c.length/500);
+      svgEl(svg,'rect',{x:docX,y:y+chunkH-3,width:fillW,height:2,rx:1,fill:color,'opacity':'0.5'});
+    });
+    setStats(stats,[{color:C.rose,label:'Chunks',val:chunks.length},{color:C.amber,label:'Avg Size',val:Math.round(docText.length/chunks.length)+'字'},{color:C.cyan,label:'Strategy',val:{fixed:'Fixed',sentence:'Sentence',semantic:'Semantic'}[m2Strategy]},{color:C.emerald,label:'Overlap',val:m2Strategy==='fixed'?'0':'N/A'}]);
+  }
+  drawM2();
+}
+
+/* ===== M3: Embedding ===== */
+var m3Dim=8;
+function initM3(){
+  var svg=document.getElementById('svg3'),ctrl=document.getElementById('ctrl3'),stats=document.getElementById('stats3');
+  ctrl.appendChild(makeSlider('维度 =',2,16,2,m3Dim,'d',function(v){m3Dim=v;drawM3();}));
+  function drawM3(){
+    clearSvg(svg);var W=800,H=400;
+    var docs=[
+      {text:'向量数据库',type:'query',color:C.cyan},
+      {text:'Milvus存储向量',type:'doc',color:C.rose},
+      {text:'今天天气很好',type:'doc',color:C.amber},
+      {text:'Pinecone检索引擎',type:'doc',color:C.emerald},
+      {text:'机器学习模型训练',type:'doc',color:C.violet}
+    ];
+    /* Generate pseudo-embeddings */
+    docs.forEach(function(d,i){
+      d.vec=[];
+      for(var j=0;j<m3Dim;j++){
+        /* Make query and similar docs closer */
+        var base=d.type==='query'?0.5:0.3;
+        if(d.text.includes('向量')||d.text.includes('Milvus')||d.text.includes('Pinecone')){
+          base=0.6+(j%3)*0.1;
+        }
+        d.vec.push(Math.max(0,Math.min(1,base+rnd(-0.15,0.15))));
+      }
+    });
+    /* Left: vector grid */
+    var gridX=40,gridY=60,cellW=60,cellH=30;
+    docs.forEach(function(d,i){
+      var y=gridY+i*40;
+      svgEl(svg,'text',{x:gridX,y:y-4,fill:d.color,'font-size':'11px','font-weight':'600'}).textContent=d.text;
+      d.vec.forEach(function(v,j){
+        var x=gridX+j*36+120;
+        svgEl(svg,'rect',{x:x,y:y-12,width:30,height:16,rx:2,fill:d.color,'opacity':(v*0.8).toFixed(2)});
+        svgEl(svg,'text',{x:x+15,y:y-1,'text-anchor':'middle',fill:'#08090a','font-size':'7px','font-family':'monospace','font-weight':'600'}).textContent=v.toFixed(2);
+      });
+    });
+    /* Right: 2D scatter projection (first 2 dims) */
+    var scatterX=560,scatterY=60,scatterSize=200;
+    svgEl(svg,'rect',{x:scatterX,y:scatterY,width:scatterSize,height:scatterSize,rx:8,fill:C.s2,stroke:C.border,'stroke-width':'1'});
+    svgEl(svg,'text',{x:scatterX+scatterSize/2,y:scatterY+16,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='2D 投影 (dim 0 vs dim 1)';
+    /* Axes */
+    svgEl(svg,'line',{x1:scatterX+30,y1:scatterY+scatterSize-20,x2:scatterX+scatterSize-10,y2:scatterY+scatterSize-20,stroke:C.faint,'stroke-width':'1','opacity':'0.3'});
+    svgEl(svg,'line',{x1:scatterX+30,y1:scatterY+25,x2:scatterX+30,y2:scatterY+scatterSize-20,stroke:C.faint,'stroke-width':'1','opacity':'0.3'});
+    docs.forEach(function(d){
+      var px=scatterX+30+d.vec[0]*(scatterSize-50);
+      var py=scatterY+scatterSize-20-d.vec[1]*(scatterSize-50);
+      svgEl(svg,'circle',{cx:px,cy:py,r:d.type==='query'?6:4,fill:d.color,'opacity':'0.8',stroke:d.color,'stroke-width':'1.5'});
+      if(d.type==='query'){
+        svgEl(svg,'circle',{cx:px,cy:py,r:12,fill:'none',stroke:d.color,'stroke-width':'1','stroke-dasharray':'3,2','opacity':'0.5'});
+      }
+    });
+    /* Similarity lines from query */
+    var q=docs[0];
+    var qx=scatterX+30+q.vec[0]*(scatterSize-50);
+    var qy=scatterY+scatterSize-20-q.vec[1]*(scatterSize-50);
+    docs.slice(1).forEach(function(d){
+      var px=scatterX+30+d.vec[0]*(scatterSize-50);
+      var py=scatterY+scatterSize-20-d.vec[1]*(scatterSize-50);
+      var sim=0;
+      for(var k=0;k<m3Dim;k++)sim+=q.vec[k]*d.vec[k];
+      sim=sim/(Math.sqrt(m3Dim)*Math.sqrt(m3Dim));
+      if(sim>0.4){
+        svgEl(svg,'line',{x1:qx,y1:qy,x2:px,y2:py,stroke:C.faint,'stroke-width':'1','opacity':(sim*0.5).toFixed(2),'stroke-dasharray':'2,2'});
+      }
+    });
+    svgEl(svg,'text',{x:W/2,y:H-20,'text-anchor':'middle',fill:C.faint,'font-size':'11px'}).textContent='相似文本在向量空间中距离更近 · 点的亮度 = 向量值大小';
+    setStats(stats,[{color:C.cyan,label:'Query',val:1},{color:C.rose,label:'Docs',val:4},{color:C.violet,label:'Dims',val:m3Dim},{color:C.emerald,label:'Similar',val:'2/4'}]);
+  }
+  drawM3();
+}
+
+/* ===== M4: 向量检索 ===== */
+var m4Algo='hnsw',m4K=5;
+function initM4(){
+  var svg=document.getElementById('svg4'),ctrl=document.getElementById('ctrl4'),stats=document.getElementById('stats4');
+  ctrl.appendChild(makeSlider('Top-K =',1,10,1,m4K,'',function(v){m4K=v;drawM4();}));
+  [['Brute-Force','bf'],['IVF 索引','ivf'],['HNSW 图','hnsw']].forEach(function(m,i){
+    ctrl.appendChild(makeBtn(m[0],i===2,function(btn){
+      ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      m4Algo=m[1];
+      drawM4();
+    }));
+  });
+  function drawM4(){
+    clearSvg(svg);var W=800,H=400;
+    var cx=400,cy=200;
+    /* Query point */
+    var qx=cx-50,qy=cy-30;
+    /* Generate points */
+    var points=[];
+    for(var i=0;i<50;i++){
+      points.push({x:rnd(60,W-60),y:rnd(40,H-60),id:i});
+    }
+    /* Compute distances */
+    points.forEach(function(p){
+      p.dist=Math.sqrt((p.x-qx)*(p.x-qx)+(p.y-qy)*(p.y-qy));
+    });
+    points.sort(function(a,b){return a.dist-b.dist;});
+    var topK=points.slice(0,m4K);
+    var topKIds={};
+    topK.forEach(function(p){topKIds[p.id]=true;});
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent={bf:'Brute-Force: 遍历所有点计算距离',ivf:'IVF: 先找最近的聚类中心再搜索簇内',hnsw:'HNSW: 沿图结构导航到近邻'}[m4Algo];
+    if(m4Algo==='ivf'){
+      /* Draw cluster centers */
+      var clusters=[
+        {x:200,y:120,r:80},{x:500,y:140,r:90},{x:300,y:280,r:85},{x:550,y:300,r:70}
+      ];
+      clusters.forEach(function(c,i){
+        svgEl(svg,'circle',{cx:c.x,cy:c.y,r:c.r,fill:'none',stroke:C.faint,'stroke-width':'1','stroke-dasharray':'4,3','opacity':'0.2'});
+        svgEl(svg,'circle',{cx:c.x,cy:c.y,r:4,fill:C.violet,'opacity':'0.5'});
+        svgEl(svg,'text',{x:c.x,y:c.y-6,'text-anchor':'middle',fill:C.faint,'font-size':'8px'}).textContent='C'+i;
+      });
+      /* Mark which cluster query is in */
+      var nearestC=clusters[0];
+      var minCD=999;
+      clusters.forEach(function(c){
+        var d=Math.sqrt((c.x-qx)*(c.x-qx)+(c.y-qy)*(c.y-qy));
+        if(d<minCD){minCD=d;nearestC=c;}
+      });
+      svgEl(svg,'circle',{cx:nearestC.x,cy:nearestC.y,r:nearestC.r,fill:C.violet,'opacity':'0.05',stroke:C.violet,'stroke-width':'1.5','stroke-dasharray':'3,2'});
+    }
+    if(m4Algo==='hnsw'){
+      /* Draw graph edges */
+      var layers=[{r:40,count:6},{r:90,count:14},{r:140,count:30}];
+      layers.forEach(function(l,li){
+        for(var i=0;i<l.count;i++){
+          var a=(i/l.count)*2*Math.PI;
+          var px=cx+Math.cos(a)*l.r;
+          var py=cy+Math.sin(a)*l.r;
+          if(li<2){
+            /* Connect to neighbors */
+            for(var j=i+1;j<l.count;j++){
+              if(Math.random()<0.15){
+                var a2=(j/l.count)*2*Math.PI;
+                var px2=cx+Math.cos(a2)*l.r;
+                var py2=cy+Math.sin(a2)*l.r;
+                svgEl(svg,'line',{x1:px,y1:py,x2:px2,y2:py2,stroke:C.faint,'stroke-width':'1','opacity':(0.1+li*0.05).toFixed(2)});
+              }
+            }
+          }
+        }
+      });
+    }
+    /* Draw all points */
+    points.forEach(function(p){
+      var isTopK=topKIds[p.id];
+      var isNear= Math.abs(points.indexOf(p)-points.indexOf(topK[0]))<m4K;
+      if(m4Algo==='bf'||!topKIds[p.id]){
+        svgEl(svg,'circle',{cx:p.x,cy:p.y,r:3,fill:isTopK?C.rose:'#2a2e35','opacity':isTopK?'0.8':'0.3'});
+      }
+    });
+    /* For HNSW/IVF, highlight visited path */
+    if(m4Algo==='hnsw'){
+      /* Entry point */
+      svgEl(svg,'circle',{cx:cx,cy:cy,r:6,fill:C.violet,'opacity':'0.3',stroke:C.violet,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:cx,y:cy-10,'text-anchor':'middle',fill:C.violet,'font-size':'8px'}).textContent='EP';
+      /* Search path */
+      topK.forEach(function(p,i){
+        if(i>0){
+          var prev=topK[i-1];
+          svgEl(svg,'line',{x1:prev.x,y1:prev.y,x2:p.x,y2:p.y,stroke:C.cyan,'stroke-width':'1','opacity':'0.4','stroke-dasharray':'2,2'});
+        } else {
+          svgEl(svg,'line',{x1:cx,y1:cy,x2:p.x,y2:p.y,stroke:C.cyan,'stroke-width':'1','opacity':'0.4','stroke-dasharray':'2,2'});
+        }
+      });
+    }
+    /* Top-K points */
+    topK.forEach(function(p,i){
+      svgEl(svg,'circle',{cx:p.x,cy:p.y,r:6,fill:C.rose,'opacity':'0.9',stroke:'#fff','stroke-width':'1'});
+      svgEl(svg,'text',{x:p.x+10,y:p.y-6,fill:C.rose,'font-size':'9px','font-weight':'700'}).textContent='#'+(i+1);
+    });
+    /* Query */
+    svgEl(svg,'circle',{cx:qx,cy:qy,r:8,fill:C.cyan,stroke:'#fff','stroke-width':'2'});
+    svgEl(svg,'text',{x:qx,y:qy-14,'text-anchor':'middle',fill:C.cyan,'font-size':'11px','font-weight':'700'}).textContent='Q';
+    /* Search radius */
+    if(m4Algo==='bf'){
+      var maxDist=topK[topK.length-1].dist;
+      svgEl(svg,'circle',{cx:qx,cy:qy,r:maxDist,fill:'none',stroke:C.cyan,'stroke-width':'1','stroke-dasharray':'3,3','opacity':'0.3'});
+    }
+    var visited={bf:50,ivf:15,hnsw:8}[m4Algo];
+    setStats(stats,[{color:C.cyan,label:'Query',val:1},{color:C.rose,label:'Top-K',val:m4K},{color:C.amber,label:'Visited',val:visited+'/'+50},{color:C.emerald,label:'Recall',val:{bf:'100%',ivf:'~95%',hnsw:'~98%'}[m4Algo]}]);
+  }
+  drawM4();
+}
+
+/* ===== M5: 重排序 ===== */
+function initM5(){
+  var svg=document.getElementById('svg5'),ctrl=document.getElementById('ctrl5'),stats=document.getElementById('stats5');
+  ctrl.appendChild(makeBtn('▶ 两阶段检索',false,function(){drawM5(true);}));
+  function drawM5(anim){
+    clearSvg(svg);var W=800,H=400;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='Bi-Encoder 召回 (快) → Cross-Encoder 精排 (准)';
+    var docs=[
+      {text:'向量数据库是AI搜索的基础设施',bi:0.82,ce:0.91},
+      {text:'Redis是内存键值数据库',bi:0.75,ce:0.45},
+      {text:'Milvus支持十亿级向量检索',bi:0.88,ce:0.85},
+      {text:'数据库索引优化指南',bi:0.68,ce:0.52},
+      {text:'MySQL关系型数据库教程',bi:0.61,ce:0.38},
+      {text:'Pinecone托管向量数据库服务',bi:0.79,ce:0.88}
+    ];
+    /* Sort by bi-encoder (recall stage) */
+    var recall=docs.slice().sort(function(a,b){return b.bi-a.bi;});
+    /* Top-4 from recall */
+    var topRecall=recall.slice(0,4);
+    /* Rerank by cross-encoder */
+    var reranked=topRecall.slice().sort(function(a,b){return b.ce-a.ce;});
+    /* Draw Bi-Encoder stage */
+    var stage1X=40,stage1Y=60;
+    svgEl(svg,'rect',{x:stage1X,y:stage1Y,width:320,height:300,rx:10,fill:'none',stroke:C.violet,'stroke-width':'1.5','stroke-dasharray':'5,3','opacity':'0.3'});
+    svgEl(svg,'text',{x:stage1X+160,y:stage1Y+20,'text-anchor':'middle',fill:C.violet,'font-size':'12px','font-weight':'700'}).textContent='Stage 1: Bi-Encoder (召回)';
+    svgEl(svg,'text',{x:stage1X+160,y:stage1Y+36,'text-anchor':'middle',fill:C.faint,'font-size':'9px'}).textContent='独立编码 Query 和 Doc · 速度快';
+    recall.forEach(function(d,i){
+      var y=stage1Y+55+i*38;
+      var inTop=i<4;
+      svgEl(svg,'rect',{x:stage1X+10,y:y,width:300,height:30,rx:6,fill:inTop?C.violet:C.s2,'opacity':inTop?'0.08':'0.3',stroke:inTop?C.violet:C.border,'stroke-width':inTop?'1.5':'1'});
+      svgEl(svg,'text',{x:stage1X+18,y:y+13,fill:inTop?C.violet:C.faint,'font-size':'10px'}).textContent=d.text.substring(0,24);
+      /* Bi score bar */
+      svgEl(svg,'rect',{x:stage1X+220,y:y+8,width:d.bi*80,height:6,rx:3,fill:C.violet});
+      svgEl(svg,'text',{x:stage1X+310,y:y+13,'text-anchor':'end',fill:inTop?C.violet:C.faint,'font-size':'9px','font-family':'monospace'}).textContent=d.bi.toFixed(2);
+      if(inTop){
+        svgEl(svg,'text',{x:stage1X+302,y:y+13,'text-anchor':'end',fill:C.emerald,'font-size':'10px','font-weight':'700'}).textContent='→';
+      }
+    });
+    /* Draw Cross-Encoder stage */
+    var stage2X=440,stage2Y=60;
+    svgEl(svg,'rect',{x:stage2X,y:stage2Y,width:320,height:300,rx:10,fill:'none',stroke:C.rose,'stroke-width':'1.5','stroke-dasharray':'5,3','opacity':'0.3'});
+    svgEl(svg,'text',{x:stage2X+160,y:stage2Y+20,'text-anchor':'middle',fill:C.rose,'font-size':'12px','font-weight':'700'}).textContent='Stage 2: Cross-Encoder (精排)';
+    svgEl(svg,'text',{x:stage2X+160,y:stage2Y+36,'text-anchor':'middle',fill:C.faint,'font-size':'9px'}).textContent='联合编码 Query+Doc · 精度高';
+    reranked.forEach(function(d,i){
+      var y=stage2Y+55+i*55;
+      var rank=i+1;
+      var color=i===0?C.emerald:i===1?C.cyan:C.amber;
+      svgEl(svg,'rect',{x:stage2X+10,y:y,width:300,height:42,rx:8,fill:color,'opacity':'0.08',stroke:color,'stroke-width':'1.5'});
+      svgEl(svg,'circle',{cx:stage2X+28,cy:y+21,r:10,fill:color,'opacity':'0.2',stroke:color,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:stage2X+28,y:y+25,'text-anchor':'middle',fill:color,'font-size':'11px','font-weight':'700'}).textContent=rank;
+      svgEl(svg,'text',{x:stage2X+48,y:y+15,fill:C.ink,'font-size':'10px'}).textContent=d.text.substring(0,24);
+      /* CE score bar */
+      svgEl(svg,'rect',{x:stage2X+48,y:y+24,width:d.ce*150,height:6,rx:3,fill:color});
+      svgEl(svg,'text',{x:stage2X+48,y:y+38,fill:color,'font-size':'9px','font-family':'monospace'}).textContent='CE: '+d.ce.toFixed(2);
+      /* Change indicator */
+      var oldRank=recall.indexOf(d)+1;
+      if(oldRank!==rank){
+        var arrow=rank<oldRank?'↑':'↓';
+        var ac=rank<oldRank?C.emerald:C.rose;
+        svgEl(svg,'text',{x:stage2X+295,y:y+25,'text-anchor':'end',fill:ac,'font-size':'12px','font-weight':'700'}).textContent=arrow+(Math.abs(oldRank-rank));
+      }
+    });
+    /* Arrow between stages */
+    svgEl(svg,'path',{d:'M360 210 L440 210 M434 206 L440 210 L434 214',stroke:C.emerald,'stroke-width':'2','opacity':'0.5',fill:'none'});
+    svgEl(svg,'text',{x:400,y:200,'text-anchor':'middle',fill:C.emerald,'font-size':'10px','font-weight':'600'}).textContent='Top-4';
+    setStats(stats,[{color:C.violet,label:'Recall',val:'6→4'},{color:C.rose,label:'Rerank',val:'4→3'},{color:C.emerald,label:'Top-1',val:'#1↑2'},{color:C.cyan,label:'Latency',val:'~50ms'}]);
+  }
+  drawM5(false);
+}
+
+/* ===== M6: 上下文组装 ===== */
+var m6CtxBudget=4096;
+function initM6(){
+  var svg=document.getElementById('svg6'),ctrl=document.getElementById('ctrl6'),stats=document.getElementById('stats6');
+  ctrl.appendChild(makeSlider('Token 预算 =',1024,8192,1024,m6CtxBudget,'tok',function(v){m6CtxBudget=v;drawM6();}));
+  function drawM6(){
+    clearSvg(svg);var W=800,H=420;
+    var parts=[
+      {label:'System Prompt',tokens:200,color:C.violet,fixed:true},
+      {label:'User Query',tokens:50,color:C.cyan,fixed:true},
+      {label:'Retrieved Doc #1',tokens:480,color:C.emerald,fixed:false},
+      {label:'Retrieved Doc #2',tokens:360,color:C.rose,fixed:false},
+      {label:'Retrieved Doc #3',tokens:290,color:C.amber,fixed:false},
+      {label:'Response Space',tokens:0,color:C.accent2,fixed:true,reserve:true}
+    ];
+    var fixedTokens=parts.filter(function(p){return p.fixed&&!p.reserve;}).reduce(function(a,b){return a+b.tokens;},0);
+    var docsTokens=parts.filter(function(p){return!p.fixed;}).reduce(function(a,b){return a+b.tokens;},0);
+    var responseTokens=Math.max(256,m6CtxBudget-fixedTokens-docsTokens);
+    if(responseTokens>m6CtxBudget*0.3)responseTokens=Math.round(m6CtxBudget*0.3);
+    parts[parts.length-1].tokens=responseTokens;
+    var totalUsed=fixedTokens+docsTokens+responseTokens;
+    /* Context window bar */
+    var barX=40,barY=80,barW=720,barH=60;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='上下文窗口 Token 分配 · 总预算 '+m6CtxBudget;
+    svgEl(svg,'rect',{x:barX,y:barY,width:barW,height:barH,rx:8,fill:C.s2,stroke:C.border,'stroke-width':'1.5'});
+    var curX=barX;
+    parts.forEach(function(p){
+      var w=(p.tokens/m6CtxBudget)*barW;
+      svgEl(svg,'rect',{x:curX,y:barY,width:w,height:barH,rx:0,fill:p.color,'opacity':'0.2'});
+      if(w>40){
+        svgEl(svg,'text',{x:curX+w/2,y:barY+25,'text-anchor':'middle',fill:p.color,'font-size':'10px','font-weight':'700'}).textContent=p.label.substring(0,14);
+        svgEl(svg,'text',{x:curX+w/2,y:barY+42,'text-anchor':'middle',fill:C.faint,'font-size':'9px','font-family':'monospace'}).textContent=p.tokens+' tok';
+      }
+      curX+=w;
+    });
+    /* Divider lines */
+    curX=barX;
+    parts.forEach(function(p){
+      var w=(p.tokens/m6CtxBudget)*barW;
+      curX+=w;
+      if(w>10){
+        svgEl(svg,'line',{x1:curX,y1:barY,x2:curX,y2:barY+barH,stroke:C.border,'stroke-width':'1'});
+      }
+    });
+    /* Wasted space */
+    var wasted=m6CtxBudget-totalUsed;
+    if(wasted>0){
+      var wasteX=barX+(totalUsed/m6CtxBudget)*barW;
+      var wasteW=(wasted/m6CtxBudget)*barW;
+      svgEl(svg,'rect',{x:wasteX,y:barY,width:wasteW,height:barH,rx:0,fill:'none',stroke:C.faint,'stroke-width':'1','stroke-dasharray':'3,3','opacity':'0.3'});
+      if(wasteW>30){
+        svgEl(svg,'text',{x:wasteX+wasteW/2,y:barY+35,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='空闲 '+wasted;
+      }
+    }
+    /* Order matters visualization */
+    var orderY=180;
+    svgEl(svg,'text',{x:40,y:orderY,fill:C.muted,'font-size':'12px','font-weight':'600'}).textContent='推荐顺序 (Lost in the Middle 问题):';
+    var order=['System','Doc #3','Doc #1','Query','Doc #2'];
+    /* Actually: system, most relevant docs at start and end, query, less relevant in middle */
+    var positions=[
+      {label:'System',color:C.violet,x:40},
+      {label:'Doc #1 (高相关)',color:C.emerald,x:160},
+      {label:'Doc #2 (中相关)',color:C.amber,x:320},
+      {label:'User Query',color:C.cyan,x:480},
+      {label:'Doc #3 (高相关)',color:C.rose,x:620}
+    ];
+    positions.forEach(function(p,i){
+      var y=orderY+30;
+      svgEl(svg,'rect',{x:p.x,y:y,width:130,height:36,rx:8,fill:p.color,'opacity':'0.1',stroke:p.color,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:p.x+65,y:y+22,'text-anchor':'middle',fill:p.color,'font-size':'10px','font-weight':'600'}).textContent=p.label;
+      if(i<positions.length-1){
+        svgEl(svg,'path',{d:'M'+(p.x+130)+' '+(y+18)+' L'+(positions[i+1].x)+' '+(y+18)+' M'+(positions[i+1].x-4)+' '+(y+14)+' L'+(positions[i+1].x)+' '+(y+18)+' L'+(positions[i+1].x-4)+' '+(y+22),stroke:C.faint,'stroke-width':'1','opacity':'0.4',fill:'none'});
+      }
+    });
+    /* Attention curve */
+    var attY=280;
+    svgEl(svg,'text',{x:40,y:attY,fill:C.muted,'font-size':'11px'}).textContent='LLM 注意力分布:';
+    svgEl(svg,'path',{d:'M40 '+(attY+40)+' Q200 '+(attY+10)+' 400 '+(attY+45)+' T760 '+(attY+25),stroke:C.accent2,'stroke-width':'2',fill:'none','opacity':'0.6'});
+    svgEl(svg,'text',{x:120,y:attY+60,fill:C.emerald,'font-size':'9px'}).textContent='↑ 高注意力';
+    svgEl(svg,'text',{x:380,y:attY+60,fill:C.amber,'font-size':'9px'}).textContent('↓ 低注意力 (Middle)');
+    svgEl(svg,'text',{x:680,y:attY+60,fill:C.emerald,'font-size':'9px'}).textContent('↑ 高注意力');
+    /* Stats */
+    setStats(stats,[{color:C.violet,label:'System',val:'200 tok'},{color:C.emerald,label:'Context',val:docsTokens+' tok'},{color:C.cyan,label:'Query',val:'50 tok'},{color:C.accent2,label:'Response',val:responseTokens+' tok'}]);
+  }
+  drawM6();
+}
+
+/* ===== M7: 生成与引用 ===== */
+var m7Step=0,m7Timer=null;
+function initM7(){
+  var svg=document.getElementById('svg7'),ctrl=document.getElementById('ctrl7'),stats=document.getElementById('stats7');
+  ctrl.appendChild(makeBtn('▶ 生成回答',false,function(){runAnim();}));
+  ctrl.appendChild(makeBtn('⏸ 暂停',false,function(){if(m7Timer){clearInterval(m7Timer);m7Timer=null;}}));
+  function runAnim(){
+    if(m7Timer)clearInterval(m7Timer);
+    m7Step=0;drawM7();
+    m7Timer=setInterval(function(){m7Step++;if(m7Step>5){clearInterval(m7Timer);m7Timer=null;m7Step=0;}drawM7();},800);
+  }
+  function drawM7(){
+    clearSvg(svg);var W=800,H=420;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='RAG 生成与引用链路';
+    /* Retrieved docs */
+    var docs=[
+      {text:'向量数据库专为高维向量存储设计 [1]',color:C.emerald,source:'doc_001.pdf'},
+      {text:'Milvus支持十亿级向量检索 [2]',color:C.rose,source:'doc_002.pdf'},
+      {text:'Pinecone提供托管向量服务 [3]',color:C.amber,source:'doc_003.pdf'}
+    ];
+    var dY=50;
+    docs.forEach(function(d,i){
+      var y=dY+i*36;
+      var active=m7Step>=1;
+      svgEl(svg,'rect',{x:30,y:y,width:340,height:30,rx:6,fill:active?d.color:C.s2,'opacity':active?'0.08':'0.3',stroke:active?d.color:C.border,'stroke-width':active?'1.5':'1'});
+      svgEl(svg,'text',{x:40,y:y+19,fill:active?C.ink:C.faint,'font-size':'10px'}).textContent=d.text;
+      svgEl(svg,'text',{x:310,y:y+19,'text-anchor':'end',fill:active?d.color:C.faint,'font-size':'8px','font-family':'monospace'}).textContent=d.source;
+    });
+    /* LLM */
+    var llmX=420,llmY=120;
+    if(m7Step>=2){
+      svgEl(svg,'rect',{x:llmX,y:llmY,width:140,height:50,rx:10,fill:C.violet,'opacity':'0.15',stroke:C.violet,'stroke-width':'2'});
+      svgEl(svg,'text',{x:llmX+70,y:llmY+22,'text-anchor':'middle',fill:C.violet,'font-size':'13px','font-weight':'700'}).textContent='LLM';
+      svgEl(svg,'text',{x:llmX+70,y:llmY+38,'text-anchor':'middle',fill:C.faint,'font-size':'9px'}).textContent='GPT-4 / Claude';
+    }
+    /* Arrows from docs to LLM */
+    if(m7Step>=2){
+      docs.forEach(function(d,i){
+        var y=dY+i*36+15;
+        svgEl(svg,'line',{x1:370,y1:y,x2:420,y2:llmY+25,stroke:d.color,'stroke-width':'1','opacity':'0.4','stroke-dasharray':'2,2'});
+      });
+    }
+    /* Generated answer */
+    if(m7Step>=3){
+      var aY=200;
+      svgEl(svg,'rect',{x:200,y:aY,width:400,height:140,rx:10,fill:C.s2,stroke:C.emerald,'stroke-width':'1.5'});
+      svgEl(svg,'text',{x:400,y:aY+20,'text-anchor':'middle',fill:C.emerald,'font-size':'12px','font-weight':'700'}).textContent='生成回答';
+      var answerLines=[
+        {text:'向量数据库是专为高维向量存储和检索',cite:1},
+        {text:'设计的系统，如 Milvus [2] 和 Pinecone [3]。',cite:3},
+        {text:'它们在 RAG 架构中提供语义搜索能力 [1]。',cite:1}
+      ];
+      answerLines.forEach(function(l,i){
+        var y=aY+45+i*24;
+        var showLine=m7Step>=3+i;
+        if(showLine){
+          svgEl(svg,'text',{x:220,y:y,fill:C.ink,'font-size':'11px'}).textContent=l.text;
+          /* Citation badge */
+          var citeX=220+l.text.length*7;
+          svgEl(svg,'rect',{x:citeX+4,y:y-10,width:20,height:14,rx:3,fill:DOC_COLORS[l.cite-1],'opacity':'0.2',stroke:DOC_COLORS[l.cite-1],'stroke-width':'1'});
+          svgEl(svg,'text',{x:citeX+14,y:y,'text-anchor':'middle',fill:DOC_COLORS[l.cite-1],'font-size':'9px','font-weight':'700'}).textContent=l.cite;
+        }
+      });
+    }
+    /* Citation mapping */
+    if(m7Step>=5){
+      var cY=360;
+      svgEl(svg,'text',{x:W/2,y:cY,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent='引用 [1]→doc_001.pdf  [2]→doc_002.pdf  [3]→doc_003.pdf · 可溯源验证';
+    }
+    setStats(stats,[{color:C.emerald,label:'Docs',val:3},{color:C.violet,label:'LLM',val:'✓'},{color:C.cyan,label:'Citations',val:3},{color:C.amber,label:'Faithful',val:'✓'}]);
+  }
+  drawM7();
+}
+
+/* ===== M8: RAG 评估 ===== */
+function initM8(){
+  var svg=document.getElementById('svg8'),ctrl=document.getElementById('ctrl8'),stats=document.getElementById('stats8');
+  var metrics=[['Faithfulness','faith'],['Answer Relevance','relevance'],['Context Precision','precision'],['Context Recall','recall']];
+  metrics.forEach(function(m,i){
+    ctrl.appendChild(makeBtn(m[0],i===0,function(btn){
+      ctrl.querySelectorAll('.btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      drawM8(m[1]);
+    }));
+  });
+  function drawM8(activeMetric){
+    clearSvg(svg);var W=800,H=400;
+    svgEl(svg,'text',{x:W/2,y:24,'text-anchor':'middle',fill:C.muted,'font-size':'13px'}).textContent='RAGAS 评估指标 · 5 次查询对比';
+    var data={
+      faith:[0.85,0.72,0.90,0.65,0.88],
+      relevance:[0.78,0.85,0.70,0.92,0.80],
+      precision:[0.80,0.68,0.95,0.72,0.86],
+      recall:[0.75,0.82,0.88,0.60,0.90]
+    };
+    var scores=data[activeMetric];
+    var metricInfo={
+      faith:{name:'Faithfulness 忠实度',desc:'回答是否忠实于检索到的上下文',color:C.emerald},
+      relevance:{name:'Answer Relevance 答案相关性',desc:'回答与用户问题的相关程度',color:C.cyan},
+      precision:{name:'Context Precision 上下文精确度',desc:'检索到的上下文中有多少是相关的',color:C.amber},
+      recall:{name:'Context Recall 上下文召回率',desc:'所需信息是否都被检索到',color:C.rose}
+    };
+    var info=metricInfo[activeMetric];
+    /* Radar chart */
+    var cx=200,cy=200,r=100;
+    /* Grid */
+    for(var g=1;g<=4;g++){
+      svgEl(svg,'circle',{cx:cx,cy:cy,r:r*g/4,fill:'none',stroke:C.border,'stroke-width':'1','opacity':'0.2','stroke-dasharray':'2,3'});
+    }
+    /* Axes */
+    var labels=['Q1','Q2','Q3','Q4','Q5'];
+    labels.forEach(function(l,i){
+      var a=(i/5)*2*Math.PI-Math.PI/2;
+      var ex=cx+Math.cos(a)*r;
+      var ey=cy+Math.sin(a)*r;
+      svgEl(svg,'line',{x1:cx,y1:cy,x2:ex,y2:ey,stroke:C.border,'stroke-width':'1','opacity':'0.2'});
+      svgEl(svg,'text',{x:cx+Math.cos(a)*(r+14),y:cy+Math.sin(a)*(r+14)+4,'text-anchor':'middle',fill:C.faint,'font-size':'10px'}).textContent=l;
+    });
+    /* Data polygon */
+    var pts=[];
+    scores.forEach(function(s,i){
+      var a=(i/5)*2*Math.PI-Math.PI/2;
+      pts.push((cx+Math.cos(a)*r*s)+' '+(cy+Math.sin(a)*r*s));
+    });
+    svgEl(svg,'polygon',{points:pts.join(' '),fill:info.color,'opacity':'0.2',stroke:info.color,'stroke-width':'2'});
+    /* Points */
+    scores.forEach(function(s,i){
+      var a=(i/5)*2*Math.PI-Math.PI/2;
+      var px=cx+Math.cos(a)*r*s;
+      var py=cy+Math.sin(a)*r*s;
+      svgEl(svg,'circle',{cx:px,cy:py,r:5,fill:info.color,stroke:'#08090a','stroke-width':'1.5'});
+      svgEl(svg,'text',{x:px+8,y:py-4,fill:info.color,'font-size':'9px','font-family':'monospace'}).textContent=s.toFixed(2);
+    });
+    /* Info panel */
+    var pX=420,pY=80;
+    svgEl(svg,'rect',{x:pX,y:pY,width:340,height:120,rx:10,fill:C.s2,stroke:info.color,'stroke-width':'1.5'});
+    svgEl(svg,'text',{x:pX+20,y:pY+28,fill:info.color,'font-size':'14px','font-weight':'700'}).textContent=info.name;
+    svgEl(svg,'text',{x:pX+20,y:pY+50,fill:C.muted,'font-size':'11px'}).textContent=info.desc;
+    var avg=scores.reduce(function(a,b){return a+b;},0)/scores.length;
+    var best=Math.max.apply(null,scores);
+    var worst=Math.min.apply(null,scores);
+    svgEl(svg,'text',{x:pX+20,y:pY+75,fill:C.faint,'font-size':'10px','font-family':'monospace'}).textContent='平均: '+avg.toFixed(3);
+    svgEl(svg,'text',{x:pX+20,y:pY+92,fill:C.faint,'font-size':'10px','font-family':'monospace'}).textContent='最佳: '+best.toFixed(3)+' (Q'+(scores.indexOf(best)+1)+')';
+    svgEl(svg,'text',{x:pX+20,y:pY+109,fill:C.faint,'font-size':'10px','font-family':'monospace'}).textContent='最差: '+worst.toFixed(3)+' (Q'+(scores.indexOf(worst)+1)+')';
+    /* Score bars */
+    var bY=230;
+    svgEl(svg,'text',{x:pX,y:bY,fill:C.muted,'font-size':'11px','font-weight':'600'}).textContent='详细得分:';
+    scores.forEach(function(s,i){
+      var y=bY+20+i*26;
+      svgEl(svg,'text',{x:pX,y:y+12,fill:C.faint,'font-size':'10px','font-family':'monospace'}).textContent='Q'+(i+1)+':';
+      svgEl(svg,'rect',{x:pX+40,y:y+4,width:200,height:12,rx:3,fill:C.s3});
+      svgEl(svg,'rect',{x:pX+40,y:y+4,width:200*s,height:12,rx:3,fill:s>=avg?C.emerald:C.amber,'opacity':'0.7'});
+      svgEl(svg,'text',{x:pX+250,y:y+12,fill:s>=avg?C.emerald:C.amber,'font-size':'10px','font-family':'monospace'}).textContent=s.toFixed(2);
+    });
+    setStats(stats,[{color:info.color,label:'Metric',val:activeMetric},{color:C.emerald,label:'Avg',val:avg.toFixed(2)},{color:C.cyan,label:'Best',val:best.toFixed(2)},{color:C.amber,label:'Worst',val:worst.toFixed(2)}]);
+  }
+  drawM8('faith');
+}
+
+/* ===== Global ===== */
+function initGlobal(){
+  var pb=document.getElementById('progressBar');
+  var modules=document.querySelectorAll('.module');
+  var sideLinks=document.querySelectorAll('#sideNav a');
+  var sections=document.querySelectorAll('section[id]');
+  function updateProgress(){var st=window.pageYOffset||document.documentElement.scrollTop;var dh=document.documentElement.scrollHeight-window.innerHeight;var p=dh>0?(st/dh)*100:0;pb.style.width=p+'%';}
+  window.addEventListener('scroll',updateProgress,{passive:true});updateProgress();
+  var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.1});
+  modules.forEach(function(m){obs.observe(m);});
+  var spy=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){var id=e.target.id;sideLinks.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+id);});}});},{rootMargin:'-30% 0px -60% 0px'});
+  sections.forEach(function(s){spy.observe(s);});
+  if(sideLinks.length>0)sideLinks[0].classList.add('active');
+}
+function initAll(){initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();initGlobal();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAll);else initAll();
+})();
+</script>
+</body>
+</html>

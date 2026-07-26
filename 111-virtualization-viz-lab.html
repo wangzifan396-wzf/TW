@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>virtualization-viz-lab · 虚拟化与容器运行时可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#a78bfa;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(167,139,250,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(167,139,250,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(167,139,250,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#15092e;border-color:transparent}
+.btn.primary:hover{background:#b89aff}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>virtualization</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">virtualization &amp; containers</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/virtualization-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>Hypervisor 类型</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>CPU 虚拟化</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>内存虚拟化</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>容器 vs 虚拟机</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>namespace 隔离</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>cgroup 资源限制</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>containerd 运行时</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>安全沙箱</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/virtualization-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>虚拟化与容器运行时 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现 Hypervisor、CPU/内存虚拟化、namespace/cgroup、容器运行时等虚拟化核心技术。八个模块，纯原生实现，可直接在浏览器中探索虚拟化栈的核心结构。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 Hypervisor 类型 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>Hypervisor 类型：Type-1 vs Type-2</h2>
+      <p>Type-1 裸金属直接运行于硬件之上（ESXi、Xen、Hyper-V）；Type-2 寄居式依赖宿主操作系统（VMware Workstation、VirtualBox）。切换视图观察架构差异。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">hypervisor-types.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>硬件 / Hypervisor</span>
+          <span><i style="background:#7c5cff"></i>Guest OS / Host OS</span>
+          <span><i style="background:#34d399"></i>应用</span>
+          <span><i style="background:#f87171"></i>隔离边界</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">当前架构</h4>
+          <p id="p01detail">选择左侧按钮切换 Type-1 与 Type-2 视图。Type-1 直接管理硬件，性能更高、用于数据中心；Type-2 依赖宿主 OS，适合桌面虚拟化与开发测试。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">类型</div><div class="v amber" id="st01type">Type-1</div></div>
+          <div class="stat"><div class="k">Hypervisor 层级</div><div class="v purple" id="st01lvl">Ring -1</div></div>
+          <div class="stat"><div class="k">宿主 OS</div><div class="v" id="st01host">无</div></div>
+          <div class="stat"><div class="k">典型产品</div><div class="v" id="st01prod" style="font-size:13px">ESXi/Xen</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 CPU 虚拟化 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>CPU 虚拟化：VT-x root/non-root</h2>
+      <p>Intel VT-x 引入 VMX root 与 VMX non-root 两种操作模式。VM Entry 进入 guest，VM Exit 回到 host 处理敏感指令。触发 VM Exit 观察上下文切换过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">vtx-root-nonroot.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>VMX root (host)</span>
+          <span><i style="background:#7c5cff"></i>VMX non-root (guest)</span>
+          <span><i style="background:#fbbf24"></i>VM Entry / Exit</span>
+          <span><i style="background:#f87171"></i>敏感指令</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p02title">模式切换说明</h4>
+          <p id="p02detail">点击“触发 VM Exit”模拟 guest 执行敏感指令（如 I/O、HLT、CPUID）。CPU 保存 guest 寄存器到 VMCS，切换到 root 模式由 host 处理后再 VM Entry 返回。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前模式</div><div class="v amber" id="st02mode">non-root</div></div>
+          <div class="stat"><div class="k">VM Exit 次数</div><div class="v purple" id="st02exit">0</div></div>
+          <div class="stat"><div class="k">VM Entry 次数</div><div class="v" id="st02entry">0</div></div>
+          <div class="stat"><div class="k">退出原因</div><div class="v" id="st02reason" style="font-size:12px">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 内存虚拟化 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>内存虚拟化：EPT 与影子页表</h2>
+      <p>Guest 虚拟地址（GVA）→ Guest 物理地址（GPA）→ Host 物理地址（HPA）。影子页表（SPT）软件合并两层；EPT 硬件完成 GPA→HPA 翻译。切换模式观察查表过程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">ept-shadow-pt.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg03" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl03"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>Guest 页表 (GVA→GPA)</span>
+          <span><i style="background:#7c5cff"></i>EPT (GPA→HPA)</span>
+          <span><i style="background:#34d399"></i>影子页表 (GVA→HPA)</span>
+          <span><i style="background:#fbbf24"></i>地址翻译步</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p03title">翻译机制</h4>
+          <p id="p03detail">影子页表（SPT）由 VMM 维护，直接映射 GVA→HPA，guest 透明但 shadow fault 开销大；EPT 是硬件页表，GPA→HPA 由 MMU 走 EPT，结合 VPID 减少 TLB 冲刷，性能更优。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前模式</div><div class="v amber" id="st03mode">EPT</div></div>
+          <div class="stat"><div class="k">翻译步数</div><div class="v purple" id="st03steps">5</div></div>
+          <div class="stat"><div class="k">内存访问次数</div><div class="v" id="st03mem">5</div></div>
+          <div class="stat"><div class="k">TLB 冲刷</div><div class="v" id="st03tlb">少 (VPID)</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 容器 vs 虚拟机 ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>容器 vs 虚拟机</h2>
+      <p>VM 通过 Hypervisor 提供完整硬件级隔离，每个 guest 自带内核；容器共享宿主内核，通过 namespace/cgroup 实现轻量隔离。切换指标对比启动时间、资源开销与隔离强度。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">container-vs-vm.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>VM 栈</span>
+          <span><i style="background:#7c5cff"></i>容器栈</span>
+          <span><i style="background:#34d399"></i>共享内核</span>
+          <span><i style="background:#f87171"></i>Guest 内核</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">对比维度</h4>
+          <p id="p04detail">VM 启动需引导整个 guest 内核（秒级），内存开销大但隔离强；容器复用宿主内核（毫秒级启动），密度高但共享内核带来逃逸风险。强隔离场景选 VM，高密度场景选容器。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">VM 启动</div><div class="v amber" id="st04vm">~20s</div></div>
+          <div class="stat"><div class="k">容器启动</div><div class="v" style="color:#34d399" id="st04ct">~0.5s</div></div>
+          <div class="stat"><div class="k">VM 内存开销</div><div class="v purple" id="st04mem">高</div></div>
+          <div class="stat"><div class="k">隔离强度</div><div class="v" id="st04iso">VM &gt; 容器</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 namespace 隔离 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>namespace 隔离</h2>
+      <p>Linux namespace 为进程提供独立的系统视图。PID/NET/MNT/UTS/IPC/USER 六类 namespace 隔离不同资源。勾选某类观察容器内进程看到的隔离视图。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">namespaces.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>PID</span>
+          <span><i style="background:#7c5cff"></i>NET</span>
+          <span><i style="background:#34d399"></i>MNT</span>
+          <span><i style="background:#fbbf24"></i>UTS</span>
+          <span><i style="background:#f87171"></i>IPC</span>
+          <span><i style="background:#e879f9"></i>USER</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">namespace 说明</h4>
+          <p id="p05detail">PID namespace 使容器内进程从 1 号开始重新编号；NET namespace 提供独立网卡/路由表；MNT 隔离挂载点；UTS 隔离 hostname；USER 实现 UID 映射；USER 实现 UID 映射；IPC 隔离消息队列。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">已启用</div><div class="v amber" id="st05on">6 / 6</div></div>
+          <div class="stat"><div class="k">容器内 PID</div><div class="v purple" id="st05pid">1</div></div>
+          <div class="stat"><div class="k">网卡数</div><div class="v" id="st05net">1 (eth0)</div></div>
+          <div class="stat"><div class="k">hostname</div><div class="v" id="st05host" style="font-size:12px">isolated</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 cgroup 资源限制 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>cgroup 资源限制</h2>
+      <p>cgroup 以层级树组织进程并施加资源限制。CPU/Memory/IO 控制器分配配额。调整滑块改变 cgroup-A 的 CPU 与内存上限，观察子组抢占与 OOM 行为。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">cgroups.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>cgroup 节点</span>
+          <span><i style="background:#7c5cff"></i>进程</span>
+          <span><i style="background:#34d399"></i>CPU 配额</span>
+          <span><i style="background:#f87171"></i>内存上限</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">cgroup v2 说明</h4>
+          <p id="p06detail">cgroup v2 统一层级，进程只能附属于单一 cgroup。CPU 通过 <code>cpu.max</code> 限制配额；内存通过 <code>memory.max</code> 触发 OOM 或回收；IO 通过 <code>io.max</code> 限制带宽。子组配额不能超过父组。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">CPU 上限</div><div class="v amber" id="st06cpu">2.0 核</div></div>
+          <div class="stat"><div class="k">内存上限</div><div class="v purple" id="st06mem">512M</div></div>
+          <div class="stat"><div class="k">实际 CPU</div><div class="v" id="st06real">1.4 核</div></div>
+          <div class="stat"><div class="k">状态</div><div class="v" id="st06state" style="color:#34d399">正常</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 containerd 运行时 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>containerd 运行时</h2>
+      <p>镜像由只读层叠加，运行时叠加可写层。containerd 按 OCI 规范调用低层 runtime（runc）创建容器。逐步观察 pull → unpack → create → start 流程。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">containerd-runtime.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>镜像层 (只读)</span>
+          <span><i style="background:#7c5cff"></i>可写层</span>
+          <span><i style="background:#34d399"></i>OCI runtime</span>
+          <span><i style="background:#fbbf24"></i>容器进程</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p07title">运行时调用</h4>
+          <p id="p07detail">containerd 管理镜像、快照与容器生命周期。高层 runtime 调用 <code>runc</code>（低层 OCI runtime）创建 namespace/cgroup 并 exec 容器 init 进程。OCI Image Spec 与 Runtime Spec 共同定义可移植标准。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前阶段</div><div class="v amber" id="st07stage">pull</div></div>
+          <div class="stat"><div class="k">镜像层数</div><div class="v purple" id="st07layers">4</div></div>
+          <div class="stat"><div class="k">OCI runtime</div><div class="v" id="st07rt">runc</div></div>
+          <div class="stat"><div class="k">容器状态</div><div class="v" id="st07cs" style="font-size:12px">creating</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 安全沙箱 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>安全沙箱：gVisor vs Kata</h2>
+      <p>普通容器直接 syscall 到宿主内核；gVisor 在用户态实现 Sentry 拦截 syscall；Kata 为每个容器起轻量 VM + 独立内核。切换方案观察隔离边界与性能权衡。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sandbox-gvisor-kata.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#a78bfa"></i>应用</span>
+          <span><i style="background:#7c5cff"></i>Sentry / Guest 内核</span>
+          <span><i style="background:#34d399"></i>Host 内核</span>
+          <span><i style="background:#f87171"></i>攻击面</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">沙箱方案对比</h4>
+          <p id="p08detail">普通容器攻击面=宿主内核全部 syscall；gVisor 仅暴露 ~60% 安全实现的 syscall，性能损失约 10-30%；Kata 用 QEMU/Firecracker 起 VM，隔离最强但启动慢、内存开销大。多租户场景优先 Kata/gVisor。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">当前方案</div><div class="v amber" id="st08sol">runc</div></div>
+          <div class="stat"><div class="k">内核暴露</div><div class="v purple" id="st08attack">~330 syscall</div></div>
+          <div class="stat"><div class="k">相对性能</div><div class="v" id="st08perf">100%</div></div>
+          <div class="stat"><div class="k">隔离级别</div><div class="v" id="st08iso">弱</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>virtualization-viz-lab · 虚拟化与容器运行时可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/virtualization-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+// requestAnimationFrame 包装：reduced-motion 时直接跳到末态
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const MONO="ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+// 侧边栏 active 状态
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 Hypervisor 类型
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420;
+  let mode="t1"; // t1 / t2 / both
+
+  function layer(x,y,w,h,fill,stroke,label,sub){
+    const g=el("g",{});
+    g.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:7,fill:fill,stroke:stroke,"stroke-width":1.3}));
+    const t=el("text",{x:x+w/2,y:y+h/2+4,"text-anchor":"middle","font-size":12.5,"font-family":MONO,fill:sub?"#0b0b0c":"#f7f8f8"});
+    t.textContent=label;g.appendChild(t);
+    if(sub){
+      const s=el("text",{x:x+w/2,y:y+h/2+18,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"rgba(11,11,12,.7)"});
+      s.textContent=sub;g.appendChild(s);
+    }
+    return g;
+  }
+
+  function drawType1(cx){
+    // Hardware -> Hypervisor -> VM1..VM3
+    const w=300;
+    svg.appendChild(layer(cx-w/2,300,w,46,"#1c1f24","rgba(255,255,255,.18)","Hardware","CPU · Memory · I/O"));
+    svg.appendChild(layer(cx-w/2,232,w,46,"rgba(167,139,250,.20)","#a78bfa","Hypervisor (Type-1)","ESXi · Xen · Hyper-V"));
+    // VMs
+    const vmW=(w-40)/3;
+    for(let i=0;i<3;i++){
+      const vx=cx-w/2+10+i*(vmW+10);
+      svg.appendChild(layer(vx,150,vmW,60,"rgba(124,92,255,.16)","#7c5cff","VM "+(i+1),"Guest OS + App"));
+    }
+    // 隔离边界
+    svg.appendChild(el("path",{d:"M"+(cx-w/2-6)+","+(150-6)+" L"+(cx-w/2-6)+","+(210+52)+" L"+(cx+w/2+6)+","+(210+52)+" L"+(cx+w/2+6)+","+(150-6),stroke:"#f87171","stroke-width":1.4,fill:"none","stroke-dasharray":"5 4"}));
+  }
+
+  function drawType2(cx){
+    const w=300;
+    svg.appendChild(layer(cx-w/2,300,w,46,"#1c1f24","rgba(255,255,255,.18)","Hardware","CPU · Memory · I/O"));
+    svg.appendChild(layer(cx-w/2,232,w,46,"rgba(124,92,255,.18)","#7c5cff","Host OS","Windows · Linux"));
+    svg.appendChild(layer(cx-w/2,164,w,40,"rgba(167,139,250,.20)","#a78bfa","Hypervisor (Type-2)","VMware Workstation · VirtualBox"));
+    const vmW=(w-40)/3;
+    for(let i=0;i<3;i++){
+      const vx=cx-w/2+10+i*(vmW+10);
+      svg.appendChild(layer(vx,90,vmW,58,"rgba(124,92,255,.14)","#7c5cff","VM "+(i+1),"Guest OS + App"));
+    }
+    svg.appendChild(el("path",{d:"M"+(cx-w/2-6)+","+(90-6)+" L"+(cx-w/2-6)+","+(142+44)+" L"+(cx+w/2+6)+","+(142+44)+" L"+(cx+w/2+6)+","+(90-6),stroke:"#f87171","stroke-width":1.4,fill:"none","stroke-dasharray":"5 4"}));
+  }
+
+  function draw(){
+    clearNode(svg);
+    if(mode==="both"){
+      drawType1(180);
+      drawType2(540);
+      const t1=el("text",{x:180,y:36,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});t1.textContent="Type-1 裸金属";svg.appendChild(t1);
+      const t2=el("text",{x:540,y:36,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});t2.textContent="Type-2 寄居式";svg.appendChild(t2);
+      const sep=el("line",{x1:360,y1:50,x2:360,y2:380,stroke:"rgba(255,255,255,.08)","stroke-dasharray":"3 5"});svg.appendChild(sep);
+    }else if(mode==="t1"){
+      drawType1(360);
+    }else{
+      drawType2(360);
+    }
+    // 底部说明
+    const note=el("text",{x:360,y:H-12,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#62666d"});
+    note.textContent=mode==="both"?"Type-1 直接管硬件 · Type-2 依赖 Host OS":(mode==="t1"?"Hypervisor 运行于 Ring -1，直接接管硬件":"Hypervisor 作为 Host OS 上的普通进程运行");
+    svg.appendChild(note);
+  }
+
+  function setMode(m){
+    mode=m;draw();
+    const meta={t1:["Type-1","Ring -1","无","ESXi/Xen","Type-1 裸金属 Hypervisor 直接运行于硬件之上，无宿主 OS 开销，性能与安全性更高，常用于数据中心与云计算平台。"],
+      t2:["Type-2","Ring 0","有","VMware/VBox","Type-2 寄居式 Hypervisor 运行于宿主 OS 之上，依赖宿主驱动硬件，部署灵活但多一层开销，常用于桌面虚拟化与开发测试。"],
+      both:["对比","—","—","—","Type-1 性能更优、隔离更强；Type-2 部署灵活、依赖宿主 OS。云端生产环境选 Type-1，桌面开发选 Type-2。"]}[m];
+    $("st01type").textContent=meta[0];
+    $("st01lvl").textContent=meta[1];
+    $("st01host").textContent=meta[2];
+    $("st01prod").textContent=meta[3];
+    $("p01title").textContent=meta[0]+" 架构";
+    $("p01detail").textContent=meta[4];
+  }
+
+  draw();setMode("t1");
+  [["Type-1","t1"],["Type-2","t2"],["对比","both"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m==="t1"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{setMode(m);document.querySelectorAll("#ctl01 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const animBtn=document.createElement("button");animBtn.className="btn";animBtn.textContent="启动 VM 动画";
+  animBtn.addEventListener("click",()=>{
+    // 高亮 VM 启动顺序
+    let i=0;
+    function flash(){
+      if(i>=3)return;
+      const vms=svg.querySelectorAll("g");
+      // 简化：闪烁所有 VM 矩形
+      const rects=svg.querySelectorAll('rect[fill="rgba(124,92,255,.16)"], rect[fill="rgba(124,92,255,.14)"]');
+      if(rects[i]){
+        const r=rects[i];
+        const ring=el("rect",{x:+r.getAttribute("x")-4,y:+r.getAttribute("y")-4,width:+r.getAttribute("width")+8,height:+r.getAttribute("height")+8,rx:9,fill:"none",stroke:"#34d399","stroke-width":2});
+        svg.appendChild(ring);
+        animate(700,p=>{ring.setAttribute("opacity",1-p);ring.setAttribute("stroke-width",2+p*3);},()=>ring.remove());
+      }
+      i++;setTimeout(flash,500);
+    }
+    flash();
+  });
+  ctl.appendChild(animBtn);
+})();
+
+/* ============================================================
+   02 CPU 虚拟化 VT-x
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400;
+  let mode="non-root"; // non-root / root
+  let exits=0,entries=0;
+  const exitReasons=["I/O 指令","HLT (空转)","CPUID","页故障","MSR 读写","异常/中断"];
+
+  function draw(transition){
+    clearNode(svg);
+    // 两个大区域：root (上) / non-root (下)
+    const rootY=50,rootH=130,nonY=220,nonH=130;
+    // root
+    svg.appendChild(el("rect",{x:80,y:rootY,width:560,height:rootH,rx:12,fill:"rgba(167,139,250,.10)",stroke:"#a78bfa","stroke-width":1.5}));
+    const rl=el("text",{x:90,y:rootY+22,"font-size":12,"font-family":MONO,fill:"#a78bfa"});rl.textContent="VMX root operation (Host / VMM)";svg.appendChild(rl);
+    // host 内部
+    svg.appendChild(el("rect",{x:110,y:rootY+40,width:240,height:70,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.14)"}));
+    const hl=el("text",{x:230,y:rootY+78,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#f7f8f8"});hl.textContent="Host Kernel + VMM";svg.appendChild(hl);
+    svg.appendChild(el("rect",{x:380,y:rootY+40,width:240,height:70,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.14)"}));
+    const vc=el("text",{x:500,y:rootY+70,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});vc.textContent="VMCS";svg.appendChild(vc);
+    const vc2=el("text",{x:500,y:rootY+88,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#62666d"});vc2.textContent="guest-state / host-state";svg.appendChild(vc2);
+
+    // non-root
+    svg.appendChild(el("rect",{x:80,y:nonY,width:560,height:nonH,rx:12,fill:mode==="non-root"?"rgba(124,92,255,.16)":"rgba(124,92,255,.06)",stroke:mode==="non-root"?"#7c5cff":"rgba(124,92,255,.4)","stroke-width":1.5}));
+    const nl=el("text",{x:90,y:nonY+22,"font-size":12,"font-family":MONO,fill:"#7c5cff"});nl.textContent="VMX non-root operation (Guest)";svg.appendChild(nl);
+    // guest
+    svg.appendChild(el("rect",{x:140,y:nonY+42,width:440,height:68,rx:8,fill:"#16181c",stroke:mode==="non-root"?"#7c5cff":"rgba(255,255,255,.1)"}));
+    const gl=el("text",{x:360,y:nonY+82,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:mode==="non-root"?"#f7f8f8":"#62666d"});gl.textContent="Guest Kernel + App";svg.appendChild(gl);
+
+    // 活跃指示
+    const activeY=mode==="non-root"?nonY+76:rootY+75;
+    const dot=el("circle",{cx:360,cy:activeY,r:5,fill:"#34d399"});svg.appendChild(dot);
+    // 脉动
+    const pulse=el("circle",{cx:360,cy:activeY,r:5,fill:"none",stroke:"#34d399","stroke-width":1.5,opacity:.7});svg.appendChild(pulse);
+    animate(1200,p=>{pulse.setAttribute("r",5+p*14);pulse.setAttribute("opacity",.7*(1-p));},()=>{if(pulse.parentNode)pulse.remove();});
+
+    // 转换箭头
+    const arrX=690;
+    // VM Exit 向上
+    const ea=el("path",{d:"M"+arrX+","+(nonY+20)+" L"+arrX+","+(rootY+rootH-10),stroke:"#fbbf24","stroke-width":1.6,fill:"none","marker-end":"url(#a02up)"});
+    if(transition==="exit")ea.setAttribute("stroke","#f87171"),ea.setAttribute("stroke-width",2.6);
+    svg.appendChild(ea);
+    const elt=el("text",{x:arrX+8,y:(rootY+rootH+nonY)/2,"font-size":10.5,"font-family":MONO,fill:"#fbbf24"});elt.textContent="VM Exit ↑";svg.appendChild(elt);
+    // VM Entry 向下
+    const xa=40;
+    const ia=el("path",{d:"M"+xa+","+(rootY+rootH-10)+" L"+xa+","+(nonY+20),stroke:"#fbbf24","stroke-width":1.6,fill:"none","marker-end":"url(#a02down)"});
+    if(transition==="entry")ia.setAttribute("stroke","#34d399"),ia.setAttribute("stroke-width",2.6);
+    svg.appendChild(ia);
+    const ilt=el("text",{x:8,y:(rootY+rootH+nonY)/2,"font-size":10.5,"font-family":MONO,fill:"#fbbf24"});ilt.textContent="VM Entry ↓";svg.appendChild(ilt);
+
+    // defs 箭头
+    const defs=el("defs");
+    [[ "a02up","0,0 6,3 0,6"],["a02down","0,6 6,3 0,0"]].forEach(([id,d])=>{
+      const m=el("marker",{id:id,viewBox:"0 0 6 6",refX:3,refY:3,markerWidth:6,markerHeight:6,orient:"auto"});
+      const p=el("path",{d:"M"+d,fill:"#fbbf24"});m.appendChild(p);defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+
+    // 敏感指令标记
+    if(mode==="non-root"){
+      const sc=el("circle",{cx:430,cy:nonY+76,r:9,fill:"rgba(248,113,113,.2)",stroke:"#f87171","stroke-width":1.4});
+      svg.appendChild(sc);
+      const st=el("text",{x:430,y:nonY+80,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#f87171"});st.textContent="!";svg.appendChild(st);
+    }
+  }
+
+  function triggerExit(){
+    const reason=exitReasons[Math.floor(Math.random()*exitReasons.length)];
+    // 动画：箭头闪烁，guest 变暗
+    animate(500,p=>{draw("exit");},()=>{
+      mode="root";exits++;
+      $("st02mode").textContent="root";
+      $("st02exit").textContent=exits;
+      $("st02reason").textContent=reason;
+      $("p02title").textContent="VM Exit → "+reason;
+      $("p02detail").textContent="Guest 执行 "+reason+" 触发 VM Exit。CPU 保存 guest 上下文到 VMCS guest-state area，切换到 VMX root 模式，由 VMM 处理该事件后再通过 VMLAUNCH/VMRESUME 重新进入 guest。";
+      draw();
+    });
+  }
+  function triggerEntry(){
+    animate(400,p=>{draw("entry");},()=>{
+      mode="non-root";entries++;
+      $("st02mode").textContent="non-root";
+      $("st02entry").textContent=entries;
+      $("st02reason").textContent="—";
+      $("p02title").textContent="VM Entry → 回到 Guest";
+      $("p02detail").textContent="VMM 完成 exit 处理后执行 VMLAUNCH/VMRESUME，从 VMCS 恢复 guest 寄存器并切换到 non-root 模式，guest 从触发点继续执行。";
+      draw();
+    });
+  }
+
+  draw();
+  const exitBtn=document.createElement("button");exitBtn.className="btn primary";exitBtn.textContent="触发 VM Exit";
+  exitBtn.addEventListener("click",triggerExit);
+  const entryBtn=document.createElement("button");entryBtn.className="btn";entryBtn.textContent="VM Entry 返回";
+  entryBtn.addEventListener("click",triggerEntry);
+  const autoBtn=document.createElement("button");autoBtn.className="btn small";autoBtn.textContent="自动循环";
+  let autoT=null;
+  autoBtn.addEventListener("click",()=>{
+    if(autoT){clearInterval(autoT);autoT=null;autoBtn.textContent="自动循环";autoBtn.classList.remove("on");return;}
+    autoBtn.classList.add("on");autoBtn.textContent="停止";
+    const step=()=>{if(mode==="non-root")triggerExit();else triggerEntry();};
+    step();autoT=setInterval(step,1600);
+  });
+  ctl.appendChild(exitBtn);ctl.appendChild(entryBtn);ctl.appendChild(autoBtn);
+})();
+
+/* ============================================================
+   03 内存虚拟化 EPT / SPT
+   ============================================================ */
+(function(){
+  const svg=$("svg03"),ctl=$("ctl03");
+  const W=720,H=400;
+  let mode="ept"; // ept / spt
+  let stepIdx=0;
+
+  // 翻译步：EPT 模式 5 步，SPT 模式 2 步
+  const eptSteps=[
+    {t:"1. CR3 指向 Guest 页表基址 (GPA)",d:"Guest CR3 寄存器保存 Guest 页表 PML4 的 GPA。"},
+    {t:"2. 走 Guest PML4 → PDPT → PD → PT",d:"4 级 Guest 页表逐级查表，每级表项地址都是 GPA。"},
+    {t:"3. 得到 GPA (Guest 物理地址)",d:"PT 表项的页框号拼接偏移得到最终 GPA。"},
+    {t:"4. 走 EPT: EPT PML4 → PDPT → PD → PT",d:"硬件 MMU 用 EPT 把 GPA 翻译为 HPA，共 4 次额外内存访问。"},
+    {t:"5. 得到 HPA (Host 物理地址)",d:"EPT PT 表项给出 HPA，完成 GVA→HPA 翻译。"}
+  ];
+  const sptSteps=[
+    {t:"1. 查影子页表 (GVA → HPA)",d:"VMM 预先构建影子页表，直接映射 GVA 到 HPA。Guest CR3 指向影子页表而非 guest 页表。"},
+    {t:"2. 命中 HPA",d:"影子页表项直接给出 HPA，单次查表完成翻译。但 shadow fault 需 VMM 介入。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    const baseY=70;
+    // 三列：GVA / GPA / HPA
+    const colGVA=80,colGPA=320,colHPA=560;
+    const boxW=120,boxH=44;
+    // 列标题
+    [["GVA",colGVA,"#a78bfa"],["GPA",colGPA,"#7c5cff"],["HPA",colHPA,"#34d399"]].forEach(([n,x,c])=>{
+      const t=el("text",{x:x+boxW/2,y:baseY-18,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:c});t.textContent=n;svg.appendChild(t);
+      svg.appendChild(el("rect",{x:x,y:baseY,width:boxW,height:boxH,rx:8,fill:"#16181c",stroke:c,"stroke-width":1.4}));
+      const v=el("text",{x:x+boxW/2,y:baseY+27,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#f7f8f8"});
+      v.textContent={GVA:"0x7fff_fe80",GPA:"0x1a_2f40",HPA:"0x8c_3a10"}[n];svg.appendChild(v);
+    });
+
+    // 翻译过程
+    const midY=baseY+boxH+30;
+    if(mode==="ept"){
+      // Guest PT (GVA->GPA)
+      svg.appendChild(el("rect",{x:colGVA-10,y:midY,width:boxW+20+(colGPA-colGVA-boxW),height:80,rx:8,fill:"rgba(167,139,250,.08)",stroke:"#a78bfa","stroke-width":1.2,"stroke-dasharray":"4 3"}));
+      const gt=el("text",{x:(colGVA+colGPA+boxW)/2,y:midY+18,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#a78bfa"});gt.textContent="Guest 页表 (4 级)";svg.appendChild(gt);
+      // 4 个小表
+      for(let i=0;i<4;i++){
+        const x=colGVA+i*30;
+        svg.appendChild(el("rect",{x:x,y:midY+32,width:24,height:20,rx:4,fill:"#1c1f24",stroke:"#a78bfa","stroke-width":1}));
+        const t=el("text",{x:x+12,y:midY+46,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});t.textContent=["PML4","PDPT","PD","PT"][i];svg.appendChild(t);
+        if(i<3){svg.appendChild(el("line",{x1:x+24,y1:midY+42,x2:x+30,y2:midY+42,stroke:"#a78bfa","stroke-width":1,opacity:.6}));}
+      }
+      // 箭头到 GPA
+      svg.appendChild(el("path",{d:"M"+(colGVA+90+24)+","+(midY+42)+" L"+(colGPA-8)+","+(midY+42),stroke:"#a78bfa","stroke-width":1.4,fill:"none","marker-end":"url(#a03g)"}));
+      // EPT (GPA->HPA)
+      svg.appendChild(el("rect",{x:colGPA-10,y:midY+100,width:boxW+20+(colHPA-colGPA-boxW),height:80,rx:8,fill:"rgba(124,92,255,.08)",stroke:"#7c5cff","stroke-width":1.2,"stroke-dasharray":"4 3"}));
+      const et=el("text",{x:(colGPA+colHPA+boxW)/2,y:midY+118,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#7c5cff"});et.textContent="EPT 扩展页表 (4 级, 硬件)";svg.appendChild(et);
+      for(let i=0;i<4;i++){
+        const x=colGPA+i*30;
+        svg.appendChild(el("rect",{x:x,y:midY+132,width:24,height:20,rx:4,fill:"#1c1f24",stroke:"#7c5cff","stroke-width":1}));
+        const t=el("text",{x:x+12,y:midY+146,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});t.textContent="EPT"+(i+1);svg.appendChild(t);
+        if(i<3){svg.appendChild(el("line",{x1:x+24,y1:midY+142,x2:x+30,y2:midY+142,stroke:"#7c5cff","stroke-width":1,opacity:.6}));}
+      }
+      svg.appendChild(el("path",{d:"M"+(colGPA+90+24)+","+(midY+142)+" L"+(colHPA-8)+","+(midY+142),stroke:"#7c5cff","stroke-width":1.4,fill:"none","marker-end":"url(#a03e)"}));
+    }else{
+      // SPT 单一映射 GVA->HPA
+      svg.appendChild(el("rect",{x:colGVA-10,y:midY,width:boxW+20+(colHPA-colGVA-boxW),height:90,rx:8,fill:"rgba(52,211,153,.08)",stroke:"#34d399","stroke-width":1.4,"stroke-dasharray":"4 3"}));
+      const st=el("text",{x:(colGVA+colHPA+boxW)/2,y:midY+20,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#34d399"});st.textContent="影子页表 Shadow PT (VMM 维护)";svg.appendChild(st);
+      for(let i=0;i<4;i++){
+        const x=colGVA+i*40;
+        svg.appendChild(el("rect",{x:x,y:midY+34,width:32,height:22,rx:4,fill:"#1c1f24",stroke:"#34d399","stroke-width":1}));
+        const t=el("text",{x:x+16,y:midY+49,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});t.textContent=["PML4","PDPT","PD","PT"][i];svg.appendChild(t);
+        if(i<3){svg.appendChild(el("line",{x1:x+32,y1:midY+45,x2:x+40,y2:midY+45,stroke:"#34d399","stroke-width":1,opacity:.6}));}
+      }
+      svg.appendChild(el("path",{d:"M"+(colGVA+120+32)+","+(midY+45)+" L"+(colHPA-8)+","+(midY+45),stroke:"#34d399","stroke-width":1.6,fill:"none","marker-end":"url(#a03s)"}));
+      const note=el("text",{x:(colGVA+colHPA+boxW)/2,y:midY+82,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});note.textContent="直接映射 · guest 透明 · shadow fault 由 VMM 处理";svg.appendChild(note);
+    }
+
+    // 当前步高亮
+    const steps=mode==="ept"?eptSteps:sptSteps;
+    const sy=H-58;
+    svg.appendChild(el("rect",{x:60,y:sy,width:600,height:42,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const snum=el("text",{x:78,y:sy+18,"font-size":10,"font-family":MONO,fill:"#a78bfa"});snum.textContent="步骤 "+(stepIdx+1)+"/"+steps.length;svg.appendChild(snum);
+    const stt=el("text",{x:78,y:sy+34,"font-size":11.5,"font-family":MONO,fill:"#f7f8f8"});stt.textContent=steps[stepIdx].t;svg.appendChild(stt);
+
+    // defs
+    const defs=el("defs");
+    [["a03g","#a78bfa"],["a03e","#7c5cff"],["a03s","#34d399"]].forEach(([id,c])=>{
+      const m=el("marker",{id:id,viewBox:"0 0 8 8",refX:7,refY:4,markerWidth:7,markerHeight:7,orient:"auto"});
+      const p=el("path",{d:"M0,0 L8,4 L0,8 z",fill:c});m.appendChild(p);defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+  }
+
+  function setMode(m){
+    mode=m;stepIdx=0;draw();
+    $("st03mode").textContent=m==="ept"?"EPT":"SPT";
+    $("st03steps").textContent=m==="ept"?"5":"2";
+    $("st03mem").textContent=m==="ept"?"5":"1 ( +shadow fault)";
+    $("st03tlb").textContent=m==="ept"?"少 (VPID)":"多 (CR3 切换)";
+    $("p03title").textContent=m==="ept"?"EPT 扩展页表":"影子页表 (SPT)";
+    $("p03detail").textContent=(m==="ept"?eptSteps:sptSteps)[0].d;
+  }
+  function setStep(i){
+    const steps=mode==="ept"?eptSteps:sptSteps;
+    stepIdx=(i+steps.length)%steps.length;draw();
+    $("p03title").textContent=steps[stepIdx].t;
+    $("p03detail").textContent=steps[stepIdx].d;
+  }
+
+  draw();setMode("ept");
+  [["EPT 模式","ept"],["影子页表","spt"]].forEach(([n,m])=>{
+    const b=document.createElement("button");b.className="btn small"+(m==="ept"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{setMode(m);document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const prev=document.createElement("button");prev.className="btn small";prev.textContent="← 上一步";
+  prev.addEventListener("click",()=>setStep(stepIdx-1));
+  const next=document.createElement("button");next.className="btn primary";next.textContent="下一步 →";
+  next.addEventListener("click",()=>setStep(stepIdx+1));
+  const play=document.createElement("button");play.className="btn small";play.textContent="播放";
+  let pt=null;
+  play.addEventListener("click",()=>{
+    if(pt){clearInterval(pt);pt=null;play.textContent="播放";play.classList.remove("on");return;}
+    play.classList.add("on");play.textContent="停止";
+    pt=setInterval(()=>{const steps=mode==="ept"?eptSteps:sptSteps;setStep(stepIdx+1);},1400);
+  });
+  ctl.appendChild(prev);ctl.appendChild(next);ctl.appendChild(play);
+})();
+
+/* ============================================================
+   04 容器 vs 虚拟机
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let view="stack"; // stack / boot / resource
+
+  function drawStack(){
+    clearNode(svg);
+    // 左：VM 栈
+    const lx=70,rw=250;
+    const layers=[
+      {y:300,h:36,c:"#1c1f24",s:"rgba(255,255,255,.18)",l:"Hardware"},
+      {y:258,h:36,c:"rgba(167,139,250,.20)",s:"#a78bfa",l:"Hypervisor"},
+      {y:204,h:46,c:"rgba(248,113,113,.16)",s:"#f87171",l:"Guest Kernel (×3)"},
+      {y:160,h:38,c:"rgba(124,92,255,.14)",s:"#7c5cff",l:"Libs / Bins"},
+      {y:116,h:38,c:"rgba(52,211,153,.16)",s:"#34d399",l:"App"}
+    ];
+    layers.forEach(L=>{
+      svg.appendChild(el("rect",{x:lx,y:L.y,width:rw,height:L.h,rx:6,fill:L.c,stroke:L.s,"stroke-width":1.3}));
+      const t=el("text",{x:lx+rw/2,y:L.y+L.h/2+4,"text-anchor":"middle","font-size":11.5,"font-family":MONO,fill:"#f7f8f8"});t.textContent=L.l;svg.appendChild(t);
+    });
+    const lt=el("text",{x:lx+rw/2,y:96,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});lt.textContent="虚拟机 (VM)";svg.appendChild(lt);
+
+    // 右：容器栈
+    const rx=400;
+    const clayers=[
+      {y:300,h:36,c:"#1c1f24",s:"rgba(255,255,255,.18)",l:"Hardware"},
+      {y:258,h:36,c:"rgba(124,92,255,.18)",s:"#7c5cff",l:"Host OS"},
+      {y:206,h:46,c:"rgba(52,211,153,.20)",s:"#34d399",l:"共享内核 (1 个)"},
+      {y:152,h:46,c:"rgba(167,139,250,.16)",s:"#a78bfa",l:"Container Runtime"}
+    ];
+    clayers.forEach(L=>{
+      svg.appendChild(el("rect",{x:rx,y:L.y,width:rw,height:L.h,rx:6,fill:L.c,stroke:L.s,"stroke-width":1.3}));
+      const t=el("text",{x:rx+rw/2,y:L.y+L.h/2+4,"text-anchor":"middle","font-size":11.5,"font-family":MONO,fill:"#f7f8f8"});t.textContent=L.l;svg.appendChild(t);
+    });
+    // 三个容器
+    const cw=(rw-30)/3;
+    for(let i=0;i<3;i++){
+      const cx=rx+10+i*(cw+10);
+      svg.appendChild(el("rect",{x:cx,y:96,width:cw,height:46,rx:6,fill:"rgba(124,92,255,.12)",stroke:"#7c5cff","stroke-width":1.2}));
+      const t=el("text",{x:cx+cw/2,y:115,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#34d399"});t.textContent="App";svg.appendChild(t);
+      const t2=el("text",{x:cx+cw/2,y:130,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});t2.textContent="Libs";svg.appendChild(t2);
+    }
+    const rt=el("text",{x:rx+rw/2,y:80,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});rt.textContent="容器 (Container)";svg.appendChild(rt);
+  }
+
+  function drawBar(label,vmVal,ctVal,unit,y){
+    // VM 条
+    const maxVal=Math.max(vmVal,ctVal)*1.1;
+    const barW=200,x0=200;
+    svg.appendChild(el("text",{x:120,y:y+14,"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#9b9fa8"})).textContent="VM";
+    svg.appendChild(el("rect",{x:x0,y:y,width:barW,height:18,rx:4,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const vw=barW*vmVal/maxVal;
+    svg.appendChild(el("rect",{x:x0,y:y,width:vw,height:18,rx:4,fill:"#a78bfa"}));
+    const vt=el("text",{x:x0+vw+8,y:y+14,"font-size":11,"font-family":MONO,fill:"#a78bfa"});vt.textContent=vmVal+unit;svg.appendChild(vt);
+
+    svg.appendChild(el("text",{x:120,y:y+44,"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#9b9fa8"})).textContent="容器";
+    svg.appendChild(el("rect",{x:x0,y:y+30,width:barW,height:18,rx:4,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const cw=barW*ctVal/maxVal;
+    svg.appendChild(el("rect",{x:x0,y:y+30,width:cw,height:18,rx:4,fill:"#7c5cff"}));
+    const ct=el("text",{x:x0+cw+8,y:y+44,"font-size":11,"font-family":MONO,fill:"#7c5cff"});ct.textContent=ctVal+unit;svg.appendChild(ct);
+
+    const lb=el("text",{x:160,y:y-6,"text-anchor":"end","font-size":11,"font-family":MONO,fill:"#f7f8f8"});lb.textContent=label;svg.appendChild(lb);
+  }
+
+  function drawBoot(){
+    clearNode(svg);
+    const t=el("text",{x:360,y:40,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});t.textContent="启动时间对比 (对数刻度)";svg.appendChild(t);
+    drawBar("冷启动",20000,500,"ms",90);
+    drawBar("镜像拉取",30000,5000,"ms",180);
+    drawBar("内存开销",2048,80,"MB",270);
+    const note=el("text",{x:360,y:H-16,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#62666d"});note.textContent="容器复用宿主内核，无需引导 · VM 需启动整个 guest 内核";svg.appendChild(note);
+  }
+
+  function drawResource(){
+    clearNode(svg);
+    const t=el("text",{x:360,y:40,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#a78bfa"});t.textContent="资源开销与密度对比";svg.appendChild(t);
+    drawBar("单实例内存",2048,80,"MB",90);
+    drawBar("单主机密度",8,120,"个",180);
+    drawBar("CPU 开销",15,3,"%",270);
+    const note=el("text",{x:360,y:H-16,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#62666d"});note.textContent="容器密度可达 VM 的 10-15 倍 · 隔离强度 VM 更优";svg.appendChild(note);
+  }
+
+  function setView(v){
+    view=v;
+    if(v==="stack")drawStack();
+    else if(v==="boot")drawBoot();
+    else drawResource();
+    $("p04title").textContent={stack:"架构栈对比",boot:"启动时间与内存开销",resource:"资源密度对比"}[v];
+    $("p04detail").textContent={stack:"VM 每实例自带 Guest 内核，硬件级隔离；容器共享宿主内核，通过 namespace/cgroup 实现进程级隔离，栈更轻量。",
+      boot:"VM 冷启动需引导 guest 内核（秒级），容器复用宿主内核（毫秒级）。镜像层共享让容器拉取更快。",
+      resource:"VM 每实例内存开销大（百 MB-GB 级），容器仅几十 MB。单主机可运行上百容器，但 VM 仅十几个。"}[v];
+    $("st04vm").textContent=v==="boot"?"~20s":v==="resource"?"2048MB":"~20s";
+    $("st04ct").textContent=v==="boot"?"~0.5s":v==="resource"?"80MB":"~0.5s";
+    $("st04mem").textContent=v==="resource"?"高":"高";
+    $("st04iso").textContent="VM > 容器";
+  }
+
+  setView("stack");
+  [["架构栈","stack"],["启动时间","boot"],["资源密度","resource"]].forEach(([n,v])=>{
+    const b=document.createElement("button");b.className="btn small"+(v==="stack"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{setView(v);document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   05 namespace 隔离
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  const nsList=[
+    {id:"pid",n:"PID",c:"#a78bfa",d:"进程编号隔离，容器内进程从 1 开始"},
+    {id:"net",n:"NET",c:"#7c5cff",d:"独立网卡、路由表、iptables、端口空间"},
+    {id:"mnt",n:"MNT",c:"#34d399",d:"挂载点视图隔离，独立根文件系统"},
+    {id:"uts",n:"UTS",c:"#fbbf24",d:"hostname 与 domainname 隔离"},
+    {id:"ipc",n:"IPC",c:"#f87171",d:"System V IPC、POSIX 消息队列隔离"},
+    {id:"user",n:"USER",c:"#e879f9",d:"UID/GID 映射，容器内 root = 宿主普通用户"}
+  ];
+  let active=new Set(nsList.map(n=>n.id));
+
+  function draw(){
+    clearNode(svg);
+    // 容器框
+    svg.appendChild(el("rect",{x:200,y:50,width:320,height:300,rx:14,fill:"rgba(124,92,255,.06)",stroke:"#7c5cff","stroke-width":1.4,"stroke-dasharray":"6 4"}));
+    const ct=el("text",{x:360,y:42,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#7c5cff"});ct.textContent="Container (namespace 集合)";svg.appendChild(ct);
+
+    // 6 个 namespace 圆角块
+    nsList.forEach((ns,i)=>{
+      const col=i%3,row=Math.floor(i/3);
+      const x=220+col*100,y=80+row*120;
+      const on=active.has(ns.id);
+      svg.appendChild(el("rect",{x:x,y:y,width:84,height:84,rx:10,fill:on?ns.c+"22":"#16181c",stroke:on?ns.c:"rgba(255,255,255,.1)","stroke-width":on?1.6:1}));
+      const t=el("text",{x:x+42,y:y+38,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:on?ns.c:"#62666d"});t.textContent=ns.n;svg.appendChild(t);
+      // 视图示例
+      const sample={pid:"PID 1",net:"eth0",mnt:"/",uts:"host-1",ipc:"mq:0",user:"uid 0→1000"}[ns.id];
+      const st=el("text",{x:x+42,y:y+58,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:on?"#9b9fa8":"#3a3d42"});st.textContent=on?sample:"—";svg.appendChild(st);
+      // 点击区
+      const hit=el("rect",{x:x,y:y,width:84,height:84,rx:10,fill:"transparent",style:"cursor:pointer"});
+      hit.addEventListener("click",()=>toggle(ns.id));
+      svg.appendChild(hit);
+    });
+
+    // 宿主侧对比
+    svg.appendChild(el("rect",{x:40,y:90,width:130,height:220,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const ht=el("text",{x:105,y:80,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});ht.textContent="Host 视图";svg.appendChild(ht);
+    const items=[["PID","1234"],["net","docker0"],["mnt","/var/lib"],["uts","node01"],["ipc","共享"],["user","uid 0"]];
+    items.forEach((it,i)=>{
+      const y=110+i*32;
+      const t1=el("text",{x:55,y:y,"font-size":10,"font-family":MONO,fill:"#62666d"});t1.textContent=it[0];svg.appendChild(t1);
+      const t2=el("text",{x:155,y:y,"text-anchor":"end","font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});t2.textContent=it[1];svg.appendChild(t2);
+    });
+
+    // 右侧说明
+    svg.appendChild(el("rect",{x:550,y:90,width:130,height:220,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const rt=el("text",{x:615,y:80,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#9b9fa8"});rt.textContent="隔离效果";svg.appendChild(rt);
+    active.forEach(id=>{}); // noop
+  }
+
+  function toggle(id){
+    if(active.has(id))active.delete(id);else active.add(id);
+    draw();
+    const ns=nsList.find(n=>n.id===id);
+    $("p05title").textContent=ns.n+" namespace "+(active.has(id)?"已启用":"已禁用");
+    $("p05detail").textContent=ns.d;
+    $("st05on").textContent=active.size+" / 6";
+    $("st05pid").textContent=active.has("pid")?"1":"1234";
+    $("st05net").textContent=active.has("net")?"1 (eth0)":"共享宿主";
+    $("st05host").textContent=active.has("uts")?"isolated":"node01";
+  }
+
+  draw();
+  const allBtn=document.createElement("button");allBtn.className="btn primary small";allBtn.textContent="全部启用";
+  allBtn.addEventListener("click",()=>{active=new Set(nsList.map(n=>n.id));draw();$("p05title").textContent="全部 namespace 启用";$("p05detail").textContent="完整容器隔离：6 类 namespace 共同构成容器视图边界。";$("st05on").textContent="6 / 6";$("st05pid").textContent="1";$("st05net").textContent="1 (eth0)";$("st05host").textContent="isolated";});
+  const noneBtn=document.createElement("button");noneBtn.className="btn small";noneBtn.textContent="全部禁用";
+  noneBtn.addEventListener("click",()=>{active.clear();draw();$("p05title").textContent="全部 namespace 禁用";$("p05detail").textContent="无 namespace 隔离时进程直接共享宿主视图，等价于普通进程。";$("st05on").textContent="0 / 6";$("st05pid").textContent="1234";$("st05net").textContent="共享宿主";$("st05host").textContent="node01";});
+  const hint=document.createElement("span");hint.style.cssText="font-size:12px;color:#62666d;margin-left:8px";hint.textContent="点击图中块切换";
+  ctl.appendChild(allBtn);ctl.appendChild(noneBtn);ctl.appendChild(hint);
+})();
+
+/* ============================================================
+   06 cgroup 资源限制
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=400;
+  let cpuLimit=2.0; // 核
+  let memLimit=512; // MB
+  let demand=1.4; // 实际需求
+
+  function draw(){
+    clearNode(svg);
+    // 层级树
+    const rootX=360,rootY=50;
+    // root
+    svg.appendChild(el("rect",{x:rootX-70,y:rootY,width:140,height:42,rx:8,fill:"rgba(167,139,250,.18)",stroke:"#a78bfa","stroke-width":1.4}));
+    const rt=el("text",{x:rootX,y:rootY+26,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#f7f8f8"});rt.textContent="/ (root cgroup)";svg.appendChild(rt);
+    const rl=el("text",{x:rootX,y:rootY+38,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});rl.textContent="CPU 4核 · Mem 8G";svg.appendChild(rl);
+
+    // 两个子组
+    const subs=[
+      {x:160,y:130,n:"app-a",cpu:cpuLimit,mem:memLimit,procs:["nginx","app"],me:true},
+      {x:560,y:130,n:"app-b",cpu:1.5,mem:768,procs:["worker"],me:false}
+    ];
+    subs.forEach(s=>{
+      // 连线
+      svg.appendChild(el("path",{d:"M"+rootX+","+(rootY+42)+" L"+rootX+","+(rootY+70)+" L"+s.x+","+(rootY+70)+" L"+s.x+","+s.y,stroke:"rgba(255,255,255,.14)","stroke-width":1.2,fill:"none"}));
+      // 节点
+      svg.appendChild(el("rect",{x:s.x-80,y:s.y,width:160,height:52,rx:8,fill:s.me?"rgba(124,92,255,.16)":"#16181c",stroke:s.me?"#7c5cff":"rgba(255,255,255,.12)","stroke-width":s.me?1.6:1}));
+      const t=el("text",{x:s.x,y:s.y+20,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#f7f8f8"});t.textContent=s.n;svg.appendChild(t);
+      const l=el("text",{x:s.x,y:s.y+38,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:s.me?"#a78bfa":"#9b9fa8"});l.textContent="CPU "+s.cpu.toFixed(1)+"核 · Mem "+s.mem+"M";svg.appendChild(l);
+      // 子进程
+      s.procs.forEach((p,i)=>{
+        const px=s.x-40+i*80,py=s.y+80;
+        svg.appendChild(el("path",{d:"M"+s.x+","+(s.y+52)+" L"+s.x+","+(s.y+66)+" L"+px+","+(s.y+66)+" L"+px+","+py,stroke:"rgba(255,255,255,.1)","stroke-width":1,fill:"none"}));
+        svg.appendChild(el("rect",{x:px-32,y:py,width:64,height:34,rx:6,fill:"#1c1f24",stroke:"rgba(255,255,255,.14)"}));
+        const pt=el("text",{x:px,y:py+21,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#34d399"});pt.textContent=p;svg.appendChild(pt);
+      });
+    });
+
+    // 资源使用条 (app-a)
+    const bx=80,by=260,bw=260,bh=22;
+    // CPU
+    svg.appendChild(el("text",{x:bx,y:by-6,"font-size":11,"font-family":MONO,fill:"#9b9fa8"})).textContent="app-a CPU 使用";
+    svg.appendChild(el("rect",{x:bx,y:by,width:bw,height:bh,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const cpuUse=Math.min(demand,cpuLimit);
+    const cpuW=bw*Math.min(1,cpuUse/4);
+    svg.appendChild(el("rect",{x:bx,y:by,width:cpuW,height:bh,rx:5,fill:cpuUse>=cpuLimit?"#f87171":"#a78bfa"}));
+    // 限额线
+    const limitX=bx+bw*cpuLimit/4;
+    svg.appendChild(el("line",{x1:limitX,y1:by-4,x2:limitX,y2:by+bh+4,stroke:"#f87171","stroke-width":1.6,"stroke-dasharray":"3 2"}));
+    const cl=el("text",{x:bx+bw+8,y:by+15,"font-size":11,"font-family":MONO,fill:"#a78bfa"});cl.textContent=cpuUse.toFixed(2)+" / "+cpuLimit.toFixed(1)+" 核";svg.appendChild(cl);
+
+    // Memory
+    const my=by+50;
+    const memUse=Math.round(memLimit*0.68);
+    svg.appendChild(el("text",{x:bx,y:my-6,"font-size":11,"font-family":MONO,fill:"#9b9fa8"})).textContent="app-a Memory 使用";
+    svg.appendChild(el("rect",{x:bx,y:my,width:bw,height:bh,rx:5,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const memW=bw*Math.min(1,memUse/8192);
+    svg.appendChild(el("rect",{x:bx,y:my,width:memW,height:bh,rx:5,fill:"#7c5cff"}));
+    const mlX=bx+bw*memLimit/8192;
+    svg.appendChild(el("line",{x1:mlX,y1:my-4,x2:mlX,y2:my+bh+4,stroke:"#f87171","stroke-width":1.6,"stroke-dasharray":"3 2"}));
+    const ml=el("text",{x:bx+bw+8,y:my+15,"font-size":11,"font-family":MONO,fill:"#7c5cff"});ml.textContent=memUse+" / "+memLimit+" MB";svg.appendChild(ml);
+
+    // 状态
+    const overCpu=demand>cpuLimit;
+    const sy=350;
+    svg.appendChild(el("rect",{x:bx,y:sy,width:bw,height:30,rx:6,fill:overCpu?"rgba(248,113,113,.14)":"rgba(52,211,153,.12)",stroke:overCpu?"#f87171":"#34d399","stroke-width":1}));
+    const stt=el("text",{x:bx+bw/2,y:sy+19,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:overCpu?"#f87171":"#34d399"});
+    stt.textContent=overCpu?"CPU 限流 (throttled)":"运行正常";svg.appendChild(stt);
+
+    // 右侧说明
+    const rx=420,ry=260;
+    svg.appendChild(el("rect",{x:rx,y:ry,width:260,height:120,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const tt=el("text",{x:rx+14,y:ry+22,"font-size":11,"font-family":MONO,fill:"#a78bfa"});tt.textContent="cgroup v2 关键文件";svg.appendChild(tt);
+    [["cpu.max","cpu quota/period"],["cpu.weight","相对权重"],["memory.max","内存硬上限"],["io.max","IO 带宽上限"]].forEach((f,i)=>{
+      const y=ry+44+i*20;
+      const a=el("text",{x:rx+14,y:y,"font-size":10.5,"font-family":MONO,fill:"#9b9fa8"});a.textContent=f[0];svg.appendChild(a);
+      const b=el("text",{x:rx+246,y:y,"text-anchor":"end","font-size":10,"font-family":MONO,fill:"#62666d"});b.textContent=f[1];svg.appendChild(b);
+    });
+  }
+
+  function update(){
+    draw();
+    $("st06cpu").textContent=cpuLimit.toFixed(1)+" 核";
+    $("st06mem").textContent=memLimit+"M";
+    const real=Math.min(demand,cpuLimit);
+    $("st06real").textContent=real.toFixed(1)+" 核";
+    const over=demand>cpuLimit;
+    $("st06state").textContent=over?"CPU 限流":"正常";
+    $("st06state").style.color=over?"#f87171":"#34d399";
+    $("p06title").textContent="app-a 资源限制"+(over?" · 触发限流":"");
+    $("p06detail").textContent=over
+      ?"需求 "+demand.toFixed(1)+" 核超过上限 "+cpuLimit.toFixed(1)+" 核，CPU 被 throttled，进程性能下降。可调高 cpu.max 或优化负载。"
+      :"需求 "+demand.toFixed(1)+" 核在限额 "+cpuLimit.toFixed(1)+" 核内，正常运行。memory.max "+memLimit+"M，超出将触发 OOM killer。";
+  }
+
+  draw();update();
+  // CPU 滑块
+  const sg1=document.createElement("div");sg1.className="slider-group";sg1.innerHTML='<span>CPU 上限</span>';
+  const inp1=document.createElement("input");inp1.type="range";inp1.min=0.5;inp1.max=4;inp1.step=0.1;inp1.value=cpuLimit;
+  const v1=document.createElement("span");v1.className="val";v1.textContent=cpuLimit.toFixed(1)+"核";
+  inp1.addEventListener("input",()=>{cpuLimit=+inp1.value;v1.textContent=cpuLimit.toFixed(1)+"核";update();});
+  sg1.appendChild(inp1);sg1.appendChild(v1);ctl.appendChild(sg1);
+  // Mem 滑块
+  const sg2=document.createElement("div");sg2.className="slider-group";sg2.innerHTML='<span>Mem 上限</span>';
+  const inp2=document.createElement("input");inp2.type="range";inp2.min=128;inp2.max=2048;inp2.step=16;inp2.value=memLimit;
+  const v2=document.createElement("span");v2.className="val";v2.textContent=memLimit+"M";
+  inp2.addEventListener("input",()=>{memLimit=+inp2.value;v2.textContent=memLimit+"M";update();});
+  sg2.appendChild(inp2);sg2.appendChild(v2);ctl.appendChild(sg2);
+  // 需求
+  const sg3=document.createElement("div");sg3.className="slider-group";sg3.innerHTML='<span>实际需求</span>';
+  const inp3=document.createElement("input");inp3.type="range";inp3.min=0.5;inp3.max=4;inp3.step=0.1;inp3.value=demand;
+  const v3=document.createElement("span");v3.className="val";v3.textContent=demand.toFixed(1)+"核";
+  inp3.addEventListener("input",()=>{demand=+inp3.value;v3.textContent=demand.toFixed(1)+"核";update();});
+  sg3.appendChild(inp3);sg3.appendChild(v3);ctl.appendChild(sg3);
+})();
+
+/* ============================================================
+   07 containerd 运行时
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400;
+  let step=0;
+  const stages=["pull","unpack","create","start"];
+  const descs=[
+    {t:"1. Pull 镜像",d:"containerd 通过 content store 拉取镜像 manifest 与各层 blob，存入本地 content store（去重存储）。"},
+    {t:"2. Unpack 解包",d:"将只读层解包到 snapshotter（overlayfs），叠加为 rootfs。每层对应一个 snapshot，可被多个容器共享。"},
+    {t:"3. Create 创建",d:"生成 OCI runtime spec（config.json），调用 runc create：创建 namespace/cgroup，setup rootfs，但不启动 init 进程。"},
+    {t:"4. Start 启动",d:"runc start 启动容器 init 进程（容器内 PID 1），执行 entrypoint。容器进入 running 状态。"}
+  ];
+
+  function draw(){
+    clearNode(svg);
+    // 顶部阶段链
+    const xs=[90,270,450,630],y=40;
+    stages.forEach((s,i)=>{
+      const on=i<=step;
+      svg.appendChild(el("rect",{x:xs[i]-55,y:y-18,width:110,height:36,rx:8,fill:i===step?"rgba(167,139,250,.18)":"#16181c",stroke:i===step?"#a78bfa":"rgba(255,255,255,.12)","stroke-width":i===step?1.6:1}));
+      const t=el("text",{x:xs[i],y:y+5,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:i===step?"#a78bfa":(on?"#f7f8f8":"#62666d")});t.textContent=s;svg.appendChild(t);
+      if(i<3){svg.appendChild(el("line",{x1:xs[i]+55,y1:y,x2:xs[i+1]-55,y2:y,stroke:on?"#a78bfa":"rgba(255,255,255,.12)","stroke-width":1.2}));}
+    });
+
+    // 主可视化
+    const baseY=100;
+    if(step===0){
+      // pull: registry -> content store
+      svg.appendChild(el("rect",{x:60,y:baseY,width:160,height:90,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.14)"}));
+      const r=el("text",{x:140,y:baseY+38,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#9b9fa8"});r.textContent="Registry";svg.appendChild(r);
+      const r2=el("text",{x:140,y:baseY+58,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});r2.textContent="docker.io/library";svg.appendChild(r2);
+      // 箭头
+      svg.appendChild(el("path",{d:"M220,"+(baseY+45)+" L340,"+(baseY+45),stroke:"#a78bfa","stroke-width":1.6,fill:"none","marker-end":"url(#a07)"}));
+      // content store
+      svg.appendChild(el("rect",{x:340,y:baseY,width:300,height:90,rx:8,fill:"rgba(167,139,250,.12)",stroke:"#a78bfa","stroke-width":1.4}));
+      const cs=el("text",{x:490,y:baseY+22,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#a78bfa"});cs.textContent="content store (blobs)";svg.appendChild(cs);
+      // blob 块
+      for(let i=0;i<3;i++){
+        svg.appendChild(el("rect",{x:360+i*90,y:baseY+38,width:78,height:38,rx:5,fill:"#1c1f24",stroke:"#7c5cff","stroke-width":1}));
+        const t=el("text",{x:399+i*90,y:baseY+62,"text-anchor":"middle","font-size":9,"font-family":MONO,fill:"#9b9fa8"});t.textContent="sha256:"+("a1b2c3").slice(0,6);svg.appendChild(t);
+      }
+    }else if(step===1){
+      // unpack: layers stacked
+      svg.appendChild(el("rect",{x:160,y:baseY,width:400,height:160,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.14)"}));
+      const t=el("text",{x:360,y:baseY+18,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#a78bfa"});t.textContent="snapshotter (overlayfs)";svg.appendChild(t);
+      // 4 层叠加
+      for(let i=0;i<4;i++){
+        const ly=baseY+130-i*26;
+        svg.appendChild(el("rect",{x:200,y:ly,width:320,height:22,rx:4,fill:"rgba(167,139,250,"+(0.10+i*0.08)+")",stroke:"#a78bfa","stroke-width":1}));
+        const lt=el("text",{x:210,y:ly+15,"font-size":10,"font-family":MONO,fill:"#f7f8f8"});lt.textContent="layer "+(4-i)+" · "+["ubuntu:22.04","apt install","copy app","ENV/CMD"][i];svg.appendChild(lt);
+      }
+      const nt=el("text",{x:360,y:baseY+155,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});nt.textContent="lower → upper (可写层)";svg.appendChild(nt);
+    }else if(step===2){
+      // create: OCI spec -> runc
+      svg.appendChild(el("rect",{x:60,y:baseY,width:220,height:110,rx:8,fill:"rgba(167,139,250,.12)",stroke:"#a78bfa","stroke-width":1.4}));
+      const st=el("text",{x:170,y:baseY+24,"text-anchor":"middle","font-size":11,"font-family":MONO,fill:"#a78bfa"});st.textContent="OCI Runtime Spec";svg.appendChild(st);
+      ["root: /var/lib/.../rootfs","process.args: [app]","namespaces: pid,net,...","cgroupsPath: /app-a"].forEach((l,i)=>{
+        const t=el("text",{x:74,y:baseY+44+i*16,"font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});t.textContent=l;svg.appendChild(t);
+      });
+      svg.appendChild(el("path",{d:"M280,"+(baseY+55)+" L400,"+(baseY+55),stroke:"#7c5cff","stroke-width":1.6,fill:"none","marker-end":"url(#a07)"}));
+      svg.appendChild(el("rect",{x:400,y:baseY,width:260,height:110,rx:8,fill:"#16181c",stroke:"#7c5cff","stroke-width":1.4}));
+      const rt=el("text",{x:530,y:baseY+30,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#7c5cff"});rt.textContent="runc create";svg.appendChild(rt);
+      const rl=el("text",{x:530,y:baseY+52,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});rl.textContent="低层 OCI runtime";svg.appendChild(rl);
+      // 子步骤
+      ["namespace","cgroup","rootfs mount"].forEach((s,i)=>{
+        svg.appendChild(el("rect",{x:420+i*85,y:baseY+70,width:78,height:28,rx:5,fill:"#1c1f24",stroke:"rgba(255,255,255,.12)"}));
+        const t=el("text",{x:459+i*85,y:baseY+88,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#34d399"});t.textContent=s;svg.appendChild(t);
+      });
+    }else{
+      // start: running container
+      svg.appendChild(el("rect",{x:120,y:baseY,width:480,height:160,rx:10,fill:"rgba(52,211,153,.08)",stroke:"#34d399","stroke-width":1.4,"stroke-dasharray":"5 3"}));
+      const ct=el("text",{x:360,y:baseY+24,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#34d399"});ct.textContent="Container (running)";svg.appendChild(ct);
+      // init 进程
+      svg.appendChild(el("rect",{x:200,y:baseY+50,width:240,height:50,rx:7,fill:"#16181c",stroke:"#34d399","stroke-width":1.4}));
+      const pt=el("text",{x:320,y:baseY+74,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#fbbf24"});pt.textContent="PID 1 (init)";svg.appendChild(pt);
+      const pt2=el("text",{x:320,y:baseY+90,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});pt2.textContent="entrypoint: ./app --port 8080";svg.appendChild(pt2);
+      // 资源
+      ["rootfs (rw)","net ns","pid ns","cgroup"].forEach((s,i)=>{
+        const x=160+i*110;
+        svg.appendChild(el("rect",{x:x,y:baseY+115,width:100,height:30,rx:6,fill:"#1c1f24",stroke:"rgba(255,255,255,.12)"}));
+        const t=el("text",{x:x+50,y:baseY+134,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});t.textContent=s;svg.appendChild(t);
+      });
+    }
+
+    // 底部 OCI 规范说明
+    const sy=H-50;
+    svg.appendChild(el("rect",{x:60,y:sy,width:600,height:38,rx:7,fill:"#16181c",stroke:"rgba(255,255,255,.1)"}));
+    const oci=el("text",{x:74,y:sy+16,"font-size":10,"font-family":MONO,fill:"#a78bfa"});oci.textContent="OCI Image Spec · Runtime Spec";svg.appendChild(oci);
+    const ocid=el("text",{x:74,y:sy+30,"font-size":10,"font-family":MONO,fill:"#62666d"});ocid.textContent="containerd → runc → 容器进程";svg.appendChild(ocid);
+
+    // defs
+    const defs=el("defs");
+    const m=el("marker",{id:"a07",viewBox:"0 0 8 8",refX:7,refY:4,markerWidth:7,markerHeight:7,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L8,4 L0,8 z",fill:"#a78bfa"}));defs.appendChild(m);
+    svg.appendChild(defs);
+  }
+
+  function setStep(s){step=s;draw();$("st07stage").textContent=stages[step];$("st07cs").textContent={pull:"pulling",unpack:"unpacking",create:"created",start:"running"}[stages[step]];$("p07title").textContent=descs[step].t;$("p07detail").textContent=descs[step].d;}
+
+  draw();setStep(0);
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放流程";
+  let playing=false;
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";
+    function next(){if(step>=3){playing=false;play.textContent="播放流程";return;}setStep(step+1);setTimeout(next,1500);}
+    setTimeout(next,400);
+  });
+  const stepBtn=document.createElement("button");stepBtn.className="btn";stepBtn.textContent="单步 →";
+  stepBtn.addEventListener("click",()=>setStep((step+1)%4));
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>setStep(0));
+  ctl.appendChild(play);ctl.appendChild(stepBtn);ctl.appendChild(rst);
+  stages.forEach((s,i)=>{
+    const b=document.createElement("button");b.className="btn small"+(i===0?" on":"");b.textContent=s;
+    b.addEventListener("click",()=>{setStep(i);document.querySelectorAll("#ctl07 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+})();
+
+/* ============================================================
+   08 安全沙箱 gVisor / Kata
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  let sol="runc"; // runc / gvisor / kata
+
+  const meta={
+    runc:{n:"runc 普通容器",attack:"~330 syscall",perf:"100%",iso:"弱",c:"#f87171",
+      d:"App 直接通过 syscall 进入宿主内核。攻击面=宿主内核全部 syscall（~330 个）。内核漏洞可导致容器逃逸。性能最优。"},
+    gvisor:{n:"gVisor (Sentry)",attack:"~210 syscall",perf:"70-90%",iso:"中",c:"#a78bfa",
+      d:"App 的 syscall 被 Sentry（用户态内核）拦截，Sentry 仅把 ~210 个安全 syscall 转发到宿主内核。攻击面大幅缩小，性能损失 10-30%。"},
+    kata:{n:"Kata Containers",attack:"0 syscall",perf:"85-95%",iso:"强",c:"#34d399",
+      d:"每个容器运行在独立轻量 VM（QEMU/Firecracker）内，自带 Guest Kernel。App syscall 不接触宿主内核，攻击面为 0。隔离最强但启动慢、内存开销大。"}
+  };
+
+  function draw(){
+    clearNode(svg);
+    const baseY=70;
+    // App
+    svg.appendChild(el("rect",{x:280,y:baseY,width:160,height:50,rx:8,fill:"rgba(167,139,250,.18)",stroke:"#a78bfa","stroke-width":1.5}));
+    const at=el("text",{x:360,y:baseY+30,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#f7f8f8"});at.textContent="Application";svg.appendChild(at);
+
+    // 中间层
+    const midY=baseY+90;
+    if(sol==="runc"){
+      // 直接 syscall
+      svg.appendChild(el("path",{d:"M360,"+(baseY+50)+" L360,"+(midY+50),stroke:"#f87171","stroke-width":2,fill:"none","marker-end":"url(#a08)"}));
+      const t=el("text",{x:380,y:midY+10,"font-size":10.5,"font-family":MONO,fill:"#f87171"});t.textContent="syscall (直接)";svg.appendChild(t);
+    }else if(sol==="gvisor"){
+      // Sentry 拦截
+      svg.appendChild(el("rect",{x:240,y:midY,width:240,height:60,rx:8,fill:"rgba(167,139,250,.14)",stroke:"#a78bfa","stroke-width":1.5}));
+      const st=el("text",{x:360,y:midY+24,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#a78bfa"});st.textContent="Sentry (用户态内核)";svg.appendChild(st);
+      const st2=el("text",{x:360,y:midY+42,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#9b9fa8"});st2.textContent="拦截 + 重新实现 syscall";svg.appendChild(st2);
+      svg.appendChild(el("path",{d:"M360,"+(baseY+50)+" L360,"+(midY),stroke:"#a78bfa","stroke-width":1.6,fill:"none","marker-end":"url(#a08)"}));
+      svg.appendChild(el("path",{d:"M360,"+(midY+60)+" L360,"+(midY+110),stroke:"#7c5cff","stroke-width":1.4,fill:"none","marker-end":"url(#a08)","stroke-dasharray":"4 3"}));
+      const t=el("text",{x:380,y:midY+90,"font-size":9.5,"font-family":MONO,fill:"#7c5cff"});t.textContent="安全子集";svg.appendChild(t);
+    }else{
+      // Guest Kernel in VM
+      svg.appendChild(el("rect",{x:200,y:midY,width:320,height:70,rx:8,fill:"rgba(52,211,153,.12)",stroke:"#34d399","stroke-width":1.5,"stroke-dasharray":"5 3"}));
+      const st=el("text",{x:360,y:midY+22,"text-anchor":"middle","font-size":12,"font-family":MONO,fill:"#34d399"});st.textContent="轻量 VM";svg.appendChild(st);
+      const st2=el("text",{x:360,y:midY+40,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#9b9fa8"});st2.textContent="Guest Kernel (独立)";svg.appendChild(st2);
+      const st3=el("text",{x:360,y:midY+56,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:"#62666d"});st3.textContent="QEMU · Firecracker";svg.appendChild(st3);
+      svg.appendChild(el("path",{d:"M360,"+(baseY+50)+" L360,"+(midY),stroke:"#34d399","stroke-width":1.6,fill:"none","marker-end":"url(#a08)"}));
+    }
+
+    // Host Kernel
+    const hkY=midY+130;
+    svg.appendChild(el("rect",{x:120,y:hkY,width:480,height:56,rx:8,fill:"#16181c",stroke:"rgba(255,255,255,.18)","stroke-width":1.4}));
+    const ht=el("text",{x:360,y:hkY+26,"text-anchor":"middle","font-size":13,"font-family":MONO,fill:"#f7f8f8"});ht.textContent="Host Kernel";svg.appendChild(ht);
+    const ht2=el("text",{x:360,y:hkY+44,"text-anchor":"middle","font-size":10,"font-family":MONO,fill:"#62666d"});ht2.textContent="Linux · ~330 syscall 接口";svg.appendChild(ht2);
+
+    // 攻击面标注
+    const ax=sol==="runc"?620:(sol==="gvisor"?620:620);
+    const ay=sol==="runc"?hkY:(sol==="gvisor"?hkY:midY+35);
+    const ac=meta[sol].c;
+    svg.appendChild(el("rect",{x:ax-90,y:ay-14,width:90,height:28,rx:5,fill:ac+"22",stroke:ac,"stroke-width":1.2}));
+    const atx=el("text",{x:ax-45,y:ay+4,"text-anchor":"middle","font-size":9.5,"font-family":MONO,fill:ac});atx.textContent="攻击面";svg.appendChild(atx);
+    svg.appendChild(el("path",{d:"M"+(ax-90)+","+(ay)+" L"+(sol==="runc"?590:(sol==="gvisor"?480:520))+","+ay,stroke:ac,"stroke-width":1,"stroke-dasharray":"3 2",opacity:.6}));
+
+    // defs
+    const defs=el("defs");
+    const m=el("marker",{id:"a08",viewBox:"0 0 8 8",refX:7,refY:4,markerWidth:7,markerHeight:7,orient:"auto"});
+    m.appendChild(el("path",{d:"M0,0 L8,4 L0,8 z",fill:meta[sol].c}));defs.appendChild(m);
+    svg.appendChild(defs);
+  }
+
+  function setSol(s){
+    sol=s;draw();
+    const m=meta[s];
+    $("st08sol").textContent=s;
+    $("st08attack").textContent=m.attack;
+    $("st08perf").textContent=m.perf;
+    $("st08iso").textContent=m.iso;
+    $("st08iso").style.color=s==="runc"?"#f87171":(s==="gvisor"?"#a78bfa":"#34d399");
+    $("p08title").textContent=m.n;
+    $("p08detail").textContent=m.d;
+  }
+
+  draw();setSol("runc");
+  [["runc 普通","runc"],["gVisor","gvisor"],["Kata","kata"]].forEach(([n,s])=>{
+    const b=document.createElement("button");b.className="btn small"+(s==="runc"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{setSol(s);document.querySelectorAll("#ctl08 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const cmp=document.createElement("button");cmp.className="btn";cmp.textContent="并排对比";
+  cmp.addEventListener("click",()=>{
+    // 临时显示三方案统计
+    $("p08title").textContent="三方案权衡";
+    $("p08detail").textContent="runc 性能 100% / 隔离弱；gViso 性能 70-90% / 隔离中；Kata 性能 85-95% / 隔离强。多租户与不可信负载优先 gVisor/Kata，可信负载用 runc 获得最高性能。";
+  });
+  ctl.appendChild(cmp);
+})();
+
+</script>
+</body>
+</html>

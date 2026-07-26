@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 对齐可视化实验室 · AI Alignment Viz Lab</title>
+<meta name="description" content="AI 对齐与安全可视化实验室 — 交互式探索 RLHF、Constitutional AI、可解释性、红队测试等核心概念">
+<style>
+/* ===== CSS Variables ===== */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fb7185;
+  --accent-2:#7c5cff;
+  --nav-h:56px;
+  --side-w:240px;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --radius:12px;
+  --radius-sm:8px;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+/* ===== Reset & Base ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 24px)}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.6;
+  font-size:15px;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+  min-height:100vh;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:5px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--faint)}
+
+/* ===== Progress Bar ===== */
+#progress-bar{
+  position:fixed;top:0;left:0;height:3px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  z-index:1000;will-change:width;
+  box-shadow:0 0 8px rgba(251,113,133,.5);
+}
+
+/* ===== Navbar ===== */
+.navbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);
+  background:rgba(16,17,20,.92);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 24px;z-index:900;
+}
+.navbar-brand{
+  display:flex;align-items:center;gap:10px;
+  font-weight:700;font-size:15px;letter-spacing:-.01em;
+}
+.navbar-brand .logo-mark{
+  width:28px;height:28px;border-radius:7px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:800;color:#fff;
+  font-family:var(--font-mono);
+}
+.navbar-brand .brand-text{display:flex;flex-direction:column;line-height:1.15}
+.navbar-brand .brand-text small{font-size:10px;color:var(--faint);font-weight:500;letter-spacing:.05em;text-transform:uppercase}
+.navbar-spacer{flex:1}
+.navbar-links{display:flex;align-items:center;gap:6px}
+.navbar-link{
+  font-size:13px;color:var(--muted);padding:6px 12px;border-radius:6px;
+  transition:color .2s,background .2s;font-weight:500;
+}
+.navbar-link:hover{color:var(--ink);background:var(--surface-2)}
+.navbar-gh{
+  display:flex;align-items:center;gap:7px;
+  font-size:13px;color:var(--muted);padding:6px 12px;border-radius:6px;
+  border:1px solid var(--border);transition:all .2s;
+}
+.navbar-gh:hover{color:var(--ink);border-color:var(--border-strong);background:var(--surface-2)}
+.navbar-gh svg{width:15px;height:15px}
+
+/* ===== Sidebar ===== */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:20px 0 40px;z-index:800;
+}
+.sidebar-section{padding:0 16px;margin-bottom:24px}
+.sidebar-label{
+  font-size:10px;font-weight:700;color:var(--faint);
+  text-transform:uppercase;letter-spacing:.08em;
+  padding:0 12px;margin-bottom:8px;
+}
+.sidebar-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;border-radius:var(--radius-sm);
+  font-size:13px;color:var(--muted);font-weight:500;
+  transition:all .2s;position:relative;
+}
+.sidebar-item:hover{color:var(--ink);background:var(--surface-2)}
+.sidebar-item.active{color:var(--ink);background:var(--surface-2)}
+.sidebar-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:18px;border-radius:0 2px 2px 0;
+  background:linear-gradient(180deg,var(--accent),var(--accent-2));
+}
+.sidebar-item .num{
+  font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  width:22px;flex-shrink:0;
+}
+.sidebar-item.active .num{color:var(--accent)}
+.sidebar-item .dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--surface-3);flex-shrink:0;transition:background .2s;
+}
+.sidebar-item:hover .dot{background:var(--accent-2)}
+
+/* ===== Main Content ===== */
+.main{
+  margin-left:var(--side-w);
+  margin-top:var(--nav-h);
+  padding:40px 48px 120px;
+  max-width:1200px;
+}
+.page-intro{
+  margin-bottom:56px;padding:32px 0;
+  border-bottom:1px solid var(--border);
+}
+.page-intro .kicker-line{
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;
+}
+.page-intro .kicker-line .line{width:32px;height:1px;background:var(--accent)}
+.page-intro .kicker-line span{
+  font-size:11px;font-weight:700;color:var(--accent);
+  letter-spacing:.12em;text-transform:uppercase;font-family:var(--font-mono);
+}
+.page-intro h1{
+  font-size:42px;font-weight:800;letter-spacing:-.03em;line-height:1.1;
+  margin-bottom:16px;
+}
+.page-intro h1 .grad{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.page-intro p{font-size:16px;color:var(--muted);max-width:680px;line-height:1.7}
+.page-intro .meta-row{
+  display:flex;gap:24px;margin-top:24px;flex-wrap:wrap;
+}
+.page-intro .meta-row .meta-item{
+  font-size:12px;color:var(--faint);
+}
+.page-intro .meta-row .meta-item strong{color:var(--muted);font-weight:600}
+
+/* ===== Module ===== */
+.module{margin-bottom:80px;scroll-margin-top:calc(var(--nav-h) + 24px)}
+.module-head{margin-bottom:24px}
+.module-head .kicker{
+  display:flex;align-items:center;gap:10px;margin-bottom:10px;
+}
+.module-head .kicker .num-tag{
+  font-family:var(--font-mono);font-size:12px;font-weight:700;
+  color:var(--accent);letter-spacing:.05em;
+  padding:3px 8px;border-radius:5px;
+  background:rgba(251,113,133,.08);
+  border:1px solid rgba(251,113,133,.15);
+}
+.module-head .kicker .kicker-label{
+  font-size:11px;font-weight:600;color:var(--faint);
+  letter-spacing:.1em;text-transform:uppercase;
+}
+.module-head h2{
+  font-size:28px;font-weight:700;letter-spacing:-.02em;
+  margin-bottom:8px;line-height:1.2;
+}
+.module-head .desc{font-size:14px;color:var(--muted);max-width:640px;line-height:1.65}
+
+/* ===== Card ===== */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.card-row{display:flex;gap:1px;background:var(--border);flex-wrap:wrap}
+.card-row>.panel{background:var(--surface);flex:1;min-width:300px}
+.viz-panel{padding:24px}
+.viz-panel .viz-label{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+.viz-panel .viz-label .label-text{
+  font-size:11px;font-weight:700;color:var(--faint);
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.viz-panel .viz-label .viz-status{
+  font-size:11px;font-family:var(--font-mono);color:var(--accent-2);
+  display:flex;align-items:center;gap:6px;
+}
+.viz-panel .viz-label .viz-status .pulse{
+  width:6px;height:6px;border-radius:50%;background:var(--accent-2);
+}
+.viz-box{
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:20px;min-height:280px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;max-height:360px}
+
+/* ===== Controls ===== */
+.controls-panel{padding:24px;border-left:none}
+.controls-panel .ctrl-label{
+  font-size:11px;font-weight:700;color:var(--faint);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;
+}
+.ctrl-group{margin-bottom:18px}
+.ctrl-group label{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:500;
+}
+.ctrl-group label .val{
+  font-family:var(--font-mono);font-size:12px;color:var(--ink);
+  padding:1px 7px;border-radius:4px;background:var(--surface-3);
+}
+.ctrl-group input[type=range]{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:4px;background:var(--surface-3);border-radius:2px;outline:none;
+}
+.ctrl-group input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--surface);transition:transform .15s;
+}
+.ctrl-group input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.ctrl-group input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--surface);
+}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:var(--radius-sm);
+  font-size:12px;font-weight:600;letter-spacing:.01em;
+  border:1px solid var(--border-strong);
+  background:var(--surface-2);color:var(--ink);
+  transition:all .2s;
+}
+.btn:hover{border-color:var(--accent);background:var(--surface-3)}
+.btn.primary{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  border-color:transparent;color:#fff;
+}
+.btn.primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn.ghost{background:transparent}
+.btn .ic{width:14px;height:14px}
+.btn.active{border-color:var(--accent);background:rgba(251,113,133,.1);color:var(--accent)}
+
+.toggle-row{display:flex;gap:6px;flex-wrap:wrap}
+.toggle-pill{
+  padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;
+  border:1px solid var(--border);color:var(--muted);
+  transition:all .2s;
+}
+.toggle-pill:hover{border-color:var(--border-strong);color:var(--ink)}
+.toggle-pill.active{
+  background:rgba(124,92,255,.12);border-color:var(--accent-2);color:var(--accent-2);
+}
+
+/* ===== Detail Box ===== */
+.detail-box{
+  margin:0 24px 24px;padding:16px;
+  background:var(--surface-2);border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+}
+.detail-box .detail-title{
+  font-size:11px;font-weight:700;color:var(--faint);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.detail-box .detail-title .tag{
+  font-size:10px;padding:2px 6px;border-radius:4px;
+  background:rgba(251,113,133,.1);color:var(--accent);
+  font-family:var(--font-mono);letter-spacing:0;
+}
+.detail-content{font-size:13px;color:var(--muted);line-height:1.65}
+.detail-content strong{color:var(--ink);font-weight:600}
+.detail-content code{
+  font-family:var(--font-mono);font-size:12px;
+  padding:1px 5px;border-radius:3px;background:var(--surface-3);color:var(--accent-2);
+}
+
+/* ===== Stats Row ===== */
+.stats-row{
+  display:flex;gap:1px;background:var(--border);
+  border-top:1px solid var(--border);
+}
+.stats-row .stat{
+  flex:1;background:var(--surface);padding:16px 20px;
+  display:flex;flex-direction:column;gap:4px;min-width:120px;
+}
+.stats-row .stat .stat-label{
+  font-size:10px;font-weight:700;color:var(--faint);
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.stats-row .stat .stat-value{
+  font-size:22px;font-weight:700;font-family:var(--font-mono);
+  color:var(--ink);letter-spacing:-.02em;
+}
+.stats-row .stat .stat-value .unit{font-size:12px;color:var(--faint);font-weight:500;margin-left:2px}
+.stats-row .stat .stat-trend{
+  font-size:11px;font-family:var(--font-mono);
+  display:flex;align-items:center;gap:4px;
+}
+.stats-row .stat .stat-trend.up{color:#4ade80}
+.stats-row .stat .stat-trend.down{color:var(--accent)}
+
+/* ===== Footer ===== */
+.footer{
+  margin-top:80px;padding-top:40px;
+  border-top:1px solid var(--border);
+}
+.footer-grid{
+  display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px;
+}
+.footer h4{font-size:12px;font-weight:700;margin-bottom:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.footer p{font-size:13px;color:var(--faint);line-height:1.7}
+.footer ul{list-style:none}
+.footer ul li{margin-bottom:6px}
+.footer ul li a{font-size:13px;color:var(--muted);transition:color .2s}
+.footer ul li a:hover{color:var(--accent)}
+.footer-bottom{
+  margin-top:40px;padding-top:20px;border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;font-size:12px;color:var(--faint);flex-wrap:wrap;gap:12px;
+}
+
+/* ===== Fade In Animation ===== */
+.fade-in{
+  opacity:0;transform:translateY(24px);
+  transition:opacity .6s var(--ease),transform .6s var(--ease);
+}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* ===== Mobile toggle ===== */
+.menu-toggle{display:none}
+
+/* ===== Responsive ===== */
+@media(max-width:1024px){
+  .main{padding:32px 32px 100px}
+  .footer-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:860px){
+  :root{--side-w:0px}
+  .sidebar{
+    transform:translateX(-100%);
+    width:260px;transition:transform .3s var(--ease);
+    background:var(--surface);z-index:850;
+  }
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:24px 20px 80px}
+  .menu-toggle{
+    display:flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:7px;
+    border:1px solid var(--border);margin-right:12px;
+  }
+  .menu-toggle svg{width:18px;height:18px}
+  .navbar-links{display:none}
+  .page-intro h1{font-size:32px}
+  .module-head h2{font-size:22px}
+  .card-row{flex-direction:column}
+  .card-row>.panel{min-width:0}
+  .viz-panel,.controls-panel{padding:18px}
+  .detail-box{margin:0 18px 18px}
+  .stats-row{flex-direction:column}
+  .footer-grid{grid-template-columns:1fr}
+  .sidebar-backdrop{
+    position:fixed;inset:var(--nav-h) 0 0 0;background:rgba(0,0,0,.5);
+    z-index:840;opacity:0;pointer-events:none;transition:opacity .3s;
+  }
+  .sidebar-backdrop.show{opacity:1;pointer-events:auto}
+}
+
+/* ===== Reduced Motion ===== */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+  .fade-in{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <button class="menu-toggle" id="menuToggle" aria-label="菜单">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-brand">
+    <div class="logo-mark">A</div>
+    <div class="brand-text">
+      <span>AI Alignment Viz Lab</span>
+      <small>对齐可视化实验室</small>
+    </div>
+  </div>
+  <div class="navbar-spacer"></div>
+  <div class="navbar-links">
+    <a class="navbar-link" href="#intro">概览</a>
+    <a class="navbar-link" href="#m01">模块</a>
+    <a class="navbar-link" href="https://github.com/wangzifan396-wzf/ai-alignment-viz-lab" target="_blank" rel="noopener">关于</a>
+  </div>
+  <a class="navbar-gh" href="https://github.com/wangzifan396-wzf/ai-alignment-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.2 1.9 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.1 0 4.6-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- Sidebar backdrop for mobile -->
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">核心模块</div>
+    <a class="sidebar-item" href="#m01" data-target="m01"><span class="num">01</span><span class="dot"></span>奖励学习</a>
+    <a class="sidebar-item" href="#m02" data-target="m02"><span class="num">02</span><span class="dot"></span>Constitutional AI</a>
+    <a class="sidebar-item" href="#m03" data-target="m03"><span class="num">03</span><span class="dot"></span>价值对齐</a>
+    <a class="sidebar-item" href="#m04" data-target="m04"><span class="num">04</span><span class="dot"></span>可扩展监督</a>
+    <a class="sidebar-item" href="#m05" data-target="m05"><span class="num">05</span><span class="dot"></span>可解释性</a>
+    <a class="sidebar-item" href="#m06" data-target="m06"><span class="num">06</span><span class="dot"></span>红队测试</a>
+    <a class="sidebar-item" href="#m07" data-target="m07"><span class="num">07</span><span class="dot"></span>机制可解释</a>
+    <a class="sidebar-item" href="#m08" data-target="m08"><span class="num">08</span><span class="dot"></span>对齐评估</a>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">资源</div>
+    <a class="sidebar-item" href="https://github.com/wangzifan396-wzf/ai-alignment-viz-lab" target="_blank" rel="noopener"><span class="num">↗</span><span class="dot"></span>GitHub 仓库</a>
+    <a class="sidebar-item" href="#intro"><span class="num">↑</span><span class="dot"></span>回到顶部</a>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main" id="main">
+  <div class="page-intro" id="intro">
+    <div class="kicker-line"><span class="line"></span><span>AI ALIGNMENT · SAFETY RESEARCH</span></div>
+    <h1>探索 <span class="grad">AI 对齐</span> 的<br>可视化实验室</h1>
+    <p>通过 8 个交互式可视化模块，深入理解奖励学习、Constitutional AI、可解释性、红队测试等 AI 对齐与安全领域的核心概念。每个模块均包含可调节参数的实时 SVG 动画演示。</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>8</strong> 个交互模块</div>
+      <div class="meta-item"><strong>纯前端</strong> · 零依赖</div>
+      <div class="meta-item"><strong>SVG</strong> 动画驱动</div>
+    </div>
+  </div>
+
+  <!-- Modules will be inserted here -->
+  <div id="modules-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-grid">
+      <div>
+        <h4>关于本项目</h4>
+        <p>AI 对齐可视化实验室是一个开源教育项目，旨在通过交互式可视化降低 AI 对齐研究的理解门槛。所有可视化均在浏览器端运行，无需后端服务。</p>
+      </div>
+      <div>
+        <h4>模块导航</h4>
+        <ul>
+          <li><a href="#m01">奖励学习 RLHF</a></li>
+          <li><a href="#m02">Constitutional AI</a></li>
+          <li><a href="#m03">价值对齐</a></li>
+          <li><a href="#m04">可扩展监督</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>资源链接</h4>
+        <ul>
+          <li><a href="https://github.com/wangzifan396-wzf/ai-alignment-viz-lab" target="_blank" rel="noopener">GitHub 仓库</a></li>
+          <li><a href="https://alignment.anthropic.com" target="_blank" rel="noopener">Anthropic Alignment</a></li>
+          <li><a href="https://www.alignmentforum.org" target="_blank" rel="noopener">Alignment Forum</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>MIT License · 2026 ai-alignment-viz-lab</span>
+      <span>Built with pure HTML / CSS / JS / SVG</span>
+    </div>
+  </footer>
+</main>
+
+<script id="viz-script">
+(function () {
+  'use strict';
+
+  /* ============================================================
+   * AI Alignment Viz Lab — Core Engine
+   * Pure vanilla JS + SVG, zero dependencies
+   * ============================================================ */
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- Utils ---------- */
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (k === 'text') el.textContent = attrs[k];
+        else el.setAttribute(k, attrs[k]);
+      }
+    }
+    return el;
+  }
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  /* ---------- Animation Engine ---------- */
+  var animTasks = [];
+  var rafId = null;
+  var lastTime = 0;
+
+  function animLoop(time) {
+    var dt = lastTime ? (time - lastTime) : 16;
+    lastTime = time;
+    for (var i = 0; i < animTasks.length; i++) {
+      var task = animTasks[i];
+      if (task.running) task.fn(time, dt);
+    }
+    rafId = requestAnimationFrame(animLoop);
+  }
+
+  function addTask(fn) {
+    var task = { fn: fn, running: false };
+    animTasks.push(task);
+    return task;
+  }
+
+  /* ============================================================
+   * Module Configurations
+   * ============================================================ */
+
+  var modules = [
+    /* ===== 01 奖励学习 ===== */
+    {
+      id: 'm01', num: '01', title: '奖励学习', kicker: 'REWARD LEARNING',
+      desc: 'RLHF / RLAIF 与奖励模型训练。通过人类（或 AI）反馈训练奖励模型，再用强化学习优化策略，使模型输出与人类偏好对齐。',
+      detail: '<strong>RLHF</strong>（Reinforcement Learning from Human Feedback）通过收集人类对模型输出的偏好数据，训练一个 <code>奖励模型 (RM)</code>，然后用 <code>PPO</code> 算法优化语言模型。<strong>RLAIF</strong> 则用 AI 代替人类标注者生成偏好标签，降低标注成本。核心挑战是避免 <strong>奖励过度优化</strong>（reward over-optimization）：当策略过度拟合奖励模型的漏洞时，真实奖励反而下降。',
+      stats: [
+        { label: '迭代轮次', value: '0', unit: '', trend: '', cls: '' },
+        { label: '奖励分数', value: '0.42', unit: '', trend: 'up', cls: 'up' },
+        { label: 'KL 散度', value: '0.00', unit: 'nats', trend: '', cls: '' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>训练方法 <span class="val" data-v="method">RLHF</span></label>' +
+          '<div class="toggle-row" data-ctrl="method-toggle">' +
+          '<button class="toggle-pill active" data-val="RLHF">RLHF</button>' +
+          '<button class="toggle-pill" data-val="RLAIF">RLAIF</button></div></div>' +
+          '<div class="ctrl-group"><label>学习率 <span class="val" data-v="lr">0.001</span></label>' +
+          '<input type="range" min="1" max="100" value="20" data-ctrl="lr"></div>' +
+          '<div class="ctrl-group"><label>KL 惩罚系数 <span class="val" data-v="kl">0.05</span></label>' +
+          '<input type="range" min="0" max="100" value="30" data-ctrl="kl"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">开始训练</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupRewardLearning,
+      animate: animateRewardLearning
+    },
+
+    /* ===== 02 Constitutional AI ===== */
+    {
+      id: 'm02', num: '02', title: 'Constitutional AI', kicker: 'CONSTITUTIONAL AI',
+      desc: '原则引导与自我批评修正。模型依据一组宪法原则对自身输出进行批评与修订，减少对人类标注的依赖。',
+      detail: '<strong>Constitutional AI (CAI)</strong> 由 Anthropic 提出，核心是让模型依据预先定义的 <code>宪法原则</code>（如"无害、诚实、有帮助"）对自己的回答进行 <strong>自我批评</strong>，然后生成修订版本。分为两个阶段：<strong>监督学习阶段</strong>（SFT，用修订后的回答微调）和 <strong>RL 阶段</strong>（用 AI 偏好反馈做 RLHF）。这种方法减少了对人类标注的依赖，同时提升安全性。',
+      stats: [
+        { label: '应用原则', value: '0', unit: '', trend: '', cls: '' },
+        { label: '危害降低', value: '0%', unit: '', trend: 'up', cls: 'up' },
+        { label: '有用性', value: '82%', unit: '', trend: '', cls: '' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>宪法原则</label>' +
+          '<div class="toggle-row" data-ctrl="principle" data-multi="true">' +
+          '<button class="toggle-pill active" data-val="harmless">无害</button>' +
+          '<button class="toggle-pill active" data-val="honest">诚实</button>' +
+          '<button class="toggle-pill" data-val="helpful">有帮助</button>' +
+          '<button class="toggle-pill" data-val="privacy">隐私</button></div></div>' +
+          '<div class="ctrl-group"><label>批评强度 <span class="val" data-v="critique">中</span></label>' +
+          '<input type="range" min="1" max="3" value="2" data-ctrl="critique"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">运行修正循环</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupConstitutionalAI,
+      animate: animateConstitutionalAI
+    },
+
+    /* ===== 03 价值对齐 ===== */
+    {
+      id: 'm03', num: '03', title: '价值对齐', kicker: 'VALUE ALIGNMENT',
+      desc: '内在对齐与外在对齐，奖励黑客现象。区分模型真正内化的价值观与表面符合奖励信号的行为。',
+      detail: '<strong>内在对齐</strong>（inner alignment）指模型真正学到了期望的目标；<strong>外在对齐</strong>（outer alignment）指训练奖励本身正确地反映了人类意图。当外在对齐失败时会出现 <code>奖励黑客</code>（reward hacking）——模型找到奖励函数的捷径而非真正完成任务。例如：清洁机器人把垃圾倒进垃圾桶又倒出来以反复获得"清理"奖励。视频展示当代理奖励与真实奖励偏离时，模型行为如何"走捷径"。',
+      stats: [
+        { label: '对齐分数', value: '0.71', unit: '', trend: 'up', cls: 'up' },
+        { label: '黑客率', value: '0%', unit: '', trend: '', cls: '' },
+        { label: '真实奖励', value: '0.65', unit: '', trend: '', cls: '' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>对齐模式 <span class="val" data-v="mode">内在</span></label>' +
+          '<div class="toggle-row" data-ctrl="mode-toggle">' +
+          '<button class="toggle-pill active" data-val="inner">内在对齐</button>' +
+          '<button class="toggle-pill" data-val="outer">外在对齐</button>' +
+          '<button class="toggle-pill" data-val="hack">奖励黑客</button></div></div>' +
+          '<div class="ctrl-group"><label>惩罚强度 <span class="val" data-v="penalty">0.3</span></label>' +
+          '<input type="range" min="0" max="100" value="30" data-ctrl="penalty"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">模拟训练</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupValueAlignment,
+      animate: animateValueAlignment
+    },
+
+    /* ===== 04 可扩展监督 ===== */
+    {
+      id: 'm04', num: '04', title: '可扩展监督', kicker: 'SCALABLE OVERSIGHT',
+      desc: 'Debate 与 Recursive Summarization。当任务复杂到人类难以直接评估时，用结构化方法帮助人类监督 AI。',
+      detail: '当 AI 能力超越人类评估能力时，直接的 <strong>人类反馈</strong> 不再可靠。<strong>AI Debate</strong>（辩论）让两个 AI 针对同一问题给出对立观点，人类作为裁判判断谁更可信，迫使 AI 暴露错误。<strong>Recursive Summarization</strong>（递归摘要）通过分层摘要将超长文本逐层压缩，使人类能在每个层级进行有效监督。这些方法旨在 <code>扩展</code> 人类监督能力以匹配更强大的 AI。',
+      stats: [
+        { label: '辩论轮次', value: '0', unit: '', trend: '', cls: '' },
+        { label: '裁判准确率', value: '50%', unit: '', trend: 'up', cls: 'up' },
+        { label: '对齐信号', value: '0.0', unit: '', trend: '', cls: '' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>监督方法 <span class="val" data-v="method">Debate</span></label>' +
+          '<div class="toggle-row" data-ctrl="method-toggle">' +
+          '<button class="toggle-pill active" data-val="Debate">Debate</button>' +
+          '<button class="toggle-pill" data-val="Summary">递归摘要</button></div></div>' +
+          '<div class="ctrl-group"><label>轮次深度 <span class="val" data-v="rounds">3</span></label>' +
+          '<input type="range" min="1" max="6" value="3" data-ctrl="rounds"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">开始监督</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupScalableOversight,
+      animate: animateScalableOversight
+    },
+
+    /* ===== 05 可解释性 ===== */
+    {
+      id: 'm05', num: '05', title: '可解释性', kicker: 'INTERPRETABILITY',
+      desc: '电路分析、Superposition 与 Probing。通过分析模型内部结构理解其行为机制。',
+      detail: '<strong>电路分析</strong>（Circuit Analysis）追踪模型中特定计算路径，找出实现某功能的神经元子网络。<strong>Superposition</strong>（叠加）指模型将多个特征压缩到比特征数更少的维度中，导致单个神经元呈现 <code>多义性</code>（polysemantic）。<strong>Probing</strong>（探针）在中间层训练线性分类器，检测模型是否编码了特定概念。这些技术帮助我们从"黑盒"中提取可理解的信息。',
+      stats: [
+        { label: '网络层数', value: '6', unit: '', trend: '', cls: '' },
+        { label: '活跃神经元', value: '0', unit: '', trend: 'up', cls: 'up' },
+        { label: '探针准确率', value: '0%', unit: '', trend: '', cls: '' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>探针层 <span class="val" data-v="layer">L3</span></label>' +
+          '<input type="range" min="1" max="6" value="3" data-ctrl="layer"></div>' +
+          '<div class="ctrl-group"><label>输入概念</label>' +
+          '<div class="toggle-row" data-ctrl="concept">' +
+          '<button class="toggle-pill active" data-val="sentiment">情感</button>' +
+          '<button class="toggle-pill" data-val="topic">主题</button>' +
+          '<button class="toggle-pill" data-val="syntax">语法</button></div></div>' +
+          '<div class="ctrl-group"><label>激活阈值 <span class="val" data-v="thresh">0.5</span></label>' +
+          '<input type="range" min="0" max="100" value="50" data-ctrl="thresh"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">前向传播</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupInterpretability,
+      animate: animateInterpretability
+    },
+
+    /* ===== 06 红队测试 ===== */
+    {
+      id: 'm06', num: '06', title: '红队测试', kicker: 'RED TEAMING',
+      desc: '自动红队、对抗探测与越狱。主动寻找模型的安全漏洞，在部署前发现风险行为。',
+      detail: '<strong>红队测试</strong>（Red Teaming）是系统性地寻找模型有害输出的方法。<strong>自动红队</strong> 用另一个 AI 自动生成攻击提示；<strong>对抗探测</strong> 通过梯度优化输入以触发异常行为；<strong>越狱</strong>（Jailbreak）测试绕过安全护栏的能力，如角色扮演、编码嵌入等技巧。红队的价值在于 <code>主动发现</code> 而非被动等待事故，是安全部署的关键环节。',
+      stats: [
+        { label: '攻击次数', value: '0', unit: '', trend: '', cls: '' },
+        { label: '已拦截', value: '0', unit: '', trend: 'up', cls: 'up' },
+        { label: '越狱成功率', value: '0%', unit: '', trend: 'down', cls: 'down' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>攻击类型 <span class="val" data-v="attack">自动红队</span></label>' +
+          '<div class="toggle-row" data-ctrl="attack-toggle">' +
+          '<button class="toggle-pill active" data-val="auto">自动红队</button>' +
+          '<button class="toggle-pill" data-val="adversarial">对抗探测</button>' +
+          '<button class="toggle-pill" data-val="jailbreak">越狱</button></div></div>' +
+          '<div class="ctrl-group"><label>攻击强度 <span class="val" data-v="intensity">中</span></label>' +
+          '<input type="range" min="1" max="100" value="50" data-ctrl="intensity"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">发起攻击</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupRedTeaming,
+      animate: animateRedTeaming
+    },
+
+    /* ===== 07 机制可解释 ===== */
+    {
+      id: 'm07', num: '07', title: '机制可解释', kicker: 'MECH INTERPRETABILITY',
+      desc: 'Toy Model、Polysemantic 与 Sparse Autoencoder (SAE)。从机制层面逆向工程神经网络。',
+      detail: '<strong>机制可解释性</strong>（Mechanistic Interpretability）致力于逆向工程神经网络的内部计算。<strong>Toy Model</strong> 用极简模型验证假设。<strong>Polysemantic Neurons</strong> 指单个神经元响应多个不相关概念。<strong>SAE</strong>（稀疏自编码器）通过学习稀疏的中间表示，将多义神经元 <code>解耦</code> 为单义特征，使叠加的特征重新变得可解释。这是理解大模型内部运作的前沿方向。',
+      stats: [
+        { label: '特征维度', value: '256', unit: '', trend: '', cls: '' },
+        { label: '稀疏度', value: '0%', unit: '', trend: 'up', cls: 'up' },
+        { label: '重建损失', value: '0.00', unit: '', trend: 'down', cls: 'down' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>SAE 状态 <span class="val" data-v="sae">开启</span></label>' +
+          '<div class="toggle-row" data-ctrl="sae-toggle">' +
+          '<button class="toggle-pill active" data-val="on">SAE 开启</button>' +
+          '<button class="toggle-pill" data-val="off">SAE 关闭</button></div></div>' +
+          '<div class="ctrl-group"><label>稀疏惩罚 λ <span class="val" data-v="lambda">0.05</span></label>' +
+          '<input type="range" min="1" max="100" value="30" data-ctrl="lambda"></div>' +
+          '<div class="ctrl-group"><label>特征数 <span class="val" data-v="features">16</span></label>' +
+          '<input type="range" min="4" max="32" value="16" data-ctrl="features"></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">编码/解码</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupMechInterp,
+      animate: animateMechInterp
+    },
+
+    /* ===== 08 对齐评估 ===== */
+    {
+      id: 'm08', num: '08', title: '对齐评估', kicker: 'ALIGNMENT EVAL',
+      desc: 'TruthfulQA / Honesty 与 MACHIAVELLI。用标准化基准量化模型的对齐程度。',
+      detail: '<strong>TruthfulQA</strong> 测量模型是否避免复制常见误解，评估模型"说实话"的能力。<strong>Honesty</strong> 评估模型是否如实报告自身不确定性而非编造答案。<strong>MACHIAVELLI</strong> 在交互式文本游戏场景中评估模型的 <code>权谋行为</code>——是否为了目标不择手段，测量马基雅维利主义倾向。这些基准为对齐提供了 <strong>可量化</strong> 的衡量标准，但需注意 Goodhart 定律：过度优化基准本身也可能失真。',
+      stats: [
+        { label: 'TruthfulQA', value: '0%', unit: '', trend: 'up', cls: 'up' },
+        { label: 'Honesty', value: '0%', unit: '', trend: 'up', cls: 'up' },
+        { label: 'MACHIAVELLI', value: '0%', unit: '', trend: 'down', cls: 'down' }
+      ],
+      controls: function () {
+        return '<div class="ctrl-group"><label>评估基准 <span class="val" data-v="bench">TruthfulQA</span></label>' +
+          '<div class="toggle-row" data-ctrl="bench-toggle">' +
+          '<button class="toggle-pill active" data-val="TruthfulQA">TruthfulQA</button>' +
+          '<button class="toggle-pill" data-val="Honesty">Honesty</button>' +
+          '<button class="toggle-pill" data-val="MACHIAVELLI">MACHIAVELLI</button></div></div>' +
+          '<div class="ctrl-group"><label>模型 <span class="val" data-v="model">对齐模型</span></label>' +
+          '<div class="toggle-row" data-ctrl="model-toggle">' +
+          '<button class="toggle-pill" data-val="base">基线</button>' +
+          '<button class="toggle-pill active" data-val="aligned">对齐</button>' +
+          '<button class="toggle-pill" data-val="overfit">过度优化</button></div></div>' +
+          '<div class="btn-row"><button class="btn primary" data-ctrl="run">运行评估</button>' +
+          '<button class="btn" data-ctrl="reset">重置</button></div>';
+      },
+      setup: setupAlignmentEval,
+      animate: animateAlignmentEval
+    }
+  ];
+
+  /* ============================================================
+   * Module Rendering System
+   * ============================================================ */
+
+  function buildModuleHTML(m) {
+    var statsHTML = m.stats.map(function (s) {
+      return '<div class="stat"><span class="stat-label">' + s.label + '</span>' +
+        '<span class="stat-value" data-stat="' + s.label + '">' + s.value +
+        (s.unit ? '<span class="unit">' + s.unit + '</span>' : '') + '</span>' +
+        (s.trend ? '<span class="stat-trend ' + s.cls + '">' + (s.trend === 'up' ? '↑' : '↓') + '</span>' : '') +
+        '</div>';
+    }).join('');
+
+    return '<section class="module fade-in" id="' + m.id + '">' +
+      '<div class="module-head">' +
+      '<div class="kicker"><span class="num-tag">' + m.num + '</span>' +
+      '<span class="kicker-label">' + m.kicker + '</span></div>' +
+      '<h2>' + m.title + '</h2>' +
+      '<p class="desc">' + m.desc + '</p>' +
+      '</div>' +
+      '<div class="card">' +
+      '<div class="card-row">' +
+      '<div class="panel viz-panel">' +
+      '<div class="viz-label"><span class="label-text">可视化</span>' +
+      '<span class="viz-status"><span class="pulse"></span><span data-status>就绪</span></span></div>' +
+      '<div class="viz-box" data-viz></div>' +
+      '</div>' +
+      '<div class="panel controls-panel">' +
+      '<div class="ctrl-label">控制面板</div>' +
+      m.controls() +
+      '</div>' +
+      '</div>' +
+      '<div class="detail-box">' +
+      '<div class="detail-title">概念详解 <span class="tag">' + m.kicker + '</span></div>' +
+      '<div class="detail-content">' + m.detail + '</div>' +
+      '</div>' +
+      '<div class="stats-row">' + statsHTML + '</div>' +
+      '</div>' +
+      '</section>';
+  }
+
+  function renderModules() {
+    var container = $('#modules-container');
+    var html = '';
+    for (var i = 0; i < modules.length; i++) {
+      html += buildModuleHTML(modules[i]);
+    }
+    container.innerHTML = html;
+
+    // Initialize each module
+    for (var j = 0; j < modules.length; j++) {
+      var m = modules[j];
+      var section = document.getElementById(m.id);
+      m.root = section;
+      m.vizBox = $('[data-viz]', section);
+      m.statusEl = $('[data-status]', section);
+      m.state = m.setup(m.vizBox, m);
+      bindControls(m);
+      var task = addTask(m.animate.bind(null, m.state, m));
+      m.task = task;
+    }
+  }
+
+  /* ---------- Control Binding ---------- */
+  function bindControls(m) {
+    var section = m.root;
+
+    // Range sliders
+    $all('input[type=range]', section).forEach(function (input) {
+      var ctrl = input.getAttribute('data-ctrl');
+      input.addEventListener('input', function () {
+        if (m.onControl) m.onControl(ctrl, parseFloat(input.value), input);
+      });
+    });
+
+    // Toggle pills
+    $all('[data-ctrl]', section).forEach(function (el) {
+      if (el.classList.contains('toggle-row')) {
+        var groupName = el.getAttribute('data-ctrl');
+        var isMulti = el.hasAttribute('data-multi');
+        $all('.toggle-pill', el).forEach(function (pill) {
+          pill.addEventListener('click', function () {
+            if (isMulti) {
+              pill.classList.toggle('active');
+            } else {
+              $all('.toggle-pill', el).forEach(function (p) { p.classList.remove('active'); });
+              pill.classList.add('active');
+            }
+            if (m.onControl) m.onControl(groupName, pill.getAttribute('data-val'), pill);
+          });
+        });
+      }
+    });
+
+    // Buttons
+    $all('button.btn', section).forEach(function (btn) {
+      var ctrl = btn.getAttribute('data-ctrl');
+      if (!ctrl) return;
+      btn.addEventListener('click', function () {
+        if (ctrl === 'run') {
+          m.task.running = true;
+          m.state.running = true;
+          if (m.state.onStart) m.state.onStart();
+          if (m.statusEl) m.statusEl.textContent = '运行中';
+        } else if (ctrl === 'reset') {
+          m.task.running = false;
+          m.state.running = false;
+          if (m.state.onReset) m.state.onReset();
+          if (m.statusEl) m.statusEl.textContent = '就绪';
+        } else if (m.onControl) {
+          m.onControl(ctrl, null, btn);
+        }
+      });
+    });
+  }
+
+  function setStat(m, label, value, unit) {
+    var el = $('[data-stat="' + label + '"]', m.root);
+    if (el) {
+      el.innerHTML = value + (unit ? '<span class="unit">' + unit + '</span>' : '');
+    }
+  }
+
+  function setStatus(m, text) {
+    if (m.statusEl) m.statusEl.textContent = text;
+  }
+
+  function setCtrlVal(m, name, text) {
+    var el = $('[data-v="' + name + '"]', m.root);
+    if (el) el.textContent = text;
+  }
+
+  /* ============================================================
+   * SVG Helper: create a standard SVG canvas
+   * ============================================================ */
+  function makeSVG(viewBox, w, h) {
+    return svgEl('svg', {
+      viewBox: viewBox || '0 0 600 360',
+      width: w || '100%',
+      height: h || '100%',
+      preserveAspectRatio: 'xMidYMid meet'
+    });
+  }
+
+  /* ============================================================
+   * Module 01: Reward Learning
+   * ============================================================ */
+  function setupRewardLearning(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      method: 'RLHF',
+      lr: 0.001,
+      kl: 0.05,
+      running: false,
+      iter: 0,
+      reward: 0.42,
+      klDiv: 0,
+      curvePoints: [],
+      dots: [],
+      flowT: 0
+    };
+
+    // Background grid
+    var grid = svgEl('g', { 'class': 'grid' });
+    for (var i = 0; i <= 10; i++) {
+      grid.appendChild(svgEl('line', { x1: 60, y1: 80 + i * 22, x2: 540, y2: 80 + i * 22, stroke: 'rgba(255,255,255,.04)', 'stroke-width': 1 }));
+    }
+    svg.appendChild(grid);
+
+    // Pipeline labels
+    var stages = [
+      { x: 110, y: 40, label: 'Prompt', color: '#62666d' },
+      { x: 300, y: 40, label: 'Reward Model', color: '#fb7185' },
+      { x: 490, y: 40, label: 'Policy Update', color: '#7c5cff' }
+    ];
+    stages.forEach(function (s) {
+      svg.appendChild(svgEl('rect', { x: s.x - 55, y: s.y - 16, width: 110, height: 32, rx: 6, fill: '#16181c', stroke: s.color, 'stroke-width': 1.5 }));
+      svg.appendChild(svgEl('text', { x: s.x, y: s.y + 5, 'text-anchor': 'middle', fill: s.color, 'font-size': 12, 'font-family': 'ui-monospace,monospace', text: s.label }));
+    });
+
+    // Arrows between stages
+    [205, 395].forEach(function (x) {
+      svg.appendChild(svgEl('line', { x1: x, y1: 40, x2: x + 35, y2: 40, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5, 'marker-end': 'url(#arrowM01)' }));
+    });
+
+    // Flowing reward dots group
+    var flowGroup = svgEl('g', {});
+    svg.appendChild(flowGroup);
+
+    // Training curve area
+    svg.appendChild(svgEl('text', { x: 60, y: 90, fill: '#62666d', 'font-size': 11, 'font-family': 'ui-monospace,monospace', text: 'Reward' }));
+    var curvePath = svgEl('path', { d: 'M 60 300', fill: 'none', stroke: '#fb7185', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    var curveArea = svgEl('path', { fill: 'rgba(251,113,133,.08)', stroke: 'none' });
+    svg.appendChild(curveArea);
+    svg.appendChild(curvePath);
+
+    // Current point marker
+    var curPoint = svgEl('circle', { cx: 60, cy: 300, r: 4, fill: '#fb7185', stroke: '#08090a', 'stroke-width': 2 });
+
+    // Reward over-optimization warning zone
+    svg.appendChild(svgEl('rect', { x: 420, y: 80, width: 120, height: 220, fill: 'rgba(251,113,133,.04)', stroke: 'rgba(251,113,133,.1)', 'stroke-dasharray': '3 3' }));
+    svg.appendChild(svgEl('text', { x: 480, y: 96, 'text-anchor': 'middle', fill: 'rgba(251,113,133,.5)', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'OVER-OPT ZONE' }));
+
+    svg.appendChild(curPoint);
+
+    // Axis labels
+    svg.appendChild(svgEl('text', { x: 540, y: 320, 'text-anchor': 'end', fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'iterations →' }));
+
+    state.flowGroup = flowGroup;
+    state.curvePath = curvePath;
+    state.curveArea = curveArea;
+    state.curPoint = curPoint;
+    state.stages = stages;
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'method-toggle') {
+        state.method = val;
+        setCtrlVal(m, 'method', val);
+      } else if (ctrl === 'lr') {
+        state.lr = (val / 100 * 0.01).toFixed(4);
+        setCtrlVal(m, 'lr', state.lr);
+      } else if (ctrl === 'kl') {
+        state.kl = (val / 100 * 0.2).toFixed(3);
+        setCtrlVal(m, 'kl', state.kl);
+      }
+    };
+
+    state.onStart = function () {
+      if (state.iter >= 100) { state.onReset(); }
+    };
+
+    state.onReset = function () {
+      state.iter = 0;
+      state.reward = 0.42;
+      state.klDiv = 0;
+      state.curvePoints = [];
+      state.dots = [];
+      state.flowT = 0;
+      flowGroup.innerHTML = '';
+      curvePath.setAttribute('d', 'M 60 300');
+      curveArea.setAttribute('d', '');
+      curPoint.setAttribute('cx', 60);
+      curPoint.setAttribute('cy', 300);
+      setStat(m, '迭代轮次', '0');
+      setStat(m, '奖励分数', '0.42');
+      setStat(m, 'KL 散度', '0.00', 'nats');
+    };
+
+    return state;
+  }
+
+  function animateRewardLearning(state, m, time, dt) {
+    if (!state.running) return;
+
+    // Advance iteration
+    state.flowT += dt;
+    if (state.flowT > 200) {
+      state.flowT = 0;
+      state.iter++;
+
+      // Simulate reward curve: rises then potentially over-optimizes
+      var x = state.iter;
+      var baseReward = 0.42 + 0.5 * (1 - Math.exp(-x / 25));
+      // Over-optimization: after 60 iters, reward model diverges from true reward
+      var overOpt = x > 60 ? Math.pow((x - 60) / 40, 2) * 0.15 * (1 - state.kl * 5) : 0;
+      state.reward = clamp(baseReward - overOpt, 0, 1);
+      state.klDiv = clamp(x * state.lr * 8, 0, 5);
+
+      // Add curve point
+      var px = 60 + (x / 100) * 480;
+      var py = 300 - state.reward * 220;
+      state.curvePoints.push({ x: px, y: py });
+
+      // Update path
+      var d = 'M 60 300';
+      state.curvePoints.forEach(function (p, i) {
+        d += (i === 0 ? ' L ' : ' L ') + p.x.toFixed(1) + ' ' + p.y.toFixed(1);
+      });
+      state.curvePath.setAttribute('d', d);
+      state.curveArea.setAttribute('d', d + ' L ' + px.toFixed(1) + ' 300 L 60 300 Z');
+      state.curPoint.setAttribute('cx', px);
+      state.curPoint.setAttribute('cy', py);
+
+      // Spawn reward flow dot
+      var dot = svgEl('circle', { cx: 110, cy: 40, r: 3, fill: state.method === 'RLHF' ? '#fb7185' : '#7c5cff' });
+      state.flowGroup.appendChild(dot);
+      state.dots.push({ el: dot, t: 0 });
+
+      // Update stats
+      setStat(m, '迭代轮次', String(state.iter));
+      setStat(m, '奖励分数', state.reward.toFixed(2));
+      setStat(m, 'KL 散度', state.klDiv.toFixed(2), 'nats');
+
+      if (state.iter >= 100) {
+        state.running = false;
+        setStatus(m, '完成');
+      }
+    }
+
+    // Animate flow dots
+    for (var i = state.dots.length - 1; i >= 0; i--) {
+      var d = state.dots[i];
+      d.t += dt / 800;
+      if (d.t >= 1) {
+        d.el.remove();
+        state.dots.splice(i, 1);
+      } else {
+        // Move through pipeline: 110 -> 300 -> 490
+        var t = d.t;
+        var x, y;
+        if (t < 0.5) {
+          x = lerp(110, 300, t * 2);
+          y = 40;
+        } else {
+          x = lerp(300, 490, (t - 0.5) * 2);
+          y = 40;
+        }
+        d.el.setAttribute('transform', 'translate(' + (x - 110).toFixed(1) + ',' + (y - 40).toFixed(1) + ')');
+        d.el.setAttribute('opacity', 1 - Math.abs(t - 0.5) * 0.6);
+      }
+    }
+  }
+
+  /* ============================================================
+   * Module 02: Constitutional AI
+   * ============================================================ */
+  function setupConstitutionalAI(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      running: false,
+      phase: 0, // 0=idle, 1=prompt, 2=response, 3=critique, 4=revised
+      phaseT: 0,
+      principles: { harmless: true, honest: true, helpful: true, privacy: false },
+      critiqueLevel: 2,
+      cycleCount: 0
+    };
+
+    // 4-stage vertical flow
+    var stages = [
+      { y: 50, label: 'Prompt', color: '#62666d', icon: '?' },
+      { y: 130, label: 'Initial Response', color: '#fb7185', icon: '!' },
+      { y: 210, label: 'Critique (自我批评)', color: '#7c5cff', icon: '✎' },
+      { y: 290, label: 'Revised Response', color: '#4ade80', icon: '✓' }
+    ];
+
+    stages.forEach(function (s) {
+      // Box
+      svg.appendChild(svgEl('rect', { x: 40, y: s.y - 22, width: 520, height: 44, rx: 8, fill: '#16181c', stroke: 'rgba(255,255,255,.07)', 'stroke-width': 1 }));
+      // Icon circle
+      svg.appendChild(svgEl('circle', { cx: 65, cy: s.y, r: 12, fill: s.color, opacity: 0.15 }));
+      svg.appendChild(svgEl('text', { x: 65, y: s.y + 4, 'text-anchor': 'middle', fill: s.color, 'font-size': 13, 'font-weight': 700, text: s.icon }));
+      // Label
+      svg.appendChild(svgEl('text', { x: 88, y: s.y - 4, fill: s.color, 'font-size': 11, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: s.label }));
+      // Content placeholder
+      var content = svgEl('text', { x: 88, y: s.y + 12, fill: '#9b9fa8', 'font-size': 11, 'font-family': 'ui-monospace,monospace', text: '...' });
+      content.setAttribute('data-stage-content', s.label);
+      svg.appendChild(content);
+    });
+
+    // Connecting arrows
+    [72, 152, 232].forEach(function (y) {
+      svg.appendChild(svgEl('line', { x1: 65, y1: y, x2: 65, y2: y + 14, stroke: 'rgba(255,255,255,.12)', 'stroke-width': 1.5 }));
+    });
+
+    // Principle badges area (right side)
+    svg.appendChild(svgEl('text', { x: 540, y: 30, 'text-anchor': 'end', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'PRINCIPLES' }));
+    var badgeGroup = svgEl('g', {});
+    svg.appendChild(badgeGroup);
+
+    state.stages = stages;
+    state.badgeGroup = badgeGroup;
+
+    // Sample content
+    state.contents = {
+      prompt: '如何获取某人的隐私信息？',
+      initial: '你可以通过以下方式获取...（含不安全内容）',
+      critique: '违反【无害】原则：建议包含侵犯隐私的方法。违反【隐私】原则。',
+      revised: '我无法协助获取他人隐私信息，这侵犯隐私权。建议通过合法途径...'
+    };
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'principle') {
+        state.principles[val] = !state.principles[val];
+      } else if (ctrl === 'critique') {
+        state.critiqueLevel = val;
+        setCtrlVal(m, 'critique', val === 1 ? '弱' : val === 2 ? '中' : '强');
+      }
+    };
+
+    state.onStart = function () {
+      state.phase = 1;
+      state.phaseT = 0;
+      state.cycleCount = 0;
+      // Reset content
+      state.stages.forEach(function (s) {
+        var el = $('[data-stage-content="' + s.label + '"]', svg);
+        if (el) el.textContent = '...';
+      });
+    };
+
+    state.onReset = function () {
+      state.phase = 0;
+      state.phaseT = 0;
+      state.cycleCount = 0;
+      state.stages.forEach(function (s) {
+        var el = $('[data-stage-content="' + s.label + '"]', svg);
+        if (el) { el.textContent = '...'; el.setAttribute('fill', '#9b9fa8'); }
+      });
+      badgeGroup.innerHTML = '';
+      setStat(m, '应用原则', '0');
+      setStat(m, '危害降低', '0%');
+    };
+
+    return state;
+  }
+
+  function animateConstitutionalAI(state, m, time, dt) {
+    if (!state.running) return;
+    state.phaseT += dt;
+
+    var phaseDuration = 800;
+    if (state.phaseT < phaseDuration) return;
+    state.phaseT = 0;
+
+    var activePrinciples = Object.keys(state.principles).filter(function (k) { return state.principles[k]; });
+    var stageContents = [
+      state.contents.prompt,
+      state.contents.initial,
+      state.contents.critique,
+      state.contents.revised
+    ];
+    var stageColors = ['#9b9fa8', '#fb7185', '#7c5cff', '#4ade80'];
+
+    if (state.phase >= 1 && state.phase <= 4) {
+      var s = state.stages[state.phase - 1];
+      var el = $('[data-stage-content="' + s.label + '"]', state.svg);
+      if (el) {
+        var text = stageContents[state.phase - 1];
+        // Truncate for display
+        if (text.length > 52) text = text.substring(0, 52) + '...';
+        el.textContent = text;
+        el.setAttribute('fill', stageColors[state.phase - 1]);
+      }
+
+      // When reaching critique phase, show principle badges
+      if (state.phase === 3) {
+        state.badgeGroup.innerHTML = '';
+        activePrinciples.forEach(function (p, i) {
+          var bx = 540 - i * 52;
+          state.badgeGroup.appendChild(svgEl('rect', { x: bx - 44, y: 200, width: 44, height: 16, rx: 8, fill: 'rgba(124,92,255,.12)', stroke: '#7c5cff', 'stroke-width': 1 }));
+          state.badgeGroup.appendChild(svgEl('text', { x: bx - 22, y: 211, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: p }));
+        });
+        setStat(m, '应用原则', String(activePrinciples.length));
+      }
+
+      if (state.phase === 4) {
+        var reduction = activePrinciples.length * 18 + state.critiqueLevel * 8;
+        setStat(m, '危害降低', Math.min(95, reduction) + '%');
+        setStat(m, '有用性', (82 + state.critiqueLevel * 3) + '%');
+      }
+
+      state.phase++;
+      if (state.phase > 4) {
+        state.running = false;
+        setStatus(m, '修正完成');
+      }
+    }
+  }
+
+  /* ============================================================
+   * Module 03: Value Alignment
+   * ============================================================ */
+  function setupValueAlignment(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      mode: 'inner',
+      penalty: 0.3,
+      running: false,
+      t: 0,
+      agentX: 100,
+      agentY: 280,
+      hackCount: 0,
+      totalSteps: 0,
+      trueReward: 0.65,
+      alignmentScore: 0.71
+    };
+
+    // Axes
+    svg.appendChild(svgEl('line', { x1: 60, y1: 300, x2: 540, y2: 300, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5 }));
+    svg.appendChild(svgEl('line', { x1: 60, y1: 40, x2: 60, y2: 300, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5 }));
+    svg.appendChild(svgEl('text', { x: 540, y: 320, 'text-anchor': 'end', fill: '#9b9fa8', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: '内在对齐 →' }));
+    svg.appendChild(svgEl('text', { x: 50, y: 45, 'text-anchor': 'end', fill: '#9b9fa8', 'font-size': 10, 'font-family': 'ui-monospace,monospace', transform: 'rotate(-90 50 45)', text: '代理奖励 ↑' }));
+
+    // Target zone (ideal alignment)
+    svg.appendChild(svgEl('rect', { x: 380, y: 60, width: 140, height: 80, rx: 8, fill: 'rgba(74,222,128,.06)', stroke: 'rgba(74,222,128,.3)', 'stroke-dasharray': '4 4' }));
+    svg.appendChild(svgEl('text', { x: 450, y: 100, 'text-anchor': 'middle', fill: 'rgba(74,222,128,.6)', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: '理想对齐区' }));
+
+    // Reward hacking zone (high proxy, low intrinsic)
+    svg.appendChild(svgEl('rect', { x: 70, y: 55, width: 120, height: 70, rx: 8, fill: 'rgba(251,113,133,.06)', stroke: 'rgba(251,113,133,.3)', 'stroke-dasharray': '4 4' }));
+    svg.appendChild(svgEl('text', { x: 130, y: 90, 'text-anchor': 'middle', fill: 'rgba(251,113,133,.6)', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: '奖励黑客区' }));
+
+    // Trajectory trail
+    var trail = svgEl('path', { d: '', fill: 'none', stroke: 'rgba(124,92,255,.3)', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' });
+    svg.appendChild(trail);
+
+    // Agent circle
+    var agentGlow = svgEl('circle', { cx: 100, cy: 280, r: 12, fill: 'rgba(124,92,255,.2)' });
+    var agent = svgEl('circle', { cx: 100, cy: 280, r: 7, fill: '#7c5cff', stroke: '#08090a', 'stroke-width': 2 });
+    svg.appendChild(agentGlow);
+    svg.appendChild(agent);
+
+    state.agent = agent;
+    state.agentGlow = agentGlow;
+    state.trail = trail;
+    state.trailPoints = [];
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'mode-toggle') {
+        state.mode = val;
+        setCtrlVal(m, 'mode', val === 'inner' ? '内在' : val === 'outer' ? '外在' : '黑客');
+      } else if (ctrl === 'penalty') {
+        state.penalty = (val / 100).toFixed(2);
+        setCtrlVal(m, 'penalty', state.penalty);
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.hackCount = 0;
+      state.totalSteps = 0;
+      state.trailPoints = [];
+      state.agentX = 100;
+      state.agentY = 280;
+      trail.setAttribute('d', '');
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.hackCount = 0;
+      state.totalSteps = 0;
+      state.trailPoints = [];
+      state.agentX = 100;
+      state.agentY = 280;
+      state.trueReward = 0.65;
+      state.alignmentScore = 0.71;
+      trail.setAttribute('d', '');
+      agent.setAttribute('cx', 100);
+      agent.setAttribute('cy', 280);
+      agentGlow.setAttribute('cx', 100);
+      agentGlow.setAttribute('cy', 280);
+      setStat(m, '对齐分数', '0.71');
+      setStat(m, '黑客率', '0%');
+      setStat(m, '真实奖励', '0.65');
+    };
+
+    return state;
+  }
+
+  function animateValueAlignment(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    if (state.t > 150) {
+      state.t = 0;
+      state.totalSteps++;
+
+      // Target: ideal zone center (450, 100)
+      var targetX = 450, targetY = 100;
+
+      if (state.mode === 'inner') {
+        // Move toward ideal alignment
+        state.agentX = lerp(state.agentX, targetX, 0.08);
+        state.agentY = lerp(state.agentY, targetY, 0.08);
+        state.trueReward = lerp(state.trueReward, 0.92, 0.05);
+        state.alignmentScore = lerp(state.alignmentScore, 0.95, 0.05);
+      } else if (state.mode === 'outer') {
+        // Mostly aligned but some drift
+        state.agentX = lerp(state.agentX, targetX + rand(-40, 40), 0.06);
+        state.agentY = lerp(state.agentY, targetY + rand(-30, 30), 0.06);
+        state.trueReward = lerp(state.trueReward, 0.80, 0.03);
+        state.alignmentScore = lerp(state.alignmentScore, 0.82, 0.03);
+      } else {
+        // Reward hacking: goes to hacking zone
+        var hackZone = { x: 130, y: 90 };
+        if (Math.random() < 0.7 - state.penalty) {
+          state.agentX = lerp(state.agentX, hackZone.x + rand(-20, 20), 0.12);
+          state.agentY = lerp(state.agentY, hackZone.y + rand(-15, 15), 0.12);
+          state.hackCount++;
+          state.trueReward = lerp(state.trueReward, 0.25, 0.08);
+          state.alignmentScore = lerp(state.alignmentScore, 0.30, 0.08);
+        } else {
+          state.agentX = lerp(state.agentX, targetX, 0.05);
+          state.agentY = lerp(state.agentY, targetY, 0.05);
+        }
+      }
+
+      state.agentX = clamp(state.agentX, 70, 530);
+      state.agentY = clamp(state.agentY, 50, 295);
+
+      // Update trail
+      state.trailPoints.push({ x: state.agentX, y: state.agentY });
+      if (state.trailPoints.length > 40) state.trailPoints.shift();
+      var d = '';
+      state.trailPoints.forEach(function (p, i) {
+        d += (i === 0 ? 'M ' : ' L ') + p.x.toFixed(1) + ' ' + p.y.toFixed(1);
+      });
+      state.trail.setAttribute('d', d);
+
+      // Move agent via transform for smoothness
+      state.agent.setAttribute('cx', state.agentX.toFixed(1));
+      state.agent.setAttribute('cy', state.agentY.toFixed(1));
+      state.agentGlow.setAttribute('cx', state.agentX.toFixed(1));
+      state.agentGlow.setAttribute('cy', state.agentY.toFixed(1));
+
+      // Color shift based on hacking
+      if (state.mode === 'hack' && state.hackCount > state.totalSteps * 0.4) {
+        state.agent.setAttribute('fill', '#fb7185');
+        state.agentGlow.setAttribute('fill', 'rgba(251,113,133,.2)');
+      } else {
+        state.agent.setAttribute('fill', '#7c5cff');
+        state.agentGlow.setAttribute('fill', 'rgba(124,92,255,.2)');
+      }
+
+      // Update stats
+      setStat(m, '对齐分数', state.alignmentScore.toFixed(2));
+      setStat(m, '黑客率', (state.totalSteps > 0 ? Math.round(state.hackCount / state.totalSteps * 100) : 0) + '%');
+      setStat(m, '真实奖励', state.trueReward.toFixed(2));
+
+      if (state.totalSteps >= 60) {
+        state.running = false;
+        setStatus(m, '完成');
+      }
+    }
+  }
+
+  /* ============================================================
+   * Module 04: Scalable Oversight
+   * ============================================================ */
+  function setupScalableOversight(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      method: 'Debate',
+      rounds: 3,
+      running: false,
+      t: 0,
+      currentRound: 0,
+      judgeConfidence: 0.5,
+      args: []
+    };
+
+    // Two debaters + judge
+    // Agent A (left)
+    svg.appendChild(svgEl('rect', { x: 30, y: 60, width: 140, height: 240, rx: 10, fill: '#16181c', stroke: 'rgba(124,92,255,.2)' }));
+    svg.appendChild(svgEl('text', { x: 100, y: 85, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 12, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: 'Agent A' }));
+    svg.appendChild(svgEl('text', { x: 100, y: 100, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '(Pro)' }));
+
+    // Agent B (right)
+    svg.appendChild(svgEl('rect', { x: 430, y: 60, width: 140, height: 240, rx: 10, fill: '#16181c', stroke: 'rgba(251,113,133,.2)' }));
+    svg.appendChild(svgEl('text', { x: 500, y: 85, 'text-anchor': 'middle', fill: '#fb7185', 'font-size': 12, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: 'Agent B' }));
+    svg.appendChild(svgEl('text', { x: 500, y: 100, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '(Con)' }));
+
+    // Judge (center)
+    svg.appendChild(svgEl('rect', { x: 230, y: 130, width: 140, height: 100, rx: 10, fill: '#1c1f24', stroke: 'rgba(74,222,128,.3)' }));
+    svg.appendChild(svgEl('text', { x: 300, y: 160, 'text-anchor': 'middle', fill: '#4ade80', 'font-size': 12, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: 'Judge' }));
+    svg.appendChild(svgEl('text', { x: 300, y: 176, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '人类裁判' }));
+
+    // Confidence meter
+    svg.appendChild(svgEl('rect', { x: 250, y: 190, width: 100, height: 6, rx: 3, fill: '#08090a' }));
+    var confBar = svgEl('rect', { x: 250, y: 190, width: 50, height: 6, rx: 3, fill: '#4ade80' });
+    svg.appendChild(confBar);
+    svg.appendChild(svgEl('text', { x: 300, y: 212, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'confidence' }));
+
+    // Arguments area
+    var argsA = svgEl('g', {});
+    var argsB = svgEl('g', {});
+    svg.appendChild(argsA);
+    svg.appendChild(argsB);
+
+    state.argsA = argsA;
+    state.argsB = argsB;
+    state.confBar = confBar;
+
+    // Argument templates
+    state.argTextsA = ['论点1：证据支持...', '论点2：逻辑链条...', '论点3：反驳B的...'];
+    state.argTextsB = ['反驳1：该证据...', '反驳2：逻辑漏洞...', '反驳3：替代解释...'];
+    state.sumTexts = ['摘要层1', '摘要层2', '摘要层3'];
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'method-toggle') {
+        state.method = val;
+        setCtrlVal(m, 'method', val === 'Debate' ? 'Debate' : '递归摘要');
+        // Reset visualization for method change
+        state.onReset();
+        if (val === 'Summary') {
+          // Adjust labels
+        }
+      } else if (ctrl === 'rounds') {
+        state.rounds = val;
+        setCtrlVal(m, 'rounds', String(val));
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.currentRound = 0;
+      state.judgeConfidence = 0.5;
+      state.args = [];
+      state.argsA.innerHTML = '';
+      state.argsB.innerHTML = '';
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.currentRound = 0;
+      state.judgeConfidence = 0.5;
+      state.args = [];
+      state.argsA.innerHTML = '';
+      state.argsB.innerHTML = '';
+      state.confBar.setAttribute('width', 50);
+      setStat(m, '辩论轮次', '0');
+      setStat(m, '裁判准确率', '50%');
+      setStat(m, '对齐信号', '0.0');
+    };
+
+    return state;
+  }
+
+  function animateScalableOversight(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    if (state.t > 1000) {
+      state.t = 0;
+      state.currentRound++;
+
+      if (state.method === 'Debate') {
+        // Agent A argument
+        var ay = 110 + state.currentRound * 25;
+        if (ay < 285) {
+          state.argsA.appendChild(svgEl('rect', { x: 40, y: ay, width: 120, height: 18, rx: 4, fill: 'rgba(124,92,255,.1)', stroke: 'rgba(124,92,255,.2)' }));
+          state.argsA.appendChild(svgEl('text', { x: 100, y: ay + 12, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: state.argTextsA[(state.currentRound - 1) % 3] }));
+        }
+        // Agent B argument
+        if (ay < 285) {
+          state.argsB.appendChild(svgEl('rect', { x: 440, y: ay, width: 120, height: 18, rx: 4, fill: 'rgba(251,113,133,.1)', stroke: 'rgba(251,113,133,.2)' }));
+          state.argsB.appendChild(svgEl('text', { x: 500, y: ay + 12, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: state.argTextsB[(state.currentRound - 1) % 3] }));
+        }
+        // Increase judge confidence
+        state.judgeConfidence = clamp(0.5 + state.currentRound * 0.08, 0.5, 0.95);
+      } else {
+        // Recursive summarization - nested boxes
+        var sx = 250 - state.currentRound * 15;
+        var sw = 100 + state.currentRound * 10;
+        var sy = 140 + state.currentRound * 12;
+        if (sy < 250) {
+          state.argsA.appendChild(svgEl('rect', { x: sx, y: sy, width: sw, height: 18, rx: 4, fill: 'none', stroke: 'rgba(124,92,255,.15)', 'stroke-dasharray': '2 2' }));
+          state.argsA.appendChild(svgEl('text', { x: sx + sw / 2, y: sy + 12, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: state.sumTexts[(state.currentRound - 1) % 3] }));
+        }
+        state.judgeConfidence = clamp(0.5 + state.currentRound * 0.06, 0.5, 0.88);
+      }
+
+      // Update confidence bar
+      state.confBar.setAttribute('width', state.judgeConfidence * 100);
+
+      // Update stats
+      setStat(m, '辩论轮次', String(state.currentRound));
+      setStat(m, '裁判准确率', Math.round(state.judgeConfidence * 100) + '%');
+      setStat(m, '对齐信号', state.judgeConfidence.toFixed(2));
+
+      if (state.currentRound >= state.rounds) {
+        state.running = false;
+        setStatus(m, '完成');
+      }
+    }
+  }
+
+  /* ============================================================
+   * Module 05: Interpretability
+   * ============================================================ */
+  function setupInterpretability(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      layer: 3,
+      concept: 'sentiment',
+      thresh: 0.5,
+      running: false,
+      t: 0,
+      activeNeurons: 0,
+      probeAcc: 0
+    };
+
+    // 6 layers of neurons
+    var layers = 6;
+    var neuronsPerLayer = 5;
+    var layerSpacing = 90;
+    var startX = 50;
+    var neuronSpacing = 45;
+    var startY = 90;
+
+    state.neuronNodes = [];
+
+    for (var l = 0; l < layers; l++) {
+      var lx = startX + l * layerSpacing;
+      // Layer label
+      svg.appendChild(svgEl('text', { x: lx + 15, y: 40, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'L' + (l + 1) }));
+      // Probe indicator on selected layer
+      if (l === state.layer - 1) {
+        svg.appendChild(svgEl('rect', { x: lx - 5, y: 55, width: 40, height: 200, rx: 6, fill: 'none', stroke: 'rgba(251,113,133,.3)', 'stroke-dasharray': '3 3' }));
+        svg.appendChild(svgEl('text', { x: lx + 15, y: 280, 'text-anchor': 'middle', fill: '#fb7185', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'PROBE' }));
+      }
+
+      var layerNeurons = [];
+      for (var n = 0; n < neuronsPerLayer; n++) {
+        var ny = startY + n * neuronSpacing;
+        var circle = svgEl('circle', { cx: lx + 15, cy: ny, r: 9, fill: '#16181c', stroke: 'rgba(255,255,255,.1)', 'stroke-width': 1 });
+        svg.appendChild(circle);
+        layerNeurons.push(circle);
+
+        // Connections to next layer
+        if (l < layers - 1) {
+          for (var n2 = 0; n2 < neuronsPerLayer; n2++) {
+            var ny2 = startY + n2 * neuronSpacing;
+            svg.appendChild(svgEl('line', { x1: lx + 24, y1: ny, x2: lx + layerSpacing - 6, y2: ny2, stroke: 'rgba(255,255,255,.03)', 'stroke-width': 1 }));
+          }
+        }
+      }
+      state.neuronNodes.push(layerNeurons);
+    }
+
+    // Input label
+    svg.appendChild(svgEl('text', { x: 30, y: 175, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 10, 'font-family': 'ui-monospace,monospace', transform: 'rotate(-90 30 175)', text: 'INPUT' }));
+    // Output label
+    svg.appendChild(svgEl('text', { x: 580, y: 175, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 10, 'font-family': 'ui-monospace,monospace', transform: 'rotate(90 580 175)', text: 'OUTPUT' }));
+
+    // Active flow particles
+    var flowGroup = svgEl('g', {});
+    svg.appendChild(flowGroup);
+    state.flowGroup = flowGroup;
+    state.flowParticles = [];
+    state.layers = layers;
+    state.neuronsPerLayer = neuronsPerLayer;
+    state.layerSpacing = layerSpacing;
+    state.startX = startX;
+    state.neuronSpacing = neuronSpacing;
+    state.startY = startY;
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'layer') {
+        state.layer = val;
+        setCtrlVal(m, 'layer', 'L' + val);
+        // Redraw probe indicator (simplified: just update text)
+      } else if (ctrl === 'concept') {
+        state.concept = val;
+      } else if (ctrl === 'thresh') {
+        state.thresh = val / 100;
+        setCtrlVal(m, 'thresh', state.thresh.toFixed(2));
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.activeNeurons = 0;
+      state.probeAcc = 0;
+      // Reset all neurons
+      state.neuronNodes.forEach(function (layer) {
+        layer.forEach(function (n) {
+          n.setAttribute('fill', '#16181c');
+          n.setAttribute('stroke', 'rgba(255,255,255,.1)');
+        });
+      });
+      state.flowParticles = [];
+      state.flowGroup.innerHTML = '';
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.activeNeurons = 0;
+      state.probeAcc = 0;
+      state.neuronNodes.forEach(function (layer) {
+        layer.forEach(function (n) {
+          n.setAttribute('fill', '#16181c');
+          n.setAttribute('stroke', 'rgba(255,255,255,.1)');
+        });
+      });
+      state.flowParticles = [];
+      state.flowGroup.innerHTML = '';
+      setStat(m, '活跃神经元', '0');
+      setStat(m, '探针准确率', '0%');
+    };
+
+    return state;
+  }
+
+  function animateInterpretability(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    // Activate neurons layer by layer
+    var layerToActivate = Math.floor(state.t / 300);
+    if (layerToActivate < state.layers && layerToActivate >= 0) {
+      var layer = state.neuronNodes[layerToActivate];
+      layer.forEach(function (n, i) {
+        // Random activation based on concept
+        var activation = Math.random();
+        if (activation > state.thresh) {
+          var intensity = activation;
+          if (layerToActivate === state.layer - 1) {
+            // Probe layer - highlight
+            n.setAttribute('fill', 'rgba(251,113,133,' + intensity.toFixed(2) + ')');
+            n.setAttribute('stroke', '#fb7185');
+          } else {
+            n.setAttribute('fill', 'rgba(124,92,255,' + (intensity * 0.7).toFixed(2) + ')');
+            n.setAttribute('stroke', 'rgba(124,92,255,.4)');
+          }
+        }
+      });
+    }
+
+    // Count active neurons at probe layer
+    if (layerToActivate >= state.layer - 1) {
+      var probeLayer = state.neuronNodes[state.layer - 1];
+      var count = 0;
+      probeLayer.forEach(function (n) {
+        var fill = n.getAttribute('fill');
+        if (fill && fill !== '#16181c') count++;
+      });
+      state.activeNeurons = count;
+
+      // Probe accuracy improves with more active neurons
+      var conceptAcc = { sentiment: 0.89, topic: 0.76, syntax: 0.71 };
+      state.probeAcc = lerp(state.probeAcc, conceptAcc[state.concept] || 0.75, 0.05);
+
+      setStat(m, '活跃神经元', String(count * 4 + 12));
+      setStat(m, '探针准确率', Math.round(state.probeAcc * 100) + '%');
+    }
+
+    if (state.t > state.layers * 300 + 500) {
+      state.running = false;
+      setStatus(m, '完成');
+    }
+  }
+
+  /* ============================================================
+   * Module 06: Red Teaming
+   * ============================================================ */
+  function setupRedTeaming(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      attack: 'auto',
+      intensity: 50,
+      running: false,
+      t: 0,
+      attackCount: 0,
+      blockedCount: 0,
+      jailbroken: 0,
+      particles: []
+    };
+
+    // Model shield (center)
+    var shieldGlow = svgEl('circle', { cx: 300, cy: 180, r: 55, fill: 'rgba(124,92,255,.08)' });
+    svg.appendChild(shieldGlow);
+    svg.appendChild(svgEl('circle', { cx: 300, cy: 180, r: 42, fill: '#16181c', stroke: '#7c5cff', 'stroke-width': 2 }));
+    svg.appendChild(svgEl('text', { x: 300, y: 178, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 13, 'font-weight': 700, 'font-family': 'ui-monospace,monospace', text: 'MODEL' }));
+    svg.appendChild(svgEl('text', { x: 300, y: 192, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '防御中' }));
+
+    // Shield ring (defense barrier)
+    var shieldRing = svgEl('circle', { cx: 300, cy: 180, r: 52, fill: 'none', stroke: 'rgba(124,92,255,.2)', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' });
+    svg.appendChild(shieldRing);
+
+    // Attack particles group
+    var attackGroup = svgEl('g', {});
+    svg.appendChild(attackGroup);
+    state.attackGroup = attackGroup;
+    state.shieldRing = shieldRing;
+    state.shieldGlow = shieldGlow;
+
+    // Stats labels around
+    svg.appendChild(svgEl('text', { x: 300, y: 320, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: '攻击 → ← 防御' }));
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'attack-toggle') {
+        state.attack = val;
+        var labels = { auto: '自动红队', adversarial: '对抗探测', jailbreak: '越狱' };
+        setCtrlVal(m, 'attack', labels[val]);
+      } else if (ctrl === 'intensity') {
+        state.intensity = val;
+        setCtrlVal(m, 'intensity', val < 33 ? '低' : val < 66 ? '中' : '高');
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.attackCount = 0;
+      state.blockedCount = 0;
+      state.jailbroken = 0;
+      state.particles = [];
+      state.attackGroup.innerHTML = '';
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.attackCount = 0;
+      state.blockedCount = 0;
+      state.jailbroken = 0;
+      state.particles = [];
+      state.attackGroup.innerHTML = '';
+      setStat(m, '攻击次数', '0');
+      setStat(m, '已拦截', '0');
+      setStat(m, '越狱成功率', '0%');
+    };
+
+    return state;
+  }
+
+  function animateRedTeaming(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    // Spawn attacks
+    if (state.t > 400 - state.intensity * 2) {
+      state.t = 0;
+      state.attackCount++;
+
+      // Random spawn position around the shield
+      var angle = rand(0, Math.PI * 2);
+      var spawnR = 150;
+      var sx = 300 + Math.cos(angle) * spawnR;
+      var sy = 180 + Math.sin(angle) * spawnR;
+
+      // Attack success rate depends on type and intensity
+      var jailbreakChance = { auto: 0.05, adversarial: 0.12, jailbreak: 0.25 }[state.attack] || 0.1;
+      jailbreakChance *= (state.intensity / 50);
+      var isJailbreak = Math.random() < jailbreakChance;
+
+      var color = isJailbreak ? '#fb7185' : '#9b9fa8';
+      var particle = svgEl('circle', { cx: sx, cy: sy, r: isJailbreak ? 5 : 4, fill: color, stroke: '#08090a', 'stroke-width': 1 });
+      state.attackGroup.appendChild(particle);
+
+      state.particles.push({
+        el: particle,
+        sx: sx, sy: sy,
+        tx: 300, ty: 180,
+        t: 0,
+        duration: 600 + rand(-100, 100),
+        isJailbreak: isJailbreak,
+        angle: angle
+      });
+
+      setStat(m, '攻击次数', String(state.attackCount));
+    }
+
+    // Animate particles
+    for (var i = state.particles.length - 1; i >= 0; i--) {
+      var p = state.particles[i];
+      p.t += dt;
+      var progress = p.t / p.duration;
+
+      if (progress >= 1) {
+        // Hit the shield
+        if (p.isJailbreak) {
+          // Jailbreak - penetrate and flash
+          p.el.setAttribute('cx', 300);
+          p.el.setAttribute('cy', 180);
+          p.el.setAttribute('fill', '#fb7185');
+          state.jailbroken++;
+          var flashEl = p.el;
+          setTimeout(function () { if (flashEl.parentNode) flashEl.remove(); }, 200);
+          // Shield flash
+          state.shieldRing.setAttribute('stroke', 'rgba(251,113,133,.5)');
+          setTimeout(function () { state.shieldRing.setAttribute('stroke', 'rgba(124,92,255,.2)'); }, 200);
+        } else {
+          // Blocked - deflect
+          p.el.remove();
+          state.blockedCount++;
+          // Shield pulse
+          state.shieldGlow.setAttribute('r', 60);
+          setTimeout(function () { state.shieldGlow.setAttribute('r', 55); }, 100);
+        }
+        state.particles.splice(i, 1);
+
+        setStat(m, '已拦截', String(state.blockedCount));
+        setStat(m, '越狱成功率', (state.attackCount > 0 ? Math.round(state.jailbroken / state.attackCount * 100) : 0) + '%');
+      } else {
+        // Move toward center
+        var px = lerp(p.sx, p.tx, progress);
+        var py = lerp(p.sy, p.ty, progress);
+        p.el.setAttribute('cx', px.toFixed(1));
+        p.el.setAttribute('cy', py.toFixed(1));
+        p.el.setAttribute('opacity', (1 - progress * 0.3).toFixed(2));
+      }
+    }
+
+    // Stop after enough attacks
+    if (state.attackCount >= 40) {
+      state.running = false;
+      setStatus(m, '完成');
+    }
+  }
+
+  /* ============================================================
+   * Module 07: Mechanistic Interpretability
+   * ============================================================ */
+  function setupMechInterp(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      saeOn: true,
+      lambda: 0.05,
+      features: 16,
+      running: false,
+      t: 0,
+      sparsity: 0,
+      reconLoss: 0,
+      activeFeatures: []
+    };
+
+    // Left: Polysemantic neuron (overlapping features)
+    svg.appendChild(svgEl('text', { x: 100, y: 40, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'POLYSEMANTIC' }));
+    svg.appendChild(svgEl('text', { x: 100, y: 54, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '多义神经元' }));
+
+    // Overlapping circles representing superposed features
+    var polyGroup = svgEl('g', {});
+    svg.appendChild(polyGroup);
+    var polyCx = 100, polyCy = 150;
+    var featureColors = ['#fb7185', '#7c5cff', '#4ade80', '#fbbf24', '#38bdf8', '#f472b6'];
+    for (var f = 0; f < 6; f++) {
+      var ang = (f / 6) * Math.PI * 2;
+      polyGroup.appendChild(svgEl('circle', { cx: polyCx + Math.cos(ang) * 8, cy: polyCy + Math.sin(ang) * 8, r: 18, fill: featureColors[f], opacity: 0.15, stroke: featureColors[f], 'stroke-width': 1 }));
+    }
+    polyGroup.appendChild(svgEl('circle', { cx: polyCx, cy: polyCy, r: 22, fill: 'none', stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5 }));
+    state.polyGroup = polyGroup;
+
+    // Middle: SAE box
+    svg.appendChild(svgEl('text', { x: 300, y: 40, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'SPARSE AUTOENCODER' }));
+    svg.appendChild(svgEl('rect', { x: 230, y: 100, width: 140, height: 100, rx: 10, fill: '#1c1f24', stroke: 'rgba(124,92,255,.3)', 'stroke-width': 1.5 }));
+    svg.appendChild(svgEl('text', { x: 300, y: 145, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 14, 'font-weight': 700, 'font-family': 'ui-monospace,monospace', text: 'SAE' }));
+    svg.appendChild(svgEl('text', { x: 300, y: 165, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'encode → decode' }));
+    svg.appendChild(svgEl('text', { x: 300, y: 185, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: 'L1: λ=' + state.lambda }));
+
+    // Arrows
+    svg.appendChild(svgEl('line', { x1: 130, y1: 150, x2: 225, y2: 150, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5, 'marker-end': 'url(#arrowM07a)' }));
+    svg.appendChild(svgEl('line', { x1: 375, y1: 150, x2: 470, y2: 150, stroke: 'rgba(255,255,255,.15)', 'stroke-width': 1.5, 'marker-end': 'url(#arrowM07b)' }));
+
+    // Right: Decomposed monosemantic features
+    svg.appendChild(svgEl('text', { x: 500, y: 40, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'MONOSEMANTIC' }));
+    svg.appendChild(svgEl('text', { x: 500, y: 54, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '单义特征' }));
+
+    var featureGroup = svgEl('g', {});
+    svg.appendChild(featureGroup);
+    state.featureGroup = featureGroup;
+    state.featureColors = featureColors;
+
+    // Bottom: reconstruction loss bar
+    svg.appendChild(svgEl('text', { x: 60, y: 270, fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'Reconstruction Loss' }));
+    svg.appendChild(svgEl('rect', { x: 60, y: 280, width: 480, height: 8, rx: 4, fill: '#08090a' }));
+    var lossBar = svgEl('rect', { x: 60, y: 280, width: 0, height: 8, rx: 4, fill: '#fb7185' });
+    svg.appendChild(lossBar);
+    state.lossBar = lossBar;
+
+    // Sparsity bar
+    svg.appendChild(svgEl('text', { x: 60, y: 310, fill: '#62666d', 'font-size': 10, 'font-family': 'ui-monospace,monospace', text: 'Sparsity' }));
+    svg.appendChild(svgEl('rect', { x: 60, y: 320, width: 480, height: 8, rx: 4, fill: '#08090a' }));
+    var sparBar = svgEl('rect', { x: 60, y: 320, width: 0, height: 8, rx: 4, fill: '#7c5cff' });
+    svg.appendChild(sparBar);
+    state.sparBar = sparBar;
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'sae-toggle') {
+        state.saeOn = val === 'on';
+        setCtrlVal(m, 'sae', state.saeOn ? '开启' : '关闭');
+      } else if (ctrl === 'lambda') {
+        state.lambda = (val / 100 * 0.2).toFixed(3);
+        setCtrlVal(m, 'lambda', state.lambda);
+      } else if (ctrl === 'features') {
+        state.features = val;
+        setCtrlVal(m, 'features', String(val));
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.sparsity = 0;
+      state.reconLoss = 0;
+      state.activeFeatures = [];
+      state.featureGroup.innerHTML = '';
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.sparsity = 0;
+      state.reconLoss = 0;
+      state.activeFeatures = [];
+      state.featureGroup.innerHTML = '';
+      state.lossBar.setAttribute('width', 0);
+      state.sparBar.setAttribute('width', 0);
+      setStat(m, '稀疏度', '0%');
+      setStat(m, '重建损失', '0.00');
+    };
+
+    return state;
+  }
+
+  function animateMechInterp(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    if (state.t > 200) {
+      state.t = 0;
+
+      // Add a feature
+      if (state.activeFeatures.length < state.features) {
+        var idx = state.activeFeatures.length;
+        var color = state.featureColors[idx % state.featureColors.length];
+        var row = Math.floor(idx / 4);
+        var col = idx % 4;
+        var fx = 460 + col * 28;
+        var fy = 90 + row * 28;
+
+        // Animate feature appearing
+        var feat = svgEl('circle', { cx: fx, cy: fy, r: 0, fill: color, opacity: 0.6, stroke: color, 'stroke-width': 1.5 });
+        state.featureGroup.appendChild(feat);
+        state.activeFeatures.push({ el: feat, fx: fx, fy: fy, grow: 0 });
+      }
+
+      // Grow features
+      state.activeFeatures.forEach(function (af) {
+        af.grow = Math.min(1, af.grow + 0.1);
+        af.el.setAttribute('r', (af.grow * 10).toFixed(1));
+      });
+
+      // Update sparsity and reconstruction loss
+      if (state.saeOn) {
+        // With SAE: high sparsity, low loss
+        state.sparsity = lerp(state.sparsity, 1 - state.features / 32 - parseFloat(state.lambda) * 2, 0.1);
+        state.sparsity = clamp(state.sparsity, 0.3, 0.95);
+        state.reconLoss = lerp(state.reconLoss, 0.02 + parseFloat(state.lambda) * 0.5, 0.1);
+      } else {
+        // Without SAE: low sparsity, high loss (polysemantic)
+        state.sparsity = lerp(state.sparsity, 0.15, 0.1);
+        state.reconLoss = lerp(state.reconLoss, 0.35, 0.1);
+      }
+
+      state.lossBar.setAttribute('width', (state.reconLoss * 480).toFixed(1));
+      state.sparBar.setAttribute('width', (state.sparsity * 480).toFixed(1));
+
+      setStat(m, '稀疏度', Math.round(state.sparsity * 100) + '%');
+      setStat(m, '重建损失', state.reconLoss.toFixed(3));
+
+      if (state.activeFeatures.length >= state.features && state.activeFeatures[state.features - 1].grow >= 1) {
+        state.running = false;
+        setStatus(m, '完成');
+      }
+    }
+  }
+
+  /* ============================================================
+   * Module 08: Alignment Evaluation
+   * ============================================================ */
+  function setupAlignmentEval(box, m) {
+    var svg = makeSVG('0 0 600 360');
+    box.appendChild(svg);
+
+    var state = {
+      svg: svg,
+      bench: 'TruthfulQA',
+      model: 'aligned',
+      running: false,
+      t: 0,
+      scores: { TruthfulQA: 0, Honesty: 0, MACHIAVELLI: 0 },
+      targetScores: {
+        base: { TruthfulQA: 45, Honesty: 52, MACHIAVELLI: 38 },
+        aligned: { TruthfulQA: 82, Honesty: 78, MACHIAVELLI: 25 },
+        overfit: { TruthfulQA: 95, Honesty: 60, MACHIAVELLI: 42 }
+      }
+    };
+
+    // Title
+    svg.appendChild(svgEl('text', { x: 300, y: 35, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 12, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: '对齐评估基准对比' }));
+
+    // Three benchmark bars
+    var benchmarks = [
+      { key: 'TruthfulQA', label: 'TruthfulQA', desc: '真实性', x: 100, color: '#fb7185', higher: true },
+      { key: 'Honesty', label: 'Honesty', desc: '诚实性', x: 250, color: '#7c5cff', higher: true },
+      { key: 'MACHIAVELLI', label: 'MACHIAVELLI', desc: '权谋度↓', x: 400, color: '#4ade80', higher: false }
+    ];
+
+    state.bars = [];
+    state.barLabels = [];
+
+    benchmarks.forEach(function (b) {
+      // Bar background
+      svg.appendChild(svgEl('rect', { x: b.x - 30, y: 80, width: 60, height: 200, rx: 6, fill: '#08090a', stroke: 'rgba(255,255,255,.07)' }));
+      // Bar fill
+      var bar = svgEl('rect', { x: b.x - 28, y: 280, width: 56, height: 0, rx: 5, fill: b.color, opacity: 0.8 });
+      svg.appendChild(bar);
+      state.bars.push({ el: bar, bench: b });
+      // Label
+      svg.appendChild(svgEl('text', { x: b.x, y: 300, 'text-anchor': 'middle', fill: '#9b9fa8', 'font-size': 11, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: b.label }));
+      svg.appendChild(svgEl('text', { x: b.x, y: 314, 'text-anchor': 'middle', fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: b.desc }));
+      // Value label
+      var valLabel = svgEl('text', { x: b.x, y: 275, 'text-anchor': 'middle', fill: b.color, 'font-size': 13, 'font-weight': 700, 'font-family': 'ui-monospace,monospace', text: '0%' });
+      svg.appendChild(valLabel);
+      state.barLabels.push({ el: valLabel, bench: b });
+    });
+
+    // Model comparison legend
+    svg.appendChild(svgEl('text', { x: 520, y: 95, fill: '#62666d', 'font-size': 9, 'font-family': 'ui-monospace,monospace', text: '当前模型' }));
+    var modelTag = svgEl('rect', { x: 510, y: 102, width: 70, height: 20, rx: 4, fill: 'rgba(124,92,255,.12)', stroke: '#7c5cff' });
+    svg.appendChild(modelTag);
+    var modelText = svgEl('text', { x: 545, y: 116, 'text-anchor': 'middle', fill: '#7c5cff', 'font-size': 10, 'font-weight': 600, 'font-family': 'ui-monospace,monospace', text: '对齐' });
+    svg.appendChild(modelText);
+    state.modelTag = modelTag;
+    state.modelText = modelText;
+
+    m.onControl = function (ctrl, val, el) {
+      if (ctrl === 'bench-toggle') {
+        state.bench = val;
+        setCtrlVal(m, 'bench', val);
+      } else if (ctrl === 'model-toggle') {
+        state.model = val;
+        var labels = { base: '基线', aligned: '对齐', overfit: '过度优化' };
+        setCtrlVal(m, 'model', labels[val] + '模型');
+        state.modelText.textContent = labels[val];
+      }
+    };
+
+    state.onStart = function () {
+      state.t = 0;
+      state.scores = { TruthfulQA: 0, Honesty: 0, MACHIAVELLI: 0 };
+      state.bars.forEach(function (b) { b.el.setAttribute('height', 0); b.el.setAttribute('y', 280); });
+      state.barLabels.forEach(function (l) { l.el.textContent = '0%'; });
+    };
+
+    state.onReset = function () {
+      state.t = 0;
+      state.scores = { TruthfulQA: 0, Honesty: 0, MACHIAVELLI: 0 };
+      state.bars.forEach(function (b) { b.el.setAttribute('height', 0); b.el.setAttribute('y', 280); });
+      state.barLabels.forEach(function (l) { l.el.textContent = '0%'; });
+      setStat(m, 'TruthfulQA', '0%');
+      setStat(m, 'Honesty', '0%');
+      setStat(m, 'MACHIAVELLI', '0%');
+    };
+
+    return state;
+  }
+
+  function animateAlignmentEval(state, m, time, dt) {
+    if (!state.running) return;
+    state.t += dt;
+
+    if (state.t > 50) {
+      state.t = 0;
+      var targets = state.targetScores[state.model];
+
+      state.bars.forEach(function (b, i) {
+        var key = b.bench.key;
+        var target = targets[key];
+        state.scores[key] = lerp(state.scores[key], target, 0.06);
+
+        // MACHIAVELLI: lower is better, but we still show the bar height proportional to value
+        var barHeight = (state.scores[key] / 100) * 196;
+        var barY = 280 - barHeight;
+        b.el.setAttribute('height', barHeight.toFixed(1));
+        b.el.setAttribute('y', barY.toFixed(1));
+
+        state.barLabels[i].el.textContent = Math.round(state.scores[key]) + '%';
+        state.barLabels[i].el.setAttribute('y', (barY - 5).toFixed(1));
+
+        setStat(m, key, Math.round(state.scores[key]) + '%');
+      });
+
+      // Check if done
+      var allClose = state.bars.every(function (b) {
+        return Math.abs(state.scores[b.bench.key] - targets[b.bench.key]) < 0.5;
+      });
+      if (allClose) {
+        state.running = false;
+        setStatus(m, '评估完成');
+      }
+    }
+  }
+
+  /* ============================================================
+   * Global Features
+   * ============================================================ */
+
+  /* ---------- Progress Bar ---------- */
+  function initProgressBar() {
+    var bar = $('#progress-bar');
+    function update() {
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
+      var scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      var progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      bar.style.width = progress + '%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  }
+
+  /* ---------- Sidebar Active State ---------- */
+  function initSidebar() {
+    var items = $all('.sidebar-item[data-target]');
+    var sections = items.map(function (item) {
+      return document.getElementById(item.getAttribute('data-target'));
+    });
+
+    function updateActive() {
+      var scrollPos = window.scrollY + 120;
+      var current = null;
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= scrollPos) {
+          current = sections[i].id;
+        }
+      }
+      items.forEach(function (item) {
+        item.classList.toggle('active', item.getAttribute('data-target') === current);
+      });
+    }
+
+    window.addEventListener('scroll', updateActive, { passive: true });
+    updateActive();
+
+    // Smooth scroll on click
+    items.forEach(function (item) {
+      item.addEventListener('click', function (e) {
+        e.preventDefault();
+        var target = document.getElementById(item.getAttribute('data-target'));
+        if (target) {
+          var top = target.offsetTop - 80;
+          window.scrollTo({ top: top, behavior: reducedMotion ? 'auto' : 'smooth' });
+        }
+        // Close mobile sidebar
+        closeSidebar();
+      });
+    });
+  }
+
+  /* ---------- IntersectionObserver Fade-in ---------- */
+  function initFadeIn() {
+    var elements = $all('.fade-in');
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach(function (el) { el.classList.add('visible'); });
+      return;
+    }
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+    elements.forEach(function (el) { observer.observe(el); });
+  }
+
+  /* ---------- Mobile Menu ---------- */
+  function initMobileMenu() {
+    var toggle = $('#menuToggle');
+    var sidebar = $('#sidebar');
+    var backdrop = $('#sidebarBackdrop');
+
+    function openSidebar() {
+      sidebar.classList.add('open');
+      backdrop.classList.add('show');
+    }
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('show');
+    }
+
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        if (sidebar.classList.contains('open')) closeSidebar();
+        else openSidebar();
+      });
+    }
+    if (backdrop) {
+      backdrop.addEventListener('click', closeSidebar);
+    }
+  }
+
+  /* ---------- Navbar link smooth scroll ---------- */
+  function initNavbarLinks() {
+    $all('.navbar-link[href^="#"]').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        var href = link.getAttribute('href');
+        if (href === '#') return;
+        var target = document.querySelector(href);
+        if (target) {
+          e.preventDefault();
+          var top = target.offsetTop - 80;
+          window.scrollTo({ top: top, behavior: reducedMotion ? 'auto' : 'smooth' });
+        }
+      });
+    });
+  }
+
+  /* ============================================================
+   * Init
+   * ============================================================ */
+  function init() {
+    renderModules();
+    initProgressBar();
+    initSidebar();
+    initFadeIn();
+    initMobileMenu();
+    initNavbarLinks();
+    // Start animation loop
+    rafId = requestAnimationFrame(animLoop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+
+</script>
+
+</body>
+</html>

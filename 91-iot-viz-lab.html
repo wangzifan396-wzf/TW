@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="iot-viz-lab — 物联网可视化实验室：MQTT、边缘计算、CoAP/LwM2M、时序数据、设备管理、LoRaWAN、智能家居、工业物联网的交互式可视化">
+<title>iot-viz-lab · 物联网可视化实验室</title>
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#2dd4ff;
+  --accent-2:#7c5cff;
+  --accent-glow:rgba(45,212,255,.35);
+  --accent-2-glow:rgba(124,92,255,.35);
+  --ok:#34d399;
+  --warn:#fbbf24;
+  --err:#fb7185;
+  --nav-h:56px;
+  --side-w:240px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --radius:12px;
+  --radius-sm:8px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 24px)}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+  min-height:100vh;
+}
+body::before{
+  content:"";
+  position:fixed;inset:0;
+  background:
+    radial-gradient(900px 600px at 12% -5%,rgba(124,92,255,.10),transparent 60%),
+    radial-gradient(800px 500px at 95% 8%,rgba(45,212,255,.08),transparent 55%);
+  pointer-events:none;z-index:0;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+::selection{background:var(--accent);color:#001318}
+
+/* ============ 顶部进度条 ============ */
+.scroll-progress{
+  position:fixed;top:0;left:0;height:3px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  z-index:200;will-change:transform,transform-origin;
+  box-shadow:0 0 12px var(--accent-glow);
+}
+
+/* ============ 导航栏 ============ */
+.navbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);
+  background:rgba(8,9,10,.82);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:16px;
+  padding:0 20px;z-index:100;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.brand-mark{
+  width:28px;height:28px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:grid;place-items:center;flex:none;
+  box-shadow:0 0 18px var(--accent-glow);
+}
+.brand-mark svg{width:16px;height:16px}
+.brand b{font-size:15px}
+.brand span{color:var(--muted);font-weight:500;font-size:13px}
+.nav-spacer{flex:1}
+.nav-links{display:flex;gap:6px;align-items:center}
+.nav-links a{
+  font-size:13px;color:var(--muted);padding:7px 12px;border-radius:8px;
+  transition:color .2s,background .2s;
+}
+.nav-links a:hover{color:var(--ink);background:var(--surface-2)}
+.nav-gh{display:inline-flex;align-items:center;gap:6px}
+.nav-gh svg{width:15px;height:15px}
+.menu-btn{
+  display:none;background:var(--surface-2);border:1px solid var(--border);
+  color:var(--ink);width:38px;height:38px;border-radius:8px;align-items:center;justify-content:center;
+}
+.menu-btn svg{width:18px;height:18px}
+
+/* ============ 侧边栏 ============ */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px;z-index:90;
+}
+.sidebar::-webkit-scrollbar{width:6px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:3px}
+.side-title{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px 10px;font-weight:600;
+}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:8px;font-size:13px;color:var(--muted);
+  border:1px solid transparent;transition:all .2s var(--ease);
+}
+.side-link:hover{color:var(--ink);background:var(--surface-2)}
+.side-link.active{
+  color:var(--ink);background:var(--surface-2);
+  border-color:var(--border-strong);
+}
+.side-link.active .side-num{color:var(--accent)}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:none;
+}
+.side-link b{font-weight:500;font-size:13px}
+
+.side-foot{
+  margin-top:18px;padding:14px;border-radius:10px;
+  background:var(--surface-2);border:1px solid var(--border);
+}
+.side-foot h4{font-size:12px;margin-bottom:6px;color:var(--ink)}
+.side-foot p{font-size:11px;color:var(--muted);line-height:1.5}
+.side-tag{
+  display:inline-block;font-family:var(--mono);font-size:10px;
+  color:var(--accent);border:1px solid var(--accent);padding:1px 6px;
+  border-radius:4px;margin-top:8px;
+}
+
+/* ============ 主内容 ============ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:40px 40px 120px;position:relative;z-index:1;
+  max-width:1280px;
+}
+.hero{
+  margin-bottom:48px;padding:8px 0 8px;
+}
+.hero-kicker{
+  font-family:var(--mono);font-size:12px;color:var(--accent);
+  letter-spacing:.12em;margin-bottom:14px;
+}
+.hero h1{
+  font-size:clamp(28px,4.4vw,46px);line-height:1.08;letter-spacing:-.02em;
+  font-weight:800;margin-bottom:16px;max-width:18ch;
+}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{font-size:16px;color:var(--muted);max-width:62ch;margin-bottom:22px}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+  background:var(--surface-2);border:1px solid var(--border);
+  padding:6px 11px;border-radius:20px;
+}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.chip i.p{background:var(--accent-2)}
+
+/* ============ 模块 ============ */
+.module{margin-bottom:64px;scroll-margin-top:80px}
+.module-head{margin-bottom:20px}
+.kicker{
+  font-family:var(--mono);font-size:12px;color:var(--accent);
+  letter-spacing:.14em;margin-bottom:8px;display:flex;align-items:center;gap:8px;
+}
+.kicker::after{
+  content:"";height:1px;flex:1;max-width:60px;
+  background:linear-gradient(90deg,var(--accent),transparent);
+}
+.module-head h2{font-size:26px;letter-spacing:-.01em;margin-bottom:8px;font-weight:700}
+.module-head p{color:var(--muted);font-size:14px;max-width:70ch}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+}
+.card-top{
+  display:grid;grid-template-columns:1fr 280px;gap:0;
+  border-bottom:1px solid var(--border);min-height:360px;
+}
+.viz-box{
+  position:relative;background:
+    radial-gradient(circle at 50% 40%,rgba(45,212,255,.05),transparent 70%),
+    var(--surface);
+  padding:18px;display:flex;align-items:center;justify-content:center;
+  min-height:360px;overflow:hidden;
+}
+.viz-box svg{width:100%;height:100%;max-height:340px;display:block}
+.controls{
+  border-left:1px solid var(--border);background:var(--surface-2);
+  padding:18px;display:flex;flex-direction:column;gap:14px;
+}
+.ctrl-group{display:flex;flex-direction:column;gap:7px}
+.ctrl-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.seg{
+  display:flex;background:var(--surface-3);border:1px solid var(--border);
+  border-radius:8px;padding:3px;gap:2px;
+}
+.seg button{
+  flex:1;background:transparent;border:none;color:var(--muted);
+  font-size:12px;padding:6px 4px;border-radius:6px;transition:all .18s var(--ease);
+}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--accent);color:#001318;font-weight:600}
+.seg.alt button.on{background:var(--accent-2);color:#fff}
+.btn{
+  background:var(--surface-3);border:1px solid var(--border-strong);
+  color:var(--ink);font-size:12px;padding:8px 12px;border-radius:8px;
+  transition:all .18s var(--ease);display:inline-flex;align-items:center;gap:6px;justify-content:center;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:#001318;border-color:var(--accent);font-weight:600}
+.btn.primary:hover{background:#5fe0ff;color:#001318}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.toggle-row span{font-size:12px;color:var(--muted)}
+.switch{
+  width:38px;height:22px;border-radius:11px;background:var(--surface-3);
+  border:1px solid var(--border);position:relative;transition:background .2s;flex:none;
+}
+.switch::after{
+  content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;
+  border-radius:50%;background:var(--muted);transition:transform .2s var(--ease),background .2s;
+}
+.switch.on{background:var(--accent)}
+.switch.on::after{transform:translateX(16px);background:#001318}
+
+.card-bottom{display:grid;grid-template-columns:1.4fr 1fr}
+.detail-box{
+  padding:18px;border-right:1px solid var(--border);
+}
+.detail-box h4{font-size:13px;margin-bottom:10px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.detail-box h4 i{width:8px;height:8px;border-radius:2px;background:var(--accent)}
+.detail-box ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.detail-box li{font-size:12.5px;color:var(--muted);padding-left:16px;position:relative;line-height:1.55}
+.detail-box li::before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--accent-2)}
+.detail-box code{font-family:var(--mono);font-size:11.5px;color:var(--accent);background:var(--surface-3);padding:1px 5px;border-radius:4px}
+.stats-row{
+  display:grid;grid-template-columns:repeat(2,1fr);
+}
+.stat{padding:18px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.stat:nth-child(2n){border-right:none}
+.stat:nth-last-child(-n+2){border-bottom:none}
+.stat .v{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.stat .v em{font-style:normal;color:var(--accent);font-size:13px;font-weight:500;margin-left:3px}
+.stat .l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+
+/* ============ fade-in 动画 ============ */
+.fade{opacity:0;transform:translateY(26px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.fade.in{opacity:1;transform:none}
+
+/* ============ SVG 通用 ============ */
+svg .lbl{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+svg .lbl-i{font-size:11px;fill:var(--ink);font-weight:600}
+svg .axis{stroke:var(--border-strong);stroke-width:1}
+svg .grid{stroke:var(--border);stroke-width:1}
+svg .node-fill{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1}
+svg .accent-stroke{stroke:var(--accent);stroke-width:1.5}
+svg .accent2-stroke{stroke:var(--accent-2);stroke-width:1.5}
+.pulse{animation:pulse 2.4s var(--ease) infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+/* ============ 页脚 ============ */
+.footer{
+  margin-top:40px;padding:28px 0 0;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;
+}
+.footer a{color:var(--muted)}
+.footer a:hover{color:var(--accent)}
+
+/* ============ 响应式 ============ */
+@media (max-width:1024px){
+  .card-top{grid-template-columns:1fr}
+  .controls{border-left:none;border-top:1px solid var(--border)}
+  .card-bottom{grid-template-columns:1fr}
+  .detail-box{border-right:none;border-bottom:1px solid var(--border)}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:860px){
+  .sidebar{
+    transform:translateX(-100%);transition:transform .3s var(--ease);
+    width:280px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .sidebar.open{transform:none}
+  .main{margin-left:0;padding:30px 20px 100px}
+  .menu-btn{display:inline-flex}
+  .nav-links{display:none}
+}
+@media (max-width:560px){
+  .stats-row{grid-template-columns:1fr}
+  .stat{border-right:none;border-bottom:1px solid var(--border)}
+  .stat:last-child{border-bottom:none}
+  .hero h1{font-size:28px}
+  .main{padding:24px 16px 80px}
+}
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .fade{opacity:1;transform:none}
+  html{scroll-behavior:auto}
+}
+.scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:80;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.scrim.on{opacity:1;pointer-events:auto}
+@media (min-width:861px){.scrim{display:none}}
+</style>
+</head>
+<body>
+<div class="scroll-progress" id="progress"></div>
+
+<nav class="navbar">
+  <a class="brand" href="#top">
+    <span class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#001318" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/><circle cx="12" cy="12" r="3.5"/></svg>
+    </span>
+    <b>iot-viz-lab</b><span>物联网可视化实验室</span>
+  </a>
+  <div class="nav-spacer"></div>
+  <div class="nav-links">
+    <a href="#m01">协议</a>
+    <a href="#m04">数据</a>
+    <a href="#m06">网络</a>
+    <a href="#m08">工业</a>
+  </div>
+  <a class="nav-gh nav-links" href="https://github.com/wangzifan396-wzf/iot-viz-lab" target="_blank" rel="noopener" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border)">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+  <button class="menu-btn" id="menuBtn" aria-label="菜单">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+</nav>
+
+<aside class="sidebar" id="sidebar">
+  <div class="side-title">可视化模块</div>
+  <nav class="side-nav" id="sideNav">
+    <a class="side-link" href="#m01"><span class="side-num">01</span><b>MQTT 协议</b></a>
+    <a class="side-link" href="#m02"><span class="side-num">02</span><b>边缘计算</b></a>
+    <a class="side-link" href="#m03"><span class="side-num">03</span><b>CoAP / LwM2M</b></a>
+    <a class="side-link" href="#m04"><span class="side-num">04</span><b>时序数据</b></a>
+    <a class="side-link" href="#m05"><span class="side-num">05</span><b>设备管理</b></a>
+    <a class="side-link" href="#m06"><span class="side-num">06</span><b>LoRaWAN</b></a>
+    <a class="side-link" href="#m07"><span class="side-num">07</span><b>智能家居</b></a>
+    <a class="side-link" href="#m08"><span class="side-num">08</span><b>工业物联网</b></a>
+  </nav>
+  <div class="side-foot">
+    <h4>关于本项目</h4>
+    <p>纯 HTML/CSS/JS + SVG 零依赖可视化，覆盖物联网从协议到应用的 8 个核心领域。</p>
+    <span class="side-tag">zero-dep</span>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<main class="main" id="top">
+  <header class="hero fade">
+    <div class="hero-kicker">IoT · INTERACTIVE VISUALIZATION LAB</div>
+    <h1>从协议到应用，<em>可视化理解</em>物联网的每一层</h1>
+    <p>iot-viz-lab 是一个零依赖的单文件交互式可视化项目，用 SVG 与原生动画呈现 MQTT、边缘计算、CoAP/LwM2M、时序数据、设备管理、LoRaWAN、智能家居与工业物联网的运行机制。</p>
+    <div class="hero-meta">
+      <span class="chip"><i></i>8 个核心模块</span>
+      <span class="chip"><i class="p"></i>纯前端零依赖</span>
+      <span class="chip"><i></i>SVG + requestAnimationFrame</span>
+      <span class="chip"><i class="p"></i>响应式 / 无障碍</span>
+    </div>
+  </header>
+  <div id="modules"></div>
+
+  <footer class="footer fade">
+    <span>iot-viz-lab · MIT License · 物联网可视化实验室</span>
+    <a href="https://github.com/wangzifan396-wzf/iot-viz-lab" target="_blank" rel="noopener">github.com/wangzifan396-wzf/iot-viz-lab</a>
+  </footer>
+</main>
+
+<script>
+/* ============================================================
+   iot-viz-lab · 主脚本
+   ============================================================ */
+"use strict";
+(function(){
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var RAF = window.requestAnimationFrame || function(fn){return setTimeout(fn,16)};
+
+  /* ---- 顶部进度条 ---- */
+  var progress = document.getElementById('progress');
+  function updateProgress(){
+    var h = document.documentElement;
+    var max = (h.scrollHeight - h.clientHeight) || 1;
+    var p = Math.min(1, Math.max(0, h.scrollTop / max));
+    progress.style.transform = 'scaleX(' + p + ')';
+    progress.style.transformOrigin = 'left';
+  }
+  window.addEventListener('scroll', updateProgress, {passive:true});
+  updateProgress();
+
+  /* ---- IntersectionObserver fade-in ---- */
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+  function observeFade(el){ el.classList.add('fade'); io.observe(el); }
+
+  /* ---- 侧边栏移动端 ---- */
+  var menuBtn = document.getElementById('menuBtn');
+  var sidebar = document.getElementById('sidebar');
+  var scrim = document.getElementById('scrim');
+  function closeSide(){ sidebar.classList.remove('open'); scrim.classList.remove('on'); }
+  menuBtn.addEventListener('click', function(){
+    var open = sidebar.classList.toggle('open');
+    scrim.classList.toggle('on', open);
+  });
+  scrim.addEventListener('click', closeSide);
+  document.getElementById('sideNav').addEventListener('click', function(e){
+    if(e.target.closest('.side-link')) closeSide();
+  });
+
+  /* ---- 侧边栏 active 高亮 ---- */
+  var sideLinks = Array.prototype.slice.call(document.querySelectorAll('.side-link'));
+  var spy = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        var id = e.target.id;
+        sideLinks.forEach(function(l){
+          l.classList.toggle('active', l.getAttribute('href') === '#'+id);
+        });
+      }
+    });
+  }, {rootMargin:'-45% 0px -50% 0px'});
+
+  /* ============================================================
+     模块渲染器
+     ============================================================ */
+  function buildModule(cfg){
+    var wrap = document.createElement('section');
+    wrap.className = 'module';
+    wrap.id = cfg.id;
+    wrap.innerHTML =
+      '<div class="module-head fade">' +
+        '<div class="kicker">'+ cfg.kicker +'</div>' +
+        '<h2>'+ cfg.title +'</h2>' +
+        '<p>'+ cfg.desc +'</p>' +
+      '</div>' +
+      '<div class="card fade">' +
+        '<div class="card-top">' +
+          '<div class="viz-box" id="'+ cfg.id +'-viz">'+ cfg.viz() +'</div>' +
+          '<div class="controls" id="'+ cfg.id +'-ctrl">'+ cfg.controls() +'</div>' +
+        '</div>' +
+        '<div class="card-bottom">' +
+          '<div class="detail-box">'+ cfg.detail() +'</div>' +
+          '<div class="stats-row">'+ cfg.stats() +'</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('modules').appendChild(wrap);
+    Array.prototype.forEach.call(wrap.querySelectorAll('.fade'), function(el){ io.observe(el); });
+    spy.observe(wrap);
+    if(cfg.init) cfg.init(wrap);
+    return wrap;
+  }
+
+  /* ---- 通用辅助 ---- */
+  function svgEl(tag, attrs){ var e=document.createElementNS('http://www.w3.org/2000/svg',tag); if(attrs) for(var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function setAttr(el, a, v){ el.setAttribute(a, v); }
+  function seg(wrap, sel, onPick){
+    var btns = wrap.querySelectorAll(sel + ' button');
+    btns.forEach(function(b, i){
+      b.addEventListener('click', function(){
+        btns.forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        onPick(i, b);
+      });
+    });
+    return btns;
+  }
+  function makeSwitch(wrap, sel, onToggle){
+    var sw = wrap.querySelector(sel);
+    sw.addEventListener('click', function(){
+      sw.classList.toggle('on');
+      onToggle(sw.classList.contains('on'));
+    });
+    return sw;
+  }
+  function rnd(min, max){ return min + Math.random()*(max-min); }
+
+  /* ============================================================
+     01. MQTT 协议
+     ============================================================ */
+  buildModule({
+    id:'m01',
+    kicker:'01 · PROTOCOL',
+    title:'MQTT 协议 — Pub/Sub 与 QoS 等级',
+    desc:'发布者将消息发往代理（Broker），代理按主题层级匹配后投递给订阅者。QoS 0/1/2 提供从「至多一次」到「恰好一次」的投递保证。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="mqtt-svg">' +
+        '<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4ff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>' +
+        // broker 中心
+        '<rect x="230" y="135" width="100" height="70" rx="10" class="node-fill" stroke="#2dd4ff"/>' +
+        '<text x="280" y="165" text-anchor="middle" class="lbl-i" fill="#2dd4ff">BROKER</text>' +
+        '<text x="280" y="183" text-anchor="middle" class="lbl">topic router</text>' +
+        // publisher
+        '<rect x="30" y="135" width="90" height="70" rx="10" class="node-fill"/>' +
+        '<text x="75" y="165" text-anchor="middle" class="lbl-i">Publisher</text>' +
+        '<text x="75" y="183" text-anchor="middle" class="lbl">sensor-A</text>' +
+        // subscribers
+        '<rect x="440" y="50" width="90" height="55" rx="10" class="node-fill"/>' +
+        '<text x="485" y="75" text-anchor="middle" class="lbl-i">Sub 1</text>' +
+        '<text x="485" y="90" text-anchor="middle" class="lbl">app</text>' +
+        '<rect x="440" y="145" width="90" height="55" rx="10" class="node-fill"/>' +
+        '<text x="485" y="170" text-anchor="middle" class="lbl-i">Sub 2</text>' +
+        '<text x="485" y="185" text-anchor="middle" class="lbl">logger</text>' +
+        '<rect x="440" y="240" width="90" height="55" rx="10" class="node-fill"/>' +
+        '<text x="485" y="265" text-anchor="middle" class="lbl-i">Sub 3</text>' +
+        '<text x="485" y="280" text-anchor="middle" class="lbl">alert</text>' +
+        // 连线
+        '<path d="M120 170 Q175 170 230 170" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M330 170 Q385 77 440 77" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M330 170 L440 172" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M330 170 Q385 267 440 267" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        // 消息包
+        '<circle id="mqtt-pkt" r="6" fill="url(#g1)"/>' +
+        // 主题树
+        '<text x="20" y="305" class="lbl" fill="#7c5cff">home/</text>' +
+        '<text x="62" y="305" class="lbl" fill="#7c5cff">livingroom/</text>' +
+        '<text x="148" y="305" class="lbl" fill="#2dd4ff">temperature</text>' +
+        '<text x="20" y="325" class="lbl">通配符: + 单层 · # 多层</text>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">QoS 等级</span><div class="seg" id="mqtt-qos">' +
+        '<button class="on">0</button><button>1</button><button>2</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">订阅者</span>' +
+        '<div class="toggle-row"><span>App (Sub 1)</span><div class="switch on" id="mqtt-s1"></div></div>' +
+        '<div class="toggle-row"><span>Logger (Sub 2)</span><div class="switch on" id="mqtt-s2"></div></div>' +
+        '<div class="toggle-row"><span>Alert (Sub 3)</span><div class="switch" id="mqtt-s3"></div></div>' +
+      '</div>' +
+      '<button class="btn primary" id="mqtt-send">发布消息</button>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>QoS 投递保证</h4><ul>' +
+        '<li><code>QoS 0</code> 至多一次 — 发后即忘，无确认，适合高频遥测</li>' +
+        '<li><code>QoS 1</code> 至少一次 — PUBACK 确认，可能重复，需幂等</li>' +
+        '<li><code>QoS 2</code> 恰好一次 — 四步握手 (PUBREC/PUBREL/PUBCOMP)，开销最大</li>' +
+        '<li>主题用 <code>/</code> 分层，<code>+</code> 匹配单层，<code>#</code> 匹配剩余</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v">3<em>级 QoS</em></div><div class="l">投递保证</div></div>' +
+      '<div class="stat"><div class="v">2<em>字节头</em></div><div class="l">最小开销</div></div>' +
+      '<div class="stat"><div class="v">65535<em>B</em></div><div class="l">最大载荷</div></div>' +
+      '<div class="stat"><div class="v">0</div><div class="l">已投递</div></div>'; },
+    init: function(wrap){
+      var svg = wrap.querySelector('#mqtt-svg');
+      var pkt = wrap.querySelector('#mqtt-pkt');
+      var path = wrap.querySelector('#mqtt-pkt').parentNode;
+      var subs = [true, true, false];
+      var qos = 0;
+      var delivered = 0;
+      var statV = wrap.querySelectorAll('.stat .v')[3];
+      var sLinks = {
+        s1: wrap.querySelector('#mqtt-s1'), s2: wrap.querySelector('#mqtt-s2'), s3: wrap.querySelector('#mqtt-s3')
+      };
+      makeSwitch(wrap, '#mqtt-s1', function(on){ subs[0]=on; });
+      makeSwitch(wrap, '#mqtt-s2', function(on){ subs[1]=on; });
+      makeSwitch(wrap, '#mqtt-s3', function(on){ subs[2]=on; });
+      seg(wrap, '#mqtt-qos', function(i){ qos=i; });
+
+      var endpoints = [
+        {x:440,y:77, on:function(){return subs[0];}},
+        {x:440,y:172,on:function(){return subs[1];}},
+        {x:440,y:267,on:function(){return subs[2];}}
+      ];
+      function fly(){
+        // pub -> broker
+        animatePath(pkt, 120,170, 230,170, 420, function(){
+          // broker -> active subs
+          var active = endpoints.filter(function(e){return e.on();});
+          var idx = 0;
+          function next(){
+            if(idx>=active.length){ delivered++; statV.firstChild.nodeValue = String(delivered); return; }
+            var ep = active[idx++];
+            var dupes = qos===0?1:(qos===1?1:1);
+            var k = 0;
+            function sendOne(){
+              if(k>=dupes){ next(); return; }
+              k++;
+              var dot = pkt.cloneNode(true);
+              svg.appendChild(dot);
+              animatePath(dot, 330,170, ep.x, ep.y, 520, function(){
+                dot.remove();
+                if(k>=dupes) next();
+              });
+            }
+            sendOne();
+          }
+          next();
+        });
+      }
+      function animatePath(node, x1,y1,x2,y2, dur, done){
+        var start=null;
+        function step(t){
+          if(!start) start=t;
+          var p = Math.min(1,(t-start)/dur);
+          var e = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+          var x = x1+(x2-x1)*e, y=y1+(y2-y1)*e;
+          node.setAttribute('cx', x); node.setAttribute('cy', y);
+          node.setAttribute('opacity', p<0.1?p/0.1:(p>0.9?(1-p)/0.1:1));
+          if(p<1){ RAF(step); }
+          else if(done){ done(); }
+        }
+        if(reduceMotion){ node.setAttribute('cx',x2); node.setAttribute('cy',y2); if(done) done(); }
+        else RAF(step);
+      }
+      wrap.querySelector('#mqtt-send').addEventListener('click', fly);
+      if(!reduceMotion){ setInterval(function(){ if(Math.random()<0.5) fly(); }, 2600); }
+    }
+  });
+
+  /* ============================================================
+     02. 边缘计算
+     ============================================================ */
+  buildModule({
+    id:'m02',
+    kicker:'02 · EDGE',
+    title:'边缘计算 — 过滤 / 聚合 / 推理',
+    desc:'边缘节点靠近数据源执行预处理：过滤噪声、聚合窗口、本地推理，仅将精简结果上云，降低带宽与时延。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="edge-svg">' +
+        '<defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4ff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>' +
+        // 设备
+        '<g id="edge-devs">' +
+          '<rect x="20" y="40" width="60" height="40" rx="8" class="node-fill"/><text x="50" y="64" text-anchor="middle" class="lbl">传感1</text>' +
+          '<rect x="20" y="95" width="60" height="40" rx="8" class="node-fill"/><text x="50" y="119" text-anchor="middle" class="lbl">传感2</text>' +
+          '<rect x="20" y="150" width="60" height="40" rx="8" class="node-fill"/><text x="50" y="174" text-anchor="middle" class="lbl">传感3</text>' +
+          '<rect x="20" y="205" width="60" height="40" rx="8" class="node-fill"/><text x="50" y="229" text-anchor="middle" class="lbl">传感4</text>' +
+          '<rect x="20" y="260" width="60" height="40" rx="8" class="node-fill"/><text x="50" y="284" text-anchor="middle" class="lbl">传感5</text>' +
+        '</g>' +
+        // 边缘节点
+        '<rect x="200" y="120" width="120" height="100" rx="12" class="node-fill" stroke="#7c5cff"/>' +
+        '<text x="260" y="150" text-anchor="middle" class="lbl-i" fill="#7c5cff">EDGE NODE</text>' +
+        '<text x="260" y="168" text-anchor="middle" class="lbl" id="edge-stage">filter → aggregate → infer</text>' +
+        '<rect x="215" y="182" width="90" height="8" rx="4" fill="#1c1f24"/><rect x="215" y="182" width="0" height="8" rx="4" fill="url(#eg)" id="edge-pbar"/>' +
+        // 云
+        '<ellipse cx="480" cy="170" rx="55" ry="38" class="node-fill"/><text x="480" y="168" text-anchor="middle" class="lbl-i">CLOUD</text><text x="480" y="184" text-anchor="middle" class="lbl">analytics</text>' +
+        // 连线
+        '<g stroke="#3a3f47" stroke-width="1" stroke-dasharray="3 3" fill="none">' +
+          '<path d="M80 60 L200 150"/><path d="M80 115 L200 160"/><path d="M80 170 L200 170"/><path d="M80 225 L200 185"/><path d="M80 280 L200 195"/>' +
+        '</g>' +
+        '<path d="M320 170 L425 170" class="accent2-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        // 数据点
+        '<g id="edge-dots"></g>' +
+        '<text x="20" y="320" class="lbl">原始流: 5 设备 → 边缘预处理 → 云端</text>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">边缘处理阶段</span>' +
+        '<div class="toggle-row"><span>过滤 Filter</span><div class="switch on" id="edge-f"></div></div>' +
+        '<div class="toggle-row"><span>聚合 Aggregate</span><div class="switch on" id="edge-a"></div></div>' +
+        '<div class="toggle-row"><span>推理 Infer</span><div class="switch" id="edge-i"></div></div>' +
+      '</div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">流量对比</span>' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.8">原始 <b style="color:var(--accent-2)" id="edge-raw">100%</b> → 上云 <b style="color:var(--accent)" id="edge-up">25%</b></div>' +
+      '</div>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>边缘处理能力</h4><ul>' +
+        '<li><b>过滤</b>：丢弃异常值/心跳包，按阈值保留有效样本</li>' +
+        '<li><b>聚合</b>：时间窗口求均值/最大/最小，压缩数据量</li>' +
+        '<li><b>推理</b>：本地运行轻量模型（TF Lite / ONNX），输出事件</li>' +
+        '<li>仅上传结果，带宽可降一个数量级，时延从秒级到毫秒级</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v">5<em>设备</em></div><div class="l">数据源</div></div>' +
+      '<div class="stat"><div class="v">~75<em>%</em></div><div class="l">带宽节省</div></div>' +
+      '<div class="stat"><div class="v">&lt;50<em>ms</em></div><div class="l">本地时延</div></div>' +
+      '<div class="stat"><div class="v">3<em>阶段</em></div><div class="l">流水线</div></div>'; },
+    init: function(wrap){
+      var dotsG = wrap.querySelector('#edge-dots');
+      var stage = wrap.querySelector('#edge-stage');
+      var pbar = wrap.querySelector('#edge-pbar');
+      var rawEl = wrap.querySelector('#edge-raw');
+      var upEl = wrap.querySelector('#edge-up');
+      var stages = {f:true, a:true, i:false};
+      function updateStage(){
+        var arr=[];
+        if(stages.f) arr.push('filter');
+        if(stages.a) arr.push('aggregate');
+        if(stages.i) arr.push('infer');
+        stage.textContent = arr.length? arr.join(' → ') : 'passthrough';
+        var up = 100;
+        if(stages.f) up*=0.6;
+        if(stages.a) up*=0.5;
+        if(stages.i) up*=0.6;
+        upEl.textContent = Math.round(up)+'%';
+        pbar.setAttribute('width', (90*up/100).toFixed(0));
+      }
+      makeSwitch(wrap,'#edge-f',function(on){stages.f=on;updateStage();});
+      makeSwitch(wrap,'#edge-a',function(on){stages.a=on;updateStage();});
+      makeSwitch(wrap,'#edge-i',function(on){stages.i=on;updateStage();});
+      updateStage();
+      var devY=[60,115,170,225,280];
+      function spawn(){
+        var yi = (Math.random()*5)|0;
+        var dot = svgEl('circle',{cx:80, cy:devY[yi], r:4, fill:'#2dd4ff'});
+        dotsG.appendChild(dot);
+        var pass = (stages.f && Math.random()<0.4)?false:true;
+        function toEdge(done){
+          anim(dot, 80,devY[yi], 260, 170, 700, function(){
+            if(!pass){ dot.remove(); return; }
+            // 停留处理
+            var p=0, s=null;
+            function proc(t){ if(!s)s=t; var k=Math.min(1,(t-s)/500); pbar.setAttribute('width', (90*k).toFixed(0)); if(k<1)RAF(proc); else done(); }
+            if(reduceMotion) done(); else RAF(proc);
+          });
+        }
+        function toCloud(){
+          var upCount = stages.a && Math.random()<0.5? 0 : 1;
+          if(upCount===0){ dot.remove(); return; }
+          anim(dot, 260,170, 425,170, 600, function(){ dot.remove(); });
+        }
+        toEdge(toCloud);
+      }
+      function anim(node,x1,y1,x2,y2,dur,done){
+        var s=null;
+        function step(t){ if(!s)s=t; var p=Math.min(1,(t-s)/dur); var e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+          node.setAttribute('cx', x1+(x2-x1)*e); node.setAttribute('cy', y1+(y2-y1)*e);
+          if(p<1)RAF(step); else if(done)done();
+        }
+        if(reduceMotion){node.setAttribute('cx',x2);node.setAttribute('cy',y2);if(done)done();} else RAF(step);
+      }
+      if(!reduceMotion) setInterval(spawn, 700);
+    }
+  });
+
+  /* ============================================================
+     03. CoAP / LwM2M
+     ============================================================ */
+  buildModule({
+    id:'m03',
+    kicker:'03 · CONSTRAINED',
+    title:'CoAP / LwM2M — 受限设备 RESTful 资源模型',
+    desc:'CoAP 是面向受限设备的轻量 REST 协议，LwM2M 在其上定义对象/资源模型，用数字路径定位设备能力，支持 GET/POST/PUT/DELETE。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="coap-svg">' +
+        // 设备
+        '<rect x="30" y="120" width="110" height="90" rx="12" class="node-fill" stroke="#2dd4ff"/>' +
+        '<text x="85" y="150" text-anchor="middle" class="lbl-i" fill="#2dd4ff">LwM2M Client</text>' +
+        '<text x="85" y="168" text-anchor="middle" class="lbl">constrained</text>' +
+        '<text x="85" y="186" text-anchor="middle" class="lbl">CoAP UDP</text>' +
+        // server
+        '<rect x="420" y="120" width="110" height="90" rx="12" class="node-fill"/>' +
+        '<text x="475" y="155" text-anchor="middle" class="lbl-i">Server</text>' +
+        '<text x="475" y="173" text-anchor="middle" class="lbl">bootstrap</text>' +
+        // 连线
+        '<path d="M140 150 L420 150" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M420 180 L140 180" class="accent2-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<text x="280" y="143" text-anchor="middle" class="lbl" fill="#2dd4ff" id="coap-req">GET /3303/0/5700</text>' +
+        '<text x="280" y="200" text-anchor="middle" class="lbl" fill="#7c5cff" id="coap-resp">2.05 Content · 23.4 °C</text>' +
+        // 资源树
+        '<g transform="translate(30,240)">' +
+          '<text x="0" y="0" class="lbl-i" fill="#7c5cff">资源模型</text>' +
+          '<text x="0" y="18" class="lbl">/3 (Device)</text><text x="120" y="18" class="lbl" fill="#9b9fa8">manufacturer</text>' +
+          '<text x="0" y="34" class="lbl">/3303 (Temperature)</text><text x="120" y="34" class="lbl" fill="#9b9fa8">5700 sensor</text>' +
+          '<text x="0" y="50" class="lbl">/3304 (Humidity)</text><text x="120" y="50" class="lbl" fill="#9b9fa8">5700 sensor</text>' +
+          '<text x="0" y="66" class="lbl">/5 (Firmware)</text><text x="120" y="66" class="lbl" fill="#9b9fa8">3 package</text>' +
+        '</g>' +
+        // 包
+        '<circle id="coap-pkt" r="6" fill="#2dd4ff"/>' +
+        '<circle id="coap-pkt2" r="6" fill="#7c5cff" opacity="0"/>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">CoAP 方法</span><div class="seg" id="coap-method">' +
+        '<button class="on">GET</button><button>POST</button><button>PUT</button><button>DELETE</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">资源路径</span>' +
+        '<div class="seg" id="coap-path">' +
+        '<button class="on">/3303/0/5700</button><button>/3/0/0</button><button>/5/0/3</button></div></div>' +
+      '<button class="btn primary" id="coap-run">发送请求</button>' +
+      '<div class="ctrl-group"><span class="ctrl-label">响应</span><div style="font-family:var(--mono);font-size:11px;color:var(--accent)" id="coap-out">— 等待请求 —</div></div>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>LwM2M 对象模型</h4><ul>' +
+        '<li>路径 <code>/ObjID/InstID/ResID</code> 三层定位，如 <code>/3303/0/5700</code></li>' +
+        '<li>CoAP 基于 UDP，头部仅 4 字节，支持确认/非确认消息</li>' +
+        '<li>响应码类 HTTP：<code>2.05</code> Content、<code>4.04</code> Not Found</li>' +
+        '<li>支持 Observe 订阅、Blockwise 分块传输、资源发现</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v">4<em>B</em></div><div class="l">CoAP 头</div></div>' +
+      '<div class="stat"><div class="v">UDP</div><div class="l">传输层</div></div>' +
+      '<div class="stat"><div class="v">3<em>层</em></div><div class="l">资源路径</div></div>' +
+      '<div class="stat"><div class="v">2.05</div><div class="l">成功响应</div></div>'; },
+    init: function(wrap){
+      var method=0, path=0;
+      var methods=['GET','POST','PUT','DELETE'];
+      var paths=['/3303/0/5700','/3/0/0','/5/0/3'];
+      var pathVals=['23.4 °C','Acme Corp','fw.bin'];
+      var respCodes=['2.05 Content','2.01 Created','2.04 Changed','2.02 Deleted'];
+      seg(wrap,'#coap-method',function(i){method=i;});
+      seg(wrap,'#coap-path',function(i){path=i;});
+      var pkt=wrap.querySelector('#coap-pkt');
+      var pkt2=wrap.querySelector('#coap-pkt2');
+      var reqT=wrap.querySelector('#coap-req');
+      var respT=wrap.querySelector('#coap-resp');
+      var out=wrap.querySelector('#coap-out');
+      function anim(node,x1,y1,x2,y2,dur,done){
+        var s=null;
+        function step(t){if(!s)s=t;var p=Math.min(1,(t-s)/dur);var e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+          node.setAttribute('cx',x1+(x2-x1)*e);node.setAttribute('cy',y1+(y2-y1)*e);
+          node.setAttribute('opacity',1);
+          if(p<1)RAF(step);else if(done)done();}
+        if(reduceMotion){node.setAttribute('cx',x2);node.setAttribute('cy',y2);if(done)done();}else RAF(step);
+      }
+      function run(){
+        var p=paths[path]; var m=methods[method];
+        reqT.textContent=m+' '+p;
+        out.textContent='→ '+m+' '+p;
+        anim(pkt,140,150,420,150,500,function(){
+          pkt.setAttribute('opacity',0);
+          var code=respCodes[method];
+          var val = method===0? pathVals[path] : (method===2? 'updated':'');
+          respT.textContent=code+(val?' · '+val:'');
+          out.textContent='← '+code+(val?' · '+val:'');
+          setTimeout(function(){
+            anim(pkt2,420,180,140,180,500,function(){ pkt2.setAttribute('opacity',0); });
+          },150);
+        });
+      }
+      wrap.querySelector('#coap-run').addEventListener('click',run);
+    }
+  });
+
+  /* ============================================================
+     04. 时序数据
+     ============================================================ */
+  buildModule({
+    id:'m04',
+    kicker:'04 · TIMESERIES',
+    title:'时序数据 — 采样 / 聚合 / 降采样',
+    desc:'传感器以固定频率产生数据流。高频原始数据经聚合（均值/最大）与降采样后，兼顾细节与存储，是时序数据库的核心能力。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="ts-svg">' +
+        '<line x1="40" y1="290" x2="540" y2="290" class="axis"/>' +
+        '<line x1="40" y1="40" x2="40" y2="290" class="axis"/>' +
+        '<g class="grid">' +
+          '<line x1="40" y1="80" x2="540" y2="80"/><line x1="40" y1="140" x2="540" y2="140"/>' +
+          '<line x1="40" y1="200" x2="540" y2="200"/><line x1="40" y1="260" x2="540" y2="260"/>' +
+        '</g>' +
+        '<text x="20" y="50" class="lbl">°C</text><text x="535" y="308" class="lbl">t</text>' +
+        '<path id="ts-raw" fill="none" stroke="#3a3f47" stroke-width="1" opacity="0.7"/>' +
+        '<path id="ts-agg" fill="none" stroke="#2dd4ff" stroke-width="2"/>' +
+        '<path id="ts-area" fill="url(#tsag)" opacity="0.18"/>' +
+        '<defs><linearGradient id="tsag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4ff"/><stop offset="1" stop-color="#2dd4ff" stop-opacity="0"/></linearGradient></defs>' +
+        '<circle id="ts-cursor" r="4" fill="#7c5cff" opacity="0"/>' +
+        '<text x="40" y="324" class="lbl" id="ts-info">原始 1Hz · 聚合窗口 5s</text>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">采样频率</span><div class="seg" id="ts-freq">' +
+        '<button>0.5Hz</button><button class="on">1Hz</button><button>2Hz</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">聚合函数</span><div class="seg alt" id="ts-agg-fn">' +
+        '<button class="on">avg</button><button>max</button><button>min</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">降采样窗口</span><div class="seg" id="ts-window">' +
+        '<button>3s</button><button class="on">5s</button><button>10s</button></div></div>' +
+      '<div class="toggle-row"><span>显示原始流</span><div class="switch on" id="ts-raw-toggle"></div></div>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>时序处理要点</h4><ul>' +
+        '<li><b>采样</b>：奈奎斯特定理，采样率 ≥ 2× 信号最高频率</li>' +
+        '<li><b>聚合</b>：滑动窗口求 avg/max/min，平滑噪声</li>' +
+        '<li><b>降采样</b>：保留趋势、丢弃细节，长期存储省空间</li>' +
+        '<li>时序库（InfluxDB/TDengine）按时间分片 + 列存压缩</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v" id="ts-rate">1<em>Hz</em></div><div class="l">采样率</div></div>' +
+      '<div class="stat"><div class="v" id="ts-pts">50</div><div class="l">原始点</div></div>' +
+      '<div class="stat"><div class="v" id="ts-down">10</div><div class="l">降采样点</div></div>' +
+      '<div class="stat"><div class="v" id="ts-ratio">5:1</div><div class="l">压缩比</div></div>'; },
+    init: function(wrap){
+      var rawPath=wrap.querySelector('#ts-raw');
+      var aggPath=wrap.querySelector('#ts-agg');
+      var areaPath=wrap.querySelector('#ts-area');
+      var info=wrap.querySelector('#ts-info');
+      var rateEl=wrap.querySelector('#ts-rate');
+      var ptsEl=wrap.querySelector('#ts-pts');
+      var downEl=wrap.querySelector('#ts-down');
+      var ratioEl=wrap.querySelector('#ts-ratio');
+      var freq=1, fn=0, win=5, showRaw=true;
+      var W=500, H=250, X0=40, Y0=40, N=50;
+      var data=[];
+      // 生成数据
+      function gen(){ data=[]; for(var i=0;i<N;i++){ data.push(20+10*Math.sin(i*0.3)+rnd(-2,2)+Math.sin(i*0.07)*4); } }
+      gen();
+      function y(v){ return Y0+H-((v-10)/25*H); }
+      function x(i){ return X0+(i/(N-1))*W; }
+      function render(){
+        var rawD='';
+        for(var i=0;i<N;i++){ rawD+=(i?' L':'M')+x(i).toFixed(1)+' '+y(data[i]).toFixed(1); }
+        rawPath.setAttribute('d', rawD);
+        rawPath.style.display = showRaw?'':'none';
+        // 聚合
+        var step=Math.round(win*freq);
+        var agg=[]; var aggD='';
+        for(var i=0;i<N;i+=step){
+          var chunk=data.slice(i,i+step);
+          if(!chunk.length) break;
+          var v;
+          if(fn===0) v=chunk.reduce(function(a,b){return a+b;},0)/chunk.length;
+          else if(fn===1) v=Math.max.apply(null,chunk);
+          else v=Math.min.apply(null,chunk);
+          agg.push({x:x(i+(step-1)/2), y:y(v)});
+        }
+        aggD=agg.map(function(p,i){return (i?' L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1);}).join('');
+        aggPath.setAttribute('d', aggD);
+        if(agg.length){ areaPath.setAttribute('d', aggD+' L'+agg[agg.length-1].x.toFixed(1)+' '+(Y0+H)+' L'+agg[0].x.toFixed(1)+' '+(Y0+H)+' Z'); }
+        // 统计
+        rateEl.firstChild.nodeValue=freq.toFixed(freq<1?1:0);
+        ptsEl.firstChild.nodeValue=N;
+        downEl.firstChild.nodeValue=agg.length;
+        ratioEl.firstChild.nodeValue=(N/agg.length).toFixed(1)+':1';
+        var fnName=['avg','max','min'][fn];
+        info.textContent='原始 '+(freq<1?(1/freq)+'s':freq+'Hz')+' · '+fnName+' 窗口 '+win+'s';
+      }
+      seg(wrap,'#ts-freq',function(i){freq=[0.5,1,2][i];render();});
+      seg(wrap,'#ts-agg-fn',function(i){fn=i;render();});
+      seg(wrap,'#ts-window',function(i){win=[3,5,10][i];render();});
+      makeSwitch(wrap,'#ts-raw-toggle',function(on){showRaw=on;render();});
+      render();
+      // 动态更新
+      if(!reduceMotion){
+        var t=0;
+        setInterval(function(){
+          t++;
+          data.shift();
+          data.push(20+10*Math.sin(t*0.3)+rnd(-2,2)+Math.sin(t*0.07)*4);
+          render();
+        }, 1000);
+      }
+    }
+  });
+
+  /* ============================================================
+     05. 设备管理
+     ============================================================ */
+  buildModule({
+    id:'m05',
+    kicker:'05 · MANAGEMENT',
+    title:'设备管理 — OTA / 设备影子 / 数字孪生',
+    desc:'通过 OTA 远程固件升级、设备影子记录期望与上报状态、数字孪生在云端镜像物理实体，实现设备的全生命周期管理。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="dm-svg">' +
+        // 物理设备
+        '<rect x="30" y="120" width="110" height="100" rx="12" class="node-fill" stroke="#2dd4ff"/>' +
+        '<text x="85" y="150" text-anchor="middle" class="lbl-i" fill="#2dd4ff">物理设备</text>' +
+        '<text x="85" y="170" text-anchor="middle" class="lbl">firmware</text>' +
+        '<text x="85" y="188" text-anchor="middle" class="lbl" id="dm-fw">v1.2.0</text>' +
+        '<text x="85" y="206" text-anchor="middle" class="lbl" fill="#34d399" id="dm-state">online</text>' +
+        // 影子
+        '<rect x="225" y="60" width="120" height="100" rx="12" class="node-fill" stroke="#7c5cff"/>' +
+        '<text x="285" y="88" text-anchor="middle" class="lbl-i" fill="#7c5cff">设备影子</text>' +
+        '<text x="240" y="108" class="lbl">desired:</text><text x="295" y="108" class="lbl" fill="#fbbf24" id="dm-desired">v2.0.0</text>' +
+        '<text x="240" y="124" class="lbl">reported:</text><text x="295" y="124" class="lbl" fill="#2dd4ff" id="dm-reported">v1.2.0</text>' +
+        '<text x="240" y="140" class="lbl">delta: </text><text x="280" y="140" class="lbl" fill="#fb7185" id="dm-delta">mismatch</text>' +
+        // 数字孪生
+        '<rect x="225" y="180" width="120" height="100" rx="12" class="node-fill" stroke="#2dd4ff"/>' +
+        '<text x="285" y="208" text-anchor="middle" class="lbl-i" fill="#2dd4ff">数字孪生</text>' +
+        '<text x="240" y="228" class="lbl">temp: <tspan id="dm-twin-t" fill="#2dd4ff">23.4</tspan>°C</text>' +
+        '<text x="240" y="244" class="lbl">load: <tspan id="dm-twin-l" fill="#2dd4ff">42</tspan>%</text>' +
+        '<text x="240" y="260" class="lbl">health: <tspan fill="#34d399">good</tspan></text>' +
+        // 云
+        '<rect x="420" y="120" width="110" height="100" rx="12" class="node-fill"/>' +
+        '<text x="475" y="155" text-anchor="middle" class="lbl-i">Cloud</text>' +
+        '<text x="475" y="175" text-anchor="middle" class="lbl">OTA server</text>' +
+        '<text x="475" y="195" text-anchor="middle" class="lbl">v2.0.0</text>' +
+        // OTA 进度
+        '<rect x="225" y="295" width="120" height="10" rx="5" fill="#1c1f24"/>' +
+        '<rect x="225" y="295" width="0" height="10" rx="5" fill="url(#dmgrad)" id="dm-ota-bar"/>' +
+        '<defs><linearGradient id="dmgrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4ff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>' +
+        '<text x="225" y="320" class="lbl" id="dm-ota-txt">OTA: idle</text>' +
+        // 连线
+        '<path d="M140 150 L225 110" class="accent-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M140 190 L225 230" class="accent2-stroke" fill="none" stroke-dasharray="4 4"/>' +
+        '<path d="M345 110 L420 150" class="accent2-stroke" fill="none" stroke-dasharray="4 4"/>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">OTA 固件升级</span>' +
+        '<button class="btn primary" id="dm-ota-btn">开始升级 v2.0.0</button>' +
+      '</div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">阶段</span>' +
+        '<div style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="dm-stage">— 待启动 —</div>' +
+      '</div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">设备状态</span>' +
+        '<div class="toggle-row"><span>在线</span><div class="switch on" id="dm-online"></div></div>' +
+      '</div>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>设备管理机制</h4><ul>' +
+        '<li><b>OTA</b>：分片下载 → 校验 → 切换 → 回滚，支持 A/B 分区</li>' +
+        '<li><b>设备影子</b>：desired/reported 双态，delta 驱动同步</li>' +
+        '<li><b>数字孪生</b>：实时镜像物理实体，支持仿真与预测</li>' +
+        '<li>离线时影子缓存指令，上线后增量同步</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v" id="dm-ver">v1.2</div><div class="l">当前版本</div></div>' +
+      '<div class="stat"><div class="v" id="dm-progress">0<em>%</em></div><div class="l">OTA 进度</div></div>' +
+      '<div class="stat"><div class="v">2<em>态</em></div><div class="l">影子模型</div></div>' +
+      '<div class="stat"><div class="v">A/B</div><div class="l">分区回滚</div></div>'; },
+    init: function(wrap){
+      var fwEl=wrap.querySelector('#dm-fw');
+      var stateEl=wrap.querySelector('#dm-state');
+      var desiredEl=wrap.querySelector('#dm-desired');
+      var reportedEl=wrap.querySelector('#dm-reported');
+      var deltaEl=wrap.querySelector('#dm-delta');
+      var bar=wrap.querySelector('#dm-ota-bar');
+      var txt=wrap.querySelector('#dm-ota-txt');
+      var stageEl=wrap.querySelector('#dm-stage');
+      var verEl=wrap.querySelector('#dm-ver');
+      var progEl=wrap.querySelector('#dm-progress');
+      var twinT=wrap.querySelector('#dm-twin-t');
+      var twinL=wrap.querySelector('#dm-twin-l');
+      var online=true;
+      var upgrading=false;
+      makeSwitch(wrap,'#dm-online',function(on){online=on;stateEl.textContent=on?'online':'offline';stateEl.setAttribute('fill',on?'#34d399':'#fb7185');});
+      function setDelta(){
+        if(desiredEl.textContent===reportedEl.textContent){ deltaEl.textContent='synced'; deltaEl.setAttribute('fill','#34d399'); }
+        else { deltaEl.textContent='mismatch'; deltaEl.setAttribute('fill','#fb7185'); }
+      }
+      function ota(){
+        if(upgrading||!online) return;
+        upgrading=true;
+        var stages=['下载分片','校验签名','写入 B 分区','切换启动','验证运行'];
+        var si=0, p=0;
+        function step(){
+          if(si>=stages.length){
+            txt.textContent='OTA: complete';
+            stageEl.textContent='✓ 升级完成 v2.0.0';
+            fwEl.textContent='v2.0.0';
+            reportedEl.textContent='v2.0.0';
+            verEl.firstChild.nodeValue='v2.0';
+            setDelta();
+            upgrading=false;
+            bar.setAttribute('width', 120);
+            progEl.firstChild.nodeValue='100';
+            return;
+          }
+          stageEl.textContent=(si+1)+'. '+stages[si];
+          txt.textContent='OTA: '+stages[si];
+          var target=(si+1)/stages.length*120;
+          var cur=parseFloat(bar.getAttribute('width'))||0;
+          var s=null;
+          function anim(t){ if(!s)s=t; var k=Math.min(1,(t-s)/800); var v=cur+(target-cur)*k;
+            bar.setAttribute('width', v.toFixed(1)); progEl.firstChild.nodeValue=Math.round(v/120*100);
+            if(k<1)RAF(anim); else { si++; p=target; setTimeout(step, 100); }
+          }
+          if(reduceMotion){ bar.setAttribute('width',target); progEl.firstChild.nodeValue=Math.round(target/120*100); si++; setTimeout(step,100); }
+          else RAF(anim);
+        }
+        step();
+      }
+      wrap.querySelector('#dm-ota-btn').addEventListener('click',ota);
+      setDelta();
+      if(!reduceMotion){
+        setInterval(function(){
+          twinT.textContent=(22+rnd(0,3)).toFixed(1);
+          twinL.textContent=Math.round(38+rnd(0,8));
+        }, 1500);
+      }
+    }
+  });
+
+  /* ============================================================
+     06. LoRaWAN
+     ============================================================ */
+  buildModule({
+    id:'m06',
+    kicker:'06 · LORAWAN',
+    title:'LoRaWAN — 星形拓扑与 ADR 自适应速率',
+    desc:'终端以星形拓扑经网关接入网络服务器。ADR 根据链路质量动态调整扩频因子（SF），在通信距离与速率/功耗间取得平衡。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="lora-svg">' +
+        '<defs><radialGradient id="lring"><stop offset="0" stop-color="#2dd4ff" stop-opacity="0.3"/><stop offset="1" stop-color="#2dd4ff" stop-opacity="0"/></radialGradient></defs>' +
+        // 网关
+        '<circle cx="280" cy="170" r="90" fill="url(#lring)" id="lora-coverage"/>' +
+        '<circle cx="280" cy="170" r="55" fill="url(#lring)"/>' +
+        '<rect x="265" y="155" width="30" height="30" rx="6" class="node-fill" stroke="#7c5cff"/>' +
+        '<text x="280" y="205" text-anchor="middle" class="lbl-i" fill="#7c5cff">Gateway</text>' +
+        // 终端
+        '<g id="lora-devs"></g>' +
+        // ADR 指示
+        '<text x="20" y="30" class="lbl-i" fill="#7c5cff">ADR · SF7</text>' +
+        '<text x="20" y="48" class="lbl" id="lora-sf-info">速率: 高 · 距离: 短 · 功耗: 低</text>' +
+        '<rect x="20" y="60" width="120" height="6" rx="3" fill="#1c1f24"/><rect x="20" y="60" width="100" height="6" rx="3" fill="#2dd4ff" id="lora-sf-bar"/>' +
+        // 图例
+        '<text x="440" y="30" class="lbl-i">扩频因子</text>' +
+        '<text x="440" y="48" class="lbl">SF7  高速 近距</text>' +
+        '<text x="440" y="64" class="lbl">SF9  中速 中距</text>' +
+        '<text x="440" y="80" class="lbl">SF12 低速 远距</text>' +
+        '<text x="20" y="320" class="lbl" id="lora-rssi">RSSI: -80 dBm · SNR: 8 dB</text>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">ADR 扩频因子</span><div class="seg alt" id="lora-sf">' +
+        '<button class="on">SF7</button><button>SF9</button><button>SF12</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">终端数量</span>' +
+        '<div style="font-size:12px;color:var(--muted)">覆盖范围内 <b style="color:var(--accent)" id="lora-count">6</b> 个终端</div>' +
+      '</div>' +
+      '<button class="btn primary" id="lora-send">上行传输</button>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>LoRaWAN 特性</h4><ul>' +
+        '<li><b>星形拓扑</b>：终端→网关→网络服务器，网关仅转发</li>' +
+        '<li><b>ADR</b>：链路好则升速率（降 SF），差则降速率</li>' +
+        '<li>SF7→SF12：空中时间从 ~50ms 到 ~1.5s，距离更远</li>' +
+        '<li>Class A/B/C 三类终端，A 最省电，C 延迟最低</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v">15<em>km</em></div><div class="l">最大距离</div></div>' +
+      '<div class="stat"><div class="v">~50<em>bps</em></div><div class="l">SF12 速率</div></div>' +
+      '<div class="stat"><div class="v">10<em>y</em></div><div class="l">电池寿命</div></div>' +
+      '<div class="stat"><div class="v" id="lora-sf-stat">SF7</div><div class="l">当前 SF</div></div>'; },
+    init: function(wrap){
+      var devsG=wrap.querySelector('#lora-devs');
+      var coverage=wrap.querySelector('#lora-coverage');
+      var sfInfo=wrap.querySelector('#lora-sf-info');
+      var sfBar=wrap.querySelector('#lora-sf-bar');
+      var sfStat=wrap.querySelector('#lora-sf-stat');
+      var rssi=wrap.querySelector('#lora-rssi');
+      var countEl=wrap.querySelector('#lora-count');
+      var sf=0; var sfs=[7,9,12];
+      var radii=[55,90,130];
+      var infos=[
+        '速率: 高 · 距离: 短 · 功耗: 低',
+        '速率: 中 · 距离: 中 · 功耗: 中',
+        '速率: 低 · 距离: 远 · 功耗: 高'
+      ];
+      var devPos=[];
+      function placeDevs(){
+        devsG.innerHTML=''; devPos=[];
+        var n=6;
+        countEl.textContent=n;
+        for(var i=0;i<n;i++){
+          var ang=(i/n)*Math.PI*2 + 0.3;
+          var r = radii[sf]*0.6 + rnd(-10,10);
+          var px=280+Math.cos(ang)*r, py=170+Math.sin(ang)*r;
+          var d=svgEl('rect',{x:px-9,y:py-9,width:18,height:18,rx:4,class:'node-fill'});
+          devsG.appendChild(d);
+          var t=svgEl('text',{x:px,y:py+22,'text-anchor':'middle',class:'lbl'});
+          t.textContent='T'+(i+1); devsG.appendChild(t);
+          devPos.push({x:px,y:py});
+          // 连线
+          var ln=svgEl('line',{x1:280,y1:170,x2:px,y2:py,stroke:'#3a3f47','stroke-width':1,'stroke-dasharray':'3 3'});
+          devsG.insertBefore(ln, d);
+        }
+      }
+      function updateSF(){
+        var r=radii[sf];
+        coverage.setAttribute('r', r);
+        sfInfo.textContent=infos[sf];
+        sfBar.setAttribute('width', (120-(sf*40)));
+        sfStat.firstChild.nodeValue='SF'+sfs[sf];
+        var dbm = [-80,-95,-115][sf];
+        rssi.textContent='RSSI: '+dbm+' dBm · SNR '+(8-sf*3)+' dB';
+        placeDevs();
+      }
+      seg(wrap,'#lora-sf',function(i){sf=i;updateSF();});
+      wrap.querySelector('#lora-send').addEventListener('click', function(){
+        devPos.forEach(function(p,i){
+          var dot=svgEl('circle',{cx:p.x,cy:p.y,r:4,fill:'#2dd4ff'});
+          devsG.appendChild(dot);
+          var s=null;
+          function step(t){ if(!s)s=t; var k=Math.min(1,(t-s)/600); var e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+            dot.setAttribute('cx', p.x+(280-p.x)*e); dot.setAttribute('cy', p.y+(170-p.y)*e);
+            dot.setAttribute('opacity', 1-k*0.6);
+            if(k<1)RAF(step); else dot.remove();
+          }
+          if(reduceMotion){dot.remove();} else setTimeout(function(){RAF(step);}, i*120);
+        });
+      });
+      updateSF();
+    }
+  });
+
+  /* ============================================================
+     07. 智能家居
+     ============================================================ */
+  buildModule({
+    id:'m07',
+    kicker:'07 · SMART HOME',
+    title:'智能家居 — Zigbee/Matter 与场景联动',
+    desc:'Zigbee 与 Matter 构建低功耗 mesh 网络，网关桥接异构协议。场景引擎根据触发条件联动多设备，实现「回家」「离家」等自动化。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="sh-svg">' +
+        // 房屋轮廓
+        '<path d="M120 150 L280 70 L440 150 L440 290 L120 290 Z" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>' +
+        '<line x1="280" y1="70" x2="280" y2="290" stroke="rgba(255,255,255,.06)"/>' +
+        '<line x1="120" y1="220" x2="440" y2="220" stroke="rgba(255,255,255,.06)"/>' +
+        // 设备
+        '<g id="sh-nodes">' +
+          // 网关中心
+          '<circle cx="280" cy="180" r="14" class="node-fill" stroke="#7c5cff"/><text x="280" y="184" text-anchor="middle" class="lbl" fill="#7c5cff">GW</text>' +
+          // 灯
+          '<circle cx="200" cy="130" r="11" class="node-fill" id="sh-light" stroke="#fbbf24"/><text x="200" y="113" text-anchor="middle" class="lbl">灯</text>' +
+          // 空调
+          '<rect x="350" y="120" width="22" height="16" rx="4" class="node-fill" id="sh-ac"/><text x="361" y="113" text-anchor="middle" class="lbl">空调</text>' +
+          // 传感器
+          '<rect x="150" y="250" width="20" height="20" rx="4" class="node-fill"/><text x="160" y="284" text-anchor="middle" class="lbl">门磁</text>' +
+          // 摄像头
+          '<circle cx="380" cy="260" r="10" class="node-fill"/><text x="380" y="284" text-anchor="middle" class="lbl">摄像头</text>' +
+          // 连线 mesh
+          '<g stroke="#3a3f47" stroke-width="1" stroke-dasharray="3 3">' +
+            '<line x1="280" y1="180" x2="200" y2="130"/><line x1="280" y1="180" x2="361" y2="128"/>' +
+            '<line x1="280" y1="180" x2="160" y2="260"/><line x1="280" y1="180" x2="380" y2="260"/>' +
+            '<line x1="200" y1="130" x2="160" y2="260"/><line x1="361" y1="128" x2="380" y2="260"/>' +
+          '</g>' +
+        '</g>' +
+        '<text x="20" y="30" class="lbl-i" fill="#7c5cff">Zigbee / Matter Mesh</text>' +
+        '<text x="20" y="48" class="lbl" id="sh-scene">场景: 待机</text>' +
+        '<text x="20" y="320" class="lbl" id="sh-log">— 等待触发 —</text>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">场景联动</span><div class="seg alt" id="sh-scenes">' +
+        '<button class="on">回家</button><button>离家</button><button>睡眠</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">触发方式</span>' +
+        '<div style="font-size:11px;color:var(--muted);line-height:1.7" id="sh-trigger">门磁打开 → 灯亮 + 空调开</div>' +
+      '</div>' +
+      '<button class="btn primary" id="sh-run">执行场景</button>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>智能家居协议</h4><ul>' +
+        '<li><b>Zigbee</b>：低功耗 mesh，自组网自愈合，全屋覆盖</li>' +
+        '<li><b>Matter</b>：CSA 统一标准，基于 IPv6/Thread，跨厂商互通</li>' +
+        '<li>网关做协议桥接，统一接入云端与本地控制</li>' +
+        '<li>场景引擎：条件触发 + 设备动作 + 状态持久化</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v">5<em>设备</em></div><div class="l">节点数</div></div>' +
+      '<div class="stat"><div class="v">Mesh</div><div class="l">拓扑</div></div>' +
+      '<div class="stat"><div class="v">3<em>场景</em></div><div class="l">联动</div></div>' +
+      '<div class="stat"><div class="v">IPv6</div><div class="l">Matter</div></div>'; },
+    init: function(wrap){
+      var scene=0;
+      var scenes=['回家','离家','睡眠'];
+      var triggers=[
+        '门磁打开 → 灯亮 + 空调开',
+        '门锁关闭 → 全屋关 + 摄像头开',
+        '22:00 → 灯暗 + 空调 26°C'
+      ];
+      var sceneEl=wrap.querySelector('#sh-scene');
+      var triggerEl=wrap.querySelector('#sh-trigger');
+      var logEl=wrap.querySelector('#sh-log');
+      var light=wrap.querySelector('#sh-light');
+      var ac=wrap.querySelector('#sh-ac');
+      function setScene(i){
+        sceneEl.textContent='场景: '+scenes[i];
+        triggerEl.textContent=triggers[i];
+      }
+      seg(wrap,'#sh-scenes',function(i){setScene(i);});
+      function run(){
+        logEl.textContent='▶ 触发: '+triggers[scene].split('→')[0].trim();
+        var actions;
+        if(scene===0){ actions=function(){ lightOn(true); acOn(true); }; }
+        else if(scene===1){ actions=function(){ lightOn(false); acOn(false); }; }
+        else { actions=function(){ lightDim(); acOn(true); }; }
+        setTimeout(function(){ actions(); logEl.textContent='✓ 已执行: '+scenes[scene]; }, 600);
+      }
+      function lightOn(on){ light.setAttribute('stroke', on?'#fbbf24':'rgba(255,255,255,.14)'); light.setAttribute('fill', on?'rgba(251,191,36,.25)':'var(--surface-3)'); }
+      function acOn(on){ ac.setAttribute('stroke', on?'#2dd4ff':'rgba(255,255,255,.14)'); }
+      function lightDim(){ light.setAttribute('stroke','#fbbf24'); light.setAttribute('fill','rgba(251,191,36,.12)'); }
+      wrap.querySelector('#sh-run').addEventListener('click',run);
+      setScene(0);
+    }
+  });
+
+  /* ============================================================
+     08. 工业物联网
+     ============================================================ */
+  buildModule({
+    id:'m08',
+    kicker:'08 · INDUSTRIAL',
+    title:'工业物联网 — Modbus/OPC-UA 与预测性维护',
+    desc:'Modbus 连接底层 PLC 与传感器，OPC-UA 提供统一信息模型。振动/温度趋势结合阈值与 ML，实现故障预测与剩余寿命估计。',
+    viz: function(){ return ''+
+      '<svg viewBox="0 0 560 340" id="ii-svg">' +
+        '<line x1="40" y1="280" x2="540" y2="280" class="axis"/>' +
+        '<line x1="40" y1="40" x2="40" y2="280" class="axis"/>' +
+        '<g class="grid"><line x1="40" y1="90" x2="540" y2="90"/><line x1="40" y1="160" x2="540" y2="160"/><line x1="40" y1="230" x2="540" y2="230"/></g>' +
+        // 阈值线
+        '<line x1="40" y1="110" x2="540" y2="110" stroke="#fb7185" stroke-width="1" stroke-dasharray="6 4" opacity="0.6"/>' +
+        '<text x="48" y="104" class="lbl" fill="#fb7185">预警阈值</text>' +
+        '<line x1="40" y1="75" x2="540" y2="75" stroke="#fbbf24" stroke-width="1" stroke-dasharray="6 4" opacity="0.5"/>' +
+        '<text x="48" y="69" class="lbl" fill="#fbbf24">危险阈值</text>' +
+        '<path id="ii-vib" fill="none" stroke="#2dd4ff" stroke-width="1.5"/>' +
+        '<path id="ii-area" fill="rgba(45,212,255,.12)"/>' +
+        '<text x="20" y="50" class="lbl">振动 mm/s</text>' +
+        // 设备状态
+        '<rect x="40" y="295" width="120" height="34" rx="8" class="node-fill" id="ii-motor"/>' +
+        '<text x="100" y="316" text-anchor="middle" class="lbl-i" id="ii-motor-txt">电机 M-01 运行</text>' +
+        '<text x="180" y="316" class="lbl">RUL: <tspan fill="#34d399" id="ii-rul">87</tspan> 天</text>' +
+        '<text x="320" y="316" class="lbl">协议: <tspan fill="#7c5cff" id="ii-proto">OPC-UA</tspan></text>' +
+        '<text x="540" y="316" text-anchor="end" class="lbl" id="ii-status">状态: 正常</text>' +
+        '<circle id="ii-cursor" r="4" fill="#7c5cff"/>' +
+      '</svg>'; },
+    controls: function(){ return ''+
+      '<div class="ctrl-group"><span class="ctrl-label">工业协议</span><div class="seg" id="ii-proto-sel">' +
+        '<button class="on">OPC-UA</button><button>Modbus</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">故障注入</span><div class="seg alt" id="ii-fault">' +
+        '<button class="on">正常</button><button>轴承磨损</button><button>过载</button></div></div>' +
+      '<div class="ctrl-group"><span class="ctrl-label">预测建议</span>' +
+        '<div style="font-size:11px;color:var(--muted);line-height:1.6" id="ii-advice">振动平稳，无需干预。</div>' +
+      '</div>'; },
+    detail: function(){ return ''+
+      '<h4><i></i>工业物联网协议栈</h4><ul>' +
+        '<li><b>Modbus</b>：主从轮询，寄存器读写，工业事实标准</li>' +
+        '<li><b>OPC-UA</b>：面向服务，自带信息模型与安全证书</li>' +
+        '<li><b>预测性维护</b>：振动频谱 + 趋势分析，估计 RUL</li>' +
+        '<li>越阈值告警 → 工单派发 → 计划检修，避免非计划停机</li>' +
+      '</ul>'; },
+    stats: function(){ return ''+
+      '<div class="stat"><div class="v" id="ii-vib-v">2.1</div><div class="l">振动 mm/s</div></div>' +
+      '<div class="stat"><div class="v" id="ii-rul-v">87<em>天</em></div><div class="l">剩余寿命</div></div>' +
+      '<div class="stat"><div class="v">99.8<em>%</em></div><div class="l">OEE</div></div>' +
+      '<div class="stat"><div class="v" id="ii-downtime">0<em>h</em></div><div class="l">非计划停机</div></div>'; },
+    init: function(wrap){
+      var vibPath=wrap.querySelector('#ii-vib');
+      var areaPath=wrap.querySelector('#ii-area');
+      var motor=wrap.querySelector('#ii-motor');
+      var motorTxt=wrap.querySelector('#ii-motor-txt');
+      var rulEl=wrap.querySelector('#ii-rul');
+      var rulV=wrap.querySelector('#ii-rul-v');
+      var protoEl=wrap.querySelector('#ii-proto');
+      var statusEl=wrap.querySelector('#ii-status');
+      var advice=wrap.querySelector('#ii-advice');
+      var vibV=wrap.querySelector('#ii-vib-v');
+      var cursor=wrap.querySelector('#ii-cursor');
+      var downtime=wrap.querySelector('#ii-downtime');
+      var fault=0, proto=0;
+      var W=500,H=240,X0=40,Y0=40,N=60;
+      var data=[];
+      function y(v){ return Y0+H-(v/12*H); }
+      function x(i){ return X0+(i/(N-1))*W; }
+      function gen(){
+        data=[];
+        var base=[1.5, 3.5, 8][fault];
+        var amp=[0.6, 1.2, 1.8][fault];
+        for(var i=0;i<N;i++){
+          var trend = fault===0?0:(fault===1?i/N*2:i/N*4);
+          data.push(base+trend+Math.sin(i*0.5)*amp+rnd(-0.4,0.4));
+        }
+      }
+      function render(){
+        var d='';
+        for(var i=0;i<N;i++){ d+=(i?' L':'M')+x(i).toFixed(1)+' '+y(data[i]).toFixed(1); }
+        vibPath.setAttribute('d',d);
+        areaPath.setAttribute('d', d+' L'+x(N-1).toFixed(1)+' '+(Y0+H)+' L'+x(0).toFixed(1)+' '+(Y0+H)+' Z');
+        var last=data[N-1];
+        vibV.firstChild.nodeValue=last.toFixed(1);
+        cursor.setAttribute('cx', x(N-1)); cursor.setAttribute('cy', y(last));
+        // 状态判定
+        var rul=[87, 42, 12][fault];
+        rulEl.textContent=rul; rulV.firstChild.nodeValue=rul;
+        var st, col, adv, dt;
+        if(fault===0){ st='正常'; col='#34d399'; adv='振动平稳，无需干预。'; dt='0'; }
+        else if(fault===1){ st='预警'; col='#fbbf24'; adv='轴承频谱异常，建议 30 天内检修。'; dt='0'; }
+        else { st='危险'; col='#fb7185'; adv='振动超危险阈值，立即停机检查！'; dt='2.5'; }
+        statusEl.textContent='状态: '+st; statusEl.setAttribute('fill', col);
+        motorTxt.setAttribute('fill', col);
+        motor.setAttribute('stroke', col);
+        advice.textContent=adv;
+        downtime.firstChild.nodeValue=dt;
+      }
+      seg(wrap,'#ii-proto-sel',function(i){proto=i;protoEl.textContent=['OPC-UA','Modbus'][i];});
+      seg(wrap,'#ii-fault',function(i){fault=i;gen();render();});
+      gen(); render();
+      if(!reduceMotion){
+        setInterval(function(){
+          data.shift();
+          var base=[1.5,3.5,8][fault];
+          var amp=[0.6,1.2,1.8][fault];
+          var i=data.length;
+          var trend=fault===0?0:(fault===1?1:fault===2?2:0);
+          data.push(base+trend+Math.sin(i*0.5)*amp+rnd(-0.4,0.4));
+          if(data.length>N) data.length=N;
+          render();
+        }, 800);
+      }
+    }
+  });
+
+  /* ---- 初始 active ---- */
+  sideLinks[0].classList.add('active');
+})();
+</script>
+</body>
+</html>

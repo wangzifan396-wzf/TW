@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>observability-viz-lab · 可观测性可视化实验室</title>
+<style>
+/* ============================ 设计令牌 ============================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#fbbf24;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(251,191,36,.14);
+  --accent2-soft:rgba(124,92,255,.16);
+  --ok:#34d399;
+  --warn:#f87171;
+  --nav-h:56px;
+  --side-w:240px;
+  --r:14px;
+  --r-sm:9px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+}
+
+/* ============================ 基础重置 ============================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+::selection{background:var(--accent);color:#0b0b0c}
+
+/* ============================ 顶部进度条 ============================ */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:200;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(251,191,36,.5);
+  transform-origin:left;
+  transform:scaleX(0);
+  will-change:transform;
+}
+
+/* ============================ 导航栏 ============================ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:120;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:rgba(16,17,20,.86);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.nav-logo{
+  width:28px;height:28px;border-radius:8px;
+  background:conic-gradient(from 140deg,var(--accent),var(--accent-2),var(--accent));
+  position:relative;flex:0 0 auto;
+  box-shadow:0 0 16px rgba(124,92,255,.4);
+}
+.nav-logo::after{
+  content:"";position:absolute;inset:6px;border-radius:4px;background:var(--bg);
+}
+.nav-title{font-size:15px}
+.nav-title b{color:var(--accent)}
+.nav-tag{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  padding:3px 8px;border:1px solid var(--border);border-radius:20px;
+}
+.nav-spacer{flex:1}
+.nav-link{
+  font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:9px;
+  transition:color .2s,border-color .2s,transform .2s;
+}
+.nav-link:hover{color:var(--ink);border-color:var(--border-strong)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{display:none;width:34px;height:34px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border)}
+.menu-btn span{display:block;width:16px;height:1.5px;background:var(--ink);position:relative}
+.menu-btn span::before,.menu-btn span::after{content:"";position:absolute;left:0;width:16px;height:1.5px;background:var(--ink)}
+.menu-btn span::before{top:-5px}.menu-btn span::after{top:5px}
+
+/* ============================ 侧边栏 ============================ */
+.side{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:110;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;padding:18px 14px 80px;
+}
+.side-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px;margin:14px 0 8px;
+}
+.side-item{
+  display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:9px;margin-bottom:2px;
+  color:var(--muted);font-size:13.5px;text-align:left;
+  border:1px solid transparent;transition:background .18s,color .18s,border-color .18s,transform .18s;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);color:var(--accent);
+  border-color:rgba(251,191,36,.22);
+}
+.side-num{
+  font-family:var(--mono);font-size:11px;color:var(--faint);
+  width:22px;flex:0 0 auto;
+}
+.side-item.active .side-num{color:var(--accent)}
+.side-foot{
+  margin-top:18px;padding:12px 11px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--faint);line-height:1.6;
+}
+.side-foot a{color:var(--accent-2)}
+
+/* ============================ 主内容区 ============================ */
+.main{
+  margin-left:var(--side-w);margin-top:var(--nav-h);
+  padding:34px 38px 120px;max-width:1180px;
+}
+.hero{
+  margin-bottom:40px;padding-bottom:26px;border-bottom:1px solid var(--border);
+}
+.hero h1{
+  font-size:clamp(26px,4vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;
+  margin-bottom:12px;
+}
+.hero h1 .grad{
+  background:linear-gradient(100deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{color:var(--muted);max-width:680px;font-size:15.5px}
+.hero .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--surface);
+}
+
+/* ============================ 模块结构 ============================ */
+.module{margin-bottom:54px;scroll-margin-top:74px}
+.module-head{margin-bottom:16px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:center;gap:9px;margin-bottom:8px;
+}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent)}
+.module-head h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:7px}
+.module-head p{color:var(--muted);font-size:14px;max-width:660px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;
+}
+.card-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);
+}
+.card-bar .dots{display:flex;gap:6px}
+.card-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);display:block}
+.card-bar .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card-body{padding:18px}
+
+/* viz-box */
+.viz-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;display:block}
+
+/* controls */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 14px;border-radius:9px;font-size:13px;font-weight:550;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  transition:background .18s,border-color .18s,transform .12s,color .18s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:#1a1503;border-color:transparent}
+.btn.primary:hover{background:#fcc73d}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 11px;font-size:12px}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.slider-group{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.slider-group .val{font-family:var(--mono);color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:4px;
+  background:var(--surface-3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--accent);
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg);
+}
+.select{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 10px;font-size:13px;font-family:var(--mono);
+}
+
+/* detail-box */
+.detail-box{
+  margin-top:16px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+}
+.detail-box h4{font-size:13px;color:var(--accent);margin-bottom:7px;font-family:var(--mono);letter-spacing:.04em}
+.detail-box p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.detail-box code{font-family:var(--mono);font-size:12.5px;color:var(--accent-2);background:var(--bg);padding:1px 5px;border-radius:4px}
+.detail-box .formula{
+  font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--bg);
+  padding:9px 12px;border-radius:7px;border:1px solid var(--border);margin:8px 0;display:block;
+  overflow-x:auto;
+}
+
+/* stats-row */
+.stats-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px;
+}
+.stat{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 13px;
+}
+.stat .k{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.stat .v{font-size:18px;font-weight:650;color:var(--ink);margin-top:3px;font-family:var(--mono)}
+.stat .v.amber{color:var(--accent)}
+.stat .v.purple{color:var(--accent-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* log viewer */
+.log-view{
+  margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+  height:300px;overflow-y:auto;padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.7;
+}
+.log-view::-webkit-scrollbar{width:8px}
+.log-view::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+.log-line{display:flex;gap:8px;padding:1px 0;border-radius:4px}
+.log-line:hover{background:var(--surface-2)}
+.log-ts{color:var(--faint);flex:0 0 auto}
+.log-lvl{flex:0 0 auto;width:46px;font-weight:600}
+.log-svc{color:var(--accent-2);flex:0 0 auto;width:78px}
+.log-msg{color:var(--ink);word-break:break-all}
+.log-lvl.INFO{color:#34d399}
+.log-lvl.WARN{color:#fbbf24}
+.log-lvl.ERROR{color:#f87171}
+.log-lvl.DEBUG{color:#62666d}
+.search-input{
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
+  border-radius:9px;padding:7px 11px;font-size:13px;font-family:var(--mono);width:200px;
+}
+mark{background:var(--accent);color:#1a1503;border-radius:3px;padding:0 2px}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* svg 通用 */
+.gridline{stroke:var(--border);stroke-width:1}
+.axis{stroke:var(--border-strong);stroke-width:1.2}
+.axis-lbl{fill:var(--faint);font-size:11px;font-family:var(--mono)}
+.tick{fill:var(--faint);font-size:10px;font-family:var(--mono)}
+.node-lbl{fill:var(--ink);font-size:11px;font-family:var(--mono)}
+
+footer{
+  margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+  color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;
+}
+footer a{color:var(--accent-2)}
+
+/* ============================ 响应式 ============================ */
+@media(max-width:980px){
+  :root{--side-w:0px}
+  .side{
+    transform:translateX(-100%);transition:transform .28s ease;
+    width:260px;box-shadow:0 0 40px rgba(0,0,0,.6);
+  }
+  .side.open{transform:translateX(0)}
+  .main{margin-left:0;padding:26px 18px 90px}
+  .menu-btn{display:flex}
+  .nav-tag{display:none}
+}
+@media(max-width:560px){
+  .nav-title{font-size:13px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ============================ reduced motion ============================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ============================ 导航栏 ============================ -->
+<nav class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="菜单"><span></span></button>
+  <div class="nav-brand">
+    <div class="nav-logo"></div>
+    <div class="nav-title"><b>observability</b>-viz-lab</div>
+  </div>
+  <span class="nav-tag">system observability</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="https://github.com/wangzifan396-wzf/observability-viz-lab" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ============================ 侧边栏 ============================ -->
+<aside class="side" id="side">
+  <div class="side-label">模块导航</div>
+  <button class="side-item" data-target="hero-top"><span class="side-num">00</span>总览</button>
+  <button class="side-item" data-target="m01"><span class="side-num">01</span>分布式追踪</button>
+  <button class="side-item" data-target="m02"><span class="side-num">02</span>Metrics 类型</button>
+  <button class="side-item" data-target="m03"><span class="side-num">03</span>结构化日志</button>
+  <button class="side-item" data-target="m04"><span class="side-num">04</span>OpenTelemetry</button>
+  <button class="side-item" data-target="m05"><span class="side-num">05</span>采样策略</button>
+  <button class="side-item" data-target="m06"><span class="side-num">06</span>服务地图</button>
+  <button class="side-item" data-target="m07"><span class="side-num">07</span>异常检测</button>
+  <button class="side-item" data-target="m08"><span class="side-num">08</span>告警策略</button>
+  <div class="side-foot">
+    单文件可视化实验室<br>
+    零依赖 · HTML/CSS/JS+SVG<br>
+    <a href="https://github.com/wangzifan396-wzf/observability-viz-lab" target="_blank" rel="noopener">查看仓库 →</a>
+  </div>
+</aside>
+
+<!-- ============================ 主内容 ============================ -->
+<main class="main" id="hero-top">
+
+  <section class="hero reveal">
+    <h1>可观测性 <span class="grad">可视化实验室</span></h1>
+    <p>用交互式 SVG 呈现分布式追踪、Metrics、日志聚合、OpenTelemetry 等云原生可观测性核心技术。八个模块，纯原生实现。</p>
+    <div class="hero-tags">
+      <span class="chip">zero-deps</span>
+      <span class="chip">HTML / CSS / JS + SVG</span>
+      <span class="chip">requestAnimationFrame</span>
+      <span class="chip">prefers-reduced-motion</span>
+    </div>
+  </section>
+
+  <!-- ==================== 01 分布式追踪 ==================== -->
+  <section class="module reveal" id="m01">
+    <div class="module-head">
+      <div class="kicker">MODULE 01</div>
+      <h2>分布式追踪 Trace / Span</h2>
+      <p>一个请求穿过多个服务形成 Trace，由嵌套的 Span 组成树结构。下方为调用链路瀑布图，点击 Span 高亮其调用路径，播放可见请求令牌沿时间轴流动。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">trace-waterfall.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg01" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl01"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>正常 Span</span>
+          <span><i style="background:#f87171"></i>错误 Span</span>
+          <span><i style="background:#fbbf24"></i>高亮路径</span>
+          <span><i style="background:#7c5cff"></i>请求令牌</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p01title">Trace 详情</h4>
+          <p id="p01detail">点击任意 Span 查看其服务、耗时与所属调用路径；点击“播放”观察请求沿时间轴依次激活各 Span。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">Span 总数</div><div class="v amber" id="st01span">—</div></div>
+          <div class="stat"><div class="k">服务数</div><div class="v purple" id="st01svc">—</div></div>
+          <div class="stat"><div class="k">总耗时</div><div class="v" id="st01dur">—</div></div>
+          <div class="stat"><div class="k">错误 Span</div><div class="v" style="color:#f87171" id="st01err">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 Metrics 类型 ==================== -->
+  <section class="module reveal" id="m02">
+    <div class="module-head">
+      <div class="kicker">MODULE 02</div>
+      <h2>Metrics 类型：Counter / Gauge / Histogram / Summary</h2>
+      <p>四种核心指标类型的采集与聚合形态。Counter 单调递增、Gauge 自由波动、Histogram 分桶统计分布、Summary 计算分位数。切换类型观察实时形态。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">metric-types.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg02" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl02"></div>
+        <div class="legend" id="lg02"></div>
+        <div class="detail-box">
+          <h4 id="p02title">Counter</h4>
+          <p id="p02detail">Counter 只增不减（除非重启归零），适合请求数、错误数等累计量。PromQL 用 <code>rate()</code> 计算速率。</p>
+        </div>
+        <div class="stats-row" id="st02row"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 结构化日志 ==================== -->
+  <section class="module reveal" id="m03">
+    <div class="module-head">
+      <div class="kicker">MODULE 03</div>
+      <h2>结构化日志聚合</h2>
+      <p>JSON 结构化日志便于聚合检索。下方为日志流，可按级别过滤、全文检索。结构化字段使日志可被索引、关联 Trace ID 并驱动告警。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">log-aggregation.log</span></div>
+      <div class="card-body">
+        <div class="controls" id="ctl03"></div>
+        <div class="log-view" id="logView"></div>
+        <div class="detail-box">
+          <h4>日志聚合</h4>
+          <p>结构化日志把每条记录编码为 JSON，字段如 <code>trace_id</code>、<code>level</code>、<code>service</code> 可被 Loki / Elasticsearch 索引。全文检索匹配消息体，级别过滤快速定位 ERROR，trace_id 可反向跳转到追踪系统。</p>
+        </div>
+        <div class="stats-row" id="st03row"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 04 OpenTelemetry ==================== -->
+  <section class="module reveal" id="m04">
+    <div class="module-head">
+      <div class="kicker">MODULE 04</div>
+      <h2>OpenTelemetry 统一遥测</h2>
+      <p>OpenTelemetry 用统一 API/SDK 生成 Traces、Metrics、Logs 三支柱遥测数据，经 Collector 处理后导出到任意后端。播放观察一次请求同时产出三类信号。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">otel-pipeline.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg04" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl04"></div>
+        <div class="legend">
+          <span><i style="background:#fbbf24"></i>Trace</span>
+          <span><i style="background:#7c5cff"></i>Metric</span>
+          <span><i style="background:#34d399"></i>Log</span>
+          <span><i style="background:#9b9fa8"></i>Collector</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p04title">三支柱统一</h4>
+          <p id="p04detail">OpenTelemetry 用同一个 context（trace context / baggage）把三支柱关联起来：一条 Span、若干 Metric 数据点、若干 Log 记录共享同一 trace_id，可在后端交叉跳转。切换支柱高亮对应数据流。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">信号类型</div><div class="v amber" id="st04sig">3</div></div>
+          <div class="stat"><div class="k">导出后端</div><div class="v purple" id="st04be">3</div></div>
+          <div class="stat"><div class="k">关联 ID</div><div class="v" id="st04ctx">trace_id</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 05 采样策略 ==================== -->
+  <section class="module reveal" id="m05">
+    <div class="module-head">
+      <div class="kicker">MODULE 05</div>
+      <h2>采样策略：头部 vs 尾部</h2>
+      <p>头部采样在 Trace 开始时按概率决定，简单但可能丢弃有价值的事故；尾部采样在 Trace 完成后根据错误/延迟等规则决策，能保留关键链路。拖动滑块调节采样率。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">sampling.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg05" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl05"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>采样保留</span>
+          <span><i style="background:#62666d"></i>丢弃</span>
+          <span><i style="background:#f87171"></i>错误链路</span>
+          <span><i style="background:#fbbf24"></i>慢链路</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p05title">采样对比</h4>
+          <p id="p05detail">头部采样对每个 Trace 独立掷骰，错误链路同样可能被丢弃；尾部采样在 Span 全部到达后决策，可优先保留含错误或高延迟的 Trace，显著提升事故可观测性。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">头部保留率</div><div class="v amber" id="st05head">—</div></div>
+          <div class="stat"><div class="k">尾部保留率</div><div class="v purple" id="st05tail">—</div></div>
+          <div class="stat"><div class="k">错误链路保留</div><div class="v" style="color:#34d399" id="st05err">—</div></div>
+          <div class="stat"><div class="k">采样率</div><div class="v" id="st05rate">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 06 服务地图 ==================== -->
+  <section class="module reveal" id="m06">
+    <div class="module-head">
+      <div class="kicker">MODULE 06</div>
+      <h2>服务地图 Service Map</h2>
+      <p>从追踪数据自动推断服务拓扑。节点为服务，边为调用关系；边宽表示流量，颜色表示错误率。点击节点查看其上下游与延迟分布。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">service-map.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg06" viewBox="0 0 720 420"></svg>
+        </div>
+        <div class="controls" id="ctl06"></div>
+        <div class="legend">
+          <span><i style="background:#34d399"></i>健康 &lt;1%</span>
+          <span><i style="background:#fbbf24"></i>警告 1-5%</span>
+          <span><i style="background:#f87171"></i>高危 &gt;5%</span>
+          <span><i style="background:#7c5cff"></i>选中</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p06title">服务拓扑</h4>
+          <p id="p06detail">点击节点查看该服务的入向/出向调用、P95 延迟与错误率。边宽按 QPS 缩放，颜色按错误率分级。Service Map 由 Span 的 parent/child 关系自动构建。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">服务数</div><div class="v amber" id="st06svc">—</div></div>
+          <div class="stat"><div class="k">调用边</div><div class="v purple" id="st06edge">—</div></div>
+          <div class="stat"><div class="k">总 QPS</div><div class="v" id="st06qps">—</div></div>
+          <div class="stat"><div class="k">异常边</div><div class="v" style="color:#f87171" id="st06bad">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 07 异常检测 ==================== -->
+  <section class="module reveal" id="m07">
+    <div class="module-head">
+      <div class="kicker">MODULE 07</div>
+      <h2>异常检测与 SLO / 错误预算</h2>
+      <p>基于时间序列的异常识别，叠加 SLO 与错误预算消耗。调节阈值观察检测灵敏度，播放生成新数据并注入异常点。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">anomaly-slo.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg07" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl07"></div>
+        <div class="legend">
+          <span><i style="background:#7c5cff"></i>指标序列</span>
+          <span><i style="background:#fbbf24"></i>SLO 阈值</span>
+          <span><i style="background:#f87171"></i>异常点</span>
+          <span><i style="background:#34d399"></i>错误预算</span>
+        </div>
+        <div class="detail-box">
+          <h4>异常检测 + 错误预算</h4>
+          <p>SLO 定义目标可靠性（如 99.9%），错误预算 = 1 − SLO。当实际错误率消耗预算过快（burn rate 高）即触发告警。异常检测在序列偏离基线（均值 ± 阈值×σ）时标记。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">异常点</div><div class="v" style="color:#f87171" id="st07anom">—</div></div>
+          <div class="stat"><div class="k">错误预算剩余</div><div class="v amber" id="st07budget">—</div></div>
+          <div class="stat"><div class="k">Burn Rate</div><div class="v purple" id="st07burn">—</div></div>
+          <div class="stat"><div class="k">阈值 σ</div><div class="v" id="st07thr">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 08 告警策略 ==================== -->
+  <section class="module reveal" id="m08">
+    <div class="module-head">
+      <div class="kicker">MODULE 08</div>
+      <h2>告警策略：降噪 / 聚合 / 升级</h2>
+      <p>多级告警（P0-P3）经去重、聚合、抑制降噪后路由。模拟告警风暴观察分组如何压缩通知量，超时未确认则升级到下一级值班人。</p>
+    </div>
+    <div class="card">
+      <div class="card-bar"><div class="dots"><i></i><i></i><i></i></div><span class="title">alert-policy.svg</span></div>
+      <div class="card-body">
+        <div class="viz-box">
+          <svg id="svg08" viewBox="0 0 720 400"></svg>
+        </div>
+        <div class="controls" id="ctl08"></div>
+        <div class="legend">
+          <span><i style="background:#f87171"></i>P0 致命</span>
+          <span><i style="background:#fb923c"></i>P1 严重</span>
+          <span><i style="background:#fbbf24"></i>P2 警告</span>
+          <span><i style="background:#7c5cff"></i>聚合通知</span>
+        </div>
+        <div class="detail-box">
+          <h4 id="p08title">告警生命周期</h4>
+          <p id="p08detail">原始告警进入路由后：①去重（相同标签合并）②聚合（同服务同时间窗合并）③抑制（高级别抑制低级别）④分组通知。未在 ack 超时内确认则升级。点击“触发风暴”观察降噪效果。</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="k">原始告警</div><div class="v" style="color:#f87171" id="st08raw">0</div></div>
+          <div class="stat"><div class="k">聚合后</div><div class="v purple" id="st08agg">0</div></div>
+          <div class="stat"><div class="k">降噪率</div><div class="v amber" id="st08noise">—</div></div>
+          <div class="stat"><div class="k">已升级</div><div class="v" id="st08esc">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>observability-viz-lab · 可观测性可视化实验室</span>
+    <span>MIT License · <a href="https://github.com/wangzifan396-wzf/observability-viz-lab" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   通用工具
+   ============================================================ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const n=document.createElementNS(NS,tag);
+  if(attrs)for(const k in attrs)n.setAttribute(k,attrs[k]);
+  return n;
+}
+function $(id){return document.getElementById(id);}
+const reduceMotion=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function animate(duration,fn,done){
+  if(reduceMotion){fn(1);if(done)done();return;}
+  let start=null;
+  function step(t){
+    if(start===null)start=t;
+    const p=Math.min(1,(t-start)/Math.max(1,duration));
+    fn(p);
+    if(p<1)requestAnimationFrame(step);
+    else if(done)done();
+  }
+  requestAnimationFrame(step);
+}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function clearNode(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function mono(){return "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";}
+
+/* ============================================================
+   进度条
+   ============================================================ */
+const progressEl=$("progress");
+function updateProgress(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?h.scrollTop/max:0;
+  progressEl.style.transform="scaleX("+p+")";
+}
+window.addEventListener("scroll",updateProgress,{passive:true});
+window.addEventListener("resize",updateProgress);
+updateProgress();
+
+/* ============================================================
+   侧边栏导航 + IntersectionObserver
+   ============================================================ */
+const sideItems=document.querySelectorAll(".side-item");
+const sections=[...document.querySelectorAll(".module"),document.querySelector(".hero")];
+sideItems.forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=document.getElementById(item.dataset.target);
+    if(target){
+      const y=target.getBoundingClientRect().top+window.scrollY-66;
+      window.scrollTo({top:y,behavior:reduceMotion?"auto":"smooth"});
+    }
+    $("side").classList.remove("open");
+  });
+});
+$("menuBtn").addEventListener("click",()=>$("side").classList.toggle("open"));
+
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting)e.target.classList.add("visible");
+  });
+},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+const sectionMap=[];
+sideItems.forEach(item=>{
+  const t=document.getElementById(item.dataset.target);
+  if(t)sectionMap.push({el:t,item:item});
+});
+function updateActive(){
+  let cur=sectionMap[0];
+  const mid=window.scrollY+120;
+  for(const s of sectionMap){
+    if(s.el.offsetTop<=mid)cur=s;
+  }
+  sideItems.forEach(i=>i.classList.remove("active"));
+  if(cur)cur.item.classList.add("active");
+}
+window.addEventListener("scroll",updateActive,{passive:true});
+updateActive();
+
+/* ============================================================
+   01 分布式追踪 Trace/Span
+   ============================================================ */
+(function(){
+  const svg=$("svg01"),ctl=$("ctl01");
+  const W=720,H=420,padL=150,padR=20,padT=28,padB=30;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  // spans: id,name,service,start,dur(占总时长比例0-1),parent,status
+  const spans=[
+    {id:0,name:"GET /checkout",svc:"gateway",start:0,dur:0.96,parent:-1,status:"ok"},
+    {id:1,name:"auth.verify",svc:"auth",start:0.04,dur:0.10,parent:0,status:"ok"},
+    {id:2,name:"cart.load",svc:"cart",start:0.16,dur:0.14,parent:0,status:"ok"},
+    {id:3,name:"db.query(items)",svc:"cart-db",start:0.20,dur:0.07,parent:2,status:"ok"},
+    {id:4,name:"inventory.check",svc:"inventory",start:0.34,dur:0.30,parent:0,status:"ok"},
+    {id:5,name:"redis.get",svc:"inventory",start:0.36,dur:0.05,parent:4,status:"ok"},
+    {id:6,name:"db.query(stock)",svc:"inv-db",start:0.44,dur:0.16,parent:4,status:"err"},
+    {id:7,name:"payment.charge",svc:"payment",start:0.66,dur:0.26,parent:0,status:"ok"},
+    {id:8,name:"pgs.authorize",svc:"pgs",start:0.68,dur:0.20,parent:7,status:"ok"}
+  ];
+  // 计算深度
+  const depth={};
+  function getDepth(id){if(depth[id]!=null)return depth[id];const s=spans[id];const d=s.parent<0?0:getDepth(s.parent)+1;depth[id]=d;return d;}
+  spans.forEach(s=>getDepth(s.id));
+  const totalDur=1000; // ms 概念
+  let selected=null;
+  let playT=0,playing=false,playToken=null;
+
+  function pathOf(id){
+    const path=[];
+    let cur=id;
+    while(cur!=null&&cur>=0){path.push(cur);cur=spans[cur].parent;}
+    return path.reverse();
+  }
+
+  function draw(){
+    clearNode(svg);
+    const rowH=(plotH-10)/spans.length;
+    // 时间刻度
+    for(let i=0;i<=5;i++){
+      const x=padL+(i/5)*plotW;
+      svg.appendChild(el("line",{x1:x,y1:padT,x2:x,y2:padT+plotH,class:"gridline"}));
+      const t=el("text",{x:x,y:padT-8,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=Math.round(totalDur*i/5)+"ms";svg.appendChild(t);
+    }
+    const selPath=selected==null?[]:pathOf(selected);
+
+    spans.forEach((s,i)=>{
+      const y=padT+6+i*rowH;
+      const x=padL+s.start*plotW;
+      const w=Math.max(6,s.dur*plotW);
+      const isErr=s.status==="err";
+      const isSel=selected===s.id;
+      const inPath=selPath.indexOf(s.id)>=0;
+      let fill=isErr?"rgba(248,113,113,.55)":"rgba(52,211,153,.30)";
+      if(inPath)fill=isErr?"rgba(248,113,113,.8)":"rgba(251,191,36,.55)";
+      if(isSel)fill=isErr?"#f87171":"#fbbf24";
+      const bar=el("rect",{x:x,y:y,width:w,height:rowH-8,rx:4,fill:fill,stroke:isSel?"#fbbf24":(isErr?"#f87171":"rgba(52,211,153,.6)"),"stroke-width":isSel?1.8:1});
+      bar.style.cursor="pointer";
+      bar.addEventListener("click",()=>{selected=s.id;draw();showDetail();});
+      svg.appendChild(bar);
+      // 服务名 + span 名
+      const lbl=el("text",{x:padL-12,y:y+rowH/2+3,"text-anchor":"end","font-size":11,"font-family":mono(),fill:inPath?"#fbbf24":"#9b9fa8"});
+      lbl.textContent=s.svc+" · "+s.name;
+      svg.appendChild(lbl);
+      // 耗时标注
+      const dur=el("text",{x:x+w/2,y:y+rowH/2+3,"text-anchor":"middle","font-size":9.5,"font-family":mono(),fill:isSel?"#1a1503":"#f7f8f8"});
+      dur.textContent=Math.round(s.dur*totalDur)+"ms";
+      if(w>34)svg.appendChild(dur);
+    });
+    // 播放令牌
+    if(playToken!=null){
+      const tx=padL+playT*plotW;
+      const tk=el("circle",{cx:tx,cy:padT+plotH/2,r:6,fill:"#7c5cff",opacity:.9});
+      svg.appendChild(tk);
+      const ln=el("line",{x1:tx,y1:padT,x2:tx,y2:padT+plotH,stroke:"#7c5cff","stroke-width":1.2,opacity:.4});
+      svg.appendChild(ln);
+    }
+    $("st01span").textContent=spans.length;
+    $("st01svc").textContent=new Set(spans.map(s=>s.svc)).size;
+    $("st01dur").textContent=totalDur+"ms";
+    $("st01err").textContent=spans.filter(s=>s.status==="err").length;
+  }
+
+  function showDetail(){
+    if(selected==null)return;
+    const s=spans[selected];
+    const path=pathOf(selected);
+    $("p01title").textContent=s.svc+" / "+s.name;
+    $("p01detail").innerHTML="服务 <code>"+s.svc+"</code>，耗时 <code>"+Math.round(s.dur*totalDur)+"ms</code>，状态 <code style='color:"+(s.status==="err"?"#f87171":"#34d399")+"'>"+(s.status==="err"?"ERROR":"OK")+"</code>。调用路径："+path.map(i=>spans[i].svc).join(" → ");
+  }
+
+  draw();
+  const playBtn=document.createElement("button");playBtn.className="btn primary";playBtn.textContent="播放";
+  playBtn.addEventListener("click",()=>{
+    if(playing)return;playing=true;playBtn.textContent="播放中…";selected=null;
+    playT=0;playToken=0;
+    animate(2400,p=>{
+      playT=p;
+      // 高亮当前激活 span
+      draw();
+      const active=spans.filter(s=>playT>=s.start&&playT<=s.start+s.dur);
+      if(active.length){$("p01detail").innerHTML="请求令牌到达 <code>t="+Math.round(playT*totalDur)+"ms</code>，正在执行："+active.map(s=>s.svc+"."+s.name).join(", ");}
+    },()=>{playing=false;playBtn.textContent="播放";playToken=null;draw();$("p01detail").textContent="请求完成。点击任意 Span 查看详情。";});
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{selected=null;playToken=null;draw();$("p01title").textContent="Trace 详情";$("p01detail").textContent="点击任意 Span 查看其服务、耗时与所属调用路径。";});
+  ctl.appendChild(playBtn);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   02 Metrics 类型
+   ============================================================ */
+(function(){
+  const svg=$("svg02"),ctl=$("ctl02");
+  const W=720,H=400,padL=50,padR=20,padT=24,padB=38;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  let type="counter";
+  const N=40;
+  // 生成序列
+  let counter=[],gauge=[],hist=[],sum=[];
+  function regen(){
+    counter=[];gauge=[];let c=0;
+    for(let i=0;i<N;i++){c+=Math.random()*8+1;counter.push(c);gauge.push(50+Math.sin(i/4)*20+Math.random()*8);}
+    hist=[];const buckets=[0,5,10,15,20,25,30,35,40];
+    for(let i=0;i<buckets.length-1;i++){hist.push(Math.round(Math.random()*60+10));}
+    sum=[{q:"p50",v:18+Math.random()*4},{q:"p90",v:30+Math.random()*5},{q:"p99",v:42+Math.random()*6}];
+  }
+  regen();
+
+  function draw(){
+    clearNode(svg);
+    $("lg02").innerHTML="";
+    if(type==="counter")drawLine(counter,"#fbbf24",true);
+    else if(type==="gauge")drawLine(gauge,"#7c5cff",false);
+    else if(type==="histogram")drawHist();
+    else drawSummary();
+    updateDetail();
+  }
+  function drawLine(data,color,area){
+    const mx=Math.max(...data)*1.1;
+    // grid
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=(mx*i/4).toFixed(0);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    let d="";
+    data.forEach((v,i)=>{const x=padL+(i/(N-1))*plotW;const y=padT+plotH-(v/mx)*plotH;d+=(i===0?"M":"L")+x+","+y+" ";});
+    if(area){
+      let da=d+"L"+(padL+plotW)+","+(padT+plotH)+" L"+padL+","+(padT+plotH)+" z";
+      svg.appendChild(el("path",{d:da,fill:color,opacity:.14}));
+    }
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:color,"stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"}));
+    // legend
+    $("lg02").innerHTML='<span><i style="background:'+color+'"></i>'+(type==="counter"?"累计值（单调递增）":"当前值（可增可减）")+'</span>';
+    // stats
+    const row=$("st02row");clearNode(row);
+    const last=data[data.length-1];
+    const delta=type==="counter"?last:data[data.length-1]-data[data.length-2];
+    row.appendChild(stat("当前值",last.toFixed(1),color));
+    row.appendChild(stat(type==="counter"?"增量":"变化",delta.toFixed(1),"#9b9fa8"));
+    row.appendChild(stat("最大",Math.max(...data).toFixed(1),"#f7f8f8"));
+    row.appendChild(stat("采样点",N,"#9b9fa8"));
+  }
+  function drawHist(){
+    const mx=Math.max(...hist)*1.1;
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=Math.round(mx*i/4);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const bw=plotW/hist.length-6;
+    const labels=["0-5","5-10","10-15","15-20","20-25","25-30","30-35","35-40"];
+    hist.forEach((v,i)=>{
+      const x=padL+i*(bw+6)+3;
+      const h=(v/mx)*plotH;
+      svg.appendChild(el("rect",{x:x,y:padT+plotH-h,width:bw,height:h,fill:"#7c5cff",opacity:.8,rx:3}));
+      const t=el("text",{x:x+bw/2,y:padT+plotH+14,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});
+      t.textContent=labels[i];svg.appendChild(t);
+    });
+    $("lg02").innerHTML='<span><i style="background:#7c5cff"></i>桶计数（le=上界）</span>';
+    const row=$("st02row");clearNode(row);
+    const total=hist.reduce((a,b)=>a+b,0);
+    row.appendChild(stat("样本数",total,"#7c5cff"));
+    row.appendChild(stat("桶数",hist.length,"#9b9fa8"));
+    row.appendChild(stat("众数桶",labels[hist.indexOf(Math.max(...hist))],"#f7f8f8"));
+    row.appendChild(stat("均值",((hist.reduce((a,b,i)=>a+b*(i*5+2.5),0))/total).toFixed(1),"#9b9fa8"));
+  }
+  function drawSummary(){
+    for(let i=0;i<=4;i++){
+      const y=padT+plotH-(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=Math.round(50*i/4);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    const colors={p50:"#34d399",p90:"#fbbf24",p99:"#f87171"};
+    sum.forEach((q,i)=>{
+      const y=padT+plotH-(q.v/50)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,stroke:colors[q.q],"stroke-width":2,"stroke-dasharray":"6 4"}));
+      const t=el("text",{x:padL+plotW-6,y:y-5,"text-anchor":"end","font-size":11,"font-family":mono(),fill:colors[q.q]});
+      t.textContent=q.q+" = "+q.v.toFixed(1)+"ms";svg.appendChild(t);
+    });
+    $("lg02").innerHTML='<span><i style="background:#34d399"></i>p50</span><span><i style="background:#fbbf24"></i>p90</span><span><i style="background:#f87171"></i>p99</span>';
+    const row=$("st02row");clearNode(row);
+    sum.forEach(q=>row.appendChild(stat(q.q,q.v.toFixed(1)+"ms",colors[q.q])));
+  }
+  function stat(k,v,c){const s=document.createElement("div");s.className="stat";s.innerHTML='<div class="k">'+k+'</div><div class="v" style="color:'+c+'">'+v+'</div>';return s;}
+  function updateDetail(){
+    const info={
+      counter:{t:"Counter",d:"Counter 只增不减（除非重启归零），适合请求数、错误数等累计量。PromQL 用 <code>rate()</code> 计算速率。"},
+      gauge:{t:"Gauge",d:"Gauge 可任意升降，反映瞬时状态，如温度、内存占用、连接数、队列长度。"},
+      histogram:{t:"Histogram",d:"Histogram 把观测值划入预定义桶（le=上界），后端聚合计算分位数。适合延迟分布，桶边界需谨慎选择。"},
+      summary:{t:"Summary",d:"Summary 在客户端直接计算分位数（p50/p90/p99），精度高但跨实例聚合困难，无法再算全局分位数。"}
+    }[type];
+    $("p02title").textContent=info.t;
+    $("p02detail").innerHTML=info.d;
+  }
+
+  draw();
+  [["Counter","counter"],["Gauge","gauge"],["Histogram","histogram"],["Summary","summary"]].forEach(([n,v])=>{
+    const b=document.createElement("button");b.className="btn small"+(v===type?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{type=v;draw();document.querySelectorAll("#ctl02 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const regenBtn=document.createElement("button");regenBtn.className="btn small";regenBtn.textContent="刷新数据";
+  regenBtn.addEventListener("click",()=>{regen();draw();});
+  ctl.appendChild(regenBtn);
+})();
+
+/* ============================================================
+   03 结构化日志
+   ============================================================ */
+(function(){
+  const view=$("logView"),ctl=$("ctl03");
+  const services=["gateway","auth","cart","inventory","payment","pgs"];
+  const messages={
+    gateway:["checkout request received","routing to downstream","response 200 sent","upstream timeout","circuit breaker opened"],
+    auth:["token verified","token expired","permission denied","refresh issued","jwt malformed"],
+    cart:["items loaded from cache","cache miss, querying db","cart merged","stock reservation failed"],
+    inventory:["stock check ok","low stock warning","db query slow","replica lag detected"],
+    payment:["charge initiated","charge succeeded","processor error","refund issued"],
+    pgs:["authorize ok","authorize declined","3ds challenge triggered","network timeout"]
+  };
+  let logs=[];
+  let levelFilter="ALL",search="";
+  function gen(){
+    logs=[];
+    const base=Date.now()-600000;
+    const lvls=["INFO","INFO","INFO","DEBUG","INFO","WARN","INFO","ERROR","INFO","WARN"];
+    for(let i=0;i<60;i++){
+      const svc=services[Math.floor(Math.random()*services.length)];
+      const msgs=messages[svc];
+      const msg=msgs[Math.floor(Math.random()*msgs.length)];
+      const lvl=lvls[Math.floor(Math.random()*lvls.length)];
+      const ts=new Date(base+i*7000+Math.random()*3000);
+      const traceId="a1b2c3"+Math.random().toString(16).slice(2,8);
+      logs.push({ts,lvl,svc,msg,traceId,dur:Math.round(Math.random()*200+10)});
+    }
+  }
+  gen();
+  function fmtTs(d){
+    const p=n=>String(n).padStart(2,"0");
+    return p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds())+"."+String(d.getMilliseconds()).padStart(3,"0");
+  }
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+  function hl(s){
+    s=esc(s);
+    if(search){const re=new RegExp("("+search.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi");s=s.replace(re,"<mark>$1</mark>");}
+    return s;
+  }
+  function render(){
+    clearNode(view);
+    let count=0;
+    logs.forEach(l=>{
+      if(levelFilter!=="ALL"&&l.lvl!==levelFilter)return;
+      const text=l.svc+" "+l.msg+" "+l.traceId+" dur="+l.dur+"ms";
+      if(search&&text.toLowerCase().indexOf(search.toLowerCase())<0)return;
+      count++;
+      const line=document.createElement("div");line.className="log-line";
+      line.innerHTML='<span class="log-ts">'+fmtTs(l.ts)+'</span>'+
+        '<span class="log-lvl '+l.lvl+'">'+l.lvl+'</span>'+
+        '<span class="log-svc">'+l.svc+'</span>'+
+        '<span class="log-msg">'+hl(l.msg)+' <span style="color:#62666d">{trace_id:"'+l.traceId+'", dur:'+l.dur+'ms}</span></span>';
+      view.appendChild(line);
+    });
+    if(count===0){
+      const e=document.createElement("div");e.style.color="#62666d";e.style.padding="20px";e.textContent="无匹配日志";view.appendChild(e);
+    }
+    // stats
+    const row=$("st03row");clearNode(row);
+    row.appendChild(logStat("总日志",logs.length));
+    row.appendChild(logStat("ERROR",logs.filter(l=>l.lvl==="ERROR").length,"#f87171"));
+    row.appendChild(logStat("WARN",logs.filter(l=>l.lvl==="WARN").length,"#fbbf24"));
+    row.appendChild(logStat("显示",count,"#34d399"));
+  }
+  function logStat(k,v,c){const s=document.createElement("div");s.className="stat";s.innerHTML='<div class="k">'+k+'</div><div class="v" style="color:'+(c||"#f7f8f8")+'">'+v+'</div>';return s;}
+
+  render();
+  [["ALL","ALL"],["INFO","INFO"],["WARN","WARN"],["ERROR","ERROR"],["DEBUG","DEBUG"]].forEach(([n,v])=>{
+    const b=document.createElement("button");b.className="btn small"+(v==="ALL"?" on":"");b.textContent=n;
+    b.addEventListener("click",()=>{levelFilter=v;render();document.querySelectorAll("#ctl03 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+    ctl.appendChild(b);
+  });
+  const inp=document.createElement("input");inp.className="search-input";inp.type="text";inp.placeholder="全文检索…";
+  inp.addEventListener("input",()=>{search=inp.value;render();});
+  ctl.appendChild(inp);
+  const append=document.createElement("button");append.className="btn small";append.textContent="追加日志";
+  let extra=0;
+  append.addEventListener("click",()=>{
+    for(let i=0;i<5;i++){
+      const svc=services[Math.floor(Math.random()*services.length)];
+      const msgs=messages[svc];
+      logs.push({ts:new Date(),lvl:["INFO","WARN","ERROR","DEBUG"][Math.floor(Math.random()*4)],svc,msg:msgs[Math.floor(Math.random()*msgs.length)],traceId:"a1b2c3"+Math.random().toString(16).slice(2,8),dur:Math.round(Math.random()*200+10)});
+    }
+    render();view.scrollTop=view.scrollHeight;
+  });
+  ctl.appendChild(append);
+})();
+
+/* ============================================================
+   04 OpenTelemetry
+   ============================================================ */
+(function(){
+  const svg=$("svg04"),ctl=$("ctl04");
+  const W=720,H=400;
+  let highlight="all"; // all/trace/metric/log
+  let playing=false,tokenX=0;
+
+  function draw(){
+    clearNode(svg);
+    // 三层结构：App(instrumentation) -> OTel SDK -> Collector -> Backends
+    const stages=[
+      {x:90,y:200,lbl:"App",sub:"instrumentation"},
+      {x:240,y:200,lbl:"OTel SDK",sub:"API + SDK"},
+      {x:390,y:200,lbl:"Collector",sub:"process / export"},
+      {x:560,y:200,lbl:"Backends",sub:"Jaeger/Prom/Loki"}
+    ];
+    // 连接线
+    for(let i=0;i<stages.length-1;i++){
+      const a=stages[i],b=stages[i+1];
+      svg.appendChild(el("line",{x1:a.x+44,y1:a.y,x2:b.x-44,y2:b.y,stroke:"rgba(255,255,255,.14)","stroke-width":1.4}));
+    }
+    // 三支柱分支线（从 SDK 到 Collector 之间分三色）
+    const pillars=[
+      {n:"Traces",c:"#fbbf24",y:110},
+      {n:"Metrics",c:"#7c5cff",y:200},
+      {n:"Logs",c:"#34d399",y:290}
+    ];
+    pillars.forEach(p=>{
+      const on=highlight==="all"||highlight===p.n.toLowerCase();
+      // 从 SDK 顶部/底部到 Collector
+      const startX=stages[1].x+44,startY=stages[1].y;
+      const endX=stages[2].x-44,endY=stages[2].y;
+      svg.appendChild(el("path",{d:"M"+startX+","+startY+" C"+(startX+60)+","+p.y+" "+(endX-60)+","+p.y+" "+endX+","+endY,fill:"none",stroke:p.c,"stroke-width":on?2.2:1,opacity:on?.9:.25}));
+      const lbl=el("text",{x:(startX+endX)/2,y:p.y-6,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:on?p.c:"#62666d"});
+      lbl.textContent=p.n;svg.appendChild(lbl);
+    });
+    // stage 节点
+    stages.forEach(s=>{
+      svg.appendChild(el("rect",{x:s.x-44,y:s.y-26,width:88,height:52,rx:10,fill:"#16181c",stroke:"rgba(255,255,255,.14)","stroke-width":1.3}));
+      const t=el("text",{x:s.x,y:s.y-4,"text-anchor":"middle","font-size":12,"font-family":mono(),fill:"#f7f8f8"});t.textContent=s.lbl;svg.appendChild(t);
+      const sub=el("text",{x:s.x,y:s.y+12,"text-anchor":"middle","font-size":9.5,"font-family":mono(),fill:"#62666d"});sub.textContent=s.sub;svg.appendChild(sub);
+    });
+    // 后端三个图标
+    const be=[
+      {n:"Jaeger",c:"#fbbf24",y:140},
+      {n:"Prometheus",c:"#7c5cff",y:200},
+      {n:"Loki",c:"#34d399",y:260}
+    ];
+    be.forEach(b=>{
+      const on=highlight==="all"||highlight===(b.n==="Jaeger"?"trace":b.n==="Prometheus"?"metric":"log");
+      svg.appendChild(el("rect",{x:stages[3].x-40,y:b.y-14,width:80,height:28,rx:7,fill:on?b.c:"#1c1f24",stroke:b.c,"stroke-width":1.3,opacity:on?.9:1}));
+      const t=el("text",{x:stages[3].x,y:b.y+4,"text-anchor":"middle","font-size":10,"font-family":mono(),fill:on?"#0b0b0c":b.c});t.textContent=b.n;svg.appendChild(t);
+      // collector 到后端
+      svg.appendChild(el("line",{x1:stages[2].x+44,y1:stages[2].y,x2:stages[3].x-40,y2:b.y,stroke:b.c,"stroke-width":1,opacity:on?.7:.2}));
+    });
+    // 播放令牌
+    if(playing){
+      // 令牌沿主轴移动并发出分支
+      const tx=stages[0].x+44+tokenX*(stages[3].x-44-(stages[0].x+44));
+      const tk=el("circle",{cx:tx,cy:200,r:7,fill:"#fbbf24",opacity:.95});
+      svg.appendChild(tk);
+      // 发射分支粒子
+      pillars.forEach(p=>{
+        if(tokenX>0.3&&tokenX<0.7){
+          const frac=(tokenX-0.3)/0.4;
+          const bx=stages[1].x+44+frac*(stages[2].x-44-(stages[1].x+44));
+          svg.appendChild(el("circle",{cx:bx,cy:p.y,r:3.5,fill:p.c,opacity:.8}));
+        }
+      });
+      if(tokenX>0.7){
+        const frac=(tokenX-0.7)/0.3;
+        be.forEach((b,i)=>{
+          svg.appendChild(el("circle",{cx:stages[2].x+44+frac*(stages[3].x-40-(stages[2].x+44)),cy:b.y,r:3,fill:b.c,opacity:.8}));
+        });
+      }
+    }
+  }
+  draw();
+  ["all","trace","metric","log"].forEach(h=>{
+    const b=document.createElement("button");b.className="btn small"+(h==="all"?" on":"");b.textContent=h==="all"?"全部":(h==="trace"?"Traces":h==="metric"?"Metrics":"Logs");
+    b.addEventListener("click",()=>{highlight=h;draw();document.querySelectorAll("#ctl04 .small").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("p04detail").textContent={all:"三支柱同时通过统一 context 关联，共享 trace_id。",trace:"Traces 上下文传播，Span 携带 trace_id/span_id/parent_id。",metric:"Metrics 通过 exemplar 关联到对应 Trace。",log:"Logs 通过 trace_id 字段反向跳转到 Trace。"}[h];});
+    ctl.appendChild(b);
+  });
+  const play=document.createElement("button");play.className="btn primary";play.textContent="播放请求";
+  play.addEventListener("click",()=>{
+    if(playing)return;playing=true;play.textContent="播放中…";tokenX=0;
+    animate(2600,p=>{tokenX=p;draw();},()=>{playing=false;play.textContent="播放请求";draw();});
+  });
+  ctl.appendChild(play);
+})();
+
+/* ============================================================
+   05 采样策略
+   ============================================================ */
+(function(){
+  const svg=$("svg05"),ctl=$("ctl05");
+  const W=720,H=400;
+  let rate=0.3;
+  // 生成 traces
+  let traces=[];
+  function gen(){
+    traces=[];
+    for(let i=0;i<24;i++){
+      const isErr=Math.random()<0.18;
+      const isSlow=!isErr&&Math.random()<0.25;
+      const dur=Math.round((isErr?600:isSlow?800:200)+Math.random()*200);
+      traces.push({id:i,err:isErr,slow:isSlow,dur});
+    }
+  }
+  gen();
+  function decision(t,mode){
+    if(mode==="head"){return Math.random()<rate;}
+    // tail: 错误/慢 全保留，其余按概率
+    if(t.err||t.slow)return true;
+    return Math.random()<rate;
+  }
+  function draw(){
+    clearNode(svg);
+    const headY=70,tailY=240;
+    // 标题
+    const h1=el("text",{x:30,y:headY-30,"font-size":13,"font-family":mono(),fill:"#fbbf24"});h1.textContent="头部采样 Head Sampling";svg.appendChild(h1);
+    const h2=el("text",{x:30,y:tailY-30,"font-size":13,"font-family":mono(),fill:"#7c5cff"});h2.textContent="尾部采样 Tail Sampling";svg.appendChild(h2);
+    // 分隔线
+    svg.appendChild(el("line",{x1:30,y1:headY-14,x2:W-30,y2:headY-14,stroke:"rgba(255,255,255,.07)"}));
+    svg.appendChild(el("line",{x1:30,y1:tailY-14,x2:W-30,y2:tailY-14,stroke:"rgba(255,255,255,.07)"}));
+    const cellW=(W-60)/traces.length-3;
+    let headKeep=0,tailKeep=0,errKept=0,errTotal=0;
+    traces.forEach((t,i)=>{
+      const x=30+i*(cellW+3);
+      const col=t.err?"#f87171":t.slow?"#fbbf24":"#7c5cff";
+      if(t.err)errTotal++;
+      // head
+      const hKeep=decision(t,"head");
+      if(hKeep)headKeep++;
+      if(t.err&&hKeep)errKept++;
+      const hBar=el("rect",{x:x,y:headY,width:cellW,height:54,rx:4,fill:hKeep?col:"#1c1f24",stroke:col,opacity:hKeep?.85:.3,"stroke-width":1});
+      svg.appendChild(hBar);
+      // tail
+      const tKeep=decision(t,"tail");
+      if(tKeep)tailKeep++;
+      const tBar=el("rect",{x:x,y:tailY,width:cellW,height:54,rx:4,fill:tKeep?col:"#1c1f24",stroke:col,opacity:tKeep?.85:.3,"stroke-width":1});
+      svg.appendChild(tBar);
+      // 错误标记
+      if(t.err){
+        svg.appendChild(el("text",{x:x+cellW/2,y:headY-4,"text-anchor":"middle","font-size":8,"font-family":mono(),fill:hKeep?"#f87171":"#62666d"})).textContent="ERR";
+        svg.appendChild(el("text",{x:x+cellW/2,y:tailY-4,"text-anchor":"middle","font-size":8,"font-family":mono(),fill:tKeep?"#f87171":"#62666d"})).textContent="ERR";
+      }
+    });
+    $("st05head").textContent=headKeep+"/"+traces.length;
+    $("st05tail").textContent=tailKeep+"/"+traces.length;
+    $("st05err").textContent=errKept+"/"+errTotal;
+    $("st05rate").textContent=(rate*100).toFixed(0)+"%";
+    $("p05detail").innerHTML="头部采样保留 <code>"+headKeep+"</code> 条（其中错误 <code>"+errKept+"/"+errTotal+"</code>）；尾部采样保留 <code>"+tailKeep+"</code> 条，错误链路 <code>"+(traces.filter(t=>t.err).length)+"/"+errTotal+"</code> 全保留。尾部在事故可观测性上明显更优。";
+  }
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>采样率</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=5;inp.max=100;inp.value=30;inp.step=5;
+  const val=document.createElement("span");val.className="val";val.textContent="30%";
+  inp.addEventListener("input",()=>{rate=+inp.value/100;val.textContent=inp.value+"%";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const regen=document.createElement("button");regen.className="btn small";regen.textContent="重新生成";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   06 服务地图
+   ============================================================ */
+(function(){
+  const svg=$("svg06"),ctl=$("ctl06");
+  const W=720,H=420;
+  const nodes=[
+    {id:"gateway",x:100,y:210,qps:1200,err:0.3},
+    {id:"auth",x:250,y:110,qps:420,err:0.2},
+    {id:"cart",x:250,y:310,qps:580,err:0.5},
+    {id:"inventory",x:420,y:200,qps:560,err:2.1},
+    {id:"payment",x:420,y:340,qps:480,err:0.4},
+    {id:"inv-db",x:590,y:150,qps:540,err:6.5},
+    {id:"pgs",x:590,y:330,qps:470,err:1.1}
+  ];
+  const edges=[
+    {from:"gateway",to:"auth",qps:420,err:0.2},
+    {from:"gateway",to:"cart",qps:580,err:0.5},
+    {from:"cart",to:"inventory",qps:360,err:2.1},
+    {from:"cart",to:"payment",qps:280,err:0.4},
+    {from:"inventory",to:"inv-db",qps:540,err:6.5},
+    {from:"payment",to:"pgs",qps:470,err:1.1}
+  ];
+  const byId={};nodes.forEach(n=>byId[n.id]=n);
+  let selected=null;
+  let flowT=0,flowing=false;
+
+  function edgeColor(e){return e.err>5?"#f87171":e.err>1?"#fbbf24":"#34d399";}
+  function edgeW(e){return 1.5+e.qps/120;}
+
+  function draw(){
+    clearNode(svg);
+    // 边
+    edges.forEach(e=>{
+      const a=byId[e.from],b=byId[e.to];
+      const c=edgeColor(e);
+      const w=edgeW(e);
+      const isSel=selected&&(selected===e.from||selected===e.to);
+      svg.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:c,"stroke-width":isSel?w+1.5:w,opacity:isSel?1:.7}));
+      // 箭头点
+      const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      svg.appendChild(el("circle",{cx:mx,cy:my,r:2.5,fill:c}));
+      // 流动粒子
+      if(flowing){
+        const px=a.x+(b.x-a.x)*((flowT+e.qps/1000)%1);
+        const py=a.y+(b.y-a.y)*((flowT+e.qps/1000)%1);
+        svg.appendChild(el("circle",{cx:px,cy:py,r:2.5,fill:"#fbbf24",opacity:.9}));
+      }
+      // err 标注
+      if(e.err>1){
+        const t=el("text",{x:mx+6,y:my-4,"font-size":9,"font-family":mono(),fill:c});t.textContent=e.err.toFixed(1)+"%";svg.appendChild(t);
+      }
+    });
+    // 节点
+    nodes.forEach(n=>{
+      const r=14+n.qps/120;
+      const isSel=selected===n.id;
+      const fill=isSel?"rgba(124,92,255,.3)":"#16181c";
+      const stroke=isSel?"#7c5cff":(n.err>5?"#f87171":n.err>1?"#fbbf24":"#34d399");
+      const c=el("circle",{cx:n.x,cy:n.y,r:r,fill:fill,stroke:stroke,"stroke-width":isSel?2.2:1.5});
+      c.style.cursor="pointer";
+      c.addEventListener("click",()=>{selected=selected===n.id?null:n.id;draw();showDetail();});
+      svg.appendChild(c);
+      const t=el("text",{x:n.x,y:n.y+r+14,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:isSel?"#7c5cff":"#f7f8f8"});
+      t.textContent=n.id;svg.appendChild(t);
+      const q=el("text",{x:n.x,y:n.y+r+26,"text-anchor":"middle","font-size":9,"font-family":mono(),fill:"#62666d"});
+      q.textContent=n.qps+"qps";svg.appendChild(q);
+    });
+    // stats
+    $("st06svc").textContent=nodes.length;
+    $("st06edge").textContent=edges.length;
+    $("st06qps").textContent=nodes.reduce((a,b)=>a+b.qps,0);
+    $("st06bad").textContent=edges.filter(e=>e.err>1).length;
+  }
+  function showDetail(){
+    if(selected==null){$("p06title").textContent="服务拓扑";$("p06detail").textContent="点击节点查看该服务的入向/出向调用、P95 延迟与错误率。";return;}
+    const n=byId[selected];
+    const inE=edges.filter(e=>e.to===selected),outE=edges.filter(e=>e.from===selected);
+    $("p06title").textContent=selected+" 服务";
+    $("p06detail").innerHTML="QPS <code>"+n.qps+"</code>，错误率 <code style='color:"+(n.err>5?"#f87171":n.err>1?"#fbbf24":"#34d399")+"'>"+n.err.toFixed(1)+"%</code>。入向调用："+(inE.length?inE.map(e=>e.from).join(", "):"无")+"；出向调用："+(outE.length?outE.map(e=>e.to+" ("+edgeColor(e)+")").join(", "):"无")+"。";
+  }
+  draw();showDetail();
+  const flow=document.createElement("button");flow.className="btn primary";flow.textContent="流量动画";
+  flow.addEventListener("click",()=>{
+    if(flowing)return;flowing=true;flow.textContent="流动中…";
+    const start=performance.now();
+    function loop(t){flowT=((t-start)/2000)%1;draw();if(flowing)requestAnimationFrame(loop);}
+    requestAnimationFrame(loop);
+    setTimeout(()=>{flowing=false;flow.textContent="流量动画";draw();},3000);
+  });
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{selected=null;draw();showDetail();});
+  ctl.appendChild(flow);ctl.appendChild(rst);
+})();
+
+/* ============================================================
+   07 异常检测 + SLO
+   ============================================================ */
+(function(){
+  const svg=$("svg07"),ctl=$("ctl07");
+  const W=720,H=400,padL=50,padR=20,padT=24,padB=38;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const N=50;
+  let threshold=2.0;
+  let series=[],anomalies=[];
+  function gen(){
+    series=[];anomalies=[];
+    let base=50;
+    for(let i=0;i<N;i++){
+      base+=Math.random()*4-2;
+      let v=base+Math.sin(i/5)*6+ (Math.random()*6-3);
+      const anomaly=Math.random()<0.12;
+      if(anomaly){v+= (Math.random()<0.5?-1:1)*(20+Math.random()*15);}
+      series.push(v);
+    }
+    detect();
+  }
+  function detect(){
+    const mean=series.reduce((a,b)=>a+b,0)/series.length;
+    const sd=Math.sqrt(series.reduce((a,b)=>a+(b-mean)*(b-mean),0)/series.length);
+    anomalies=[];
+    series.forEach((v,i)=>{
+      if(Math.abs(v-mean)>threshold*sd)anomalies.push(i);
+    });
+    return {mean,sd};
+  }
+  gen();
+  function draw(){
+    const {mean,sd}=detect();
+    clearNode(svg);
+    const mx=Math.max(...series)*1.1,mn=Math.min(...series)*0.9;
+    const rng=mx-mn;
+    const sy=v=>padT+plotH-((v-mn)/rng)*plotH;
+    const sx=i=>padL+(i/(N-1))*plotW;
+    // grid
+    for(let i=0;i<=4;i++){
+      const y=padT+(i/4)*plotH;
+      svg.appendChild(el("line",{x1:padL,y1:y,x2:padL+plotW,y2:y,class:"gridline"}));
+      const t=el("text",{x:padL-6,y:y+3.5,"text-anchor":"end","font-size":10,"font-family":mono(),fill:"#62666d"});
+      t.textContent=(mx-(i/4)*rng).toFixed(0);svg.appendChild(t);
+    }
+    svg.appendChild(el("line",{x1:padL,y1:padT,x2:padL,y2:padT+plotH,class:"axis"}));
+    svg.appendChild(el("line",{x1:padL,y1:padT+plotH,x2:padL+plotW,y2:padT+plotH,class:"axis"}));
+    // SLO 阈值线 (mean ± threshold*sd)
+    const upY=sy(mean+threshold*sd),loY=sy(mean-threshold*sd),mY=sy(mean);
+    svg.appendChild(el("line",{x1:padL,y1:upY,x2:padL+plotW,y2:upY,stroke:"#fbbf24","stroke-width":1.4,"stroke-dasharray":"6 4",opacity:.7}));
+    svg.appendChild(el("line",{x1:padL,y1:loY,x2:padL+plotW,y2:loY,stroke:"#fbbf24","stroke-width":1.4,"stroke-dasharray":"6 4",opacity:.7}));
+    svg.appendChild(el("line",{x1:padL,y1:mY,x2:padL+plotW,y2:mY,stroke:"#62666d","stroke-width":1,"stroke-dasharray":"2 3"}));
+    const ul=el("text",{x:padL+plotW-6,y:upY-4,"text-anchor":"end","font-size":9.5,"font-family":mono(),fill:"#fbbf24"});ul.textContent="SLO +"+threshold+"σ";svg.appendChild(ul);
+    // 序列
+    let d="";
+    series.forEach((v,i)=>{d+=(i===0?"M":"L")+sx(i)+","+sy(v)+" ";});
+    svg.appendChild(el("path",{d:d,fill:"none",stroke:"#7c5cff","stroke-width":1.8,"stroke-linejoin":"round"}));
+    // 异常点
+    anomalies.forEach(i=>{
+      const x=sx(i),y=sy(series[i]);
+      svg.appendChild(el("circle",{cx:x,cy:y,r:5,fill:"#f87171",stroke:"#0b0b0c","stroke-width":1.4}));
+      svg.appendChild(el("line",{x1:x,y1:y-7,x2:x,y2:y-14,stroke:"#f87171","stroke-width":1}));
+    });
+    // 错误预算条
+    const budgetY=padT+plotH+20;
+    const errRate=anomalies.length/series.length;
+    const slo=0.01; // 99.9%
+    const burn=errRate/slo;
+    const budget=Math.max(0,1-burn*0.1);
+    svg.appendChild(el("rect",{x:padL,y:budgetY,width:plotW,height:8,rx:4,fill:"#1c1f24"}));
+    svg.appendChild(el("rect",{x:padL,y:budgetY,width:plotW*budget,height:8,rx:4,fill:budget>0.3?"#34d399":"#f87171"}));
+    const bl=el("text",{x:padL+plotW+6,y:budgetY+7,"font-size":10,"font-family":mono(),fill:"#9b9fa8"});bl.textContent=(budget*100).toFixed(0)+"%";svg.appendChild(bl);
+    // stats
+    $("st07anom").textContent=anomalies.length;
+    $("st07budget").textContent=(budget*100).toFixed(0)+"%";
+    $("st07burn").textContent=burn.toFixed(1)+"x";
+    $("st07thr").textContent=threshold.toFixed(1)+"σ";
+  }
+  draw();
+  const sg=document.createElement("div");sg.className="slider-group";sg.innerHTML='<span>阈值 σ</span>';
+  const inp=document.createElement("input");inp.type="range";inp.min=10;inp.max=40;inp.value=20;inp.step=5;
+  const val=document.createElement("span");val.className="val";val.textContent="2.0σ";
+  inp.addEventListener("input",()=>{threshold=+inp.value/10;val.textContent=threshold.toFixed(1)+"σ";draw();});
+  sg.appendChild(inp);sg.appendChild(val);ctl.appendChild(sg);
+  const regen=document.createElement("button");regen.className="btn primary";regen.textContent="生成新数据";
+  regen.addEventListener("click",()=>{gen();draw();});
+  ctl.appendChild(regen);
+})();
+
+/* ============================================================
+   08 告警策略
+   ============================================================ */
+(function(){
+  const svg=$("svg08"),ctl=$("ctl08");
+  const W=720,H=400;
+  let raw=[],agg=[];
+  let escCount=0;
+  const levels={P0:"#f87171",P1:"#fb923c",P2:"#fbbf24",P3:"#7c5cff"};
+  function genRaw(storm){
+    raw=[];
+    const svcs=["gateway","auth","cart","inventory","payment","inv-db","pgs"];
+    const n=storm?40:8;
+    for(let i=0;i<n;i++){
+      const svc=storm?svcs[Math.floor(i/6)%svcs.length]:svcs[Math.floor(Math.random()*svcs.length)];
+      const lvl=storm?(i%5===0?"P0":"P2"):["P0","P1","P2","P3"][Math.floor(Math.random()*4)];
+      raw.push({id:i,svc,lvl,ts:i});
+    }
+  }
+  function aggregate(){
+    // 去重 + 聚合：同 svc+lvl 合并为一条
+    const map={};
+    raw.forEach(a=>{
+      const k=a.svc+"|"+a.lvl;
+      if(!map[k])map[k]={svc:a.svc,lvl:a.lvl,count:0,ids:[]};
+      map[k].count++;map[k].ids.push(a.id);
+    });
+    agg=Object.values(map).sort((a,b)=>a.lvl.localeCompare(b.lvl));
+    // 升级：P0 未确认数 > 3 则升级计数
+    escCount=agg.filter(a=>a.lvl==="P0"&&a.count>3).length;
+  }
+  genRaw(false);aggregate();
+  function draw(){
+    clearNode(svg);
+    // 左：原始告警流
+    const lx=40,lw=300;
+    const t1=el("text",{x:lx,y:40,"font-size":13,"font-family":mono(),fill:"#f87171"});t1.textContent="原始告警流 ("+raw.length+")";svg.appendChild(t1);
+    svg.appendChild(el("rect",{x:lx,y:50,width:lw,height:300,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const maxShow=Math.min(raw.length,28);
+    const rh=300/maxShow;
+    for(let i=0;i<maxShow;i++){
+      const a=raw[i];
+      const y=50+i*rh;
+      svg.appendChild(el("rect",{x:lx+8,y:y+2,width:lw-16,height:rh-3,rx:3,fill:levels[a.lvl],opacity:.75}));
+      const t=el("text",{x:lx+14,y:y+rh/2+2,"font-size":9,"font-family":mono(),fill:"#0b0b0c"});
+      t.textContent=a.lvl+" "+a.svc;svg.appendChild(t);
+    }
+    // 中间：路由处理（去重/聚合/抑制）
+    const mx=400;
+    const steps=["去重","聚合","抑制","分组"];
+    steps.forEach((s,i)=>{
+      const y=80+i*70;
+      svg.appendChild(el("rect",{x:mx,y:y,width:100,height:46,rx:8,fill:"#16181c",stroke:"#fbbf24","stroke-width":1.3}));
+      const t=el("text",{x:mx+50,y:y+27,"text-anchor":"middle","font-size":11,"font-family":mono(),fill:"#fbbf24"});t.textContent=s;svg.appendChild(t);
+      if(i<3)svg.appendChild(el("path",{d:"M"+(mx+50)+","+(y+46)+" L"+(mx+50)+","+(y+70),stroke:"rgba(255,255,255,.2)","stroke-width":1.2,fill:"none","marker-end":"url(#ar08)"}));
+    });
+    const defs=el("defs");const m=el("marker",{id:"ar08",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto"});m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.4)"}));defs.appendChild(m);svg.appendChild(defs);
+    // 右：聚合通知
+    const rx=560,rw=130;
+    const t2=el("text",{x:rx,y:40,"font-size":13,"font-family":mono(),fill:"#7c5cff"});t2.textContent="聚合通知 ("+agg.length+")";svg.appendChild(t2);
+    svg.appendChild(el("rect",{x:rx,y:50,width:rw,height:300,rx:8,fill:"#101114",stroke:"rgba(255,255,255,.07)"}));
+    const ah=Math.min(agg.length,10);
+    const arh=300/Math.max(ah,1);
+    for(let i=0;i<ah;i++){
+      const a=agg[i];
+      const y=50+i*arh;
+      svg.appendChild(el("rect",{x:rx+8,y:y+2,width:rw-16,height:arh-3,rx:4,fill:"#16181c",stroke:levels[a.lvl],"stroke-width":1.3}));
+      const t=el("text",{x:rx+14,y:y+arh/2-1,"font-size":9.5,"font-family":mono(),fill:levels[a.lvl]});t.textContent=a.lvl+" "+a.svc;svg.appendChild(t);
+      const c=el("text",{x:rx+14,y:y+arh/2+10,"font-size":9,"font-family":mono(),fill:"#9b9fa8"});c.textContent="×"+a.count+(a.lvl==="P0"&&a.count>3?" ⬆升级":"");svg.appendChild(c);
+    }
+    // stats
+    $("st08raw").textContent=raw.length;
+    $("st08agg").textContent=agg.length;
+    $("st08noise").textContent=raw.length>0?((1-agg.length/raw.length)*100).toFixed(0)+"%":"—";
+    $("st08esc").textContent=escCount;
+    $("p08title").textContent="告警生命周期";
+    $("p08detail").innerHTML="原始 <code>"+raw.length+"</code> 条告警经去重/聚合/抑制后变为 <code>"+agg.length+"</code> 条通知，降噪率 <code>"+(raw.length>0?((1-agg.length/raw.length)*100).toFixed(0):0)+"%</code>。P0 告警累计 <code>"+escCount+"</code> 组触发升级。";
+  }
+  draw();
+  const one=document.createElement("button");one.className="btn small";one.textContent="单条告警";
+  one.addEventListener("click",()=>{genRaw(false);aggregate();draw();});
+  const storm=document.createElement("button");storm.className="btn primary";storm.textContent="触发风暴";
+  storm.addEventListener("click",()=>{genRaw(true);aggregate();draw();});
+  const rst=document.createElement("button");rst.className="btn ghost small";rst.textContent="重置";
+  rst.addEventListener("click",()=>{genRaw(false);aggregate();draw();});
+  ctl.appendChild(one);ctl.appendChild(storm);ctl.appendChild(rst);
+})();
+
+</script>
+</body>
+</html>

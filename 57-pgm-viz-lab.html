@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>概率图模型可视化实验室 · pgm-viz-lab</title>
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#fbbf24;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:240px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+.progress-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--cyan));width:0;z-index:1000;transition:width .1s ease}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:#08090a;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex-shrink:0}
+.nav-tag{font-size:11px;color:var(--faint);font-family:var(--font-mono);margin-left:8px;padding:2px 7px;border:1px solid var(--border);border-radius:4px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted)}
+.nav-link{color:var(--muted);transition:color .2s}
+.nav-link:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);height:calc(100vh - var(--nav-h));background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;z-index:90}
+.sidebar-section{padding:0 16px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;border-left:2px solid transparent;position:relative}
+.nav-item:hover{color:var(--ink);background:var(--surface-2)}
+.nav-item.active{color:var(--ink);background:var(--surface-2);border-left-color:var(--accent)}
+.nav-num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:22px;flex-shrink:0}
+.nav-item.active .nav-num{color:var(--accent)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0}
+.hero{padding:56px 48px 40px;border-bottom:1px solid var(--border)}
+.hero-kicker{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin-bottom:12px;letter-spacing:.04em}
+.hero-title{font-size:32px;font-weight:700;letter-spacing:-.02em;margin-bottom:12px;line-height:1.2}
+.hero-desc{color:var(--muted);font-size:15px;max-width:680px;line-height:1.7}
+.hero-meta{display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;font-size:12px;color:var(--faint);font-family:var(--font-mono)}
+.hero-meta span{display:flex;align-items:center;gap:6px}
+.hero-meta .hm-dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.module{min-height:auto;padding:48px 48px 64px;border-bottom:1px solid var(--border);scroll-margin-top:var(--nav-h)}
+.module-head{margin-bottom:28px}
+.module-kicker{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:12px;color:var(--faint);margin-bottom:8px}
+.module-kicker .knum{color:var(--accent)}
+.module-kicker .kbar{width:24px;height:1px;background:var(--border-strong)}
+.module-title{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.module-desc{color:var(--muted);font-size:14px;max-width:720px;line-height:1.7}
+.module-grid{display:grid;gap:20px;grid-template-columns:1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;transition:border-color .2s}
+.card:hover{border-color:var(--border-strong)}
+.card-title{font-size:13px;font-weight:600;margin-bottom:14px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.card-title .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.viz-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.viz-box svg{width:100%;height:auto;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center}
+.btn{font-family:var(--font-sans);font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{color:var(--ink);border-color:rgba(255,255,255,.25)}
+.btn-sm{font-size:12px;padding:4px 11px}
+.btn.active{background:var(--accent);color:#08090a;border-color:var(--accent)}
+.slider-wrap{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 12px}
+.slider-wrap span:first-child{white-space:nowrap}
+.slider-wrap input[type=range]{width:100px;-webkit-appearance:none;appearance:none;height:3px;background:var(--surface-3);border-radius:2px;outline:none}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer}
+.slider-wrap input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+.slider-wrap .val{font-family:var(--font-mono);color:var(--ink);min-width:36px;text-align:right;font-size:11px}
+.stats-row{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.stat-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.code-block{background:#0a0b0d;border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-family:var(--font-mono);font-size:12px;line-height:1.7;color:#c8d3e0;margin-top:14px;white-space:pre;position:relative}
+.code-block .ck-keyword{color:var(--violet)}
+.code-block .ck-fn{color:var(--cyan)}
+.code-block .ck-str{color:var(--emerald)}
+.code-block .ck-num{color:var(--amber)}
+.code-block .ck-comment{color:var(--faint)}
+.code-block .ck-label{position:absolute;top:8px;right:12px;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.detail-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.detail-box strong{color:var(--ink);font-weight:600}
+.detail-box .dt-label{display:inline-block;font-family:var(--font-mono);font-size:11px;color:var(--accent);padding:1px 6px;border:1px solid rgba(255,255,255,.2);border-radius:4px;margin-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-item .ld{width:10px;height:10px;border-radius:2px}
+.footer{padding:32px 48px;text-align:center;color:var(--faint);font-size:12px;border-top:1px solid var(--border)}
+.footer a{color:var(--muted)}
+.footer a:hover{color:var(--accent)}
+@media(max-width:900px){
+  :root{--side-w:0px}
+  .sidebar{transform:translateX(-100%);transition:transform .25s;width:240px;z-index:95}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .module{padding:32px 20px}
+  .hero{padding:40px 20px 32px}
+  .nav-toggle{display:flex!important}
+}
+.nav-toggle{display:none;width:32px;height:32px;align-items:center;justify-content:center;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-3);cursor:pointer;color:var(--ink);margin-left:12px}
+.nav-toggle svg{width:16px;height:16px}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+.fade-in{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>概率图模型可视化实验室</span>
+    <span class="nav-tag">pgm-viz-lab</span>
+  </div>
+  <div class="nav-right">
+    <a class="nav-link" href="https://github.com/wangzifan396-wzf/pgm-viz-lab" target="_blank">GitHub</a>
+    <button class="nav-toggle" id="navToggle" aria-label="toggle">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+  </div>
+</nav>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-section">核心模块</div>
+  <div class="nav-item" data-target="m01"><span class="nav-num">01</span><span>贝叶斯网络</span></div>
+  <div class="nav-item" data-target="m02"><span class="nav-num">02</span><span>马尔可夫场</span></div>
+  <div class="nav-item" data-target="m03"><span class="nav-num">03</span><span>变量消除</span></div>
+  <div class="nav-item" data-target="m04"><span class="nav-num">04</span><span>置信传播</span></div>
+  <div class="nav-item" data-target="m05"><span class="nav-num">05</span><span>HMM/Viterbi</span></div>
+  <div class="nav-item" data-target="m06"><span class="nav-num">06</span><span>变分推断</span></div>
+  <div class="nav-item" data-target="m07"><span class="nav-num">07</span><span>采样方法</span></div>
+  <div class="nav-item" data-target="m08"><span class="nav-num">08</span><span>结构学习</span></div>
+</aside>
+<main class="main">
+  <div class="hero fade-in">
+    <div class="hero-kicker">PROBABILISTIC GRAPHICAL MODELS · PGM</div>
+    <h1 class="hero-title">概率图模型可视化实验室</h1>
+    <p class="hero-desc">交互式探索概率图模型的核心理论与算法：从贝叶斯网络、马尔可夫随机场的图结构表示，到变量消除、置信传播的精确推断，再到变分推断、MCMC 采样的近似方法，以及结构学习。每个模块均提供可操作的 SVG 可视化与实时统计。</p>
+    <div class="hero-meta">
+      <span><span class="hm-dot"></span>8 Modules</span>
+      <span>SVG + Vanilla JS</span>
+      <span>Zero Dependencies</span>
+      <span>Single File</span>
+    </div>
+  </div>
+
+  <section class="module" id="m01">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">01</span><span class="kbar"></span><span>BAYESIAN NETWORKS</span></div>
+      <h2 class="module-title">贝叶斯网络</h2>
+      <p class="module-desc">有向无环图 (DAG) 配合条件概率表 (CPT) 表示变量间的因果依赖。点击节点循环设置证据，通过联合分布枚举计算边缘概率，观察证据如何传播影响其他节点。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>DAG 与条件概率表</div>
+        <div class="viz-box" id="viz1"></div>
+        <div class="controls" id="ctrl1"></div>
+        <div class="detail-box" id="detail1"></div>
+        <div class="stats-row" id="stats1"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m02">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">02</span><span class="kbar"></span><span>MARKOV RANDOM FIELDS</span></div>
+      <h2 class="module-title">马尔可夫随机场</h2>
+      <p class="module-desc">无向图用团上的势函数 (potential) 表示变量间的软约束。联合分布为所有势函数乘积，由配分函数 Z 归一化。调节耦合强度 J 观察节点边缘概率的变化。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>无向图与势函数</div>
+        <div class="viz-box" id="viz2"></div>
+        <div class="controls" id="ctrl2"></div>
+        <div class="detail-box" id="detail2"></div>
+        <div class="stats-row" id="stats2"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m03">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">03</span><span class="kbar"></span><span>VARIABLE ELIMINATION</span></div>
+      <h2 class="module-title">变量消除</h2>
+      <p class="module-desc">精确推断的核心算法。按消元顺序逐个消去非查询变量：对包含该变量的因子做乘积 (×)，再对其求和边缘化 (∑)。逐步观察因子规模的变化与最终查询结果。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>因子乘积与消元</div>
+        <div class="viz-box" id="viz3"></div>
+        <div class="controls" id="ctrl3"></div>
+        <div class="detail-box" id="detail3"></div>
+        <div class="stats-row" id="stats3"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m04">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">04</span><span class="kbar"></span><span>BELIEF PROPAGATION</span></div>
+      <h2 class="module-title">置信传播</h2>
+      <p class="module-desc">在因子图上通过变量节点 (圆) 与因子节点 (方) 之间的消息传递进行推断。在树结构上精确收敛。切换同步/异步模式，逐步观察消息与信念的收敛过程。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>因子图消息传递</div>
+        <div class="viz-box" id="viz4"></div>
+        <div class="controls" id="ctrl4"></div>
+        <div class="detail-box" id="detail4"></div>
+        <div class="stats-row" id="stats4"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m05">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">05</span><span class="kbar"></span><span>HMM &amp; VITERBI</span></div>
+      <h2 class="module-title">HMM 与 Viterbi</h2>
+      <p class="module-desc">隐马尔可夫模型在格子图 (trellis) 上解码隐状态序列。前向算法计算观测似然 P(O)，Viterbi 算法求解最大后验状态路径。编辑观测序列，切换两种算法对比。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>格子图与状态解码</div>
+        <div class="viz-box" id="viz5"></div>
+        <div class="controls" id="ctrl5"></div>
+        <div class="detail-box" id="detail5"></div>
+        <div class="stats-row" id="stats5"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m06">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">06</span><span class="kbar"></span><span>VARIATIONAL INFERENCE</span></div>
+      <h2 class="module-title">变分推断</h2>
+      <p class="module-desc">用简单分布族 q(z) 逼近复杂后验 p(z|x)。最小化 KL(q‖p) 等价于最大化证据下界 ELBO。调节优化进度观察 q 逼近 p 的过程，对比均值场与结构化变分族的表达能力。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>ELBO 与变分分布</div>
+        <div class="viz-box" id="viz6"></div>
+        <div class="controls" id="ctrl6"></div>
+        <div class="detail-box" id="detail6"></div>
+        <div class="stats-row" id="stats6"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m07">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">07</span><span class="kbar"></span><span>SAMPLING METHODS</span></div>
+      <h2 class="module-title">采样方法</h2>
+      <p class="module-desc">马尔可夫链蒙特卡洛 (MCMC) 通过构造马尔可夫链从目标分布采样。Gibbs 交替从条件分布采样，Metropolis-Hastings 通过提议-接受机制探索。观察样本分布逼近目标等高线。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>MCMC 采样轨迹</div>
+        <div class="viz-box" id="viz7"></div>
+        <div class="controls" id="ctrl7"></div>
+        <div class="detail-box" id="detail7"></div>
+        <div class="stats-row" id="stats7"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="module" id="m08">
+    <div class="module-head fade-in">
+      <div class="module-kicker"><span class="knum">08</span><span class="kbar"></span><span>STRUCTURE LEARNING</span></div>
+      <h2 class="module-title">结构学习</h2>
+      <p class="module-desc">从数据中学习贝叶斯网络结构。基于评分搜索 (BIC/BDeu) 在 DAG 空间寻找最优结构。点击两个节点手动添加/删除边，或运行贪婪爬山搜索自动学习，并查看分数轨迹。</p>
+    </div>
+    <div class="module-grid">
+      <div class="card fade-in">
+        <div class="card-title"><span class="ct-dot"></span>DAG 搜索与评分</div>
+        <div class="viz-box" id="viz8"></div>
+        <div class="controls" id="ctrl8"></div>
+        <div class="detail-box" id="detail8"></div>
+        <div class="stats-row" id="stats8"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <p>概率图模型可视化实验室 &middot; 单文件 HTML/CSS/JS + SVG &middot; 零外部依赖</p>
+    <p style="margin-top:6px"><a href="https://github.com/wangzifan396-wzf/pgm-viz-lab" target="_blank">GitHub</a> &middot; MIT License &middot; Copyright 2026 wangzifan396-wzf</p>
+  </div>
+</main>
+<script>
+var NS='http://www.w3.org/2000/svg';
+var C={bg:'#08090a',surface:'#101114',surface2:'#16181c',surface3:'#1c1f24',border:'#2a2e35',borderStrong:'rgba(255,255,255,.14)',ink:'#f7f8f8',muted:'#9b9fa8',faint:'#62666d',accent:'#fbbf24',accent2:'#7c5cff',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',violet:'#a78bfa'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+function makeSvg(w,h){var s=el('svg',{xmlns:NS,width:w,height:h,viewBox:'0 0 '+w+' '+h});return s;}
+function fmt(n,d){d=d||2;return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);}
+
+// ===== Module 1: Bayesian Networks =====
+function initM1(){
+  var box=document.getElementById('viz1');
+  var svg=makeSvg(720,380);
+  svg.id='svg1';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl1');
+  var stats=document.getElementById('stats1');
+  var detail=document.getElementById('detail1');
+  var nodes=[
+    {id:'C',name:'Cloudy',x:360,y:60,parents:[],cpt:function(){return 0.5;}},
+    {id:'R',name:'Rain',x:200,y:180,parents:['C'],cpt:function(p){return p['C']?0.8:0.2;}},
+    {id:'S',name:'Sprink',x:520,y:180,parents:['C'],cpt:function(p){return p['C']?0.1:0.5;}},
+    {id:'W',name:'WetGrass',x:360,y:300,parents:['R','S'],cpt:function(p){if(p['R']&&p['S'])return 0.99;if(p['R']&&!p['S'])return 0.9;if(!p['R']&&p['S'])return 0.9;return 0.01;}}
+  ];
+  var extraCount=0;
+  var evidence={};
+  function idx(id){for(var i=0;i<nodes.length;i++){if(nodes[i].id===id)return i;}return -1;}
+  function enumerateMarginals(){
+    var n=nodes.length;var marg={};nodes.forEach(function(nd){marg[nd.id]=0;});var z=0;
+    for(var mask=0;mask<(1<<n);mask++){
+      var assign={};for(var i=0;i<n;i++){assign[nodes[i].id]=((mask>>i)&1)===1;}
+      var ok=true;for(var k in evidence){if(assign[k]!==evidence[k]){ok=false;break;}}
+      if(!ok)continue;
+      var p=1;
+      for(var j=0;j<nodes.length;j++){var nd=nodes[j];var pv={};nd.parents.forEach(function(pp){pv[pp]=assign[pp];});var pt=nd.cpt(pv);p*=assign[nd.id]?pt:(1-pt);}
+      z+=p;for(var j=0;j<nodes.length;j++){if(assign[nodes[j].id])marg[nodes[j].id]+=p;}
+    }
+    if(z>0){for(var k2 in marg){marg[k2]/=z;}}
+    return marg;
+  }
+  function draw(){
+    clearSvg(svg);
+    var marg=enumerateMarginals();
+    nodes.forEach(function(nd){
+      nd.parents.forEach(function(pp){var pa=nodes[idx(pp)];svgEl(svg,'line',{x1:pa.x,y1:pa.y,x2:nd.x,y2:nd.y,stroke:C.border,strokeWidth:1.5});});
+    });
+    nodes.forEach(function(nd){
+      var ev=evidence[nd.id];var p=marg[nd.id];
+      var fill=(nd.id in evidence)?(ev?C.emerald:C.rose):C.surface3;
+      var g=svgEl(svg,'g',{});
+      svgEl(g,'circle',{cx:nd.x,cy:nd.y,r:26,fill:fill,stroke:C.accent,strokeWidth:2});
+      svgEl(g,'text',{x:nd.x,y:nd.y-2,'text-anchor':'middle',fill:C.ink,'font-size':11,'font-weight':600}).textContent=nd.name;
+      svgEl(g,'text',{x:nd.x,y:nd.y+12,'text-anchor':'middle',fill:C.muted,'font-size':9}).textContent='P='+fmt(p);
+      g.style.cursor='pointer';
+      g.addEventListener('click',function(){cycleEvidence(nd.id);});
+    });
+    var evTxt=Object.keys(evidence).length?Object.keys(evidence).map(function(k){return k+'='+(evidence[k]?'T':'F');}).join(', '):'无';
+    setStats(stats,[
+      {color:C.accent,label:'节点',val:nodes.length},
+      {color:C.cyan,label:'证据',val:Object.keys(evidence).length},
+      {color:C.emerald,label:'P(W=t)',val:fmt(marg['W'])}
+    ]);
+    detail.innerHTML='<span class="dt-label">提示</span>点击节点循环设置证据 (无→真→假)。当前证据: '+evTxt+'。绿色=证据真，红色=证据假。';
+  }
+  function cycleEvidence(id){
+    if(!(id in evidence)){evidence[id]=true;}
+    else if(evidence[id]===true){evidence[id]=false;}
+    else{delete evidence[id];}
+    draw();
+  }
+  ctrl.appendChild(makeBtn('添加节点',false,function(){
+    if(nodes.length>=8)return;
+    var pid=nodes[Math.floor(Math.random()*nodes.length)].id;
+    var nid='N'+(++extraCount);
+    var ang=Math.random()*Math.PI*2;var base=nodes[idx(pid)];
+    nodes.push({id:nid,name:nid,x:Math.max(60,Math.min(660,base.x+Math.cos(ang)*110)),y:Math.max(60,Math.min(340,base.y+Math.sin(ang)*110)),parents:[pid],cpt:function(p){return p[pid]?0.7:0.3;}});
+    draw();
+  }));
+  ctrl.appendChild(makeBtn('移除节点',false,function(){
+    if(extraCount>0){var last=nodes[nodes.length-1];nodes.pop();delete evidence[last.id];extraCount--;draw();}
+  }));
+  ctrl.appendChild(makeBtn('清除证据',false,function(){evidence={};draw();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){nodes=nodes.slice(0,4);extraCount=0;evidence={};draw();}));
+  draw();
+}
+
+// ===== Module 2: Markov Random Fields =====
+function initM2(){
+  var box=document.getElementById('viz2');
+  var svg=makeSvg(720,380);
+  svg.id='svg2';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl2');
+  var stats=document.getElementById('stats2');
+  var detail=document.getElementById('detail2');
+  var n=6;var J=1.0;var edges=[];
+  function positions(){var pos=[];for(var i=0;i<n;i++){var a=i/n*Math.PI*2-Math.PI/2;pos.push({x:360+Math.cos(a)*120,y:190+Math.sin(a)*120});}return pos;}
+  function buildEdges(){edges=[];for(var i=0;i<n;i++){edges.push([i,(i+1)%n]);}if(n>=4)edges.push([0,3]);if(n>=6)edges.push([1,4]);}
+  function enumerate(){var marg=new Array(n).fill(0);var z=0;
+    for(var mask=0;mask<(1<<n);mask++){
+      var assign=[];for(var i=0;i<n;i++){assign.push(((mask>>i)&1)===1);}
+      var pot=1;edges.forEach(function(e){var same=assign[e[0]]===assign[e[1]];pot*=Math.exp(J*(same?1:0.2));});
+      z+=pot;for(var i=0;i<n;i++){if(assign[i])marg[i]+=pot;}
+    }
+    if(z>0){for(var i=0;i<n;i++){marg[i]/=z;}}
+    return {marg:marg,z:z};
+  }
+  function draw(){
+    clearSvg(svg);var pos=positions();var r=enumerate();
+    edges.forEach(function(e){var a=pos[e[0]],b=pos[e[1]];svgEl(svg,'line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:C.accent,strokeWidth:1.5,opacity:.5});var mx=(a.x+b.x)/2,my=(a.y+b.y)/2-4;svgEl(svg,'text',{x:mx,y:my,'text-anchor':'middle',fill:C.amber,'font-size':9}).textContent='J='+fmt(J,1);});
+    pos.forEach(function(p,i){
+      var pTrue=r.marg[i];
+      svgEl(svg,'circle',{cx:p.x,cy:p.y,r:24,fill:C.surface3,stroke:C.cyan,strokeWidth:2,opacity:0.9});
+      svgEl(svg,'text',{x:p.x,y:p.y-2,'text-anchor':'middle',fill:C.ink,'font-size':11,'font-weight':600}).textContent='X'+(i+1);
+      svgEl(svg,'text',{x:p.x,y:p.y+12,'text-anchor':'middle',fill:C.emerald,'font-size':9}).textContent=fmt(pTrue);
+    });
+    setStats(stats,[
+      {color:C.accent,label:'节点',val:n},
+      {color:C.cyan,label:'边',val:edges.length},
+      {color:C.amber,label:'J',val:fmt(J,1)},
+      {color:C.emerald,label:'log Z',val:fmt(Math.log(r.z))}
+    ]);
+    detail.innerHTML='<span class="dt-label">MRF</span>无向图，节点边缘概率通过配分函数 Z 归一化。势函数 φ(x_i,x_j)=exp(J·ψ)，同值 ψ=1，异值 ψ=0.2。J 越大节点越倾向取相同值。';
+  }
+  ctrl.appendChild(makeBtn('添加节点',false,function(){if(n<10){n++;buildEdges();draw();}}));
+  ctrl.appendChild(makeBtn('移除节点',false,function(){if(n>3){n--;buildEdges();draw();}}));
+  ctrl.appendChild(makeSlider('耦合 J',0,2,0.1,J,'',function(v){J=v;draw();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){n=6;J=1.0;buildEdges();draw();}));
+  buildEdges();draw();
+}
+
+// ===== Module 3: Variable Elimination =====
+function initM3(){
+  var box=document.getElementById('viz3');
+  var svg=makeSvg(720,400);
+  svg.id='svg3';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl3');
+  var stats=document.getElementById('stats3');
+  var detail=document.getElementById('detail3');
+  var varNames=['A','B','C','D'];
+  function makeFactor(vars,fn){var table={};for(var mask=0;mask<(1<<vars.length);mask++){var assign={};var key='';for(var i=0;i<vars.length;i++){var b=((mask>>i)&1)===1;assign[vars[i]]=b;key+=b?'1':'0';}table[key]=fn(assign);}return {vars:vars,table:table};}
+  var baseFactors=[
+    makeFactor(['A'],function(a){return a['A']?0.4:0.6;}),
+    makeFactor(['A','B'],function(a){return a['B']?(a['A']?0.7:0.2):(a['A']?0.3:0.8);}),
+    makeFactor(['B','C'],function(a){return a['C']?(a['B']?0.8:0.1):(a['B']?0.2:0.9);}),
+    makeFactor(['C','D'],function(a){return a['D']?(a['C']?0.9:0.3):(a['C']?0.1:0.7);})
+  ];
+  var query='D';var elimOrder=['A','B','C'];var step=0;
+  function fproduct(f1,f2){var vars=f1.vars.slice();f2.vars.forEach(function(v){if(vars.indexOf(v)<0)vars.push(v);});var table={};for(var mask=0;mask<(1<<vars.length);mask++){var assign={};var key='';for(var i=0;i<vars.length;i++){var b=((mask>>i)&1)===1;assign[vars[i]]=b;key+=b?'1':'0';}var k1='';f1.vars.forEach(function(v){k1+=assign[v]?'1':'0';});var k2='';f2.vars.forEach(function(v){k2+=assign[v]?'1':'0';});table[key]=f1.table[k1]*f2.table[k2];}return {vars:vars,table:table};}
+  function fmarg(f,varOut){var vars=f.vars.filter(function(v){return v!==varOut;});var table={};for(var mask=0;mask<(1<<vars.length);mask++){var assign={};var key='';for(var i=0;i<vars.length;i++){var b=((mask>>i)&1)===1;assign[vars[i]]=b;key+=b?'1':'0';}var sum=0;for(var bv=0;bv<2;bv++){var af=Object.assign({},assign);af[varOut]=bv===1;var fk='';f.vars.forEach(function(v){fk+=af[v]?'1':'0';});sum+=f.table[fk];}table[key]=sum;}return {vars:vars,table:table};}
+  function runVE(){
+    var log=[];var fs=baseFactors.map(function(f){return {vars:f.vars.slice(),table:Object.assign({},f.table)};});
+    for(var ei=0;ei<elimOrder.length;ei++){
+      var v=elimOrder[ei];
+      var involved=fs.filter(function(f){return f.vars.indexOf(v)>=0;});
+      fs=fs.filter(function(f){return f.vars.indexOf(v)<0;});
+      if(involved.length===0)continue;
+      var prod=involved[0];for(var k=1;k<involved.length;k++){prod=fproduct(prod,involved[k]);}
+      log.push({type:'product',var:v,factors:involved.map(function(f){return f.vars.join('');}),prodVars:prod.vars.join('')});
+      var marg=fmarg(prod,v);
+      log.push({type:'sumout',var:v,fromVars:prod.vars.join(''),toVars:marg.vars.join('')});
+      fs.push(marg);
+    }
+    var final=fs[0]||{vars:[query],table:{'0':0.5,'1':0.5}};
+    for(var k2=1;k2<fs.length;k2++){final=fproduct(final,fs[k2]);}
+    var sum=0;for(var kk in final.table){sum+=final.table[kk];}
+    var norm={};for(var kk2 in final.table){norm[kk2]=sum>0?final.table[kk2]/sum:0;}
+    return {log:log,normalized:norm};
+  }
+  function draw(){
+    clearSvg(svg);var res=runVE();
+    var xs=[120,280,440,600];var y=70;
+    varNames.forEach(function(nm,i){svgEl(svg,'circle',{cx:xs[i],cy:y,r:22,fill:nm===query?C.emerald:C.surface3,stroke:C.accent,strokeWidth:2});svgEl(svg,'text',{x:xs[i],y:y+4,'text-anchor':'middle',fill:nm===query?'#08090a':C.ink,'font-size':13,'font-weight':600}).textContent=nm;if(i<varNames.length-1)svgEl(svg,'line',{x1:xs[i]+22,y1:y,x2:xs[i+1]-22,y2:y,stroke:C.border,strokeWidth:1.5});});
+    svgEl(svg,'text',{x:60,y:y+4,fill:C.faint,'font-size':11}).textContent='链:';
+    var shown=res.log.slice(0,step);var yy=120;
+    svgEl(svg,'text',{x:60,y:yy-12,fill:C.faint,'font-size':10}).textContent='消元步骤:';
+    shown.forEach(function(s,idx){var y2=yy+idx*24;if(y2>350)return;var txt=s.type==='product'?('× ['+s.factors.join(', ')+'] → '+s.prodVars):('∑ 消去 '+s.var+' ('+s.fromVars+') → ('+s.toVars+')');svgEl(svg,'rect',{x:50,y:y2-14,width:620,height:20,rx:4,fill:C.surface2,stroke:C.border});svgEl(svg,'text',{x:62,y:y2,fill:s.type==='product'?C.cyan:C.amber,'font-size':11,'font-family':'monospace'}).textContent=txt;});
+    var fy=372;var pTrue=res.normalized['1']!==undefined?res.normalized['1']:0;
+    svgEl(svg,'text',{x:60,y:fy,fill:C.emerald,'font-size':12,'font-weight':600}).textContent='结果 P('+query+') = {T:'+fmt(pTrue)+', F:'+fmt(1-pTrue)+'}';
+    setStats(stats,[
+      {color:C.accent,label:'查询',val:query},
+      {color:C.cyan,label:'消元序',val:elimOrder.join('→')},
+      {color:C.amber,label:'步数',val:step+'/'+res.log.length},
+      {color:C.emerald,label:'P('+query+'=T)',val:fmt(pTrue)}
+    ]);
+    detail.innerHTML='<span class="dt-label">VE</span>变量消除：按顺序消去非查询变量，对相关因子做乘积 (×) 再求和消元 (∑)，最终归一化得到查询变量的边缘概率。';
+  }
+  ctrl.appendChild(makeBtn('下一步',false,function(){var res=runVE();if(step<res.log.length){step++;draw();}}));
+  ctrl.appendChild(makeBtn('上一步',false,function(){if(step>0){step--;draw();}}));
+  ctrl.appendChild(makeBtn('全部',false,function(){var res=runVE();step=res.log.length;draw();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){step=0;draw();}));
+  var qbtns=[];
+  varNames.forEach(function(nm){
+    var b=makeBtn('查 '+nm,nm===query,function(){query=nm;elimOrder=varNames.filter(function(v){return v!==nm;});step=0;qbtns.forEach(function(x){x.classList.remove('active');});b.classList.add('active');draw();});
+    qbtns.push(b);ctrl.appendChild(b);
+  });
+  draw();
+}
+
+// ===== Module 4: Belief Propagation =====
+function initM4(){
+  var box=document.getElementById('viz4');
+  var svg=makeSvg(720,360);
+  svg.id='svg4';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl4');
+  var stats=document.getElementById('stats4');
+  var detail=document.getElementById('detail4');
+  var vars=['X1','X2','X3'];
+  var factors=[
+    {id:'f1',vars:['X1'],pot:function(a){return a['X1']?0.6:0.4;}},
+    {id:'f12',vars:['X1','X2'],pot:function(a){return a['X1']===a['X2']?2:1;}},
+    {id:'f23',vars:['X2','X3'],pot:function(a){return a['X2']===a['X3']?2:1;}},
+    {id:'f3',vars:['X3'],pot:function(a){return a['X3']?0.3:0.7;}}
+  ];
+  var facPos={'f1':{x:120,y:180},'f12':{x:300,y:180},'f23':{x:480,y:180},'f3':{x:660,y:180}};
+  var varPos={'X1':{x:210,y:180},'X2':{x:390,y:180},'X3':{x:570,y:180}};
+  var m_vf={};var m_fv={};vars.forEach(function(v){m_vf[v]={};});factors.forEach(function(f){m_fv[f.id]={};});
+  var syncMode=true;var iter=0;var converged=false;var maxDelta=0;var timer=null;
+  function initMsgs(){vars.forEach(function(v){factors.forEach(function(f){if(f.vars.indexOf(v)>=0){m_vf[v][f.id]={0:1,1:1};m_fv[f.id][v]={0:1,1:1};}});});}
+  function adjFactors(v){return factors.filter(function(f){return f.vars.indexOf(v)>=0;});}
+  function computeVarFac(v,f){var res={0:1,1:1};adjFactors(v).forEach(function(fp){if(fp.id===f.id)return;res[0]*=m_fv[fp.id][v][0];res[1]*=m_fv[fp.id][v][1];});var s=res[0]+res[1];if(s>0){res[0]/=s;res[1]/=s;}return res;}
+  function computeFacVar(f,v){var others=f.vars.filter(function(x){return x!==v;});var res={0:0,1:0};
+    for(var xv=0;xv<2;xv++){var sum=0;for(var mask=0;mask<(1<<others.length);mask++){var assign={};assign[v]=xv===1;for(var i=0;i<others.length;i++){assign[others[i]]=((mask>>i)&1)===1;}var p=f.pot(assign);for(var i=0;i<others.length;i++){var b=assign[others[i]]?1:0;p*=m_vf[others[i]][f.id][b];}sum+=p;}res[xv]=sum;}
+    var s=res[0]+res[1];if(s>0){res[0]/=s;res[1]/=s;}return res;}
+  function stepSync(){var nv={};var nf={};vars.forEach(function(v){nv[v]={};});factors.forEach(function(f){nf[f.id]={};});var delta=0;
+    factors.forEach(function(f){f.vars.forEach(function(v){var a=computeFacVar(f,v);nf[f.id][v]=a;delta=Math.max(delta,Math.abs(a[0]-m_fv[f.id][v][0]));});});
+    vars.forEach(function(v){adjFactors(v).forEach(function(f){var a=computeVarFac(v,f);nv[v][f.id]=a;delta=Math.max(delta,Math.abs(a[0]-m_vf[v][f.id][0]));});});
+    m_fv=nf;m_vf=nv;return delta;}
+  function stepAsync(){var delta=0;
+    factors.forEach(function(f){f.vars.forEach(function(v){var a=computeFacVar(f,v);delta=Math.max(delta,Math.abs(a[0]-m_fv[f.id][v][0]));m_fv[f.id][v]=a;});});
+    vars.forEach(function(v){adjFactors(v).forEach(function(f){var a=computeVarFac(v,f);delta=Math.max(delta,Math.abs(a[0]-m_vf[v][f.id][0]));m_vf[v][f.id]=a;});});
+    return delta;}
+  function beliefs(){var b={};vars.forEach(function(v){var r={0:1,1:1};adjFactors(v).forEach(function(f){r[0]*=m_fv[f.id][v][0];r[1]*=m_fv[f.id][v][1];});var s=r[0]+r[1];if(s>0){r[0]/=s;r[1]/=s;}b[v]=r;});return b;}
+  function draw(){
+    clearSvg(svg);var b=beliefs();
+    factors.forEach(function(f){f.vars.forEach(function(v){var fp=facPos[f.id],vp=varPos[v];svgEl(svg,'line',{x1:fp.x,y1:fp.y,x2:vp.x,y2:vp.y,stroke:C.border,strokeWidth:1.5});var mx=(fp.x+vp.x)/2,my=(fp.y+vp.y)/2-8;svgEl(svg,'text',{x:mx,y:my,'text-anchor':'middle',fill:C.cyan,'font-size':9}).textContent=fmt(m_fv[f.id][v][1]);});});
+    factors.forEach(function(f){var p=facPos[f.id];svgEl(svg,'rect',{x:p.x-18,y:p.y-18,width:36,height:36,fill:C.surface3,stroke:C.amber,strokeWidth:2,rx:4});svgEl(svg,'text',{x:p.x,y:p.y+4,'text-anchor':'middle',fill:C.amber,'font-size':11,'font-weight':600}).textContent=f.id;});
+    vars.forEach(function(v){var p=varPos[v];svgEl(svg,'circle',{cx:p.x,cy:p.y,r:20,fill:C.surface3,stroke:C.accent,strokeWidth:2});svgEl(svg,'text',{x:p.x,y:p.y-2,'text-anchor':'middle',fill:C.ink,'font-size':11,'font-weight':600}).textContent=v;svgEl(svg,'text',{x:p.x,y:p.y+11,'text-anchor':'middle',fill:C.emerald,'font-size':9}).textContent=fmt(b[v][1]);});
+    setStats(stats,[
+      {color:C.accent,label:'迭代',val:iter},
+      {color:C.cyan,label:'模式',val:syncMode?'同步':'异步'},
+      {color:C.amber,label:'最大变化',val:fmt(maxDelta,4)},
+      {color:C.emerald,label:'收敛',val:converged?'是':'否'}
+    ]);
+    detail.innerHTML='<span class="dt-label">BP</span>置信传播：变量节点 (圆) 与因子节点 (方) 之间传递消息，边上数字为 m_{f→v}(1)。树上精确收敛，得到边缘概率 P(X=1)。';
+  }
+  initMsgs();
+  ctrl.appendChild(makeBtn('下一步',false,function(){var d=syncMode?stepSync():stepAsync();maxDelta=d;iter++;if(d<1e-4)converged=true;draw();}));
+  ctrl.appendChild(makeBtn('自动',false,function(){
+    if(timer)return;var run=function(){var d=syncMode?stepSync():stepAsync();maxDelta=d;iter++;if(d<1e-4)converged=true;draw();if(!converged&&iter<60){timer=setTimeout(run,250);}else{timer=null;}};
+    run();
+  }));
+  ctrl.appendChild(makeBtn('停止',false,function(){if(timer){clearTimeout(timer);timer=null;}}));
+  ctrl.appendChild(makeBtn(syncMode?'同步':'异步',false,function(b){syncMode=!syncMode;b.textContent=syncMode?'同步':'异步';iter=0;converged=false;maxDelta=0;initMsgs();draw();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){if(timer){clearTimeout(timer);timer=null;}iter=0;converged=false;maxDelta=0;initMsgs();draw();}));
+  draw();
+}
+
+// ===== Module 5: HMM & Viterbi =====
+function initM5(){
+  var box=document.getElementById('viz5');
+  var svg=makeSvg(720,360);
+  svg.id='svg5';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl5');
+  var stats=document.getElementById('stats5');
+  var detail=document.getElementById('detail5');
+  var states=['S1','S2','S3'];
+  var pi=[0.5,0.3,0.2];
+  var trans=[[0.6,0.3,0.1],[0.2,0.6,0.2],[0.3,0.3,0.4]];
+  var emit=[[0.7,0.3],[0.4,0.6],[0.2,0.8]];
+  var obsSeq='AABBA';var mode='viterbi';
+  function obsIndex(o){return o==='A'?0:1;}
+  function run(){
+    var T=obsSeq.length;var K=states.length;var alpha=[];var back=[];
+    for(var t=0;t<T;t++){alpha.push(new Array(K).fill(0));back.push(new Array(K).fill(-1));}
+    for(var k=0;k<K;k++){alpha[0][k]=pi[k]*emit[k][obsIndex(obsSeq[0])];}
+    for(var t=1;t<T;t++){for(var k=0;k<K;k++){var best=-1,bestP=-1,sum=0;for(var j=0;j<K;j++){var p=alpha[t-1][j]*trans[j][k];if(mode==='viterbi'){if(p>bestP){bestP=p;best=j;}}sum+=p;}if(mode==='viterbi'){alpha[t][k]=bestP*emit[k][obsIndex(obsSeq[t])];back[t][k]=best;}else{alpha[t][k]=sum*emit[k][obsIndex(obsSeq[t])];}}}
+    var path=[];
+    if(mode==='viterbi'){var best=-1,bestP=-1;for(var k=0;k<K;k++){if(alpha[T-1][k]>bestP){bestP=alpha[T-1][k];best=k;}}path=new Array(T);path[T-1]=best;for(var t=T-2;t>=0;t--){path[t]=back[t+1][path[t+1]];}}
+    return {alpha:alpha,path:path};
+  }
+  function draw(){
+    clearSvg(svg);var res=run();var T=obsSeq.length;var K=states.length;
+    var x0=80,dx=T>1?Math.min(120,(720-120)/(T-1)):0;var ys=[90,180,270];
+    for(var t=0;t<T;t++){svgEl(svg,'text',{x:x0+t*dx,y:46,'text-anchor':'middle',fill:C.amber,'font-size':14,'font-weight':600}).textContent=obsSeq[t];svgEl(svg,'text',{x:x0+t*dx,y:62,'text-anchor':'middle',fill:C.faint,'font-size':9}).textContent='t'+t;}
+    if(mode==='viterbi'&&T>1){for(var t=0;t<T-1;t++){var from=res.path[t],to=res.path[t+1];svgEl(svg,'line',{x1:x0+t*dx,y1:ys[from],x2:x0+(t+1)*dx,y2:ys[to],stroke:C.emerald,strokeWidth:2.5,opacity:.8});}}
+    var maxA=0;res.alpha.forEach(function(row){row.forEach(function(v){if(v>maxA)maxA=v;});});
+    for(var t=0;t<T;t++){for(var k=0;k<K;k++){var v=res.alpha[t][k];var norm=maxA>0?v/maxA:0;var onPath=mode==='viterbi'&&res.path[t]===k;svgEl(svg,'circle',{cx:x0+t*dx,cy:ys[k],r:17,fill:onPath?C.emerald:C.surface3,stroke:onPath?C.emerald:C.accent,strokeWidth:onPath?3:1.5,opacity:0.35+0.65*norm});svgEl(svg,'text',{x:x0+t*dx,y:ys[k]+3,'text-anchor':'middle',fill:C.ink,'font-size':10,'font-weight':600}).textContent=states[k];svgEl(svg,'text',{x:x0+t*dx,y:ys[k]+29,'text-anchor':'middle',fill:C.muted,'font-size':9}).textContent=fmt(v,3);}}
+    for(var k=0;k<K;k++){svgEl(svg,'text',{x:30,y:ys[k]+3,fill:C.cyan,'font-size':11,'font-weight':600}).textContent=states[k];}
+    var pObs=0;if(mode==='forward'){for(var k=0;k<K;k++)pObs+=res.alpha[T-1][k];}
+    setStats(stats,[
+      {color:C.accent,label:'模式',val:mode},
+      {color:C.cyan,label:'观测',val:obsSeq},
+      {color:C.amber,label:'长度',val:T},
+      {color:C.emerald,label:mode==='viterbi'?'路径':'P(O)',val:mode==='viterbi'?res.path.map(function(p){return states[p];}).join('→'):fmt(pObs,4)}
+    ]);
+    detail.innerHTML='<span class="dt-label">HMM</span>'+(mode==='viterbi'?'Viterbi 解码最大后验状态路径 (绿线)，节点亮度反映该状态概率。':'前向算法计算观测序列似然 P(O)，节点亮度反映前向概率。');
+  }
+  var inp=document.createElement('input');
+  inp.type='text';inp.value=obsSeq;inp.className='btn btn-sm';inp.style.width='110px';inp.setAttribute('aria-label','观测序列');
+  inp.addEventListener('input',function(){var v=inp.value.toUpperCase().replace(/[^AB]/g,'');if(v.length>0){obsSeq=v;draw();}});
+  ctrl.appendChild(inp);
+  var vbtn=ctrl.appendChild(makeBtn('Viterbi',mode==='viterbi',function(){mode='viterbi';vbtn.classList.add('active');fbtn.classList.remove('active');draw();}));
+  var fbtn=ctrl.appendChild(makeBtn('Forward',mode==='forward',function(){mode='forward';fbtn.classList.add('active');vbtn.classList.remove('active');draw();}));
+  ctrl.appendChild(makeBtn('重置',false,function(){obsSeq='AABBA';inp.value=obsSeq;draw();}));
+  draw();
+}
+
+// ===== Module 6: Variational Inference =====
+function initM6(){
+  var box=document.getElementById('viz6');
+  var svg=makeSvg(720,340);
+  svg.id='svg6';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl6');
+  var stats=document.getElementById('stats6');
+  var detail=document.getElementById('detail6');
+  function npdf(x,mu,sig){var s=sig*Math.sqrt(2*Math.PI);return Math.exp(-((x-mu)*(x-mu))/(2*sig*sig))/s;}
+  function target(x){return 0.5*npdf(x,-1.5,0.8)+0.5*npdf(x,1.5,0.8);}
+  var meanField=true;var t=0.15;var timer=null;
+  function qparams(){if(meanField){var mu=3*(1-t);var sig=2.5-1.7*t;return {mix:false,mu:mu,sig:sig};}var pos=1.5*t;var sig=1.4-0.6*t;return {mix:true,w:0.5,pos:pos,sig:sig};}
+  function qval(x,p){if(p.mix)return p.w*npdf(x,p.pos,p.sig)+(1-p.w)*npdf(x,-p.pos,p.sig);return npdf(x,p.mu,p.sig);}
+  function compute(){var p=qparams();var lo=-5,hi=5,N=200,dx=(hi-lo)/N;var kl=0,eq=0,hq=0;
+    for(var i=0;i<N;i++){var x=lo+i*dx;var qx=qval(x,p);var px=target(x);if(qx>1e-9&&px>1e-9)kl+=qx*Math.log(qx/px)*dx;if(qx>1e-9)hq-=qx*Math.log(qx)*dx;if(qx>1e-9&&px>1e-9)eq+=qx*Math.log(px)*dx;}
+    return {kl:kl,elbo:eq+hq};}
+  function draw(){
+    clearSvg(svg);var W=720,H=340,pad=34;var lo=-5,hi=5,N=120;var maxp=0;
+    for(var i=0;i<=N;i++){var x=lo+(hi-lo)*i/N;var v=target(x);if(v>maxp)maxp=v;}
+    var pq=qparams();
+    svgEl(svg,'line',{x1:pad,y1:H-pad,x2:W-pad,y2:H-pad,stroke:C.border,strokeWidth:1});
+    svgEl(svg,'line',{x1:pad,y1:pad,x2:pad,y2:H-pad,stroke:C.border,strokeWidth:1});
+    function xpx(x){return pad+(x-lo)/(hi-lo)*(W-2*pad);}
+    function ypx(v){return H-pad-(v/maxp)*(H-2*pad);}
+    var d='';for(var i=0;i<=N;i++){var x=lo+(hi-lo)*i/N;d+=(i?'L':'M')+xpx(x)+' '+ypx(target(x));}
+    svgEl(svg,'path',{d:d,fill:'none',stroke:C.accent,strokeWidth:2.5});
+    var dq='';for(var i=0;i<=N;i++){var x=lo+(hi-lo)*i/N;dq+=(i?'L':'M')+xpx(x)+' '+ypx(qval(x,pq));}
+    svgEl(svg,'path',{d:dq,fill:'none',stroke:C.cyan,strokeWidth:2,strokeDasharray:'4 3'});
+    svgEl(svg,'text',{x:W-pad-6,y:pad+12,'text-anchor':'end',fill:C.accent,'font-size':11}).textContent='p(z|x)';
+    svgEl(svg,'text',{x:W-pad-6,y:pad+26,'text-anchor':'end',fill:C.cyan,'font-size':11}).textContent='q(z)';
+    var m=compute();
+    svgEl(svg,'rect',{x:pad,y:H-pad+10,width:240,height:8,fill:C.surface3,rx:2});
+    svgEl(svg,'rect',{x:pad,y:H-pad+10,width:240*Math.max(0,Math.min(1,t)),height:8,fill:C.emerald,rx:2});
+    svgEl(svg,'text',{x:pad+250,y:H-pad+17,fill:C.emerald,'font-size':10}).textContent='ELBO='+fmt(m.elbo,3);
+    setStats(stats,[
+      {color:C.accent,label:'分布',val:meanField?'Mean-Field':'结构化'},
+      {color:C.cyan,label:'优化',val:fmt(t*100,0)+'%'},
+      {color:C.amber,label:'KL(q‖p)',val:fmt(m.kl,3)},
+      {color:C.emerald,label:'ELBO',val:fmt(m.elbo,3)}
+    ]);
+    detail.innerHTML='<span class="dt-label">VI</span>变分推断：用 q(z) 逼近后验 p(z|x)。最小化 KL(q‖p) 等价于最大化 ELBO。'+(meanField?'均值场 (单高斯) 只能逼近单峰，难以覆盖双峰。':'结构化变分 (双模混合) 可拟合多峰后验。');
+  }
+  ctrl.appendChild(makeSlider('优化进度',0,1,0.01,t,'',function(v){t=v;draw();}));
+  var mfBtn=ctrl.appendChild(makeBtn('均值场',meanField,function(){meanField=true;mfBtn.classList.add('active');stBtn.classList.remove('active');draw();}));
+  var stBtn=ctrl.appendChild(makeBtn('结构化',!meanField,function(){meanField=false;stBtn.classList.add('active');mfBtn.classList.remove('active');draw();}));
+  ctrl.appendChild(makeBtn('自动优化',false,function(){
+    if(timer)return;var run=function(){t=Math.min(1,t+0.02);draw();if(t<1){timer=setTimeout(run,40);}else{timer=null;}};
+    run();
+  }));
+  ctrl.appendChild(makeBtn('重置',false,function(){if(timer){clearTimeout(timer);timer=null;}t=0.15;draw();}));
+  draw();
+}
+
+// ===== Module 7: Sampling Methods =====
+function initM7(){
+  var box=document.getElementById('viz7');
+  var svg=makeSvg(720,380);
+  svg.id='svg7';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl7');
+  var stats=document.getElementById('stats7');
+  var detail=document.getElementById('detail7');
+  var mu=[0,0];var cov=[[1,0.7],[0.7,1]];
+  var sampler='gibbs';var samples=[];var current=[0,0];var timer=null;
+  function condMeanY(y){return mu[0]+cov[0][1]/cov[1][1]*(y-mu[1]);}
+  function condVarY(){return cov[0][0]-cov[0][1]*cov[0][1]/cov[1][1];}
+  function condMeanX(x){return mu[1]+cov[0][1]/cov[0][0]*(x-mu[0]);}
+  function condVarX(){return cov[1][1]-cov[0][1]*cov[0][1]/cov[0][0];}
+  function gaussRand(m,s){var u1=Math.random(),u2=Math.random();var z=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);return m+s*z;}
+  function targetPdf(x,y){var dx=x-mu[0],dy=y-mu[1];var det=cov[0][0]*cov[1][1]-cov[0][1]*cov[0][1];var inv=1/det;var q=inv*(cov[1][1]*dx*dx-2*cov[0][1]*dx*dy+cov[0][0]*dy*dy);return Math.exp(-0.5*q)/(2*Math.PI*Math.sqrt(det));}
+  function stepGibbs(){current[0]=gaussRand(condMeanY(current[1]),Math.sqrt(condVarY()));current[1]=gaussRand(condMeanX(current[0]),Math.sqrt(condVarX()));samples.push({x:current[0],y:current[1]});}
+  function stepMH(){var prop=[current[0]+gaussRand(0,0.8),current[1]+gaussRand(0,0.8)];var r=targetPdf(prop[0],prop[1])/Math.max(1e-12,targetPdf(current[0],current[1]));if(Math.random()<Math.min(1,r)){current[0]=prop[0];current[1]=prop[1];}samples.push({x:current[0],y:current[1]});}
+  function draw(){
+    clearSvg(svg);var W=720,H=380,pad=30;var scale=40;var cx=W/2,cy=H/2;
+    function xpx(x){return cx+x*scale;}
+    function ypx(y){return cy-y*scale;}
+    svgEl(svg,'line',{x1:pad,y1:cy,x2:W-pad,y2:cy,stroke:C.border,strokeWidth:1});
+    svgEl(svg,'line',{x1:cx,y1:pad,x2:cx,y2:H-pad,stroke:C.border,strokeWidth:1});
+    var eig=[{l:1.7,v:[Math.SQRT1_2,Math.SQRT1_2]},{l:0.3,v:[Math.SQRT1_2,-Math.SQRT1_2]}];
+    for(var lvl=1;lvl<=3;lvl++){var path='';for(var a=0;a<=64;a++){var th=a/64*2*Math.PI;var px=Math.sqrt(eig[0].l)*lvl*Math.cos(th);var py=Math.sqrt(eig[1].l)*lvl*Math.sin(th);var x=eig[0].v[0]*px+eig[1].v[0]*py;var y=eig[0].v[1]*px+eig[1].v[1]*py;path+=(a?'L':'M')+xpx(x)+' '+ypx(y);}path+='Z';svgEl(svg,'path',{d:path,fill:'none',stroke:C.accent,strokeWidth:1,opacity:0.3,strokeDasharray:'3 2'});}
+    var shown=samples.slice(-600);
+    shown.forEach(function(s){svgEl(svg,'circle',{cx:xpx(s.x),cy:ypx(s.y),r:2,fill:C.cyan,opacity:0.5});});
+    if(samples.length>0){var last=samples[samples.length-1];svgEl(svg,'circle',{cx:xpx(last.x),cy:ypx(last.y),r:5,fill:C.emerald,stroke:'#08090a',strokeWidth:1});}
+    var mx=0,my=0;samples.forEach(function(s){mx+=s.x;my+=s.y;});if(samples.length>0){mx/=samples.length;my/=samples.length;}
+    var cov01=0;samples.forEach(function(s){cov01+=(s.x-mx)*(s.y-my);});if(samples.length>1)cov01/=(samples.length-1);
+    setStats(stats,[
+      {color:C.accent,label:'采样器',val:sampler},
+      {color:C.cyan,label:'样本数',val:samples.length},
+      {color:C.emerald,label:'均值',val:'('+fmt(mx,2)+','+fmt(my,2)+')'},
+      {color:C.amber,label:'协方差',val:fmt(cov01,2)}
+    ]);
+    detail.innerHTML='<span class="dt-label">MCMC</span>'+(sampler==='gibbs'?'Gibbs 采样：交替从条件分布采样。':'Metropolis-Hastings：高斯提议 + 接受/拒绝。')+'虚线椭圆为目标分布等高线 (均值 0,0 / 协方差 0.7)，绿点为当前样本。';
+  }
+  var gBtn=ctrl.appendChild(makeBtn('Gibbs',sampler==='gibbs',function(){sampler='gibbs';gBtn.classList.add('active');mBtn.classList.remove('active');draw();}));
+  var mBtn=ctrl.appendChild(makeBtn('MH',sampler==='mh',function(){sampler='mh';mBtn.classList.add('active');gBtn.classList.remove('active');draw();}));
+  ctrl.appendChild(makeBtn('步进 +1',false,function(){if(sampler==='gibbs')stepGibbs();else stepMH();draw();}));
+  ctrl.appendChild(makeBtn('步进 +100',false,function(){for(var i=0;i<100;i++){if(sampler==='gibbs')stepGibbs();else stepMH();}draw();}));
+  ctrl.appendChild(makeBtn('自动',false,function(){
+    if(timer)return;var run=function(){for(var i=0;i<20;i++){if(sampler==='gibbs')stepGibbs();else stepMH();}draw();if(samples.length<2000){timer=setTimeout(run,60);}else{timer=null;}};
+    run();
+  }));
+  ctrl.appendChild(makeBtn('停止',false,function(){if(timer){clearTimeout(timer);timer=null;}}));
+  ctrl.appendChild(makeBtn('重置',false,function(){if(timer){clearTimeout(timer);timer=null;}samples=[];current=[0,0];draw();}));
+  draw();
+}
+
+// ===== Module 8: Structure Learning =====
+function initM8(){
+  var box=document.getElementById('viz8');
+  var svg=makeSvg(720,400);
+  svg.id='svg8';
+  box.appendChild(svg);
+  var ctrl=document.getElementById('ctrl8');
+  var stats=document.getElementById('stats8');
+  var detail=document.getElementById('detail8');
+  var varNames=['A','B','C','D'];
+  var positions={'A':{x:360,y:80},'B':{x:180,y:210},'C':{x:540,y:210},'D':{x:360,y:340}};
+  function genData(){var d=[];var N=300;for(var i=0;i<N;i++){var a=Math.random()<0.5?1:0;var b=Math.random()<(a?0.8:0.2)?1:0;var c=Math.random()<(a?0.7:0.3)?1:0;var pd=(b&&c)?0.9:(b&&!c)?0.7:(!b&&c)?0.4:0.1;var dd=Math.random()<pd?1:0;d.push({A:a,B:b,C:c,D:dd});}return d;}
+  var data=genData();var algo='bic';var edges={};var scoreHistory=[];var sel=null;var timer=null;
+  function parentsOf(v){var ps=[];for(var k in edges){var parts=k.split('>');if(parts[1]===v)ps.push(parts[0]);}return ps;}
+  function allParents(){var p={};varNames.forEach(function(v){p[v]=parentsOf(v);});return p;}
+  function isAcyclic(es){var adj={};varNames.forEach(function(v){adj[v]=[];});for(var k in es){var parts=k.split('>');adj[parts[0]].push(parts[1]);}var vis={},rec={};function dfs(u){vis[u]=1;rec[u]=1;for(var i=0;i<adj[u].length;i++){var w=adj[u][i];if(!vis[w]){if(dfs(w))return true;}else if(rec[w])return true;}rec[u]=0;return false;}for(var i=0;i<varNames.length;i++){if(!vis[varNames[i]]){if(dfs(varNames[i]))return false;}}return true;}
+  function localScore(v,parents){var N=data.length;var counts={};var parCounts={};data.forEach(function(d){var key=parents.map(function(p){return d[p];}).join('');var ck=key+':'+d[v];counts[ck]=(counts[ck]||0)+1;parCounts[key]=(parCounts[key]||0)+1;});var ll=0;for(var ck in counts){var parts=ck.split(':');var pk=parts[0];var c=counts[ck];var pc=parCounts[pk]||1;ll+=c*Math.log(c/pc);}var numConfigs=Math.pow(2,parents.length);var k=numConfigs;var penalty=algo==='bic'?0.5*k*Math.log(N):k*1.0;return ll-penalty;}
+  function totalScore(){var p=allParents();var s=0;varNames.forEach(function(v){s+=localScore(v,p[v]);});return s;}
+  function applyOp(op){if(op.type==='add')edges[op.a+'>'+op.b]=true;else if(op.type==='remove')delete edges[op.a+'>'+op.b];else if(op.type==='reverse'){delete edges[op.a+'>'+op.b];edges[op.b+'>'+op.a]=true;}}
+  function tryOp(op){var saved={};for(var k in edges)saved[k]=true;applyOp(op);var valid=isAcyclic(edges);var sc=valid?totalScore():-1e9;edges=saved;return {valid:valid,score:sc};}
+  function learnStep(){var base=totalScore();var bestDelta=1e-4;var best=null;varNames.forEach(function(a){varNames.forEach(function(b){if(a===b)return;var ab=edges[a+'>'+b],ba=edges[b+'>'+a];if(!ab&&!ba){var r=tryOp({type:'add',a:a,b:b});var d=r.score-base;if(d>bestDelta){bestDelta=d;best={type:'add',a:a,b:b};}}else if(ab){var rr=tryOp({type:'remove',a:a,b:b});var dr=rr.score-base;if(dr>bestDelta){bestDelta=dr;best={type:'remove',a:a,b:b};}var rv=tryOp({type:'reverse',a:a,b:b});var dv=rv.score-base;if(dv>bestDelta){bestDelta=dv;best={type:'reverse',a:a,b:b};}}});});if(best){applyOp(best);return true;}return false;}
+  function runLearn(){if(timer)return;var run=function(){var imp=learnStep();draw();if(imp){timer=setTimeout(run,350);}else{timer=null;}};run();}
+  function selectNode(v){if(sel===null){sel=v;}else if(sel===v){sel=null;}else{var a=sel,b=v;if(edges[a+'>'+b]){delete edges[a+'>'+b];}else if(edges[b+'>'+a]){delete edges[b+'>'+a];}else{edges[a+'>'+b]=true;if(!isAcyclic(edges)){delete edges[a+'>'+b];}}sel=null;}draw();}
+  function draw(){
+    clearSvg(svg);
+    for(var k in edges){var parts=k.split('>');var a=positions[parts[0]],b=positions[parts[1]];svgEl(svg,'line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:C.accent,strokeWidth:1.8});var ang=Math.atan2(b.y-a.y,b.x-a.x);var hx=b.x-26*Math.cos(ang),hy=b.y-26*Math.sin(ang);svgEl(svg,'polygon',{points:hx+','+hy+' '+(hx-9*Math.cos(ang-0.4))+','+(hy-9*Math.sin(ang-0.4))+' '+(hx-9*Math.cos(ang+0.4))+','+(hy-9*Math.sin(ang+0.4)),fill:C.accent});}
+    varNames.forEach(function(v){var p=positions[v];var sf=sel===v;svgEl(svg,'circle',{cx:p.x,cy:p.y,r:24,fill:C.surface3,stroke:sf?C.amber:C.cyan,strokeWidth:sf?3:2});svgEl(svg,'text',{x:p.x,y:p.y+4,'text-anchor':'middle',fill:C.ink,'font-size':13,'font-weight':600}).textContent=v;var ov=svgEl(svg,'circle',{cx:p.x,cy:p.y,r:30,fill:'transparent',stroke:'none'});ov.style.cursor='pointer';ov.style.pointerEvents='all';ov.addEventListener('click',function(){selectNode(v);});});
+    var curScore=totalScore();
+    if(scoreHistory.length===0||Math.abs(scoreHistory[scoreHistory.length-1]-curScore)>1e-6)scoreHistory.push(curScore);
+    if(scoreHistory.length>40)scoreHistory.shift();
+    var cx0=490,cy0=14,cw=220,ch=66;
+    svgEl(svg,'rect',{x:cx0,y:cy0,width:cw,height:ch,fill:C.surface2,stroke:C.border,rx:4});
+    svgEl(svg,'text',{x:cx0+8,y:cy0+14,fill:C.faint,'font-size':9}).textContent='分数轨迹';
+    var minS=scoreHistory.length?Math.min.apply(null,scoreHistory):0;var maxS=scoreHistory.length?Math.max.apply(null,scoreHistory):1;if(maxS-minS<1e-6)maxS=minS+1;
+    var dpath='';scoreHistory.forEach(function(s,i){var px=cx0+8+i*(cw-16)/Math.max(1,scoreHistory.length-1);var py=cy0+ch-8-((s-minS)/(maxS-minS))*(ch-24);dpath+=(i?'L':'M')+px+' '+py;});
+    if(scoreHistory.length>1)svgEl(svg,'path',{d:dpath,fill:'none',stroke:C.emerald,strokeWidth:1.5});
+    setStats(stats,[
+      {color:C.accent,label:'算法',val:algo.toUpperCase()},
+      {color:C.cyan,label:'边数',val:Object.keys(edges).length},
+      {color:C.emerald,label:'分数',val:fmt(curScore,1)},
+      {color:C.amber,label:'样本',val:data.length}
+    ]);
+    detail.innerHTML='<span class="dt-label">SL</span>结构学习：用 BIC/BDeu 评分搜索最优 DAG。点击两个节点添加/删除边 (黄圈为已选)；"学习" 执行贪婪爬山搜索 (加/删/反转边)。真实结构: A→B, A→C, B→D, C→D。';
+  }
+  var algoBtns=[];
+  var bicBtn=ctrl.appendChild(makeBtn('BIC',algo==='bic',function(){algo='bic';algoBtns.forEach(function(x){x.classList.remove('active');});bicBtn.classList.add('active');draw();}));algoBtns.push(bicBtn);
+  var bdeuBtn=ctrl.appendChild(makeBtn('BDeu',algo==='bdeu',function(){algo='bdeu';algoBtns.forEach(function(x){x.classList.remove('active');});bdeuBtn.classList.add('active');draw();}));algoBtns.push(bdeuBtn);
+  ctrl.appendChild(makeBtn('学习',false,function(){runLearn();}));
+  ctrl.appendChild(makeBtn('停止',false,function(){if(timer){clearTimeout(timer);timer=null;}}));
+  ctrl.appendChild(makeBtn('清空',false,function(){edges={};scoreHistory=[];draw();}));
+  ctrl.appendChild(makeBtn('真实结构',false,function(){edges={'A>B':true,'A>C':true,'B>D':true,'C>D':true};draw();}));
+  ctrl.appendChild(makeBtn('重置数据',false,function(){if(timer){clearTimeout(timer);timer=null;}data=genData();edges={};scoreHistory=[];draw();}));
+  draw();
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  initM1();initM2();initM3();initM4();initM5();initM6();initM7();initM8();
+});
+
+document.querySelectorAll('.nav-item').forEach(function(item){
+  item.addEventListener('click',function(){
+    var target=document.getElementById(item.dataset.target);
+    if(target)target.scrollIntoView({behavior:'smooth'});
+  });
+});
+var navToggle=document.getElementById('navToggle');
+var sidebar=document.getElementById('sidebar');
+if(navToggle)navToggle.addEventListener('click',function(){sidebar.classList.toggle('open');});
+var observer=new IntersectionObserver(function(entries){
+  entries.forEach(function(entry){
+    if(entry.isIntersecting)entry.target.classList.add('visible');
+  });
+},{threshold:0.1});
+document.querySelectorAll('.fade-in').forEach(function(el){observer.observe(el);});
+window.addEventListener('scroll',function(){
+  var h=document.documentElement.scrollHeight-window.innerHeight;
+  var p=(window.scrollY/h)*100;
+  var bar=document.getElementById('progressBar');
+  if(bar)bar.style.width=p+'%';
+  var scrollPos=window.scrollY+100;
+  document.querySelectorAll('.module').forEach(function(mod){
+    var top=mod.offsetTop;var bottom=top+mod.offsetHeight;
+    if(scrollPos>=top&&scrollPos<bottom){
+      document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+      var navItem=document.querySelector('.nav-item[data-target="'+mod.id+'"]');
+      if(navItem)navItem.classList.add('active');
+    }
+  });
+});
+</script>
+</body>
+</html>

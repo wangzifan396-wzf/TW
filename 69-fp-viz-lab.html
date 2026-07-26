@@ -1,0 +1,2477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FP Viz Lab — 函数式编程可视化实验室</title>
+<meta name="description" content="函数式编程核心概念的可视化实验室：高阶函数、柯里化、不可变数据、惰性求值、函子单子、模式匹配、尾递归优化、纯函数。">
+<style>
+/* ============================================================
+   FP Viz Lab — Design System
+   Linear-inspired cold engineering aesthetic
+   ============================================================ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#a78bfa;
+  --accent-2:#7c5cff;
+  --accent-soft:rgba(167,139,250,.12);
+  --accent-glow:rgba(124,92,255,.25);
+  --danger:#f87171;
+  --success:#4ade80;
+  --warn:#fbbf24;
+  --info:#60a5fa;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --nav-h:56px;
+  --side-w:240px;
+  --radius:10px;
+  --radius-sm:6px;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+
+/* ---- Reset ---- */
+*{margin:0;padding:0;box-sizing:border-box}
+*::selection{background:var(--accent-soft);color:var(--ink)}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 28px)}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+svg{display:block}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2a2e35}
+
+/* ============================================================
+   Progress Bar (top)
+   ============================================================ */
+.progress-wrap{
+  position:fixed;top:0;left:0;right:0;
+  height:2px;z-index:1000;
+  background:transparent;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent-2),var(--accent));
+  transition:width .1s linear;
+  box-shadow:0 0 8px var(--accent-glow);
+}
+
+/* ============================================================
+   Navbar
+   ============================================================ */
+.navbar{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--nav-h);
+  background:rgba(8,9,10,.82);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 20px;
+  z-index:900;
+  gap:16px;
+}
+.navbar .brand{
+  display:flex;align-items:center;gap:10px;
+  font-weight:600;font-size:14px;
+  letter-spacing:-.01em;
+}
+.brand .logo{
+  width:26px;height:26px;
+  border-radius:7px;
+  background:linear-gradient(135deg,var(--accent-2),var(--accent));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  color:#08090a;
+}
+.brand .sub{color:var(--faint);font-weight:400;font-size:12px}
+.navbar .nav-spacer{flex:1}
+.navbar .nav-links{display:flex;align-items:center;gap:6px}
+.nav-link{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;border-radius:var(--radius-sm);
+  font-size:12.5px;color:var(--muted);
+  transition:color .2s,background .2s;
+}
+.nav-link:hover{color:var(--ink);background:var(--surface-2)}
+.nav-link svg{width:14px;height:14px}
+.menu-btn{
+  display:none;
+  width:36px;height:36px;
+  align-items:center;justify-content:center;
+  border-radius:var(--radius-sm);
+  color:var(--muted);
+}
+.menu-btn:hover{background:var(--surface-2);color:var(--ink)}
+.menu-btn svg{width:18px;height:18px}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.sidebar{
+  position:fixed;
+  top:var(--nav-h);left:0;bottom:0;
+  width:var(--side-w);
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  z-index:800;
+  padding:16px 0;
+  transition:transform .3s var(--ease);
+}
+.sidebar-label{
+  padding:0 20px;
+  font-size:10.5px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;
+  color:var(--faint);
+  margin-bottom:8px;
+}
+.side-nav{display:flex;flex-direction:column;padding:0 8px}
+.side-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;border-radius:var(--radius-sm);
+  font-size:13px;color:var(--muted);
+  transition:all .2s;
+  margin-bottom:1px;
+  position:relative;
+}
+.side-item .num{
+  font-family:var(--mono);font-size:11px;
+  color:var(--faint);width:20px;
+}
+.side-item:hover{background:var(--surface-2);color:var(--ink)}
+.side-item.active{
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+.side-item.active .num{color:var(--accent)}
+.side-item.active::before{
+  content:'';position:absolute;left:0;top:6px;bottom:6px;
+  width:2px;border-radius:1px;background:var(--accent);
+}
+.sidebar-foot{
+  margin-top:auto;padding:16px 20px;
+  border-top:1px solid var(--border);
+  font-size:11px;color:var(--faint);
+}
+
+/* Sidebar overlay (mobile) */
+.side-overlay{
+  display:none;
+  position:fixed;inset:var(--nav-h) 0 0 0;
+  background:rgba(0,0,0,.5);z-index:799;
+  opacity:0;pointer-events:none;
+  transition:opacity .3s;
+}
+.side-overlay.show{opacity:1;pointer-events:auto}
+
+/* ============================================================
+   Main Content
+   ============================================================ */
+.main{
+  margin-left:var(--side-w);
+  padding-top:var(--nav-h);
+  min-height:100vh;
+}
+.content{max-width:1100px;margin:0 auto;padding:40px 32px 120px}
+
+/* ---- Hero ---- */
+.hero{
+  padding:48px 0 56px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:56px;
+}
+.hero .kicker{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:12px;
+  color:var(--accent);
+  padding:4px 10px;border-radius:20px;
+  background:var(--accent-soft);
+  border:1px solid rgba(167,139,250,.2);
+  margin-bottom:20px;
+}
+.hero h1{
+  font-size:38px;font-weight:700;
+  letter-spacing:-.03em;line-height:1.15;
+  margin-bottom:16px;
+}
+.hero h1 .grad{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.hero .lead{
+  font-size:16px;color:var(--muted);
+  max-width:600px;line-height:1.7;
+}
+.hero-meta{
+  display:flex;gap:24px;margin-top:28px;
+  flex-wrap:wrap;
+}
+.hero-meta .meta-item{
+  display:flex;flex-direction:column;gap:2px;
+}
+.hero-meta .meta-val{
+  font-family:var(--mono);font-size:20px;font-weight:600;
+  color:var(--ink);
+}
+.hero-meta .meta-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+
+/* ---- Module ---- */
+.module{
+  margin-bottom:80px;
+  opacity:0;transform:translateY(24px);
+  transition:opacity .6s var(--ease),transform .6s var(--ease);
+}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-head{margin-bottom:24px}
+.module-head .kicker{
+  font-family:var(--mono);font-size:12px;
+  color:var(--accent);font-weight:600;
+  letter-spacing:.05em;
+  display:flex;align-items:center;gap:8px;
+  margin-bottom:8px;
+}
+.module-head .kicker::before{
+  content:'';width:24px;height:1px;background:var(--accent);
+}
+.module-head h2{
+  font-size:26px;font-weight:700;
+  letter-spacing:-.02em;margin-bottom:8px;
+}
+.module-head .desc{color:var(--muted);font-size:14px;max-width:640px}
+
+.module-grid{display:grid;gap:16px}
+
+/* ---- Card ---- */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;
+  border-bottom:1px solid var(--border);
+}
+.card-head .title{
+  font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:8px;
+}
+.card-head .dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent);
+}
+.card-head .badge{
+  font-family:var(--mono);font-size:10.5px;
+  padding:2px 8px;border-radius:4px;
+  background:var(--surface-3);color:var(--muted);
+  border:1px solid var(--border);
+}
+.card-body{padding:18px}
+
+/* ---- Viz Box ---- */
+.viz-box{
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:20px;
+  min-height:260px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+}
+.viz-box svg{width:100%;height:auto;max-height:340px}
+
+/* ---- Controls ---- */
+.controls{
+  display:flex;flex-wrap:wrap;gap:8px;
+  margin-top:16px;align-items:center;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--radius-sm);
+  font-size:12.5px;font-weight:500;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--ink);
+  transition:all .2s;
+  font-family:var(--sans);
+}
+.btn:hover{background:var(--surface-3);border-color:var(--border-strong)}
+.btn:active{transform:scale(.97)}
+.btn.primary{
+  background:var(--accent-soft);
+  border-color:rgba(167,139,250,.3);
+  color:var(--accent);
+}
+.btn.primary:hover{background:rgba(167,139,250,.2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled:hover{background:var(--surface-2);border-color:var(--border)}
+.control-group{
+  display:flex;align-items:center;gap:10px;
+  padding:6px 12px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+}
+.control-group label{font-size:12px;color:var(--muted);white-space:nowrap}
+.slider{
+  -webkit-appearance:none;appearance:none;
+  width:100px;height:4px;
+  background:var(--surface-3);border-radius:2px;
+  outline:none;
+}
+.slider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+}
+.slider::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:2px solid var(--bg);
+}
+.slider-val{
+  font-family:var(--mono);font-size:12px;
+  color:var(--ink);min-width:28px;
+}
+
+/* ---- Detail Box ---- */
+.detail-box{
+  margin-top:16px;padding:14px 16px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  font-size:13px;color:var(--muted);
+  line-height:1.7;
+}
+.detail-box code{
+  font-family:var(--mono);font-size:12px;
+  background:var(--surface-3);padding:1px 6px;
+  border-radius:3px;color:var(--accent);
+}
+.detail-box strong{color:var(--ink)}
+
+/* ---- Stats Row ---- */
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:12px;margin-top:16px;
+}
+.stat{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px 14px;
+}
+.stat .stat-label{
+  font-size:10.5px;color:var(--faint);
+  text-transform:uppercase;letter-spacing:.06em;
+  margin-bottom:4px;
+}
+.stat .stat-val{
+  font-family:var(--mono);font-size:18px;font-weight:600;
+  color:var(--ink);
+}
+.stat .stat-val.accent{color:var(--accent)}
+.stat .stat-val.success{color:var(--success)}
+.stat .stat-val.danger{color:var(--danger)}
+
+/* ---- Code Block ---- */
+.code-block{
+  font-family:var(--mono);font-size:12px;
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px 14px;
+  margin-top:12px;
+  color:var(--muted);
+  overflow-x:auto;
+  line-height:1.8;
+}
+.code-block .kw{color:var(--accent)}
+.code-block .fn{color:var(--info)}
+.code-block .str{color:var(--success)}
+.code-block .num-lit{color:var(--warn)}
+.code-block .com{color:var(--faint)}
+
+/* ---- Footer ---- */
+.footer{
+  border-top:1px solid var(--border);
+  padding:32px 0;
+  text-align:center;
+  color:var(--faint);font-size:12px;
+}
+.footer a{color:var(--muted)}
+.footer a:hover{color:var(--accent)}
+
+/* ---- SVG shared ---- */
+.svg-text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+.svg-text-sm{font-family:var(--mono);font-size:10px;fill:var(--faint)}
+.svg-label{font-family:var(--sans);font-size:12px;fill:var(--ink);font-weight:600}
+.svg-node-fill{fill:var(--surface-2);stroke:var(--border-strong);stroke-width:1}
+.svg-accent-stroke{stroke:var(--accent);stroke-width:1.5}
+.svg-accent-fill{fill:var(--accent-soft)}
+.svg-dashed{stroke-dasharray:4 3}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media(max-width:960px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .side-overlay{display:block}
+  .main{margin-left:0}
+  .menu-btn{display:flex}
+  .navbar .nav-links .nav-link.hide-mobile{display:none}
+  .content{padding:28px 20px 80px}
+  .hero{padding:32px 0 40px}
+  .hero h1{font-size:30px}
+}
+@media(max-width:600px){
+  .hero h1{font-size:24px}
+  .hero .lead{font-size:14px}
+  .module-head h2{font-size:20px}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .controls{gap:6px}
+  .btn{padding:6px 10px;font-size:12px}
+}
+
+/* ============================================================
+   Reduced Motion
+   ============================================================ */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  html{scroll-behavior:auto}
+  .module{opacity:1;transform:none}
+  .progress-bar{transition:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Progress Bar -->
+<div class="progress-wrap">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <button class="menu-btn" id="menuBtn" aria-label="Toggle menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="brand">
+    <div class="logo">λ</div>
+    <span>FP Viz Lab</span>
+    <span class="sub">v1.0</span>
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="nav-links">
+    <a class="nav-link hide-mobile" href="https://github.com/wangzifan396-wzf/fp-viz-lab" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1-.02-1.96-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- Sidebar Overlay -->
+<div class="side-overlay" id="sideOverlay"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-label">可视化模块</div>
+  <nav class="side-nav" id="sideNav">
+    <a class="side-item active" href="#m01"><span class="num">01</span>高阶函数</a>
+    <a class="side-item" href="#m02"><span class="num">02</span>柯里化</a>
+    <a class="side-item" href="#m03"><span class="num">03</span>不可变数据</a>
+    <a class="side-item" href="#m04"><span class="num">04</span>惰性求值</a>
+    <a class="side-item" href="#m05"><span class="num">05</span>函子与单子</a>
+    <a class="side-item" href="#m06"><span class="num">06</span>模式匹配</a>
+    <a class="side-item" href="#m07"><span class="num">07</span>尾递归优化</a>
+    <a class="side-item" href="#m08"><span class="num">08</span>纯函数与副作用</a>
+  </nav>
+  <div class="sidebar-foot">
+    <div>FP Viz Lab</div>
+    <div style="margin-top:4px">零依赖 · 纯前端</div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="content">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="kicker">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Functional Programming Visualization
+      </div>
+      <h1>函数式编程<span class="grad">可视化实验室</span></h1>
+      <p class="lead">通过 8 个交互式可视化模块，直观理解高阶函数、柯里化、不可变数据、惰性求值、函子单子、模式匹配、尾递归优化与纯函数。纯 HTML/CSS/JS + SVG，零外部依赖。</p>
+      <div class="hero-meta">
+        <div class="meta-item"><span class="meta-val">8</span><span class="meta-label">交互模块</span></div>
+        <div class="meta-item"><span class="meta-val">0</span><span class="meta-label">外部依赖</span></div>
+        <div class="meta-item"><span class="meta-val">SVG</span><span class="meta-label">可视化引擎</span></div>
+        <div class="meta-item"><span class="meta-val">MIT</span><span class="meta-label">开源协议</span></div>
+      </div>
+    </section>
+
+    <!-- Module 01: Higher-order Functions -->
+    <section class="module" id="m01">
+      <div class="module-head">
+        <div class="kicker">MODULE 01</div>
+        <h2>高阶函数 — 数据流管道</h2>
+        <p class="desc">map / filter / reduce 组合形成数据流管道。函数作为一等公民，可以作为参数传递和返回值输出。观察数据如何流经每个变换阶段。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>Pipeline 可视化</div>
+            <div class="badge">map · filter · reduce</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz01"></div>
+            <div class="controls">
+              <button class="btn primary" id="hof-run">▶ 运行管道</button>
+              <button class="btn" id="hof-step">逐步执行</button>
+              <button class="btn" id="hof-reset">重置</button>
+              <div class="control-group">
+                <label>数组大小</label>
+                <input type="range" class="slider" id="hof-size" min="4" max="10" value="6">
+                <span class="slider-val" id="hof-size-val">6</span>
+              </div>
+            </div>
+            <div class="detail-box" id="hof-detail">
+              点击 <strong>运行管道</strong> 查看数据流经 <code>map(x =&gt; x * 2)</code> → <code>filter(x =&gt; x &gt; 5)</code> → <code>reduce((a,b) =&gt; a + b, 0)</code> 的完整过程。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">输入元素</div><div class="stat-val" id="hof-s-in">6</div></div>
+              <div class="stat"><div class="stat-label">map 后</div><div class="stat-val accent" id="hof-s-map">6</div></div>
+              <div class="stat"><div class="stat-label">filter 后</div><div class="stat-val" id="hof-s-filter">—</div></div>
+              <div class="stat"><div class="stat-label">reduce 结果</div><div class="stat-val success" id="hof-s-reduce">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 02: Currying -->
+    <section class="module" id="m02">
+      <div class="module-head">
+        <div class="kicker">MODULE 02</div>
+        <h2>柯里化 — 函数拆分与部分应用</h2>
+        <p class="desc">将接受多个参数的函数转化为一系列接受单个参数的函数。每次应用一个参数，返回一个新函数等待剩余参数，直至所有参数就绪后求值。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>Currying 过程</div>
+            <div class="badge">f(a,b,c) → f(a)(b)(c)</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz02"></div>
+            <div class="controls">
+              <button class="btn primary" id="curry-apply">应用下一个参数</button>
+              <button class="btn" id="curry-reset">重置</button>
+              <div class="control-group">
+                <label>a =</label>
+                <input type="range" class="slider" id="curry-a" min="1" max="5" value="3">
+                <span class="slider-val" id="curry-a-val">3</span>
+              </div>
+              <div class="control-group">
+                <label>b =</label>
+                <input type="range" class="slider" id="curry-b" min="1" max="5" value="4">
+                <span class="slider-val" id="curry-b-val">4</span>
+              </div>
+              <div class="control-group">
+                <label>c =</label>
+                <input type="range" class="slider" id="curry-c" min="1" max="5" value="2">
+                <span class="slider-val" id="curry-c-val">2</span>
+              </div>
+            </div>
+            <div class="detail-box" id="curry-detail">
+              函数 <code>f(a, b, c) = a * b + c</code> 被柯里化为 <code>f(a)(b)(c)</code>。逐步应用参数，观察部分应用如何生成新的函数。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">已应用参数</div><div class="stat-val" id="curry-s-applied">0 / 3</div></div>
+              <div class="stat"><div class="stat-label">剩余参数</div><div class="stat-val accent" id="curry-s-remain">3</div></div>
+              <div class="stat"><div class="stat-label">当前状态</div><div class="stat-val" id="curry-s-state" style="font-size:13px">等待</div></div>
+              <div class="stat"><div class="stat-label">最终结果</div><div class="stat-val success" id="curry-s-result">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 03: Immutable Data -->
+    <section class="module" id="m03">
+      <div class="module-head">
+        <div class="kicker">MODULE 03</div>
+        <h2>不可变数据 — 结构共享</h2>
+        <p class="desc">持久化数据结构通过结构共享实现不可变性。修改操作不改变原数据，而是创建一个新版本，共享未变更的部分。旧版本始终保持可用。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>持久化链表 — Structural Sharing</div>
+            <div class="badge">cons · shared nodes</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz03"></div>
+            <div class="controls">
+              <button class="btn primary" id="imm-cons">cons(new head)</button>
+              <button class="btn" id="imm-reset">重置</button>
+              <div class="control-group">
+                <label>新值</label>
+                <input type="range" class="slider" id="imm-val" min="1" max="20" value="7">
+                <span class="slider-val" id="imm-val-val">7</span>
+              </div>
+            </div>
+            <div class="detail-box" id="imm-detail">
+              每次执行 <code>cons(v, list)</code> 都会创建新链表版本，<strong>旧链表的节点被新链表共享</strong>。高亮节点表示结构共享的部分。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">链表版本</div><div class="stat-val" id="imm-s-ver">1</div></div>
+              <div class="stat"><div class="stat-label">总节点数</div><div class="stat-val" id="imm-s-nodes">2</div></div>
+              <div class="stat"><div class="stat-label">共享节点</div><div class="stat-val accent" id="imm-s-shared">0</div></div>
+              <div class="stat"><div class="stat-label">内存节省</div><div class="stat-val success" id="imm-s-save">0%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 04: Lazy Evaluation -->
+    <section class="module" id="m04">
+      <div class="module-head">
+        <div class="kicker">MODULE 04</div>
+        <h2>惰性求值 — Thunk 与 Stream</h2>
+        <p class="desc">惰性求值延迟计算直到真正需要结果时才执行。Stream 由一个已求值的 head 和一个延迟的 tail（thunk）组成，实现无限序列与按需计算。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>Lazy Stream 可视化</div>
+            <div class="badge">thunk · head/tail</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz04"></div>
+            <div class="controls">
+              <button class="btn primary" id="lazy-pull">Pull next</button>
+              <button class="btn" id="lazy-pull5">Pull 5</button>
+              <button class="btn" id="lazy-reset">重置</button>
+              <div class="control-group">
+                <label>起始值</label>
+                <input type="range" class="slider" id="lazy-start" min="1" max="10" value="1">
+                <span class="slider-val" id="lazy-start-val">1</span>
+              </div>
+            </div>
+            <div class="detail-box" id="lazy-detail">
+              无限自然数流 <code>Stream(start, start+1, start+2, ...)</code>。点击 <strong>Pull next</strong> 强制求值下一个 thunk。<strong>蓝色</strong>节点已求值，<strong>虚线</strong>节点为未求值的 thunk。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">已求值</div><div class="stat-val accent" id="lazy-s-eval">1</div></div>
+              <div class="stat"><div class="stat-label">未求值</div><div class="stat-val" id="lazy-s-pending">∞</div></div>
+              <div class="stat"><div class="stat-label">当前值</div><div class="stat-val" id="lazy-s-cur">1</div></div>
+              <div class="stat"><div class="stat-label">求值次数</div><div class="stat-val success" id="lazy-s-count">0</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 05: Functors and Monads -->
+    <section class="module" id="m05">
+      <div class="module-head">
+        <div class="kicker">MODULE 05</div>
+        <h2>函子与单子 — 链式调用</h2>
+        <p class="desc">Functor 用 map 将函数提升到上下文中执行；Monad 用 flatMap（bind）处理嵌套上下文，实现链式组合。Applicative 介于两者之间，用 ap 应用上下文中的函数。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>Functor · Applicative · Monad</div>
+            <div class="badge">map · ap · flatMap</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz05"></div>
+            <div class="controls">
+              <button class="btn primary" id="monad-step">执行下一步</button>
+              <button class="btn" id="monad-reset">重置</button>
+              <div class="control-group">
+                <label>类型</label>
+                <select id="monad-type" style="background:var(--surface-3);border:1px solid var(--border);color:var(--ink);border-radius:4px;padding:3px 6px;font-size:12px;font-family:var(--mono)">
+                  <option value="functor">Functor (map)</option>
+                  <option value="applicative">Applicative (ap)</option>
+                  <option value="monad">Monad (flatMap)</option>
+                </select>
+              </div>
+            </div>
+            <div class="detail-box" id="monad-detail">
+              选择类型后点击 <strong>执行下一步</strong>。观察值在上下文盒子中如何被变换：<code>map</code> 不脱离上下文，<code>flatMap</code> 处理嵌套并展平。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">当前类型</div><div class="stat-val" id="monad-s-type" style="font-size:13px">Functor</div></div>
+              <div class="stat"><div class="stat-label">链长度</div><div class="stat-val accent" id="monad-s-chain">0</div></div>
+              <div class="stat"><div class="stat-label">当前值</div><div class="stat-val" id="monad-s-val">Just(2)</div></div>
+              <div class="stat"><div class="stat-label">嵌套层数</div><div class="stat-val success" id="monad-s-nest">1</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 06: Pattern Matching -->
+    <section class="module" id="m06">
+      <div class="module-head">
+        <div class="kicker">MODULE 06</div>
+        <h2>模式匹配 — 代数数据类型</h2>
+        <p class="desc">代数数据类型（ADT）通过 sum type 和 product type 组合数据。模式匹配对 ADT 的不同构造器进行解构绑定，实现类型安全的分支逻辑。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>ADT 匹配可视化</div>
+            <div class="badge">Option · Result · List</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz06"></div>
+            <div class="controls">
+              <button class="btn primary" id="pm-match">执行匹配</button>
+              <button class="btn" id="pm-reset">重置</button>
+              <div class="control-group">
+                <label>ADT 类型</label>
+                <select id="pm-adt" style="background:var(--surface-3);border:1px solid var(--border);color:var(--ink);border-radius:4px;padding:3px 6px;font-size:12px;font-family:var(--mono)">
+                  <option value="option">Option&lt;T&gt;</option>
+                  <option value="result">Result&lt;T,E&gt;</option>
+                  <option value="list">List&lt;T&gt;</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label>构造器</label>
+                <select id="pm-ctor" style="background:var(--surface-3);border:1px solid var(--border);color:var(--ink);border-radius:4px;padding:3px 6px;font-size:12px;font-family:var(--mono)">
+                  <option value="Some">Some(42)</option>
+                  <option value="None">None</option>
+                </select>
+              </div>
+            </div>
+            <div class="detail-box" id="pm-detail">
+              选择 ADT 类型和构造器，点击 <strong>执行匹配</strong>。高亮显示匹配到的分支及解构绑定的变量。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">总分支数</div><div class="stat-val" id="pm-s-branches">2</div></div>
+              <div class="stat"><div class="stat-label">匹配分支</div><div class="stat-val accent" id="pm-s-match">—</div></div>
+              <div class="stat"><div class="stat-label">解构变量</div><div class="stat-val" id="pm-s-destructure">—</div></div>
+              <div class="stat"><div class="stat-label">穷尽性</div><div class="stat-val success" id="pm-s-exhaustive">✓</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 07: Tail Recursion Optimization -->
+    <section class="module" id="m07">
+      <div class="module-head">
+        <div class="kicker">MODULE 07</div>
+        <h2>尾递归优化 — 栈帧对比</h2>
+        <p class="desc">普通递归每次调用压入新栈帧，深度过大时栈溢出。尾递归将递归调用置于函数末尾，编译器可复用当前栈帧（TCO），实现 O(1) 空间复杂度。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>栈帧对比 — Normal vs TCO</div>
+            <div class="badge">stack frame · accumulator</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz07"></div>
+            <div class="controls">
+              <button class="btn primary" id="tco-step">递归一步</button>
+              <button class="btn" id="tco-run">运行至完成</button>
+              <button class="btn" id="tco-reset">重置</button>
+              <div class="control-group">
+                <label>n =</label>
+                <input type="range" class="slider" id="tco-n" min="3" max="12" value="6">
+                <span class="slider-val" id="tco-n-val">6</span>
+              </div>
+            </div>
+            <div class="detail-box" id="tco-detail">
+              计算 <code>factorial(n)</code>。<strong>左侧</strong>普通递归栈不断增长，<strong>右侧</strong>尾递归通过累加器保持栈帧恒定。factorial(n, acc=1) = n &le; 0 ? acc : factorial(n-1, n*acc)。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">普通栈深度</div><div class="stat-val danger" id="tco-s-normal">0</div></div>
+              <div class="stat"><div class="stat-label">TCO 栈深度</div><div class="stat-val success" id="tco-s-tco">0</div></div>
+              <div class="stat"><div class="stat-label">当前步骤</div><div class="stat-val accent" id="tco-s-step">0</div></div>
+              <div class="stat"><div class="stat-label">结果</div><div class="stat-val" id="tco-s-result">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Module 08: Pure Functions -->
+    <section class="module" id="m08">
+      <div class="module-head">
+        <div class="kicker">MODULE 08</div>
+        <h2>纯函数与副作用 — 引用透明性</h2>
+        <p class="desc">纯函数对相同输入始终返回相同输出，无副作用。引用透明性允许将函数调用替换为其返回值。副作用隔离将不纯操作推到系统边界。</p>
+      </div>
+      <div class="module-grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="title"><span class="dot"></span>引用透明性 — Pure vs Impure</div>
+            <div class="badge">referential transparency</div>
+          </div>
+          <div class="card-body">
+            <div class="viz-box" id="viz08"></div>
+            <div class="controls">
+              <button class="btn primary" id="pure-run">调用函数</button>
+              <button class="btn" id="pure-run3">调用 3 次</button>
+              <button class="btn" id="pure-reset">重置</button>
+              <div class="control-group">
+                <label>模式</label>
+                <select id="pure-mode" style="background:var(--surface-3);border:1px solid var(--border);color:var(--ink);border-radius:4px;padding:3px 6px;font-size:12px;font-family:var(--mono)">
+                  <option value="pure">纯函数</option>
+                  <option value="impure">非纯函数</option>
+                </select>
+              </div>
+            </div>
+            <div class="detail-box" id="pure-detail">
+              纯函数 <code>add(a,b)</code>：相同输入必返回相同结果。非纯函数 <code>addWithTax(a,b)</code>：引入全局税率变量，结果依赖外部状态，破坏引用透明性。
+            </div>
+            <div class="stats-row">
+              <div class="stat"><div class="stat-label">调用次数</div><div class="stat-val" id="pure-s-calls">0</div></div>
+              <div class="stat"><div class="stat-label">确定性</div><div class="stat-val success" id="pure-s-determ">100%</div></div>
+              <div class="stat"><div class="stat-label">副作用</div><div class="stat-val" id="pure-s-effect">0</div></div>
+              <div class="stat"><div class="stat-label">引用透明</div><div class="stat-val success" id="pure-s-trans">✓ Yes</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>FP Viz Lab — 函数式编程可视化实验室 · <a href="https://github.com/wangzifan396-wzf/fp-viz-lab" target="_blank" rel="noopener">GitHub</a> · MIT License</p>
+      <p style="margin-top:6px">Built with pure HTML/CSS/JS + SVG. Zero dependencies.</p>
+    </footer>
+
+  </div>
+</main>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Utility Functions
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  if (attrs) {
+    for (const k in attrs) {
+      if (k === 'text') {
+        el.textContent = attrs[k];
+      } else {
+        el.setAttribute(k, attrs[k]);
+      }
+    }
+  }
+  return el;
+}
+
+function clearNode(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ============================================================
+   Global: Progress Bar + Sidebar + IntersectionObserver
+   ============================================================ */
+(function initGlobal() {
+  // Progress bar
+  const bar = $('progressBar');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = clamp(pct, 0, 100) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
+  // Sidebar toggle (mobile)
+  const sidebar = $('sidebar');
+  const overlay = $('sideOverlay');
+  const menuBtn = $('menuBtn');
+  function toggleSidebar(open) {
+    if (open === undefined) open = !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', open);
+    overlay.classList.toggle('show', open);
+  }
+  menuBtn.addEventListener('click', () => toggleSidebar());
+  overlay.addEventListener('click', () => toggleSidebar(false));
+
+  // Close sidebar on nav click (mobile)
+  document.querySelectorAll('.side-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 960) toggleSidebar(false);
+    });
+  });
+
+  // Active sidebar item on scroll
+  const modules = document.querySelectorAll('.module');
+  const sideItems = document.querySelectorAll('.side-item');
+  function updateActiveNav() {
+    let current = '';
+    modules.forEach(m => {
+      const rect = m.getBoundingClientRect();
+      if (rect.top <= 120) current = m.id;
+    });
+    sideItems.forEach(item => {
+      item.classList.toggle('active', item.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', updateActiveNav, { passive: true });
+
+  // IntersectionObserver for fade-in
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    modules.forEach(m => io.observe(m));
+  } else {
+    modules.forEach(m => m.classList.add('visible'));
+  }
+})();
+
+
+/* ============================================================
+   MODULE 01: Higher-Order Functions — Pipeline
+   ============================================================ */
+const HOF = (function() {
+  const viz = $('viz01');
+  let size = 6;
+  let data = [];
+  let stage = 0; // 0=input, 1=map, 2=filter, 3=reduce
+  let mapped = [], filtered = [], reduced = 0;
+  let animDots = [];
+  let rafId = null;
+
+  function genData() {
+    data = [];
+    for (let i = 0; i < size; i++) data.push(Math.floor(Math.random() * 9) + 1);
+  }
+
+  function compute() {
+    mapped = data.map(x => x * 2);
+    filtered = mapped.filter(x => x > 5);
+    reduced = filtered.reduce((a, b) => a + b, 0);
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 260;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const stages = [
+      { label: 'input', data: data, color: 'var(--muted)' },
+      { label: 'map ×2', data: mapped, color: 'var(--accent)' },
+      { label: 'filter >5', data: filtered, color: 'var(--info)' },
+      { label: 'reduce +', data: stage >= 3 ? [reduced] : [], color: 'var(--success)' }
+    ];
+
+    const colW = w / 4;
+    const boxY = 60;
+    const boxH = 140;
+
+    stages.forEach((s, i) => {
+      const cx = colW * i + colW / 2;
+      const active = stage >= i;
+      // Label
+      svg.appendChild(svgEl('text', {
+        x: cx, y: 30, 'text-anchor': 'middle',
+        class: 'svg-label', fill: active ? s.color : 'var(--faint)'
+      })).textContent = s.label;
+      // Operation badge
+      if (i > 0) {
+        svg.appendChild(svgEl('text', {
+          x: cx, y: 48, 'text-anchor': 'middle',
+          class: 'svg-text-sm', fill: 'var(--faint)'
+        })).textContent = i === 1 ? 'x → x*2' : i === 2 ? 'x > 5' : '(a,b) → a+b';
+      }
+      // Box
+      svg.appendChild(svgEl('rect', {
+        x: cx - 60, y: boxY, width: 120, height: boxH,
+        rx: 8, class: 'svg-node-fill',
+        fill: active ? 'var(--surface-2)' : 'var(--surface)',
+        stroke: active ? s.color : 'var(--border)'
+      }));
+      // Data items
+      const items = s.data;
+      const itemSpacing = Math.min(20, (boxH - 20) / Math.max(items.length, 1));
+      items.forEach((val, j) => {
+        const iy = boxY + 16 + j * itemSpacing;
+        const circle = svgEl('circle', {
+          cx: cx, cy: iy, r: 10,
+          fill: active ? s.color : 'var(--surface-3)',
+          stroke: active ? s.color : 'var(--border)',
+          'stroke-width': 1, opacity: active ? 1 : 0.4
+        });
+        svg.appendChild(circle);
+        svg.appendChild(svgEl('text', {
+          x: cx, y: iy + 3.5, 'text-anchor': 'middle',
+          class: 'svg-text-sm', fill: active ? '#08090a' : 'var(--faint)',
+          'font-weight': '700'
+        })).textContent = val;
+      });
+
+      // Arrow to next
+      if (i < 3) {
+        const ax1 = cx + 60, ax2 = cx + colW - 60;
+        const ay = boxY + boxH / 2;
+        const lineEl = svgEl('line', {
+          x1: ax1, y1: ay, x2: ax2 - 8, y2: ay,
+          stroke: stage > i ? 'var(--accent)' : 'var(--border)',
+          'stroke-width': 2, 'marker-end': 'url(#arrow01)'
+        });
+        svg.appendChild(lineEl);
+      }
+    });
+
+    // Arrow marker
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow01', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // Result text
+    if (stage >= 3) {
+      svg.appendChild(svgEl('text', {
+        x: w / 2, y: h - 12, 'text-anchor': 'middle',
+        class: 'svg-label', fill: 'var(--success)'
+      })).textContent = `= ${reduced}`;
+    }
+
+    // Animated dots on active arrows
+    if (!prefersReducedMotion && stage > 0 && stage < 4) {
+      for (let i = 0; i < Math.min(stage, 3); i++) {
+        const cx = colW * i + colW / 2;
+        const ax1 = cx + 60, ax2 = cx + colW - 60;
+        const ay = 60 + 140 / 2;
+        const dot = svgEl('circle', { cx: ax1, cy: ay, r: 3, fill: 'var(--accent)' });
+        dot.style.opacity = '0.8';
+        svg.appendChild(dot);
+        animDots.push({ el: dot, x1: ax1, x2: ax2, y: ay, t: Math.random() });
+      }
+      animateDots();
+    }
+
+    viz.appendChild(svg);
+  }
+
+  function animateDots() {
+    if (rafId) cancelAnimationFrame(rafId);
+    function step() {
+      animDots.forEach(d => {
+        d.t += 0.012;
+        if (d.t > 1) d.t = 0;
+        d.el.setAttribute('cx', lerp(d.x1, d.x2, d.t));
+      });
+      if (animDots.length > 0) rafId = requestAnimationFrame(step);
+    }
+    if (!prefersReducedMotion) step();
+  }
+
+  function updateStats() {
+    $('hof-s-in').textContent = data.length;
+    $('hof-s-map').textContent = stage >= 1 ? mapped.length : '—';
+    $('hof-s-filter').textContent = stage >= 2 ? filtered.length : '—';
+    $('hof-s-reduce').textContent = stage >= 3 ? reduced : '—';
+  }
+
+  function updateDetail() {
+    const detail = $('hof-detail');
+    if (stage === 0) {
+      detail.innerHTML = `输入数组 <code>[${data.join(', ')}]</code>。点击 <strong>运行管道</strong> 开始数据流。`;
+    } else if (stage === 1) {
+      detail.innerHTML = `<code>map(x =&gt; x * 2)</code> 对每个元素加倍：<code>[${mapped.join(', ')}]</code>。`;
+    } else if (stage === 2) {
+      detail.innerHTML = `<code>filter(x =&gt; x &gt; 5)</code> 保留大于 5 的元素：<code>[${filtered.join(', ')}]</code>。`;
+    } else {
+      detail.innerHTML = `<code>reduce((a,b) =&gt; a + b, 0)</code> 求和：<strong>${reduced}</strong>。管道完成。`;
+    }
+  }
+
+  function reset() {
+    stage = 0;
+    animDots = [];
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    genData(); compute();
+    render(); updateStats(); updateDetail();
+  }
+
+  function step() {
+    if (stage < 3) {
+      stage++;
+      render(); updateStats(); updateDetail();
+    }
+  }
+
+  function run() {
+    reset();
+    let i = 0;
+    function next() {
+      if (i < 3) {
+        step();
+        i++;
+        setTimeout(next, 600);
+      }
+    }
+    next();
+  }
+
+  // Init
+  $('hof-run').addEventListener('click', run);
+  $('hof-step').addEventListener('click', step);
+  $('hof-reset').addEventListener('click', reset);
+  $('hof-size').addEventListener('input', (e) => {
+    size = parseInt(e.target.value);
+    $('hof-size-val').textContent = size;
+    reset();
+  });
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 02: Currying
+   ============================================================ */
+const Curry = (function() {
+  const viz = $('viz02');
+  let applied = 0;
+  let a = 3, b = 4, c = 2;
+  let animFrame = null;
+
+  function compute() { return a * b + c; }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 240;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow02', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // Original function
+    const origY = 50;
+    svg.appendChild(svgEl('rect', {
+      x: 20, y: origY, width: 140, height: 44, rx: 8,
+      class: 'svg-node-fill'
+    }));
+    svg.appendChild(svgEl('text', {
+      x: 90, y: origY + 28, 'text-anchor': 'middle',
+      class: 'svg-label', fill: 'var(--muted)'
+    })).textContent = 'f(a, b, c)';
+
+    // Curried chain
+    const chainY = 130;
+    const stages = [
+      { label: 'f(a)(b)(c)', applied: 0, val: null },
+      { label: `f(${a})(b)(c)`, applied: 1, val: a },
+      { label: `f(${a})(${b})(c)`, applied: 2, val: `${a}×${b}=${a*b}` },
+      { label: `f(${a})(${b})(${c})`, applied: 3, val: compute() }
+    ];
+
+    const startX = 200;
+    const stepW = 120;
+
+    stages.forEach((s, i) => {
+      const x = startX + i * stepW;
+      const isActive = applied >= s.applied;
+      // Box
+      svg.appendChild(svgEl('rect', {
+        x: x, y: chainY, width: 110, height: 50, rx: 8,
+        fill: isActive ? 'var(--accent-soft)' : 'var(--surface)',
+        stroke: isActive ? 'var(--accent)' : 'var(--border)',
+        'stroke-width': 1.5
+      }));
+      svg.appendChild(svgEl('text', {
+        x: x + 55, y: chainY + 22, 'text-anchor': 'middle',
+        class: 'svg-text', fill: isActive ? 'var(--accent)' : 'var(--faint)',
+        'font-size': '10px'
+      })).textContent = s.label;
+      // Value
+      if (isActive && s.val !== null) {
+        svg.appendChild(svgEl('text', {
+          x: x + 55, y: chainY + 40, 'text-anchor': 'middle',
+          class: 'svg-text-sm', fill: i === 3 ? 'var(--success)' : 'var(--ink)',
+          'font-weight': '700'
+        })).textContent = '→ ' + s.val;
+      }
+      // Arrow
+      if (i > 0) {
+        svg.appendChild(svgEl('line', {
+          x1: x - 10, y1: chainY + 25, x2: x - 2, y2: chainY + 25,
+          stroke: isActive ? 'var(--accent)' : 'var(--border)',
+          'stroke-width': 2, 'marker-end': 'url(#arrow02)'
+        }));
+      }
+    });
+
+    // Step indicator
+    svg.appendChild(svgEl('text', {
+      x: w / 2, y: 210, 'text-anchor': 'middle',
+      class: 'svg-text', fill: 'var(--muted)'
+    })).textContent = applied === 0 ? '等待应用参数...' :
+                      applied === 3 ? `求值完成：f(${a})(${b})(${c}) = ${compute()}` :
+                      `已应用 ${applied} 个参数，返回新函数等待剩余参数`;
+
+    // Partial application arrow from original to chain
+    svg.appendChild(svgEl('path', {
+      d: `M 90 ${origY + 44} Q 90 ${chainY} ${startX} ${chainY + 25}`,
+      fill: 'none', stroke: 'var(--border)', 'stroke-width': 1,
+      'stroke-dasharray': '4 3', 'marker-end': 'url(#arrow02)'
+    }));
+    svg.appendChild(svgEl('text', {
+      x: 110, y: 100, class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = 'curry';
+
+    viz.appendChild(svg);
+  }
+
+  function updateStats() {
+    $('curry-s-applied').textContent = `${applied} / 3`;
+    $('curry-s-remain').textContent = 3 - applied;
+    $('curry-s-state').textContent = applied === 0 ? '等待' : applied === 3 ? '完成' : '部分应用';
+    $('curry-s-result').textContent = applied === 3 ? compute() : '—';
+  }
+
+  function updateDetail() {
+    const detail = $('curry-detail');
+    if (applied === 0) {
+      detail.innerHTML = `原函数 <code>f(a, b, c) = a * b + c</code> 被柯里化为 <code>f(a)(b)(c)</code>。点击 <strong>应用下一个参数</strong> 开始逐步求值。`;
+    } else if (applied === 1) {
+      detail.innerHTML = `应用 <code>a = ${a}</code>，返回部分应用函数 <code>f(${a})(b)(c)</code>。该函数等待参数 <code>b</code> 和 <code>c</code>。`;
+    } else if (applied === 2) {
+      detail.innerHTML = `应用 <code>b = ${b}</code>，内部计算 <code>${a} × ${b} = ${a*b}</code>，返回 <code>f(${a})(${b})(c)</code>，等待参数 <code>c</code>。`;
+    } else {
+      detail.innerHTML = `应用 <code>c = ${c}</code>，最终求值 <code>${a} × ${b} + ${c} = ${compute()}</code>。所有参数就绪，返回结果。`;
+    }
+  }
+
+  function apply() {
+    if (applied < 3) {
+      applied++;
+      render(); updateStats(); updateDetail();
+    }
+  }
+
+  function reset() {
+    applied = 0;
+    render(); updateStats(); updateDetail();
+  }
+
+  function updateParams() {
+    a = parseInt($('curry-a').value);
+    b = parseInt($('curry-b').value);
+    c = parseInt($('curry-c').value);
+    $('curry-a-val').textContent = a;
+    $('curry-b-val').textContent = b;
+    $('curry-c-val').textContent = c;
+    reset();
+  }
+
+  $('curry-apply').addEventListener('click', apply);
+  $('curry-reset').addEventListener('click', reset);
+  $('curry-a').addEventListener('input', updateParams);
+  $('curry-b').addEventListener('input', updateParams);
+  $('curry-c').addEventListener('input', updateParams);
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 03: Immutable Data — Structural Sharing
+   ============================================================ */
+const Immutable = (function() {
+  const viz = $('viz03');
+  let versions = []; // array of arrays (each is a list of values)
+  let newVal = 7;
+
+  function init() {
+    versions = [[3, 1, 4]];
+  }
+
+  function cons() {
+    const last = versions[versions.length - 1];
+    versions.push([newVal, ...last]);
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 280;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow03', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // Build a set of all unique values to detect shared nodes
+    const allVals = new Set();
+    versions.forEach(v => v.forEach(x => allVals.add(x)));
+
+    // Render each version as a horizontal linked list
+    const rowH = 52;
+    const startY = 20;
+
+    // Determine which values are shared across versions
+    const sharedVals = new Set();
+    for (let i = 1; i < versions.length; i++) {
+      versions[i].forEach(v => {
+        if (versions[i - 1].includes(v)) sharedVals.add(v + '_' + i);
+      });
+    }
+
+    versions.forEach((list, vi) => {
+      const y = startY + vi * rowH;
+      const isNewest = vi === versions.length - 1;
+
+      // Version label
+      svg.appendChild(svgEl('text', {
+        x: 10, y: y + 18, class: 'svg-text', fill: isNewest ? 'var(--accent)' : 'var(--faint)'
+      })).textContent = `v${vi}`;
+
+      // Nodes
+      const nodeW = 44, gap = 12;
+      let x = 50;
+      list.forEach((val, ni) => {
+        // Check if this node is shared with previous version at same position+1
+        let isShared = false;
+        if (vi > 0 && ni > 0) {
+          // Node at position ni in version vi is shared if it equals node at position ni-1 in version vi-1
+          // (because cons adds to front, shifting everything right)
+          if (versions[vi - 1][ni - 1] === val) isShared = true;
+        }
+
+        const fill = isNewest ? (ni === 0 ? 'var(--accent-soft)' : (isShared ? 'rgba(96,165,250,.1)' : 'var(--surface-2)')) : 'var(--surface)';
+        const stroke = isNewest ? (ni === 0 ? 'var(--accent)' : (isShared ? 'var(--info)' : 'var(--border-strong)')) : 'var(--border)';
+
+        svg.appendChild(svgEl('rect', {
+          x: x, y: y, width: nodeW, height: 32, rx: 6,
+          fill: fill, stroke: stroke, 'stroke-width': 1.5
+        }));
+        svg.appendChild(svgEl('text', {
+          x: x + nodeW / 2, y: y + 20, 'text-anchor': 'middle',
+          class: 'svg-text', fill: 'var(--ink)', 'font-weight': '600'
+        })).textContent = val;
+
+        // Arrow to next
+        if (ni < list.length - 1) {
+          svg.appendChild(svgEl('line', {
+            x1: x + nodeW, y1: y + 16, x2: x + nodeW + gap, y2: y + 16,
+            stroke: isNewest && isShared ? 'var(--info)' : 'var(--border)',
+            'stroke-width': 1.5, 'marker-end': 'url(#arrow03)'
+          }));
+        } else {
+          // Nil
+          svg.appendChild(svgEl('text', {
+            x: x + nodeW + gap + 4, y: y + 20, class: 'svg-text-sm', fill: 'var(--faint)'
+          })).textContent = 'Nil';
+        }
+        x += nodeW + gap;
+      });
+
+      // cons arrow from previous version
+      if (vi > 0) {
+        svg.appendChild(svgEl('text', {
+          x: 50, y: y - 4, class: 'svg-text-sm', fill: 'var(--accent)'
+        })).textContent = `cons(${list[0]})`;
+      }
+    });
+
+    // Legend
+    const legY = h - 20;
+    svg.appendChild(svgEl('rect', { x: 10, y: legY - 10, width: 12, height: 12, rx: 3, fill: 'var(--accent-soft)', stroke: 'var(--accent)' }));
+    svg.appendChild(svgEl('text', { x: 28, y: legY, class: 'svg-text-sm', fill: 'var(--muted)' })).textContent = '新增节点';
+    svg.appendChild(svgEl('rect', { x: 100, y: legY - 10, width: 12, height: 12, rx: 3, fill: 'rgba(96,165,250,.1)', stroke: 'var(--info)' }));
+    svg.appendChild(svgEl('text', { x: 118, y: legY, class: 'svg-text-sm', fill: 'var(--muted)' })).textContent = '共享节点';
+    svg.appendChild(svgEl('rect', { x: 190, y: legY - 10, width: 12, height: 12, rx: 3, fill: 'var(--surface)', stroke: 'var(--border)' }));
+    svg.appendChild(svgEl('text', { x: 208, y: legY, class: 'svg-text-sm', fill: 'var(--muted)' })).textContent = '旧版本';
+
+    viz.appendChild(svg);
+  }
+
+  function updateStats() {
+    const lastLen = versions[versions.length - 1].length;
+    const prevLen = versions.length > 1 ? versions[versions.length - 2].length : 0;
+    const shared = Math.max(0, lastLen - 1); // all but the new head are shared
+    const totalIfCopied = versions.reduce((s, v) => s + v.length, 0);
+    const actualNodes = versions[0].length + (versions.length - 1); // first list + 1 new node each cons
+    const savings = totalIfCopied > 0 ? Math.round((1 - actualNodes / totalIfCopied) * 100) : 0;
+
+    $('imm-s-ver').textContent = versions.length;
+    $('imm-s-nodes').textContent = actualNodes;
+    $('imm-s-shared').textContent = versions.length > 1 ? shared : 0;
+    $('imm-s-save').textContent = savings + '%';
+  }
+
+  function updateDetail() {
+    const detail = $('imm-detail');
+    const last = versions[versions.length - 1];
+    if (versions.length === 1) {
+      detail.innerHTML = `初始链表 <code>[${last.join(', ')}]</code>。点击 <strong>cons</strong> 添加新头节点，观察结构共享。`;
+    } else {
+      const prev = versions[versions.length - 2];
+      const shared = last.length - 1;
+      detail.innerHTML = `新版本 <code>[${last.join(', ')}]</code> 新增头节点 <code>${last[0]}</code>，共享 <strong>${shared} 个节点</strong>来自 v${versions.length - 2}。无需复制，O(1) 创建新版本。`;
+    }
+  }
+
+  function doCons() {
+    if (versions.length < 6) {
+      cons();
+      render(); updateStats(); updateDetail();
+    }
+  }
+
+  function reset() {
+    init();
+    render(); updateStats(); updateDetail();
+  }
+
+  $('imm-cons').addEventListener('click', doCons);
+  $('imm-reset').addEventListener('click', reset);
+  $('imm-val').addEventListener('input', (e) => {
+    newVal = parseInt(e.target.value);
+    $('imm-val-val').textContent = newVal;
+  });
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 04: Lazy Evaluation — Stream
+   ============================================================ */
+const Lazy = (function() {
+  const viz = $('viz04');
+  let evaluated = [];
+  let start = 1;
+  let pullCount = 0;
+
+  function init() {
+    evaluated = [start];
+    pullCount = 0;
+  }
+
+  function pull() {
+    const last = evaluated[evaluated.length - 1];
+    evaluated.push(last + 1);
+    pullCount++;
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 200;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow04', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const cy = 100;
+    const nodeR = 20;
+    const gap = 60;
+    const startX = 40;
+    const maxShow = 9;
+
+    // Show evaluated nodes
+    evaluated.slice(0, maxShow).forEach((val, i) => {
+      const x = startX + i * gap;
+      svg.appendChild(svgEl('circle', {
+        cx: x, cy: cy, r: nodeR,
+        fill: 'var(--accent-soft)', stroke: 'var(--accent)', 'stroke-width': 1.5
+      }));
+      svg.appendChild(svgEl('text', {
+        x: x, y: cy + 4, 'text-anchor': 'middle',
+        class: 'svg-text', fill: 'var(--accent)', 'font-weight': '700'
+      })).textContent = val;
+
+      // Arrow to next
+      if (i < maxShow - 1) {
+        svg.appendChild(svgEl('line', {
+          x1: x + nodeR, y1: cy, x2: x + gap - nodeR, y2: cy,
+          stroke: 'var(--accent)', 'stroke-width': 1.5, 'marker-end': 'url(#arrow04)'
+        }));
+      }
+    });
+
+    // Thunk (unevaluated)
+    const thunkX = startX + Math.min(evaluated.length, maxShow) * gap;
+    svg.appendChild(svgEl('circle', {
+      cx: thunkX, cy: cy, r: nodeR,
+      fill: 'var(--surface)', stroke: 'var(--border-strong)', 'stroke-width': 1.5,
+      'stroke-dasharray': '4 3'
+    }));
+    svg.appendChild(svgEl('text', {
+      x: thunkX, y: cy + 4, 'text-anchor': 'middle',
+      class: 'svg-text', fill: 'var(--faint)'
+    })).textContent = '?';
+
+    svg.appendChild(svgEl('text', {
+      x: thunkX, y: cy - nodeR - 8, 'text-anchor': 'middle',
+      class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = 'thunk';
+
+    // Infinity dots
+    svg.appendChild(svgEl('text', {
+      x: thunkX + nodeR + 10, y: cy + 5, class: 'svg-text', fill: 'var(--faint)'
+    })).textContent = '... ∞';
+
+    // Labels
+    svg.appendChild(svgEl('text', {
+      x: startX, y: 40, class: 'svg-label', fill: 'var(--accent)'
+    })).textContent = 'head (已求值)';
+    svg.appendChild(svgEl('text', {
+      x: thunkX - 20, y: 40, class: 'svg-label', fill: 'var(--faint)'
+    })).textContent = 'tail (thunk)';
+
+    // Force arrow
+    svg.appendChild(svgEl('path', {
+      d: `M ${thunkX} ${cy + nodeR + 15} Q ${thunkX} ${cy + nodeR + 30} ${thunkX - 15} ${cy + nodeR + 25}`,
+      fill: 'none', stroke: 'var(--success)', 'stroke-width': 1.5,
+      'stroke-dasharray': '3 2', 'marker-end': 'url(#arrow04)'
+    }));
+    svg.appendChild(svgEl('text', {
+      x: thunkX + 10, y: cy + nodeR + 30, class: 'svg-text-sm', fill: 'var(--success)'
+    })).textContent = 'force!';
+
+    viz.appendChild(svg);
+  }
+
+  function updateStats() {
+    $('lazy-s-eval').textContent = evaluated.length;
+    $('lazy-s-pending').textContent = '∞';
+    $('lazy-s-cur').textContent = evaluated[evaluated.length - 1];
+    $('lazy-s-count').textContent = pullCount;
+  }
+
+  function updateDetail() {
+    const detail = $('lazy-detail');
+    detail.innerHTML = `无限自然数流从 <code>${start}</code> 开始。已求值 <strong>${evaluated.length}</strong> 个元素：<code>[${evaluated.slice(0, 6).join(', ')}${evaluated.length > 6 ? ', ...' : ''}]</code>。剩余元素以 thunk 形式存在，按需求值。`;
+  }
+
+  function doPull() {
+    pull();
+    render(); updateStats(); updateDetail();
+  }
+
+  function doPull5() {
+    for (let i = 0; i < 5; i++) pull();
+    render(); updateStats(); updateDetail();
+  }
+
+  function reset() {
+    init();
+    render(); updateStats(); updateDetail();
+  }
+
+  function updateStart() {
+    start = parseInt($('lazy-start').value);
+    $('lazy-start-val').textContent = start;
+    reset();
+  }
+
+  $('lazy-pull').addEventListener('click', doPull);
+  $('lazy-pull5').addEventListener('click', doPull5);
+  $('lazy-reset').addEventListener('click', reset);
+  $('lazy-start').addEventListener('input', updateStart);
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 05: Functors and Monads
+   ============================================================ */
+const MonadViz = (function() {
+  const viz = $('viz05');
+  let type = 'functor';
+  let step = 0;
+  let rafId = null;
+  let animVal = null;
+
+  const steps = {
+    functor: [
+      { desc: '初始值：Just(2)', val: 2, nest: 1 },
+      { desc: 'map(x => x + 3)', val: 5, nest: 1 },
+      { desc: 'map(x => x * 2)', val: 10, nest: 1 },
+      { desc: '结果：Just(10)', val: 10, nest: 1 }
+    ],
+    applicative: [
+      { desc: '初始值：Just(2)', val: 2, nest: 1 },
+      { desc: '函数上下文：Just(x => x + 3)', val: 5, nest: 1 },
+      { desc: 'ap: 应用上下文中的函数', val: 5, nest: 1 },
+      { desc: '结果：Just(5)', val: 5, nest: 1 }
+    ],
+    monad: [
+      { desc: '初始值：Just(2)', val: 2, nest: 1 },
+      { desc: 'flatMap(x => Just(x + 3))', val: 5, nest: 1 },
+      { desc: 'flatMap(x => Just(x * 2))', val: 10, nest: 1 },
+      { desc: '结果：Just(10)', val: 10, nest: 1 }
+    ]
+  };
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 220;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow05', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const stageData = steps[type];
+    const numStages = stageData.length;
+    const boxW = 120, gap = 50;
+    const totalW = numStages * boxW + (numStages - 1) * gap;
+    const startX = (w - totalW) / 2;
+    const cy = 80;
+
+    stageData.forEach((s, i) => {
+      const x = startX + i * (boxW + gap);
+      const isActive = step >= i;
+
+      // Outer box (context)
+      svg.appendChild(svgEl('rect', {
+        x: x, y: cy - 30, width: boxW, height: 80, rx: 10,
+        fill: isActive ? 'var(--accent-soft)' : 'var(--surface)',
+        stroke: isActive ? 'var(--accent)' : 'var(--border)',
+        'stroke-width': 1.5
+      }));
+
+      // Context label
+      svg.appendChild(svgEl('text', {
+        x: x + boxW / 2, y: cy - 36, 'text-anchor': 'middle',
+        class: 'svg-text-sm', fill: isActive ? 'var(--accent)' : 'var(--faint)'
+      })).textContent = type === 'functor' ? 'Functor' : type === 'applicative' ? 'Applicative' : 'Monad';
+
+      // Inner value
+      svg.appendChild(svgEl('rect', {
+        x: x + boxW / 2 - 30, y: cy - 12, width: 60, height: 40, rx: 6,
+        fill: 'var(--surface-3)', stroke: isActive ? 'var(--border-strong)' : 'var(--border)'
+      }));
+      svg.appendChild(svgEl('text', {
+        x: x + boxW / 2, y: cy + 15, 'text-anchor': 'middle',
+        class: 'svg-text', fill: isActive ? 'var(--ink)' : 'var(--faint)',
+        'font-weight': '700', 'font-size': '13px'
+      })).textContent = isActive ? s.val : '?';
+
+      // Description
+      svg.appendChild(svgEl('text', {
+        x: x + boxW / 2, y: cy + 72, 'text-anchor': 'middle',
+        class: 'svg-text-sm', fill: isActive ? 'var(--muted)' : 'var(--faint)'
+      })).textContent = s.desc;
+
+      // Arrow
+      if (i < numStages - 1) {
+        const ax1 = x + boxW, ax2 = x + boxW + gap;
+        const op = type === 'functor' ? 'map' : type === 'applicative' ? 'ap' : 'flatMap';
+        svg.appendChild(svgEl('line', {
+          x1: ax1, y1: cy + 10, x2: ax2, y2: cy + 10,
+          stroke: step > i ? 'var(--accent)' : 'var(--border)',
+          'stroke-width': 2, 'marker-end': 'url(#arrow05)'
+        }));
+        if (step > i) {
+          svg.appendChild(svgEl('text', {
+            x: (ax1 + ax2) / 2, y: cy + 2, 'text-anchor': 'middle',
+            class: 'svg-text-sm', fill: 'var(--accent)', 'font-weight': '600'
+          })).textContent = op;
+        }
+      }
+    });
+
+    // Bottom note
+    const note = type === 'functor'
+      ? 'map: 将普通函数提升到上下文中执行，值始终在盒子内'
+      : type === 'applicative'
+      ? 'ap: 函数本身也在上下文中，适合多参数部分应用'
+      : 'flatMap: 处理嵌套上下文并自动展平，链式组合的核心';
+    svg.appendChild(svgEl('text', {
+      x: w / 2, y: h - 10, 'text-anchor': 'middle',
+      class: 'svg-text', fill: 'var(--muted)'
+    })).textContent = note;
+
+    viz.appendChild(svg);
+  }
+
+  function updateStats() {
+    const s = steps[type][step];
+    const typeName = type === 'functor' ? 'Functor' : type === 'applicative' ? 'Applicative' : 'Monad';
+    $('monad-s-type').textContent = typeName;
+    $('monad-s-chain').textContent = step;
+    $('monad-s-val').textContent = `Just(${s.val})`;
+    $('monad-s-nest').textContent = s.nest;
+  }
+
+  function updateDetail() {
+    const detail = $('monad-detail');
+    const s = steps[type][step];
+    const opName = type === 'functor' ? 'map' : type === 'applicative' ? 'ap' : 'flatMap';
+    if (step === 0) {
+      detail.innerHTML = `初始值 <code>Just(2)</code>。类型：<strong>${type}</strong>。点击 <strong>执行下一步</strong> 应用 <code>${opName}</code> 操作。`;
+    } else if (step < steps[type].length - 1) {
+      detail.innerHTML = `执行 <code>${s.desc}</code>。当前值 <code>Just(${s.val})</code>，嵌套层数 ${s.nest}。`;
+    } else {
+      detail.innerHTML = `链式调用完成。最终结果 <code>Just(${s.val})</code>。<code>${opName}</code> 保证了值始终在上下文中，避免手动解包。`;
+    }
+  }
+
+  function doStep() {
+    if (step < steps[type].length - 1) {
+      step++;
+      render(); updateStats(); updateDetail();
+    }
+  }
+
+  function reset() {
+    step = 0;
+    render(); updateStats(); updateDetail();
+  }
+
+  function changeType() {
+    type = $('monad-type').value;
+    reset();
+  }
+
+  $('monad-step').addEventListener('click', doStep);
+  $('monad-reset').addEventListener('click', reset);
+  $('monad-type').addEventListener('change', changeType);
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 06: Pattern Matching — ADT
+   ============================================================ */
+const PatternMatch = (function() {
+  const viz = $('viz06');
+  let adt = 'option';
+  let ctor = 'Some';
+  let matched = false;
+
+  const adtData = {
+    option: {
+      name: 'Option<T>',
+      constructors: [
+        { name: 'Some', args: ['value'], desc: '有值' },
+        { name: 'None', args: [], desc: '无值' }
+      ],
+      match: [
+        { pattern: 'Some(x)', body: 'x * 2', destructure: 'x = 42' },
+        { pattern: 'None', body: '0', destructure: '无绑定' }
+      ]
+    },
+    result: {
+      name: 'Result<T,E>',
+      constructors: [
+        { name: 'Ok', args: ['value'], desc: '成功' },
+        { name: 'Err', args: ['error'], desc: '失败' }
+      ],
+      match: [
+        { pattern: 'Ok(x)', body: 'x + 1', destructure: 'x = 42' },
+        { pattern: 'Err(e)', body: 'throw e', destructure: 'e = "error"' }
+      ]
+    },
+    list: {
+      name: 'List<T>',
+      constructors: [
+        { name: 'Cons', args: ['head', 'tail'], desc: '非空' },
+        { name: 'Nil', args: [], desc: '空' }
+      ],
+      match: [
+        { pattern: 'Cons(h, t)', body: 'h + sum(t)', destructure: 'h=1, t=[...]' },
+        { pattern: 'Nil', body: '0', destructure: '无绑定' }
+      ]
+    }
+  };
+
+  function getCtorOptions() {
+    return adtData[adt].constructors;
+  }
+
+  function updateCtorSelect() {
+    const sel = $('pm-ctor');
+    const opts = getCtorOptions();
+    sel.innerHTML = '';
+    opts.forEach(c => {
+      const val = c.name;
+      let label = c.name;
+      if (c.name === 'Some') label = 'Some(42)';
+      else if (c.name === 'Ok') label = 'Ok(42)';
+      else if (c.name === 'Err') label = 'Err("error")';
+      else if (c.name === 'Cons') label = 'Cons(1, [...])';
+      else label = c.name;
+      const o = document.createElement('option');
+      o.value = val;
+      o.textContent = label;
+      sel.appendChild(o);
+    });
+    ctor = opts[0].name;
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 240;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow06', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const data = adtData[adt];
+
+    // Input value box
+    svg.appendChild(svgEl('rect', {
+      x: 30, y: 30, width: 140, height: 50, rx: 8,
+      fill: 'var(--accent-soft)', stroke: 'var(--accent)', 'stroke-width': 1.5
+    }));
+    svg.appendChild(svgEl('text', {
+      x: 100, y: 50, 'text-anchor': 'middle', class: 'svg-text-sm', fill: 'var(--accent)'
+    })).textContent = 'input';
+    let inputLabel = ctor;
+    if (ctor === 'Some') inputLabel = 'Some(42)';
+    else if (ctor === 'Ok') inputLabel = 'Ok(42)';
+    else if (ctor === 'Err') inputLabel = 'Err("error")';
+    else if (ctor === 'Cons') inputLabel = 'Cons(1, [...])';
+    svg.appendChild(svgEl('text', {
+      x: 100, y: 68, 'text-anchor': 'middle', class: 'svg-text', fill: 'var(--ink)', 'font-weight': '700'
+    })).textContent = inputLabel;
+
+    // Match expression
+    svg.appendChild(svgEl('text', {
+      x: 100, y: 110, 'text-anchor': 'middle', class: 'svg-text', fill: 'var(--muted)'
+    })).textContent = 'match input {';
+
+    // Branches
+    const branchX = 230;
+    const branchW = 200;
+    const branchH = 44;
+    const branchGap = 10;
+    data.match.forEach((m, i) => {
+      const by = 30 + i * (branchH + branchGap);
+      const isMatched = matched && i === getMatchIndex();
+
+      svg.appendChild(svgEl('rect', {
+        x: branchX, y: by, width: branchW, height: branchH, rx: 6,
+        fill: isMatched ? 'var(--accent-soft)' : 'var(--surface)',
+        stroke: isMatched ? 'var(--accent)' : 'var(--border)',
+        'stroke-width': isMatched ? 2 : 1
+      }));
+      svg.appendChild(svgEl('text', {
+        x: branchX + 12, y: by + 18, class: 'svg-text', fill: isMatched ? 'var(--accent)' : 'var(--muted)'
+      })).textContent = m.pattern + ' =>';
+      svg.appendChild(svgEl('text', {
+        x: branchX + 12, y: by + 35, class: 'svg-text-sm', fill: isMatched ? 'var(--ink)' : 'var(--faint)'
+      })).textContent = m.body;
+
+      // Arrow from input to matched branch
+      if (isMatched) {
+        svg.appendChild(svgEl('line', {
+          x1: 170, y1: 55, x2: branchX - 4, y2: by + branchH / 2,
+          stroke: 'var(--accent)', 'stroke-width': 2, 'marker-end': 'url(#arrow06)'
+        }));
+      }
+    });
+
+    svg.appendChild(svgEl('text', {
+      x: 100, y: 130, 'text-anchor': 'middle', class: 'svg-text', fill: 'var(--muted)'
+    })).textContent = '}';
+
+    // Result
+    if (matched) {
+      const idx = getMatchIndex();
+      const result = data.match[idx].body;
+      svg.appendChild(svgEl('rect', {
+        x: 480, y: 50 + idx * (branchH + branchGap), width: 160, height: branchH, rx: 8,
+        fill: 'rgba(74,222,128,.08)', stroke: 'var(--success)', 'stroke-width': 1.5
+      }));
+      svg.appendChild(svgEl('text', {
+        x: 560, y: 70 + idx * (branchH + branchGap), 'text-anchor': 'middle',
+        class: 'svg-text-sm', fill: 'var(--success)'
+      })).textContent = 'result';
+      svg.appendChild(svgEl('text', {
+        x: 560, y: 88 + idx * (branchH + branchGap), 'text-anchor': 'middle',
+        class: 'svg-text', fill: 'var(--success)', 'font-weight': '700'
+      })).textContent = evalResult(result);
+
+      // Arrow from matched branch to result
+      svg.appendChild(svgEl('line', {
+        x1: branchX + branchW, y1: 50 + idx * (branchH + branchGap) + branchH / 2,
+        x2: 476, y2: 50 + idx * (branchH + branchGap) + branchH / 2,
+        stroke: 'var(--success)', 'stroke-width': 2, 'marker-end': 'url(#arrow06)'
+      }));
+    }
+
+    // Exhaustive check
+    svg.appendChild(svgEl('text', {
+      x: w / 2, y: h - 12, 'text-anchor': 'middle', class: 'svg-text', fill: 'var(--success)'
+    })).textContent = '✓ 穷尽性检查通过：所有构造器均已覆盖';
+
+    viz.appendChild(svg);
+  }
+
+  function getMatchIndex() {
+    const ctors = adtData[adt].constructors;
+    for (let i = 0; i < ctors.length; i++) {
+      if (ctors[i].name === ctor) return i;
+    }
+    return 0;
+  }
+
+  function evalResult(body) {
+    if (body === 'x * 2') return '84';
+    if (body === '0') return '0';
+    if (body === 'x + 1') return '43';
+    if (body === 'throw e') return 'Error';
+    if (body === 'h + sum(t)') return '递归';
+    return body;
+  }
+
+  function updateStats() {
+    const data = adtData[adt];
+    $('pm-s-branches').textContent = data.match.length;
+    $('pm-s-match').textContent = matched ? data.match[getMatchIndex()].pattern : '—';
+    $('pm-s-destructure').textContent = matched ? data.match[getMatchIndex()].destructure : '—';
+    $('pm-s-exhaustive').textContent = '✓';
+  }
+
+  function updateDetail() {
+    const detail = $('pm-detail');
+    const data = adtData[adt];
+    if (!matched) {
+      detail.innerHTML = `ADT <code>${data.name}</code> 有 ${data.constructors.length} 个构造器。选择输入值后点击 <strong>执行匹配</strong>，匹配引擎将遍历分支直到命中。`;
+    } else {
+      const idx = getMatchIndex();
+      detail.innerHTML = `输入 <code>${ctor}</code> 匹配到分支 <code>${data.match[idx].pattern}</code>，解构绑定 <strong>${data.match[idx].destructure}</strong>，执行 <code>${data.match[idx].body}</code> → <strong>${evalResult(data.match[idx].body)}</strong>。`;
+    }
+  }
+
+  function doMatch() {
+    matched = true;
+    render(); updateStats(); updateDetail();
+  }
+
+  function reset() {
+    matched = false;
+    render(); updateStats(); updateDetail();
+  }
+
+  function changeAdt() {
+    adt = $('pm-adt').value;
+    updateCtorSelect();
+    reset();
+  }
+
+  function changeCtor() {
+    ctor = $('pm-ctor').value;
+    reset();
+  }
+
+  $('pm-match').addEventListener('click', doMatch);
+  $('pm-reset').addEventListener('click', reset);
+  $('pm-adt').addEventListener('change', changeAdt);
+  $('pm-ctor').addEventListener('change', changeCtor);
+
+  return { init: function() { updateCtorSelect(); reset(); } };
+})();
+
+
+/* ============================================================
+   MODULE 07: Tail Recursion Optimization
+   ============================================================ */
+const TCO = (function() {
+  const viz = $('viz07');
+  let n = 6;
+  let step = 0;
+  let normalStack = [];
+  let tcoStack = [];
+  let tcoAcc = 1;
+  let tcoN = 0;
+  let done = false;
+  let rafId = null;
+
+  function init() {
+    step = 0;
+    normalStack = [];
+    tcoStack = [{ n: n, acc: 1 }];
+    tcoAcc = 1;
+    tcoN = n;
+    done = false;
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 260;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    // Left: normal recursion
+    const leftX = 30, leftW = 280;
+    svg.appendChild(svgEl('text', {
+      x: leftX + leftW / 2, y: 24, 'text-anchor': 'middle',
+      class: 'svg-label', fill: done && normalStack.length === 0 ? 'var(--success)' : 'var(--danger)'
+    })).textContent = '普通递归';
+
+    svg.appendChild(svgEl('text', {
+      x: leftX + leftW / 2, y: 42, 'text-anchor': 'middle',
+      class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = '栈帧不断增长 → O(n)';
+
+    // Stack frames (bottom up)
+    const frameH = 22, frameW = 200;
+    const frameX = leftX + (leftW - frameW) / 2;
+    const stackBaseY = 220;
+
+    normalStack.forEach((frame, i) => {
+      const y = stackBaseY - (i + 1) * frameH;
+      svg.appendChild(svgEl('rect', {
+        x: frameX, y: y, width: frameW, height: frameH - 2, rx: 4,
+        fill: 'rgba(248,113,113,.08)', stroke: 'var(--danger)', 'stroke-width': 1
+      }));
+      svg.appendChild(svgEl('text', {
+        x: frameX + frameW / 2, y: y + 15, 'text-anchor': 'middle',
+        class: 'svg-text-sm', fill: 'var(--danger)'
+      })).textContent = `fact(${frame})`;
+    });
+
+    // Base
+    svg.appendChild(svgEl('line', {
+      x1: frameX - 10, y1: stackBaseY, x2: frameX + frameW + 10, y2: stackBaseY,
+      stroke: 'var(--border-strong)', 'stroke-width': 1.5
+    }));
+    svg.appendChild(svgEl('text', {
+      x: frameX - 10, y: stackBaseY + 16, class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = '栈底';
+
+    // Depth indicator
+    svg.appendChild(svgEl('text', {
+      x: leftX + leftW / 2, y: h - 8, 'text-anchor': 'middle',
+      class: 'svg-text', fill: 'var(--danger)', 'font-weight': '600'
+    })).textContent = `栈深度: ${normalStack.length}`;
+
+    // Right: TCO
+    const rightX = 370, rightW = 280;
+    svg.appendChild(svgEl('text', {
+      x: rightX + rightW / 2, y: 24, 'text-anchor': 'middle',
+      class: 'svg-label', fill: 'var(--success)'
+    })).textContent = '尾递归 (TCO)';
+
+    svg.appendChild(svgEl('text', {
+      x: rightX + rightW / 2, y: 42, 'text-anchor': 'middle',
+      class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = '栈帧复用 → O(1)';
+
+    const tcoFrameW = 200;
+    const tcoFrameX = rightX + (rightW - tcoFrameW) / 2;
+
+    // TCO always shows 1 frame (reused)
+    if (tcoStack.length > 0) {
+      const frame = tcoStack[tcoStack.length - 1];
+      const y = stackBaseY - frameH;
+      // Highlight frame reuse
+      if (!prefersReducedMotion && !done) {
+        svg.appendChild(svgEl('rect', {
+          x: tcoFrameX, y: y, width: tcoFrameW, height: frameH - 2, rx: 4,
+          fill: 'rgba(74,222,128,.12)', stroke: 'var(--success)', 'stroke-width': 1.5,
+          class: 'tco-frame'
+        }));
+      } else {
+        svg.appendChild(svgEl('rect', {
+          x: tcoFrameX, y: y, width: tcoFrameW, height: frameH - 2, rx: 4,
+          fill: 'rgba(74,222,128,.12)', stroke: 'var(--success)', 'stroke-width': 1.5
+        }));
+      }
+      svg.appendChild(svgEl('text', {
+        x: tcoFrameX + tcoFrameW / 2, y: y + 15, 'text-anchor': 'middle',
+        class: 'svg-text-sm', fill: 'var(--success)', 'font-weight': '600'
+      })).textContent = `fact(${frame.n}, acc=${frame.acc})`;
+
+      // Reuse arrow
+      if (step > 0 && !done) {
+        svg.appendChild(svgEl('text', {
+          x: tcoFrameX + tcoFrameW + 8, y: y + 15, class: 'svg-text-sm', fill: 'var(--success)'
+        })).textContent = '↻ 复用';
+      }
+    }
+
+    // Base
+    svg.appendChild(svgEl('line', {
+      x1: tcoFrameX - 10, y1: stackBaseY, x2: tcoFrameX + tcoFrameW + 10, y2: stackBaseY,
+      stroke: 'var(--border-strong)', 'stroke-width': 1.5
+    }));
+    svg.appendChild(svgEl('text', {
+      x: tcoFrameX - 10, y: stackBaseY + 16, class: 'svg-text-sm', fill: 'var(--faint)'
+    })).textContent = '栈底';
+
+    svg.appendChild(svgEl('text', {
+      x: rightX + rightW / 2, y: h - 8, 'text-anchor': 'middle',
+      class: 'svg-text', fill: 'var(--success)', 'font-weight': '600'
+    })).textContent = `栈深度: ${done ? 0 : 1}`;
+
+    // Result
+    if (done) {
+      const result = factorial(n);
+      svg.appendChild(svgEl('text', {
+        x: w / 2, y: h - 8, 'text-anchor': 'middle',
+        class: 'svg-label', fill: 'var(--success)'
+      })).textContent = `factorial(${n}) = ${result}`;
+    }
+
+    viz.appendChild(svg);
+  }
+
+  function factorial(n) {
+    let r = 1;
+    for (let i = 2; i <= n; i++) r *= i;
+    return r;
+  }
+
+  function updateStats() {
+    $('tco-s-normal').textContent = normalStack.length;
+    $('tco-s-tco').textContent = done ? 0 : 1;
+    $('tco-s-step').textContent = step;
+    $('tco-s-result').textContent = done ? factorial(n) : '—';
+  }
+
+  function updateDetail() {
+    const detail = $('tco-detail');
+    if (step === 0) {
+      detail.innerHTML = `计算 <code>factorial(${n})</code>。普通递归每次调用压栈，尾递归用累加器 <code>acc</code> 在尾位置递归，编译器可复用栈帧。`;
+    } else if (!done) {
+      detail.innerHTML = `步骤 ${step}：普通递归栈深度 <strong>${normalStack.length}</strong>，TCO 保持 <strong>1</strong>。当前 TCO 状态：<code>fact(${tcoN}, acc=${tcoAcc})</code>。`;
+    } else {
+      detail.innerHTML = `完成。普通递归峰值栈深度 <strong>${n}</strong>，TCO 始终 <strong>1</strong>。结果 <code>factorial(${n}) = ${factorial(n)}</code>。TCO 将空间复杂度从 O(n) 降为 O(1)。`;
+    }
+  }
+
+  function doStep() {
+    if (done) return;
+    if (step < n) {
+      normalStack.push(n - step);
+      // TCO: update in place
+      const cur = tcoStack[tcoStack.length - 1];
+      tcoAcc = cur.acc * cur.n;
+      tcoN = cur.n - 1;
+      tcoStack = [{ n: tcoN, acc: tcoAcc }];
+      step++;
+      render(); updateStats(); updateDetail();
+    }
+    if (step >= n) {
+      done = true;
+      // Unwind normal stack
+      normalStack = [];
+      render(); updateStats(); updateDetail();
+    }
+  }
+
+  function doRun() {
+    function next() {
+      if (!done) {
+        doStep();
+        setTimeout(next, 300);
+      }
+    }
+    next();
+  }
+
+  function reset() {
+    init();
+    render(); updateStats(); updateDetail();
+  }
+
+  function updateN() {
+    n = parseInt($('tco-n').value);
+    $('tco-n-val').textContent = n;
+    reset();
+  }
+
+  $('tco-step').addEventListener('click', doStep);
+  $('tco-run').addEventListener('click', doRun);
+  $('tco-reset').addEventListener('click', reset);
+  $('tco-n').addEventListener('input', updateN);
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   MODULE 08: Pure Functions — Referential Transparency
+   ============================================================ */
+const Pure = (function() {
+  const viz = $('viz08');
+  let mode = 'pure';
+  let calls = [];
+  let callCount = 0;
+  let globalTax = 0.1; // mutable state for impure
+
+  function call(a, b) {
+    callCount++;
+    if (mode === 'pure') {
+      return { input: [a, b], output: a + b, sideEffect: false, deterministic: true };
+    } else {
+      // Impure: depends on global state, modifies it
+      const output = a + b + Math.round(a * b * globalTax);
+      globalTax += 0.01; // side effect: modifies global state
+      return { input: [a, b], output: output, sideEffect: true, deterministic: false };
+    }
+  }
+
+  function render() {
+    clearNode(viz);
+    const w = 680, h = 260;
+    const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: 'auto' });
+
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+      id: 'arrow08', viewBox: '0 0 10 10', refX: 8, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'
+    });
+    marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--accent)' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const isPure = mode === 'pure';
+    const accentColor = isPure ? 'var(--success)' : 'var(--warn)';
+    const accentFill = isPure ? 'rgba(74,222,128,.08)' : 'rgba(251,191,36,.08)';
+
+    // Function box
+    const fnX = 250, fnY = 30, fnW = 180, fnH = 60;
+    svg.appendChild(svgEl('rect', {
+      x: fnX, y: fnY, width: fnW, height: fnH, rx: 10,
+      fill: accentFill, stroke: accentColor, 'stroke-width': 1.5
+    }));
+    svg.appendChild(svgEl('text', {
+      x: fnX + fnW / 2, y: fnY + 25, 'text-anchor': 'middle',
+      class: 'svg-label', fill: accentColor
+    })).textContent = isPure ? 'add(a, b)' : 'addWithTax(a, b)';
+    svg.appendChild(svgEl('text', {
+      x: fnX + fnW / 2, y: fnY + 45, 'text-anchor': 'middle',
+      class: 'svg-text-sm', fill: 'var(--muted)'
+    })).textContent = isPure ? 'return a + b' : 'return a + b + a*b*tax';
+
+    // Input arrows
+    svg.appendChild(svgEl('text', { x: 120, y: 50, class: 'svg-text', fill: 'var(--muted)' })).textContent = 'a = 3';
+    svg.appendChild(svgEl('line', {
+      x1: 160, y1: 46, x2: fnX - 4, y2: 46,
+      stroke: 'var(--accent)', 'stroke-width': 1.5, 'marker-end': 'url(#arrow08)'
+    }));
+    svg.appendChild(svgEl('text', { x: 120, y: 75, class: 'svg-text', fill: 'var(--muted)' })).textContent = 'b = 4';
+    svg.appendChild(svgEl('line', {
+      x1: 160, y1: 71, x2: fnX - 4, y2: 71,
+      stroke: 'var(--accent)', 'stroke-width': 1.5, 'marker-end': 'url(#arrow08)'
+    }));
+
+    // Output
+    svg.appendChild(svgEl('text', {
+      x: fnX + fnW + 60, y: 50, class: 'svg-text', fill: 'var(--muted)'
+    })).textContent = 'output';
+    svg.appendChild(svgEl('line', {
+      x1: fnX + fnW, y1: 60, x2: fnX + fnW + 50, y2: 60,
+      stroke: 'var(--accent)', 'stroke-width': 1.5, 'marker-end': 'url(#arrow08)'
+    }));
+
+    // Call history
+    const histY = 120;
+    svg.appendChild(svgEl('text', {
+      x: 30, y: histY, class: 'svg-label', fill: 'var(--ink)'
+    })).textContent = '调用历史：';
+
+    if (calls.length === 0) {
+      svg.appendChild(svgEl('text', {
+        x: 30, y: histY + 24, class: 'svg-text', fill: 'var(--faint)'
+      })).textContent = '点击"调用函数"查看结果...';
+    } else {
+      calls.slice(-5).forEach((c, i) => {
+        const y = histY + 20 + i * 24;
+        const sameAsFirst = c.output === calls[0].output;
+        // Call box
+        svg.appendChild(svgEl('rect', {
+          x: 30, y: y - 14, width: 620, height: 20, rx: 4,
+          fill: 'var(--surface-2)', stroke: 'var(--border)'
+        }));
+        svg.appendChild(svgEl('text', {
+          x: 40, y: y, class: 'svg-text-sm', fill: 'var(--muted)'
+        })).textContent = `#${i + 1}  add(3, 4)`;
+        // Output
+        const outColor = isPure ? 'var(--success)' : (sameAsFirst ? 'var(--warn)' : 'var(--danger)');
+        svg.appendChild(svgEl('text', {
+          x: 200, y: y, class: 'svg-text', fill: outColor, 'font-weight': '600'
+        })).textContent = `→ ${c.output}`;
+        // Side effect indicator
+        if (c.sideEffect) {
+          svg.appendChild(svgEl('text', {
+            x: 320, y: y, class: 'svg-text-sm', fill: 'var(--danger)'
+          })).textContent = '⚠ 副作用: tax mutated';
+        } else {
+          svg.appendChild(svgEl('text', {
+            x: 320, y: y, class: 'svg-text-sm', fill: 'var(--success)'
+          })).textContent = '✓ 无副作用';
+        }
+        // Determinism
+        svg.appendChild(svgEl('text', {
+          x: 520, y: y, class: 'svg-text-sm', fill: sameAsFirst && isPure ? 'var(--success)' : (!isPure && !sameAsFirst ? 'var(--danger)' : 'var(--muted)')
+        })).textContent = isPure ? '引用透明 ✓' : (sameAsFirst ? '暂时一致' : '引用透明 ✗');
+      });
+    }
+
+    // Global state indicator (impure only)
+    if (!isPure) {
+      svg.appendChild(svgEl('text', {
+        x: 30, y: h - 12, class: 'svg-text', fill: 'var(--warn)'
+      })).textContent = `⚠ 全局状态: tax = ${globalTax.toFixed(3)} (每次调用变化)`;
+    } else {
+      svg.appendChild(svgEl('text', {
+        x: 30, y: h - 12, class: 'svg-text', fill: 'var(--success)'
+      })).textContent = '✓ 纯函数：相同输入 → 相同输出，无副作用，引用透明';
+    }
+
+    viz.appendChild(svg);
+  }
+
+  function updateStats() {
+    const deterministic = calls.length <= 1 ? true : calls.every(c => c.output === calls[0].output);
+    const sideEffects = calls.filter(c => c.sideEffect).length;
+    const determPct = calls.length === 0 ? 100 : (deterministic ? 100 : Math.round((1 - sideEffects / calls.length) * 100));
+
+    $('pure-s-calls').textContent = callCount;
+    const determEl = $('pure-s-determ');
+    determEl.textContent = determPct + '%';
+    determEl.className = 'stat-val ' + (determPct === 100 ? 'success' : 'danger');
+    $('pure-s-effect').textContent = sideEffects;
+    const transEl = $('pure-s-trans');
+    transEl.textContent = mode === 'pure' ? '✓ Yes' : (deterministic ? '~ partial' : '✗ No');
+    transEl.className = 'stat-val ' + (mode === 'pure' ? 'success' : 'danger');
+  }
+
+  function updateDetail() {
+    const detail = $('pure-detail');
+    if (mode === 'pure') {
+      detail.innerHTML = `纯函数 <code>add(a, b)</code>：仅依赖输入参数，无副作用。多次调用 <code>add(3, 4)</code> 始终返回 <strong>7</strong>，可用 <strong>7</strong> 替换函数调用（引用透明性）。`;
+    } else {
+      detail.innerHTML = `非纯函数 <code>addWithTax(a, b)</code>：依赖全局变量 <code>tax</code> 且每次调用修改它。相同输入 <code>(3, 4)</code> 返回不同结果，<strong>无法用返回值替换调用</strong>。`;
+    }
+  }
+
+  function doCall() {
+    const result = call(3, 4);
+    calls.push(result);
+    render(); updateStats(); updateDetail();
+  }
+
+  function doCall3() {
+    for (let i = 0; i < 3; i++) {
+      const result = call(3, 4);
+      calls.push(result);
+    }
+    render(); updateStats(); updateDetail();
+  }
+
+  function reset() {
+    calls = [];
+    callCount = 0;
+    globalTax = 0.1;
+    render(); updateStats(); updateDetail();
+  }
+
+  function changeMode() {
+    mode = $('pure-mode').value;
+    reset();
+  }
+
+  $('pure-run').addEventListener('click', doCall);
+  $('pure-run3').addEventListener('click', doCall3);
+  $('pure-reset').addEventListener('click', reset);
+  $('pure-mode').addEventListener('change', changeMode);
+
+  return { init: reset };
+})();
+
+
+/* ============================================================
+   Initialize All Modules
+   ============================================================ */
+HOF.init();
+Curry.init();
+Immutable.init();
+Lazy.init();
+MonadViz.init();
+PatternMatch.init();
+TCO.init();
+Pure.init();
+</script>
+</body>
+</html>

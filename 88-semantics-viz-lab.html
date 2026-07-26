@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>semantics-viz-lab · 程序语义可视化实验室</title>
+<meta name="description" content="程序语义学交互式可视化：操作语义、指称语义、公理语义、抽象机、环境与存储、控制流语义、类型安全、等价与细化。">
+<style>
+:root{
+  --bg:#08090a; --surface:#101114; --surface-2:#16181c; --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07); --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8; --muted:#9b9fa8; --faint:#62666d;
+  --accent:#5e6ad2; --accent-2:#7c5cff;
+  --good:#5fd6a6; --bad:#f06a78; --warn:#e8c46a;
+  --nav-h:56px; --side-w:240px;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+code{font-family:var(--mono)}
+
+.topbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:50;display:flex;align-items:center;gap:14px;padding:0 18px;background:linear-gradient(180deg,#0c0d10,#0a0b0d);border-bottom:1px solid var(--border)}
+.hamburger{display:none;width:36px;height:36px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);color:var(--ink);cursor:pointer;font-size:16px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .dot{width:11px;height:11px;border-radius:3px;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 14px rgba(124,92,255,.5)}
+.brand b{font-size:15px;font-weight:600;white-space:nowrap}
+.brand .sub{font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1}
+.gh-link{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);border:1px solid var(--border);padding:6px 11px;border-radius:8px;transition:.18s}
+.gh-link:hover{color:var(--ink);border-color:var(--border-strong);background:var(--surface-2)}
+.progress{position:absolute;left:0;bottom:-1px;height:2px;width:100%;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+
+.sidebar{position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:40;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 12px 40px}
+.side-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:6px 10px 8px}
+.nav-link{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;color:var(--muted);font-size:13.5px;cursor:pointer;transition:.16s;border:1px solid transparent}
+.nav-link .n{font-family:var(--mono);font-size:11px;color:var(--faint);width:22px;flex:none}
+.nav-link .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-link:hover{background:var(--surface-2);color:var(--ink)}
+.nav-link.active{background:linear-gradient(180deg,rgba(94,106,210,.16),rgba(124,92,255,.08));color:var(--ink);border-color:rgba(124,92,255,.28)}
+.nav-link.active .n{color:var(--accent-2)}
+.side-foot{margin-top:18px;padding:12px 10px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--border);line-height:1.7}
+
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0 0 80px}
+.hero{padding:54px 44px 30px;max-width:1100px}
+.hero .crumb{font-family:var(--mono);font-size:12px;color:var(--accent-2);letter-spacing:.04em}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:-.01em;margin:12px 0 6px;line-height:1.15}
+.hero h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);font-size:15.5px;max-width:680px}
+.hero .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{font-size:11.5px;font-family:var(--mono);color:var(--muted);border:1px solid var(--border);background:var(--surface);padding:5px 10px;border-radius:20px}
+
+.module{padding:30px 44px;max-width:1100px;scroll-margin-top:72px;opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+.module.in{opacity:1;transform:none}
+.hero{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+.hero.in{opacity:1;transform:none}
+.module-head{margin-bottom:18px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--accent-2);letter-spacing:.08em}
+.kicker::before{content:"";width:18px;height:1px;background:var(--accent-2);opacity:.6}
+.module-head h2{font-size:24px;font-weight:650;margin:8px 0 6px;letter-spacing:-.005em}
+.module-head h2 .en{color:var(--faint);font-weight:400;font-size:15px;margin-left:8px}
+.module-head .desc{color:var(--muted);font-size:14px;max-width:760px}
+.module-head .desc code{color:var(--accent-2);background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.viz-box{position:relative;background:radial-gradient(120% 100% at 0% 0%,rgba(94,106,210,.05),transparent 55%),var(--surface);border-bottom:1px solid var(--border)}
+.viz-box svg{display:block;width:100%;height:auto}
+.viz-tag{position:absolute;top:12px;left:14px;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em}
+.viz-tag b{color:var(--accent-2);font-weight:500}
+
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+.btn{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--surface-3);border:1px solid var(--border-strong);padding:7px 14px;border-radius:8px;cursor:pointer;transition:.15s;line-height:1}
+.btn:hover{border-color:var(--accent-2);color:#fff}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;font-weight:500}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.toggle{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;padding:6px 10px;border:1px solid var(--border);border-radius:8px;transition:.15s}
+.toggle:hover{border-color:var(--border-strong);color:var(--ink)}
+.toggle input{accent-color:var(--accent-2);width:14px;height:14px}
+.toggle.on{color:var(--ink);border-color:rgba(124,92,255,.4);background:rgba(124,92,255,.08)}
+.ctrl-sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+.ctrl-info{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-left:auto}
+
+.detail-box{padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);min-height:54px;display:flex;gap:12px;align-items:flex-start}
+.detail-box .rule{flex:none;font-family:var(--mono);font-size:11px;color:var(--accent-2);background:rgba(124,92,255,.1);border:1px solid rgba(124,92,255,.25);padding:3px 8px;border-radius:6px;white-space:nowrap}
+.detail-box .body{flex:1}
+.detail-box .body b{color:var(--ink);font-weight:500}
+.detail-box code{color:var(--accent-2);background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12px}
+
+.stats-row{display:flex;flex-wrap:wrap;gap:1px;background:var(--border)}
+.stat{flex:1;min-width:120px;background:var(--surface);padding:12px 16px}
+.stat .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.stat .v{font-family:var(--mono);font-size:19px;color:var(--ink);margin-top:3px;font-weight:500}
+.stat .v.accent{color:var(--accent-2)}
+.stat .v.good{color:var(--good)}
+.stat .v.bad{color:var(--bad)}
+
+footer{margin:40px 44px 0;padding-top:22px;border-top:1px solid var(--border);max-width:1100px;color:var(--faint);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+@media (max-width:980px){
+  .hamburger{display:inline-flex;align-items:center;justify-content:center}
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0}
+  .scrim{position:fixed;inset:var(--nav-h) 0 0 0;background:rgba(0,0,0,.5);z-index:39;opacity:0;pointer-events:none;transition:opacity .2s}
+  .scrim.show{opacity:1;pointer-events:auto}
+}
+@media (max-width:640px){
+  .hero{padding:34px 20px 22px}
+  .hero h1{font-size:28px}
+  .module{padding:24px 16px}
+  .brand .sub{display:none}
+  .gh-link span{display:none}
+  .stat{min-width:50%;padding:10px 12px}
+  .controls{padding:11px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .module,.hero{transition:none;opacity:1;transform:none}
+  *{animation:none!important}
+}
+svg text{font-family:var(--mono)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="hamburger" id="ham" aria-label="menu">≡</button>
+  <div class="brand"><span class="dot"></span><b>semantics-viz-lab</b><span class="sub">程序语义可视化实验室</span></div>
+  <span class="spacer"></span>
+  <a class="gh-link" href="https://github.com/wangzifan396-wzf/semantics-viz-lab" target="_blank" rel="noopener">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <span>GitHub</span>
+  </a>
+  <div class="progress" id="progress"></div>
+</header>
+
+<aside class="sidebar" id="sidebar">
+  <div class="side-label">模块 Modules</div>
+  <a class="nav-link" href="#m01"><span class="n">01</span><span class="t">操作语义</span></a>
+  <a class="nav-link" href="#m02"><span class="n">02</span><span class="t">指称语义</span></a>
+  <a class="nav-link" href="#m03"><span class="n">03</span><span class="t">公理语义</span></a>
+  <a class="nav-link" href="#m04"><span class="n">04</span><span class="t">抽象机</span></a>
+  <a class="nav-link" href="#m05"><span class="n">05</span><span class="t">环境与存储</span></a>
+  <a class="nav-link" href="#m06"><span class="n">06</span><span class="t">控制流语义</span></a>
+  <a class="nav-link" href="#m07"><span class="n">07</span><span class="t">类型安全</span></a>
+  <a class="nav-link" href="#m08"><span class="n">08</span><span class="t">等价与细化</span></a>
+  <div class="side-foot">纯 HTML / CSS / JS + SVG<br>零依赖 · 单文件<br><span style="color:var(--accent-2)">●</span> 8 个交互式模块</div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<main class="main" id="main">
+  <header class="hero" id="top">
+    <div class="crumb">formal semantics · 交互式可视化</div>
+    <h1>程序语义<span class="grad">可视化实验室</span></h1>
+    <p>把操作语义、指称语义、公理语义等抽象理论，变成可逐步推导、可观察状态变化的交互图形。点击左侧模块，使用每个模块的控制器单步执行，亲眼看到语义如何"运行"。</p>
+    <div class="chips">
+      <span class="chip">Small-step / Big-step</span><span class="chip">Fixed-point</span>
+      <span class="chip">Hoare Logic</span><span class="chip">CES Machine</span>
+      <span class="chip">Closure</span><span class="chip">CPS</span>
+      <span class="chip">Type Safety</span><span class="chip">Bisimulation</span>
+    </div>
+  </header>
+
+  <section id="m01" class="module"><div class="module-head"><span class="kicker">MODULE 01</span><h2>操作语义<span class="en">Operational Semantics</span></h2><p class="desc">小步语义 (small-step) 把归约拆成单步 <code>t → t'</code>；大步语义 (big-step) 用推导树一次性证明 <code>t ⇓ v</code>。切换模式观察同一表达式的两种执行方式与所用推导规则。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">expr · <b id="t01src"></b></span><svg id="svg01" viewBox="0 0 780 380"></svg></div><div class="controls" id="ctl01"></div><div class="detail-box" id="det01"></div><div class="stats-row" id="st01"></div></div></section>
+
+  <section id="m02" class="module"><div class="module-head"><span class="kicker">MODULE 02</span><h2>指称语义<span class="en">Denotational Semantics</span></h2><p class="desc">把程序映射到数学域。递归定义的语义通过最小不动点 <code>fix(φ)</code> 给出：从底元 ⊥ 出发反复应用 <code>φ</code>，逼近一个越来越"定义完整"的函数。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">φ(f)(n) = n=0 ? 1 : n·f(n−1) · <b>阶乘</b></span><svg id="svg02" viewBox="0 0 780 380"></svg></div><div class="controls" id="ctl02"></div><div class="detail-box" id="det02"></div><div class="stats-row" id="st02"></div></div></section>
+
+  <section id="m03" class="module"><div class="module-head"><span class="kicker">MODULE 03</span><h2>公理语义<span class="en">Axiomatic Semantics</span></h2><p class="desc">Hoare 逻辑用三元组 <code>{P} S {Q}</code> 描述程序。从后置条件 Q 出发，用最弱前置条件 <code>wp</code> 向后传播，逐条语句推出前置条件 P。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">wp · backward propagation</span><svg id="svg03" viewBox="0 0 780 380"></svg></div><div class="controls" id="ctl03"></div><div class="detail-box" id="det03"></div><div class="stats-row" id="st03"></div></div></section>
+
+  <section id="m04" class="module"><div class="module-head"><span class="kicker">MODULE 04</span><h2>抽象机<span class="en">Abstract Machine · CESK</span></h2><p class="desc">状态 <code>⟨e, ρ, σ, κ⟩</code>：控制表达式 e、环境 ρ、存储 σ、续延 κ。单步转换让求值过程显式化，<code>ref / ! / :=</code> 直接作用于存储。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">⟨Control, Env, Store, Kont⟩</span><svg id="svg04" viewBox="0 0 780 400"></svg></div><div class="controls" id="ctl04"></div><div class="detail-box" id="det04"></div><div class="stats-row" id="st04"></div></div></section>
+
+  <section id="m05" class="module"><div class="module-head"><span class="kicker">MODULE 05</span><h2>环境与存储<span class="en">Environment & Store</span></h2><p class="desc">闭包 = ⟨λx.e, ρ⟩，捕获定义处的环境。词法作用域下，调用时扩展的是闭包捕获的环境，而非当前环境链——因此 <code>x</code> 取到定义时的值。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">lexical scope · closure capture</span><svg id="svg05" viewBox="0 0 780 400"></svg></div><div class="controls" id="ctl05"></div><div class="detail-box" id="det05"></div><div class="stats-row" id="st05"></div></div></section>
+
+  <section id="m06" class="module"><div class="module-head"><span class="kicker">MODULE 06</span><h2>控制流语义<span class="en">Control-Flow · Continuation</span></h2><p class="desc">CPS 变换把"将来要做的事"显式化为续延 <code>k</code>。求值时续延栈随嵌套加深、随返回收缩，控制流从隐式调用栈变为显式的续延传递。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">(+ 1 (* 2 3)) · continuation stack</span><svg id="svg06" viewBox="0 0 780 400"></svg></div><div class="controls" id="ctl06"></div><div class="detail-box" id="det06"></div><div class="stats-row" id="st06"></div></div></section>
+
+  <section id="m07" class="module"><div class="module-head"><span class="kicker">MODULE 07</span><h2>类型安全<span class="en">Type Safety</span></h2><p class="desc">类型安全 = 进展 (Progress) + 保持 (Preservation)。每步归约后类型不变 (保持)，良类型项或为值或可继续 (进展)。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">((λx:Nat. + x 1) 5) : Nat</span><svg id="svg07" viewBox="0 0 780 400"></svg></div><div class="controls" id="ctl07"></div><div class="detail-box" id="det07"></div><div class="stats-row" id="st07"></div></div></section>
+
+  <section id="m08" class="module"><div class="module-head"><span class="kicker">MODULE 08</span><h2>等价与细化<span class="en">Equivalence & Refinement</span></h2><p class="desc">双模拟 (Bisimulation)：两个迁移系统的状态对 (P,Q) 满足——一方每个动作另一方都能用同样动作匹配到相关的状态。失配则不等价。</p></div><div class="card"><div class="viz-box"><span class="viz-tag">labelled transition systems · R</span><svg id="svg08" viewBox="0 0 780 400"></svg></div><div class="controls" id="ctl08"></div><div class="detail-box" id="det08"></div><div class="stats-row" id="st08"></div></div></section>
+
+  <footer><span>semantics-viz-lab · 程序语义可视化实验室</span><span>MIT License · <a style="color:var(--accent-2)" href="https://github.com/wangzifan396-wzf/semantics-viz-lab" target="_blank" rel="noopener">GitHub</a></span></footer>
+</main>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+var C={ink:"#f7f8f8",muted:"#9b9fa8",faint:"#62666d",accent:"#5e6ad2",accent2:"#7c5cff",
+  surface:"#101114",surface2:"#16181c",surface3:"#1c1f24",
+  border:"rgba(255,255,255,.14)",borderSoft:"rgba(255,255,255,.07)",
+  good:"#5fd6a6",bad:"#f06a78",warn:"#e8c46a"};
+var reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function E(tag,attrs,parent,text){
+  var e=document.createElementNS(NS,tag);
+  if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]);
+  if(text!=null)e.textContent=text;
+  if(parent)e.setAttribute?parent.appendChild(e):null;
+  return e;
+}
+function clear(n){while(n&&n.firstChild)n.removeChild(n.firstChild);}
+function animate(el,from,to,dur,apply,done){
+  if(reducedMotion){apply(to);if(done)done();return;}
+  var t0=performance.now();
+  function frame(t){var p=Math.min(1,(t-t0)/dur);var e=1-Math.pow(1-p,3);var v=from+(to-from)*e;apply(v);if(p<1)requestAnimationFrame(frame);else if(done)done();}
+  requestAnimationFrame(frame);
+}
+function btn(label,onClick,opts){
+  opts=opts||{};var b=document.createElement("button");
+  b.className="btn"+(opts.primary?" primary":"")+(opts.ghost?" ghost":"");
+  b.textContent=label;b.addEventListener("click",onClick);return b;
+}
+function toggle(label,onChange,checked){
+  var lab=document.createElement("label");lab.className="toggle"+(checked?" on":"");
+  var inp=document.createElement("input");inp.type="checkbox";inp.checked=!!checked;
+  inp.addEventListener("change",function(){lab.classList.toggle("on",inp.checked);onChange(inp.checked);});
+  lab.appendChild(inp);lab.appendChild(document.createTextNode(" "+label));return lab;
+}
+function sep(){var s=document.createElement("span");s.className="ctrl-sep";return s;}
+function statHtml(items){
+  return items.map(function(it){
+    var cls=it.cls?(" "+it.cls):"";
+    return '<div class="stat"><span class="k">'+it.k+'</span><span class="v'+cls+'">'+it.v+'</span></div>';
+  }).join("");
+}
+function setDetail(det,rule,html){
+  det.innerHTML='<span class="rule">'+rule+'</span><span class="body">'+html+'</span>';
+}
+function txtMeasure(s,f){return s.length*(f||6.6)+16;}
+function txtLayout(n,f){var own=txtMeasure(n.conc,f);if(!n.kids||!n.kids.length){n._w=own;return own;}var sum=0;n.kids.forEach(function(k){txtLayout(k,f);});sum=n.kids.reduce(function(s,k){return s+k._w;},0)+(n.kids.length-1)*16;n._w=Math.max(own,sum);return n._w;}
+function txtPlace(n,x0,d,dh){n._y=d*dh;n._x=x0+n._w/2;if(!n.kids||!n.kids.length)return;var kidsW=n.kids.reduce(function(s,k){return s+k._w;},0)+(n.kids.length-1)*16;var cx=x0+(n._w-kidsW)/2;n.kids.forEach(function(k){txtPlace(k,cx,d+1,dh);cx+=k._w+16;});}
+function txtCollect(n,arr){arr.push(n);(n.kids||[]).forEach(function(k){txtCollect(k,arr);});}
+function fitX(nodes,W,pad){if(!nodes.length)return;var maxR=-1e9,minL=1e9;nodes.forEach(function(n){maxR=Math.max(maxR,n._x+n._w/2);minL=Math.min(minL,n._x-n._w/2);});var tw=maxR-minL;var sx=Math.min(1,(W-pad*2)/Math.max(tw,1));var off=pad-minL*sx;nodes.forEach(function(n){n._x=off+n._x*sx;});}
+function eLayout(n){if(n.t==="num"){n._lw=1;return;}var s=0;n.args.forEach(function(a){eLayout(a);s+=a._lw;});n._lw=s;}
+function ePlace(n,x0,d,lw,dh){n._y=d*dh;if(n.t==="num"){n._x=x0+lw/2;return lw;}var w=0,xs=[];n.args.forEach(function(a){var cw=ePlace(a,x0+w,d+1,lw,dh);xs.push(a._x);w+=cw;});n._x=(xs[0]+xs[xs.length-1])/2;return w;}
+function panel(svg,x,y,w,h,title,changed){
+  E("rect",{x:x,y:y,width:w,height:h,rx:12,fill:C.surface2,stroke:changed?C.accent2:C.border,"stroke-width":changed?1.6:1},svg);
+  E("text",{x:x+12,y:y+17,fill:C.faint,"font-size":10.5,"letter-spacing":"0.08em"},svg,title.toUpperCase());
+}
+// ===== MODULE 01 · Operational Semantics =====
+function M01(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  var srcEl=document.getElementById("t01src");
+  var SRC="(+ (* 2 3) (+ 1 (+ 4 5)))";
+  if(srcEl)srcEl.textContent=SRC;
+  var tree,mode="small",steps=0,proof=null,proofNodes=[],pidx=0,running=false,timer=null;
+
+  function parse(s){var i=0;function e(){while(" \t\n".indexOf(s[i])>=0)i++;if(s[i]==="("){i++;var sym="";while(s[i]&&s[i]!==" "&&s[i]!==")"){sym+=s[i];i++;}var args=[];while(true){while(" \t\n".indexOf(s[i])>=0)i++;if(s[i]===")"){i++;break;}args.push(e());}return{t:"app",op:sym,args:args};}else{var n="";while(s[i]&&s[i]!==" "&&s[i]!==")"){n+=s[i];i++;}return{t:"num",v:parseInt(n,10)};}}return e();}
+  function clone(n){return n.t==="num"?{t:"num",v:n.v}:{t:"app",op:n.op,args:n.args.map(clone)};}
+  function show(n){return n.t==="num"?String(n.v):"("+n.op+" "+n.args.map(show).join(" ")+")";}
+  function findRedex(n){if(n.t==="num")return null;for(var k=0;k<n.args.length;k++){var r=findRedex(n.args[k]);if(r)return r;}if(n.args.every(function(x){return x.t==="num";}))return n;return null;}
+  function doStep(){var r=findRedex(tree);if(!r)return null;var v=r.op==="+"?r.args[0].v+r.args[1].v:r.args[0].v*r.args[1].v;var rule=r.op==="+"?"E-Add":"E-Mul";r.t="num";r.v=v;delete r.op;delete r.args;return rule;}
+  function prove(n){if(n.t==="num")return{conc:show(n)+" ⇓ "+n.v,rule:"E-Num",kids:[],v:n.v};var k1=prove(n.args[0]),k2=prove(n.args[1]);var v=n.op==="+"?k1.v+k2.v:k1.v*k2.v;return{conc:show(n)+" ⇓ "+v,rule:"E-"+(n.op==="+"?"Add":"Mul"),kids:[k1,k2],v:v};}
+  function collectP(n,arr){arr.push(n);n.kids.forEach(function(k){collectP(k,arr);});}
+
+  function renderExpr(){
+    clear(svg);
+    var W=780,H=380,padX=34,top=34;
+    eLayout(tree);var leaves=Math.max(tree._lw,1);var lw=(W-padX*2)/leaves;var dh=Math.min(72,(H-top-34)/5);
+    ePlace(tree,padX,0,lw,dh);
+    (function edges(n){if(n.t==="num")return;n.args.forEach(function(a){E("line",{x1:n._x,y1:n._y+15,x2:a._x,y2:a._y-15,stroke:C.borderSoft,"stroke-width":1.5},svg);edges(a);});})(tree);
+    var redex=findRedex(tree);
+    (function nodes(n){var h=(n===redex);if(n.t==="num"){E("rect",{x:n._x-17,y:n._y-15,width:34,height:30,rx:8,fill:h?C.accent:C.surface3,stroke:h?C.accent2:C.border,"stroke-width":h?1.8:1},svg);E("text",{x:n._x,y:n._y+5,"text-anchor":"middle","font-size":13,fill:h?"#fff":C.ink},svg,String(n.v));}else{E("circle",{cx:n._x,cy:n._y,r:14,fill:h?C.accent:C.surface2,stroke:h?C.accent2:C.border,"stroke-width":h?1.8:1},svg);E("text",{x:n._x,y:n._y+4,"text-anchor":"middle","font-size":13,fill:h?"#fff":C.accent2},svg,n.op);}if(n.t==="app")n.args.forEach(nodes);})(tree);
+    var done=!redex;
+    E("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":12,fill:done?C.good:C.faint},svg, done?("✓ 最终结果 = "+(tree.t==="num"?tree.v:show(tree))) : ("当前表达式:  "+show(tree)));
+  }
+  function renderProof(){
+    clear(svg);
+    var W=780,H=380,pad=18;
+    proof=prove(tree);proofNodes=[];collectP(proof,proofNodes);
+    var maxD=0;(function d(n,dd){maxD=Math.max(maxD,dd);n.kids.forEach(function(k){d(k,dd+1);});})(proof,0);
+    var dh=Math.min(58,(H-50)/Math.max(maxD,1));
+    txtLayout(proof,6.2);txtPlace(proof,0,0,dh);fitX(proofNodes,W,pad);
+    var g=E("g",{},svg);
+    (function edges(n){n.kids.forEach(function(k){E("line",{x1:n._x,y1:n._y+15,x2:k._x,y2:k._y-15,stroke:C.borderSoft,"stroke-width":1.5},g);edges(k);});})(proof);
+    (function nodes(n){var cur=(proofNodes[pidx]===n);E("rect",{x:n._x-n._w/2+5,y:n._y-14,width:n._w-10,height:28,rx:7,fill:cur?C.accent:C.surface2,stroke:cur?C.accent2:C.border,"stroke-width":cur?1.8:1},g);E("text",{x:n._x,y:n._y+3,"text-anchor":"middle","font-size":10.5,fill:cur?"#fff":C.ink},g,n.conc);E("text",{x:n._x,y:n._y+24,"text-anchor":"middle","font-size":9,fill:cur?C.warn:C.faint},g,n.rule);n.kids.forEach(nodes);})(proof);
+    E("text",{x:W/2,y:H-12,"text-anchor":"middle","font-size":12,fill:C.faint},g,"推导树根 = 最终结论  "+proof.conc+"  · 规则 "+proof.rule);
+  }
+  function render(){if(mode==="small")renderExpr();else renderProof();}
+  function stats(){
+    if(mode==="small"){
+      var redex=findRedex(tree);var done=!redex;
+      st.innerHTML=statHtml([{k:"归约步数",v:steps},{k:"模式",v:"小步"},{k:"状态",v:done?"✓ 终值":"可归约",cls:done?"good":"accent"}]);
+    }else{
+      st.innerHTML=statHtml([{k:"推导节点",v:proofNodes.length},{k:"模式",v:"大步"},{k:"当前规则",v:(proofNodes[pidx]||{rule:"-"}).rule,cls:"accent"}]);
+    }
+  }
+  function reset(){stop();tree=parse(SRC);steps=0;pidx=0;mode="small";render();stats();
+    setDetail(det,"Small-step","初始表达式 <code>"+show(tree)+"</code>。高亮的节点是<b>下一个待归约的 redex</b>（最内最左）。点击 <b>单步</b> 应用规则 <code>+(n,n)→n</code>。");}
+  function stepSmall(){var rule=doStep();if(!rule){setDetail(det,"Done","已得到终值 <code>"+(tree.t==="num"?tree.v:show(tree))+"</code>，无可归约的 redex。");return false;}steps++;render();stats();
+    setDetail(det,rule,"应用 <b>"+rule+"</b>：最内左 redex 被替换为计算结果。剩余 <code>"+show(tree)+"</code>。");return true;}
+  function stepBig(){if(!proofNodes.length)return false;pidx=(pidx+1)%proofNodes.length;render();stats();var n=proofNodes[pidx];
+    setDetail(det,n.rule,"大步规则 <b>"+n.rule+"</b>：由前提推出结论 <code>"+n.conc+"</code>。");return true;}
+  function doStep(){return mode==="small"?stepSmall():stepBig();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!doStep()){stop();}},850);});
+  function setMode(m){mode=m;modeT.classList.toggle("on",m==="big");stop();pidx=0;render();stats();
+    if(m==="small")setDetail(det,"Small-step","切换到<b>小步语义</b>：一步步归约 <code>"+show(tree)+"</code>。");
+    else setDetail(det,"Big-step","切换到<b>大步语义</b>：整棵推导树证明 <code>"+show(tree)+" ⇓ "+prove(tree).v+"</code>。单步遍历各规则节点。");}
+  var modeT=toggle("大步语义 (big-step)",function(on){setMode(on?"big":"small");},false);
+  ctl.appendChild(btn("单步",function(){stop();doStep();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(modeT);ctl.appendChild(sep());ctl.appendChild(runBtn);
+  reset();
+}
+
+// ===== MODULE 02 · Denotational Semantics =====
+function M02(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  var N=6; /* inputs n=0..5 */
+  var curK=0,running=false,timer=null;
+  var KMAX=N+1; /* k from 0..N; at k=N all defined => fixpoint */
+  function fact(n){var r=1;for(var i=2;i<=n;i++)r*=i;return r;}
+
+  function render(){
+    clear(svg);
+    var W=780,H=380;
+    var gx0=58,gy0=52,cw=44,ch=34;
+    /* column headers n */
+    E("text",{x:gx0-12,y:gy0-14,"text-anchor":"end","font-size":11,fill:C.faint},svg,"k\\n");
+    for(var n=0;n<N;n++){E("text",{x:gx0+n*cw+cw/2,y:gy0-14,"text-anchor":"middle","font-size":11,fill:C.muted},svg,"n="+n);}
+    /* rows */
+    for(var k=0;k<=N;k++){
+      E("text",{x:gx0-12,y:gy0+k*ch+ch/2+4,"text-anchor":"end","font-size":11,fill:k===curK?C.accent2:C.faint},svg,(k===0?"⊥":"f"+sub(k)));
+      for(n=0;n<N;n++){
+        var defined=(k>0&&n<k);
+        var lit=(k<=curK);
+        var x=gx0+n*cw,y=gy0+k*ch;
+        var fill=C.surface2,stroke=C.border,fc=C.faint,txt="";
+        if(lit){
+          if(defined){fill="rgba(94,106,210,.22)";stroke=C.accent2;fc=C.ink;txt=String(fact(n));}
+          else{fill=C.surface2;stroke=C.border;fc=C.faint;txt="⊥";}
+        }else{fill="rgba(255,255,255,.015)";stroke="rgba(255,255,255,.04)";fc="rgba(255,255,255,.12)";txt=(defined?"·":"");}
+        if(k===curK){stroke=C.warn;}
+        E("rect",{x:x+2,y:y+2,width:cw-4,height:ch-4,rx:6,fill:fill,stroke:stroke,"stroke-width":k===curK?1.6:1},svg);
+        E("text",{x:x+cw/2,y:y+ch/2+4,"text-anchor":"middle","font-size":defined&&lit?12:10,fill:fc},svg,txt);
+      }
+    }
+    E("text",{x:gx0-12,y:gy0+(N+1)*ch+8,"text-anchor":"end","font-size":11,fill:C.faint},svg,"fix");
+    /* arrow φ */
+    E("text",{x:gx0+N*cw/2,y:gy0+ (N+1)*ch+22,"text-anchor":"middle","font-size":11,fill:C.accent2},svg,"↑ φ : 每迭代增加一个定义点");
+
+    /* CPO chain on the right */
+    var cx=640,topY=46,botY=326,stepY=(botY-topY)/N;
+    E("text",{x:cx,y:topY-16,"text-anchor":"middle","font-size":11,fill:C.faint},svg,"CPO 链");
+    for(k=0;k<=N;k++){
+      var cy=botY-k*stepY;
+      var isCur=(k===curK);
+      var lbl=(k===0?"⊥":"f"+sub(k));
+      E("circle",{cx:cx,cy:cy,r:isCur?12:8,fill:isCur?C.accent:C.surface3,stroke:isCur?C.accent2:C.border,"stroke-width":isCur?1.8:1},svg);
+      E("text",{x:cx,y:cy+4,"text-anchor":"middle","font-size":11,fill:isCur?"#fff":C.muted},svg,lbl);
+      if(k<N){E("line",{x1:cx,y1:cy-stepY+ (isCur?14:10),x2:cx,y2:cy-(isCur?14:10),stroke:C.borderSoft,"stroke-width":1.5},svg);E("text",{x:cx+16,y:cy-stepY/2+4,"font-size":10,fill:C.faint},svg,"≤");}
+    }
+    var converged=curK>=N;
+    E("text",{x:cx,y:botY+stepY-2,"text-anchor":"middle","font-size":11,fill:converged?C.good:C.faint},svg, converged?("fix(φ) = ! ✓"):"fix(φ) = !");
+  }
+  function sub(k){return k.toString().split("").map(function(d){return "₀₁₂₃₄₅₆₇₈₉"[parseInt(d,10)];}).join("");}
+  function stats(){
+    var defined=Math.min(curK,N);
+    st.innerHTML=statHtml([{k:"迭代 k",v:curK},{k:"已定义点数",v:defined+"/"+N},{k:"最小不动点",v:curK>=N?"✓ 达到":"逼近中",cls:curK>=N?"good":"accent"}]);
+  }
+  function setDet(){
+    if(curK===0)setDetail(det,"⊥ (bottom","初始近似 <b>f₀ = ⊥</b>：处处未定义。将反复应用 <code>φ</code> 构造升链。");
+    else if(curK>=N)setDetail(det,"fix(φ)","<b>k="+curK+"</b>：所有输入 n=0.."+(N-1)+" 均已定义，<code>φ(f"+sub(curK-1)+")=f"+sub(curK)+"=f"+sub(curK-1)+"</code>，达到<b>最小不动点 fix(φ)=!</code>。");
+    else setDetail(det,"φ-iter","<b>k="+curK+"</b>：f"+sub(curK)+"(n)=n! 对 n&lt;"+curK+" 有定义，其余 ⊥。比上一步多定义一个点，链 <code>⊥ ≤ f₁ ≤ … ≤ f"+sub(curK)+"</code> 单调上升。");
+  }
+  function iter(){if(curK>=N)return false;curK++;render();stats();setDet();return true;}
+  function reset(){stop();curK=0;render();stats();setDet();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动迭代";}
+  var runBtn=btn("自动迭代",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!iter())stop();},800);});
+  ctl.appendChild(btn("迭代 φ",function(){stop();iter();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="φ(f)(n)= n=0?1 : n·f(n−1)";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 03 · Axiomatic Semantics =====
+function M03(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  /* program: a := x+1 ; b := a*2 , post Q = {b = 2x+2} */
+  var POST="{ b = 2x + 2 }";
+  var ANN=[
+    {y:78, kind:"assert", text:"{ (x+1)*2 = 2x+2 }", simp:"≡ { true }", rule:"wp(Assign)", reveal:2, tag:"Q₀ (pre of S₁)"},
+    {y:140, kind:"code", text:"a := x + 1"},
+    {y:210, kind:"assert", text:"{ a*2 = 2x + 2 }", simp:"≡ { a = x+1 }", rule:"wp(Assign)", reveal:1, tag:"Q₁ (pre of S₂ = post of S₁)"},
+    {y:272, kind:"code", text:"b := a * 2"},
+    {y:338, kind:"assert", text:POST, simp:"", rule:"Postcondition", reveal:0, tag:"Q (post of S₂)"}
+  ];
+  var step=0,STEPS=3,running=false,timer=null;
+
+  function render(){
+    clear(svg);
+    var W=780,cx=250;
+    /* title */
+    E("text",{x:cx,y:34,"text-anchor":"middle","font-size":12,fill:C.faint},svg,"S = (a := x+1 ; b := a*2)   ·   从后置 Q 向后传播 wp");
+    /* backward arrow column */
+    var ax=470;
+    if(step>=1){E("line",{x1:ax,y1:322,x2:ax,y2:228,stroke:C.accent2,"stroke-width":1.6,"marker-end":"url(#a3u)"},svg);E("text",{x:ax+10,y:278,"font-size":10.5,fill:C.accent2},svg,"wp(b:=a·2)");}
+    if(step>=2){E("line",{x1:ax,y1:190,x2:ax,y2:96,stroke:C.accent2,"stroke-width":1.6,"marker-end":"url(#a3u)"},svg);E("text",{x:ax+10,y:146,"font-size":10.5,fill:C.accent2},svg,"wp(a:=x+1)");}
+    /* arrow marker */
+    var defs=E("defs",{},svg);
+    var m=E("marker",{id:"a3u",viewBox:"0 0 10 10",refX:"5",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},defs);
+    E("path",{d:"M0,0 L10,5 L0,10 z",fill:C.accent2},m);
+
+    ANN.forEach(function(a,i){
+      var isAssert=a.kind==="assert";
+      var shown=!(isAssert)||step>=a.reveal;
+      var justReveal=isAssert&&step===a.reveal;
+      if(isAssert){
+        var fill=shown?(justReveal?"rgba(124,92,255,.16)":"rgba(94,106,210,.1)"):C.surface2;
+        var stroke=shown?(justReveal?C.accent2:C.border):"rgba(255,255,255,.05)";
+        E("rect",{x:cx-150,y:a.y-16,width:300,height:30,rx:8,fill:fill,stroke:stroke,"stroke-width":justReveal?1.8:1,opacity:shown?1:.35},svg);
+        var fc=shown?(justReveal?"#fff":C.ink):C.faint;
+        E("text",{x:cx,y:a.y+4,"text-anchor":"middle","font-size":12.5,fill:fc},svg,shown?a.text:"");
+        if(shown&&a.simp){E("text",{x:cx+158,y:a.y+4,"text-anchor":"start","font-size":11,fill:justReveal?C.good:C.faint},svg,a.simp);}
+        if(shown){E("text",{x:cx-158,y:a.y+4,"text-anchor":"end","font-size":9.5,fill:justReveal?C.warn:C.faint},svg,a.rule);}
+      }else{
+        E("rect",{x:cx-110,y:a.y-15,width:220,height:30,rx:7,fill:C.surface3,stroke:C.border},svg);
+        E("text",{x:cx,y:a.y+4,"text-anchor":"middle","font-size":12.5,fill:C.ink},svg,a.text);
+        E("text",{x:cx-120,y:a.y+4,"text-anchor":"end","font-size":10,fill:C.faint},svg,"S"+(i===1?"₁":"₂"));
+      }
+    });
+    /* final triple */
+    if(step>=STEPS){
+      E("rect",{x:560,y:330,width:200,height:34,rx:8,fill:"rgba(95,214,166,.1)",stroke:C.good,"stroke-width":1.6},svg);
+      E("text",{x:660,y:351,"text-anchor":"middle","font-size":12,fill:C.good},svg,"{ true } S { b=2x+2 }");
+    }
+  }
+  function stats(){
+    st.innerHTML=statHtml([{k:"已应用规则",v:Math.min(step,2)},{k:"处理语句",v:Math.min(step,2)+"/2"},{k:"前置条件 P",v:step>=2?"{ true }":"…",cls:step>=2?"good":"accent"}]);
+  }
+  function setDet(){
+    if(step===0)setDetail(det,"Postcondition","从后置条件 <code>Q = {b=2x+2}</code> 出发，用<b>最弱前置条件 wp</b> 逐条语句向后求前置条件。");
+    else if(step===1)setDetail(det,"wp(Assign)","对 <code>b := a*2</code> 用赋值公理 <code>wp(x:=e,Q)=Q[x:=e]</code>：把 Q 中 b 替换为 a*2，得 <code>Q₁={a*2=2x+2}</code>。");
+    else if(step===2)setDetail(det,"wp(Assign)","对 <code>a := x+1</code> 再用赋值公理：把 Q₁ 中 a 替换为 x+1，得 <code>Q₀={(x+1)*2=2x+2}≡{true}</code>。");
+    else setDetail(det,"Hoare triple","得到完整三元组 <code>{true} S {b=2x+2}</code>：只要开始成立，执行后 b 必等于 2x+2。");
+  }
+  function next(){if(step>=STEPS)return false;step++;render();stats();setDet();return true;}
+  function reset(){stop();step=0;render();stats();setDet();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!next())stop();},900);});
+  ctl.appendChild(btn("向后传播 wp",function(){stop();next();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="wp(x:=e, Q) = Q[x:=e]";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 04 · Abstract Machine (CESK) =====
+function M04(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  /* demo: ((λr. (r := (+ !r 1))) (ref 5)) */
+  var DEMO={t:"app",fn:{t:"lam",x:"r",body:{t:"set",loc:{t:"var",x:"r"},val:{t:"add",a:{t:"deref",e:{t:"var",x:"r"}},b:{t:"num",v:1}}}},arg:{t:"ref",e:{t:"num",v:5}}};
+  var s,steps=0,lastChanged="ctrl",running=false,timer=null,log=[];
+  function fresh(){return{ctrl:DEMO,rho:Object.create(null),sigma:{},kappa:[],nextLoc:0,done:false,result:null};}
+  function isVal(c){return c&&(c.t==="num"||c.t==="clo");}
+  function showVal(v){if(!v)return"·";if(v.t==="num")return String(v.v);if(v.t==="clo")return"⟨λ"+v.lam.x+".⟩";return"?";}
+  function showCtrl(c){if(c==null)return"·";if(c.t==="num")return String(c.v);if(c.t==="clo")return"⟨λ"+c.lam.x+".⟩";if(c.t==="var")return c.x;if(c.t==="lam")return"(λ"+c.x+". …)";if(c.t==="app")return"("+showCtrl(c.fn)+" "+showCtrl(c.arg)+")";if(c.t==="add")return"(+ "+showCtrl(c.a)+" "+showCtrl(c.b)+")";if(c.t==="deref")return"(!"+showCtrl(c.e)+")";if(c.t==="ref")return"(ref "+showCtrl(c.e)+")";if(c.t==="set")return"("+showCtrl(c.loc)+" := "+showCtrl(c.val)+")";return"?";}
+  function showFrame(f){if(f.k==="app1")return"(□ "+showCtrl(f.arg)+")";if(f.k==="app2")return"("+showVal(f.fnVal)+" □)";if(f.k==="add1")return"(□ + "+showCtrl(f.b)+")";if(f.k==="add2")return"("+f.aVal.v+" + □)";if(f.k==="deref")return"(!□)";if(f.k==="ref")return"(ref □)";if(f.k==="set1")return"(□ := "+showCtrl(f.valExpr)+")";if(f.k==="set2")return"("+f.loc+" := □)";return f.k;}
+  function envChain(rho){var frames=[];var o=rho;while(o){var keys=Object.getOwnPropertyNames(o);if(keys.length){frames.push(keys.map(function(k){return [k,o[k]];}));}o=Object.getPrototypeOf(o);}return frames;}
+
+  function step(){
+    if(s.done)return null;
+    var c=s.ctrl;
+    if(isVal(c)){
+      if(s.kappa.length===0){s.done=true;s.result=c;lastChanged="kont";return{rule:"Halt"};}
+      var f=s.kappa.pop();
+      if(f.k==="app1"){s.kappa.push({k:"app2",fnVal:c});s.ctrl=f.arg;s.rho=f.env;lastChanged="kont";return{rule:"App: eval arg"};}
+      if(f.k==="app2"){var clo=f.fnVal;var ne=Object.create(clo.env);ne[clo.lam.x]=c;s.rho=ne;s.ctrl=clo.lam.body;lastChanged="env";return{rule:"Beta (β)"};}
+      if(f.k==="add1"){s.kappa.push({k:"add2",aVal:c});s.ctrl=f.b;s.rho=f.env;lastChanged="kont";return{rule:"Add: eval right"};}
+      if(f.k==="add2"){s.ctrl={t:"num",v:f.aVal.v+c.v};lastChanged="ctrl";return{rule:"Add: compute"};}
+      if(f.k==="deref"){s.ctrl={t:"num",v:s.sigma[c.v]};lastChanged="store";return{rule:"Deref: read σ"};}
+      if(f.k==="ref"){var loc=s.nextLoc++;s.sigma[loc]=c.v;s.ctrl={t:"num",v:loc};lastChanged="store";return{rule:"Ref: alloc σ"};}
+      if(f.k==="set1"){s.kappa.push({k:"set2",loc:c.v});s.ctrl=f.valExpr;s.rho=f.env;lastChanged="kont";return{rule:"Assign: eval val"};}
+      if(f.k==="set2"){s.sigma[f.loc]=c.v;s.ctrl={t:"num",v:0};lastChanged="store";return{rule:"Assign: write σ"};}
+      return{rule:"?"};
+    }
+    switch(c.t){
+      case "lam": s.ctrl={t:"clo",lam:c,env:s.rho}; lastChanged="ctrl"; return{rule:"Closure"};
+      case "var": s.ctrl=s.rho[c.x]; lastChanged="env"; return{rule:"Var: lookup ρ"};
+      case "app": s.kappa.push({k:"app1",arg:c.arg,env:s.rho}); s.ctrl=c.fn; lastChanged="kont"; return{rule:"App: eval fn"};
+      case "add": s.kappa.push({k:"add1",b:c.b,env:s.rho}); s.ctrl=c.a; lastChanged="kont"; return{rule:"Add: eval left"};
+      case "deref": s.kappa.push({k:"deref"}); s.ctrl=c.e; lastChanged="kont"; return{rule:"Deref: eval"};
+      case "ref": s.kappa.push({k:"ref"}); s.ctrl=c.e; lastChanged="kont"; return{rule:"Ref: eval"};
+      case "set": s.kappa.push({k:"set1",valExpr:c.val,env:s.rho}); s.ctrl=c.loc; lastChanged="kont"; return{rule:"Assign: eval loc"};
+      default: s.done=true; return{rule:"?"};
+    }
+  }
+
+  function lines(x,y,lh,arr,color,size){arr.forEach(function(t,i){E("text",{x:x,y:y+i*lh,"font-size":size||12,fill:color||C.muted},svg,t);});}
+  function render(){
+    clear(svg);
+    var W=780,H=400;
+    /* Control */
+    panel(svg,16,16,366,86,"Control · e",lastChanged==="ctrl");
+    E("text",{x:30,y:60,"font-size":14,fill:C.ink},svg,truncate(showCtrl(s.ctrl),46));
+    /* Env */
+    panel(svg,398,16,366,86,"Environment · ρ",lastChanged==="env");
+    var ec=envChain(s.rho);var ey=46;
+    if(!ec.length){E("text",{x:412,y:ey+6,"font-size":12,fill:C.faint},svg,"∅  (空)");}
+    ec.forEach(function(fr,fi){var parts=fr.map(function(b){return b[0]+"→"+showVal(b[1]);});E("text",{x:412+(fi*8),y:ey+6+fi*16,"font-size":11.5,fill:fi===0?C.ink:C.muted},svg,"{"+parts.join(", ")+"}"+(fi<ec.length-1?" →":""));});
+    /* Store */
+    panel(svg,16,116,366,86,"Store · σ",lastChanged==="store");
+    var ks=Object.keys(s.sigma).map(Number).sort(function(a,b){return a-b;});
+    if(!ks.length){E("text",{x:30,y:158,"font-size":12,fill:C.faint},svg,"σ = ∅");}
+    else{ks.forEach(function(lc,i){E("rect",{x:30+i*86,y:138,width:74,height:44,rx:7,fill:C.surface3,stroke:lc===0?C.accent2:C.border},svg);E("text",{x:30+i*86+37,y:155,"text-anchor":"middle","font-size":10,fill:C.faint},svg,"loc "+lc);E("text",{x:30+i*86+37,y:173,"text-anchor":"middle","font-size":14,fill:C.ink},svg,String(s.sigma[lc]));});}
+    /* Kont */
+    panel(svg,398,116,366,180,"Kontinuation · κ",lastChanged==="kont");
+    if(!s.kappa.length){E("text",{x:412,y:148,"font-size":12,fill:s.done?C.good:C.faint},svg,s.done?"· halt · (空)":"· halt · (空)");}
+    else{for(var i=s.kappa.length-1;i>=0;i--){var f=s.kappa[i];var yy=146+(s.kappa.length-1-i)*26;E("rect",{x:412,y:yy-15,width:338,height:22,rx:6,fill:i===s.kappa.length-1?"rgba(124,92,255,.12)":C.surface3,stroke:i===s.kappa.length-1?C.accent2:C.border},svg);E("text",{x:424,y:yy,"font-size":11.5,fill:i===s.kappa.length-1?"#fff":C.muted},svg,showFrame(f));}}
+    /* rule strip */
+    E("rect",{x:16,y:312,width:748,height:30,rx:8,fill:C.surface2,stroke:C.border},svg);
+    var lastRule=log.length?log[log.length-1]:"(初始状态)";
+    E("text",{x:30,y:331,"font-size":12,fill:C.accent2},svg,"步骤 "+steps+" · "+lastRule);
+    /* final result */
+    if(s.done){E("rect",{x:16,y:352,width:748,height:32,rx:8,fill:"rgba(95,214,166,.1)",stroke:C.good},svg);E("text",{x:30,y:372,"font-size":12.5,fill:C.good},svg,"✓ 停机：结果 = "+showVal(s.result)+"   ·   最终存储 σ = "+storeStr());}
+  }
+  function storeStr(){var ks=Object.keys(s.sigma).map(Number).sort(function(a,b){return a-b;});return "{"+ks.map(function(lc){return lc+"↦"+s.sigma[lc];}).join(", ")+"}";}
+  function truncate(t,n){return t.length>n?t.slice(0,n-1)+"…":t;}
+
+  function stats(){st.innerHTML=statHtml([{k:"转换步数",v:steps},{k:"存储单元",v:Object.keys(s.sigma).length},{k:"续延深度",v:s.kappa.length,cls:"accent"},{k:"状态",v:s.done?"✓ 停机":"运行中",cls:s.done?"good":"accent"}]);}
+  function setDet(r){if(!r)return;setDetail(det,r.rule,descRule(r.rule));}
+  function descRule(r){
+    var m={
+      "Closure":"λ 表达式打包成<b>闭包</b> ⟨λx.e, ρ⟩，捕获当前环境。",
+      "Var: lookup ρ":"变量从环境 <code>ρ</code> 中取值。",
+      "App: eval fn":"应用：先把续延 <code>(□ arg)</code> 压栈，转去求值函数位置。",
+      "App: eval arg":"函数位已是闭包，压 <code>(clo □)</code>，转去求值参数。",
+      "Beta (β)":"β-归约：用参数值扩展闭包的环境 <code>ρ[x↦v]</code>，转入函数体。",
+      "Add: eval left":"加法：压 <code>(□ + b)</code>，先求左操作数。",
+      "Add: eval right":"左值已得，压 <code>(v₁ + □)</code>，求右操作数。",
+      "Add: compute":"两操作数就绪，计算 <code>v₁+v₂</code>。",
+      "Deref: eval":"解引用：压 <code>(!□)</code>，求位置表达式。",
+      "Deref: read σ":"从存储 <code>σ(loc)</code> 读取值。",
+      "Ref: eval":"引用：压 <code>(ref □)</code>，求初值。",
+      "Ref: alloc σ":"在存储中分配新单元 <code>loc</code>，写入初值。",
+      "Assign: eval loc":"赋值：压 <code>(□ := v)</code>，先求位置。",
+      "Assign: eval val":"位置已得，压 <code>(loc := □)</code>，求右值。",
+      "Assign: write σ":"把右值写入存储 <code>σ(loc)</code>，返回单元值 0。",
+      "Halt":"控制已是值且续延栈空，机器<b>停机</b>。"
+    };
+    return m[r]||("规则 <b>"+r+"</b>。");
+  }
+  function doStep(){var r=step();if(!r)return false;steps++;log.push(r.rule);render();stats();setDet(r);return true;}
+  function reset(){stop();s=fresh();steps=0;log=[];lastChanged="ctrl";render();stats();setDetail(det,"init","初始状态 <code>⟨"+showCtrl(DEMO)+", ∅, ∅, []⟩</code>。<code>ref</code> 创建可变单元，<code>:=</code> 修改存储。点击单步观察 CESK 转换。");}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!doStep())stop();},520);});
+  ctl.appendChild(btn("单步转换",function(){stop();doStep();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="⟨e,ρ,σ,κ⟩ → ⟨e',ρ',σ',κ'⟩";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 05 · Environment & Store (Closures) =====
+function M05(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  /* (let x=10 in (let f=(λy. x+y) in (let x=99 in (f 5))))  => 15 (lexical) */
+  var sc=0,SCENES=6,running=false,timer=null;
+  function marker(id){
+    var d=E("defs",{},svg);var m=E("marker",{id:id,viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto"},d);
+    E("path",{d:"M0,0 L10,5 L0,10 z",fill:C.accent2},m);
+  }
+  function frame(x,y,id,bindings,hl,sub){
+    var w=190,h=46;
+    E("rect",{x:x,y:y,width:w,height:h,rx:9,fill:hl?"rgba(124,92,255,.14)":C.surface2,stroke:hl?C.accent2:C.border,"stroke-width":hl?1.8:1},svg);
+    E("text",{x:x+10,y:y+15,"font-size":10,fill:C.faint},svg,id+(sub?"  "+sub:""));
+    E("text",{x:x+10,y:y+34,"font-size":13,fill:C.ink},svg,bindings);
+    return {cx:x+w/2,top:y,bottom:y+h,right:x+w,left:x};
+  }
+  function arrow(x1,y1,x2,y2,dash){
+    E("line",{x1:x1,y1:y1,x2:x2,y2:y2,stroke:C.accent2,"stroke-width":1.5,"stroke-dasharray":dash?"5 4":"none","marker-end":"url(#a5)"},svg);
+  }
+  function render(){
+    clear(svg);
+    marker("a5");
+    var W=780;
+    E("text",{x:W/2,y:26,"text-anchor":"middle","font-size":12,fill:C.faint},svg,"let x=10 in (let f=(λy. x+y) in (let x=99 in (f 5)))");
+    var hasA=sc>=1,hasB=sc>=2,hasC=sc>=3,lookupF=sc===4,call=sc>=5,result=sc===6;
+    var Ax=120,Ay=300,Bx=120,By=220,Cx=120,Cy=140,Dx=380,Dy=300;
+    if(hasA){var A=frame(Ax,Ay,"frame A","x → 10",call,"(定义处)");E("text",{x:Ax+200,y:Ay+30,"font-size":10,fill:C.faint},svg,"x=10");}
+    if(hasB){var B=frame(Bx,By,"frame B","f → ⟨λy.x+y⟩",lookupF);arrow(Bx+95,By+46,Bx+95,Ay-2,false);E("text",{x:Bx-8,y:By+30,"font-size":10,fill:C.faint},svg,"parent");}
+    if(hasC){var C=frame(Cx,Cy,"frame C","x → 99",false,"(遮蔽 shadow)");arrow(Cx+95,Cy+46,Cx+95,By-2,false);E("text",{x:Cx+200,y:Cy+30,"font-size":10,fill:call?C.bad:C.faint},svg,call?"x=99 (被遮蔽, 不被使用)":"x=99");}
+    /* closure box */
+    if(hasB){
+      var clx=380,cly=210;
+      E("rect",{x:clx,y:cly,width:200,height:56,rx:9,fill:"rgba(94,106,210,.1)",stroke:lookupF?C.warn:C.accent2,"stroke-width":lookupF?1.8:1.4,"stroke-dasharray":"4 3"},svg);
+      E("text",{x:clx+10,y:cly+18,"font-size":10,fill:C.faint},svg,"closure f = ⟨λy. x+y, ρ_A⟩");
+      E("text",{x:clx+10,y:cly+40,"font-size":12,fill:lookupF?"#fff":C.ink},svg,"捕获环境 = A (x=10)");
+      arrow(clx+10,cly+56,Ax+95,Ay-2,true);
+      E("text",{x:clx-50,y:cly+34,"font-size":10,fill:call?C.good:C.faint},svg,call?"调用时扩展 A":"captures");
+    }
+    /* activation frame D at call */
+    if(call){
+      var D=frame(Dx,Dy,"frame D (激活)","y → 5",true,"(调用 f 5)");
+      arrow(Dx+95,Dy-2,Ax+95,Ay-2+46,true);
+      E("text",{x:Dx+200,y:Dy+30,"font-size":11,fill:C.good},svg,"扩展闭包捕获的 A，而非 C");
+      /* body eval */
+      E("rect",{x:380,y:140,width:200,height:60,rx:9,fill:"rgba(95,214,166,.08)",stroke:C.good},svg);
+      E("text",{x:390,y:160,"font-size":11,fill:C.faint},svg,"求值函数体:  x + y");
+      E("text",{x:390,y:180,"font-size":13,fill:C.ink},svg,"x: D→A = 10   y: D = 5");
+      E("text",{x:390,y:196,"font-size":11,fill:C.good},svg,"= 15  (不是 99+5)");
+    }
+    if(result){
+      E("rect",{x:300,y:360,width:240,height:32,rx:8,fill:"rgba(95,214,166,.12)",stroke:C.good},svg);
+      E("text",{x:420,y:381,"text-anchor":"middle","font-size":13,fill:C.good},svg,"✓ 结果 = 15  (词法作用域)");
+    }
+  }
+  function stats(){
+    var depth=[0,1,2,3,3,4,4][sc];
+    st.innerHTML=statHtml([{k:"环境深度",v:depth},{k:"闭包数",v:sc>=2?1:0},{k:"x 的值",v:sc>=5?"10 (词法)":"—",cls:sc>=5?"good":"accent"},{k:"结果",v:sc>=6?"15":"…",cls:sc>=6?"good":"accent"}]);
+  }
+  var DET=[
+    ["init","<code>let x=10 in …</code>。开始构建环境链。每层 let 产生一个新的环境帧。"],
+    ["Var bind","绑定 <b>x=10</b> 到帧 A。环境链：A。"],
+    ["Closure","定义 <b>f = λy.x+y</b>，打包成闭包 <code>⟨λy.x+y, A⟩</code>，<b>捕获定义处的环境 A</b>。新帧 B 指向 A。"],
+    ["Shadow","内层 <b>let x=99</b> 创建帧 C，<b>遮蔽 (shadow)</b> 了外层的 x。链：C→B→A。但 f 的闭包仍捕获 A。"],
+    ["Lookup","求值 <code>(f 5)</code>：在链 C→B→A 中查找 f，在 B 中找到闭包。注意闭包携带的环境是 <b>A（x=10）</b>，不是当前的 C。"],
+    ["Apply","调用 f 5：扩展闭包<b>捕获的环境 A</b>（不是当前链 C），加上 {y=5} 得激活帧 D→A。函数体 x+y 中 x 经 D→A 取到 <b>10</b>（非 99）。"],
+    ["Result","结果 = 10 + 5 = <b>15</b>。这就是<b>词法作用域</b>：自由变量在定义处解析，不受调用处遮蔽影响。"]
+  ];
+  function setDet(){var d=DET[sc];setDetail(det,d[0],d[1]);}
+  function next(){if(sc>=SCENES)return false;sc++;render();stats();setDet();return true;}
+  function reset(){stop();sc=0;render();stats();setDet();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!next())stop();},1100);});
+  ctl.appendChild(btn("下一步",function(){stop();next();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="⟨λx.e, ρ⟩ · lexical scope";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 06 · Control-Flow Semantics (CPS / Continuations) =====
+function M06(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  /* (+ 1 (* 2 3)) */
+  var DEMO={t:"add",a:{t:"num",v:1},b:{t:"mul",a:{t:"num",v:2},b:{t:"num",v:3}}};
+  var state,steps=0,maxDepth=0,running=false,timer=null,log=[];
+  function fresh(){return{mode:"eval",expr:DEMO,val:null,kont:[],done:false,result:null};}
+  function showExpr(e){if(e.t==="num")return String(e.v);if(e.t==="add")return "(+ "+showExpr(e.a)+" "+showExpr(e.b)+")";if(e.t==="mul")return "(* "+showExpr(e.a)+" "+showExpr(e.b)+")";return"?";}
+  function fLabel(f){if(f.k==="addL")return "(+ □ "+showExpr(f.b)+")";if(f.k==="addR")return "(+ "+f.aVal+" □)";if(f.k==="mulL")return "(* □ "+showExpr(f.b)+")";if(f.k==="mulR")return "(* "+f.aVal+" □)";return f.k;}
+
+  function step(){
+    var s=state;
+    if(s.done)return null;
+    if(s.mode==="eval"){
+      var e=s.expr;
+      if(e.t==="num"){s.mode="ret";s.val=e.v;return{rule:"Return: n → "+e.v};}
+      if(e.t==="add"){s.kont.push({k:"addL",b:e.b});s.expr=e.a;maxDepth=Math.max(maxDepth,s.kont.length);return{rule:"Push k: (+ □ b)"};}
+      if(e.t==="mul"){s.kont.push({k:"mulL",b:e.b});s.expr=e.a;maxDepth=Math.max(maxDepth,s.kont.length);return{rule:"Push k: (* □ b)"};}
+    }else{
+      if(s.kont.length===0){s.done=true;s.result=s.val;return{rule:"Halt: k₀(v)"};}
+      var f=s.kont.pop();
+      if(f.k==="addL"){s.kont.push({k:"addR",aVal:s.val});s.expr=f.b;s.mode="eval";return{rule:"Push k: (v₁ + □)"};}
+      if(f.k==="addR"){s.val=f.aVal+s.val;s.mode="ret";return{rule:"Pop & combine: v₁+v₂"};}
+      if(f.k==="mulL"){s.kont.push({k:"mulR",aVal:s.val});s.expr=f.b;s.mode="eval";return{rule:"Push k: (v₁ * □)"};}
+      if(f.k==="mulR"){s.val=f.aVal*s.val;s.mode="ret";return{rule:"Pop & combine: v₁*v₂"};}
+    }
+    return null;
+  }
+
+  function render(pulse){
+    clear(svg);
+    var W=780;
+    E("text",{x:30,y:26,"font-size":12,fill:C.faint},svg,"直接风格: "+showExpr(DEMO)+"   ·   顶层续延 k₀ = λr. r (恒等)");
+    /* current state panel */
+    panel(svg,16,46,300,90,"current",true);
+    if(state.done){
+      E("text",{x:30,y:84,"font-size":13,fill:C.good},svg,"✓ 计算完成");
+      E("text",{x:30,y:108,"font-size":20,fill:C.good},svg,"结果 = "+state.result);
+    }else if(state.mode==="eval"){
+      E("text",{x:30,y:80,"font-size":12,fill:C.faint},svg,"eval  (求值)");
+      E("text",{x:30,y:110,"font-size":17,fill:C.ink},svg,showExpr(state.expr));
+    }else{
+      E("text",{x:30,y:80,"font-size":12,fill:C.accent2},svg,"return  (返回值给续延)");
+      E("text",{x:30,y:110,"font-size":17,fill:C.accent2},svg,"v = "+state.val);
+    }
+    /* kont stack panel */
+    panel(svg,332,46,432,300,"continuation stack · κ",true);
+    E("text",{x:346,y:74,"font-size":11,fill:C.faint},svg,state.kont.length?"顶 = 最内层续延 (最后压入)":"空栈 → 顶层续延 k₀");
+    var top=86;
+    if(state.kont.length===0){
+      E("rect",{x:346,y:top,width:400,height:30,rx:7,fill:"rgba(95,214,166,.1)",stroke:C.good},svg);
+      E("text",{x:356,y:top+20,"font-size":12,fill:C.good},svg,"k₀ = λr. r   (恒等续延)");
+    }else{
+      var pulseFe=null,pulseCX=0,pulseCY=0;
+      for(var i=state.kont.length-1;i>=0;i--){
+        var f=state.kont[i];var innermost=(i===state.kont.length-1);
+        var yy=top+(state.kont.length-1-i)*40;
+        var fe=E("g",{},svg);
+        E("rect",{x:346,y:yy,width:400,height:32,rx:7,fill:innermost?"rgba(124,92,255,.16)":C.surface3,stroke:innermost?C.accent2:C.border,"stroke-width":innermost?1.6:1},fe);
+        E("text",{x:356,y:yy+21,"font-size":12.5,fill:innermost?"#fff":C.muted},fe,(innermost?"▸ ":"  ")+fLabel(f));
+        E("text",{x:736,y:yy+21,"text-anchor":"end","font-size":10,fill:C.faint},fe,"κ"+(i+1));
+        if(innermost){pulseFe=fe;pulseCX=546;pulseCY=yy+16;}
+      }
+      if(pulse&&pulseFe){(function(fe,cx,cy){animate(fe,0.82,1,260,function(v){fe.setAttribute("transform","translate("+cx+","+cy+") scale("+v+") translate("+(-cx)+","+(-cy)+")");});})(pulseFe,pulseCX,pulseCY);}
+      E("text",{x:346,y:top+state.kont.length*40+18,"font-size":11,fill:C.faint},svg,"↓ 返回时依次弹出并组合");
+    }
+    /* rule strip */
+    E("rect",{x:16,y:352,width:748,height:30,rx:8,fill:C.surface2,stroke:C.border},svg);
+    E("text",{x:30,y:371,"font-size":12,fill:C.accent2},svg,"步骤 "+steps+" · "+(log.length?log[log.length-1]:"(初始)"));
+  }
+  function stats(){st.innerHTML=statHtml([{k:"转换步数",v:steps},{k:"续延深度",v:state.kont.length,cls:"accent"},{k:"最大深度",v:maxDepth},{k:"结果",v:state.done?state.result:"…",cls:state.done?"good":"accent"}]);}
+  function setDet(r){if(!r)return;
+    var m={
+      "Return: n → 1":"数值 <code>1</code> 是值，转入<b>返回模式</b>，把 1 交给栈顶续延。",
+      "Push k: (+ □ b)":"进入加法：压入续延 <code>λv₁. eval(b, …)</code>（即 <code>(+ □ b)</code>），先求左子树。",
+      "Push k: (* □ b)":"进入乘法：压入 <code>(* □ b)</code>，先求左子树。",
+      "Push k: (v₁ + □)":"左值已得 v₁，压入 <code>λv₂. k(v₁+v₂)</code>，求右子树。",
+      "Push k: (v₁ * □)":"左值已得 v₁，压入 <code>λv₂. k(v₁*v₂)</code>，求右子树。",
+      "Pop & combine: v₁*v₂":"右值返回，弹出续延，组合得 <code>v₁*v₂</code>，再交给外层续延。",
+      "Pop & combine: v₁+v₂":"右值返回，弹出续延，组合得 <code>v₁+v₂</code>，再交给外层续延。",
+      "Halt: k₀(v)":"栈空，到达顶层续延 <code>k₀=λr.r</code>，返回最终结果。"
+    };
+    setDetail(det,r.rule,m[r.rule]||("规则 <b>"+r.rule+"</b>。"));
+  }
+  function doStep(){var r=step();if(!r)return false;steps++;log.push(r.rule);render(true);stats();setDet(r);return true;}
+  function reset(){stop();state=fresh();steps=0;maxDepth=0;log=[];render(false);stats();setDetail(det,"CPS","CPS 变换把每个复合表达式的<b>后续计算</b>显式打包成续延压栈。求值时压入/弹出续延，控制流从隐式调用栈变为<b>显式的续延传递</b>。");}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!doStep())stop();},750);});
+  ctl.appendChild(btn("单步",function(){stop();doStep();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="eval/ret × κ";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 07 · Type Safety (Progress / Preservation) =====
+function M07(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  var step=0,STEPS=5,running=false,timer=null;
+  var TYP=3;
+  var DERV=[
+    {rule:"T-Add",pre:["x:Nat |- x : Nat","x:Nat |- 1 : Nat"],conc:"x:Nat |- (+ x 1) : Nat",phase:0},
+    {rule:"T-Abs",pre:["x:Nat |- (+ x 1) : Nat"],conc:"|- (lam x:Nat. + x 1) : Nat->Nat",phase:0},
+    {rule:"T-App",pre:["|- (lam x:Nat. + x 1) : Nat->Nat","|- 5 : Nat"],conc:"|- ((lam x:Nat. + x 1) 5) : Nat",phase:0},
+    {rule:"E-BetaV",pre:["((lam x:Nat. + x 1) 5) : Nat"],conc:"(+ 5 1) : Nat",phase:1},
+    {rule:"E-Add",pre:["(+ 5 1) : Nat"],conc:"6 : Nat",phase:1}
+  ];
+  var DET=[
+    ["T-Add","<b>T-Add</b>: 若 <code>Gamma |- e1 : Nat</code> 且 <code>Gamma |- e2 : Nat</code>，则 <code>Gamma |- (+ e1 e2) : Nat</code>。此处 <code>x : Nat</code> 来自 lambda 的类型标注。"],
+    ["T-Abs","<b>T-Abs</b>: 若 <code>Gamma, x:T1 |- e : T2</code>，则 <code>Gamma |- (lam x:T1. e) : T1->T2</code>。得到 <code>(lam x:Nat. +x 1) : Nat->Nat</code>。"],
+    ["T-App","<b>T-App</b>: 若 <code>|- e1 : T1->T2</code> 且 <code>|- e2 : T1</code>，则 <code>|- (e1 e2) : T2</code>。<code>Nat->Nat</code> 应用于 <code>5 : Nat</code> 得 <code>Nat</code>。程序良类型。"],
+    ["E-BetaV","<b>beta-v 归约</b>: <code>((lam x:Nat. +x 1) 5) -> (+ 5 1)</code>。<b>保持 (Preservation)</b>: 类型不变 Nat->Nat。<b>进展 (Progress)</b>: <code>(+ 5 1)</code> 非 stuck，可继续。"],
+    ["E-Add","<b>加法归约</b>: <code>(+ 5 1) -> 6</code>。<b>保持</b>: Nat->Nat。<b>进展</b>: 6 是值，终止。<b>类型安全</b>得证: 良类型程序不会 stuck。"]
+  ];
+
+  function render(){
+    clear(svg);
+    var W=780,H=400,d=DERV[step];
+    E("text",{x:W/2,y:22,"text-anchor":"middle","font-size":12,fill:C.faint},svg,d.phase===0?"阶段 1 · 类型推导 (Typing) — 证明良类型":"阶段 2 · 归约 (Reduction) — 验证进展与保持");
+    panel(svg,16,38,250,86,"term",true);
+    E("text",{x:28,y:60,"font-size":11,fill:C.faint},svg,"程序:");
+    E("text",{x:28,y:82,"font-size":14,fill:C.ink},svg,"((lam x:Nat. + x 1) 5)");
+    E("text",{x:28,y:108,"font-size":12,fill:C.accent2},svg,": Nat");
+    panel(svg,282,38,482,210,d.phase===0?"typing derivation":"reduction",true);
+    E("text",{x:296,y:62,"font-size":11,fill:C.faint},svg,"规则 "+d.rule);
+    var y=84;
+    d.pre.forEach(function(p,i){E("text",{x:310,y:y+i*22,"font-size":12,fill:C.muted},svg,(i+1)+". "+p);});
+    var ly=y+d.pre.length*22+8;
+    E("line",{x1:296,y1:ly,x2:752,y2:ly,stroke:C.border},svg);
+    E("text",{x:296,y:ly+22,"font-size":13,fill:C.ink},svg,"|-  "+d.conc);
+    panel(svg,16,264,748,116,"type safety",true);
+    if(step<TYP){
+      E("text",{x:30,y:290,"font-size":12,fill:C.faint},svg,"正在建立类型推导...");
+      E("text",{x:30,y:314,"font-size":12,fill:C.faint},svg,"目标: |- ((lam x:Nat. +x 1) 5) : Nat  (良类型)");
+      E("text",{x:30,y:342,"font-size":11,fill:C.faint},svg,"良类型是类型安全 (进展 + 保持) 的前提。");
+      E("text",{x:30,y:366,"font-size":11,fill:C.faint},svg,"还需验证: 归约不改变类型，且不陷入 stuck。");
+    }else if(step===TYP){
+      E("text",{x:30,y:290,"font-size":13,fill:C.good},svg,"Preservation: 归约后类型不变");
+      E("text",{x:30,y:314,"font-size":12,fill:C.muted},svg,"  ((lam x:Nat. +x 1) 5) : Nat  =>  (+ 5 1) : Nat");
+      E("text",{x:30,y:342,"font-size":13,fill:C.warn},svg,"Progress: (+ 5 1) 不是值，但可继续归约");
+      E("text",{x:30,y:366,"font-size":11,fill:C.faint},svg,"未陷入 stuck -> 满足进展条件");
+    }else{
+      E("text",{x:30,y:290,"font-size":13,fill:C.good},svg,"Preservation: (+ 5 1) : Nat  =>  6 : Nat");
+      E("text",{x:30,y:314,"font-size":13,fill:C.good},svg,"Progress: 6 是值 (value)，求值终止");
+      E("text",{x:30,y:344,"font-size":13,fill:C.good},svg,"Type Safety: 良类型程序不会 stuck，结果 6 : Nat");
+    }
+  }
+  function stats(){
+    var td=step>=TYP,rd=step>=STEPS-1;
+    st.innerHTML=statHtml([{k:"阶段",v:step<TYP?"推导":"归约",cls:"accent"},{k:"保持",v:td?"OK":"…",cls:td?"good":"accent"},{k:"进展",v:rd?"OK":"…",cls:rd?"good":"accent"},{k:"安全",v:rd?"OK":"…",cls:rd?"good":"accent"}]);
+  }
+  function setDet(){var d=DET[step];setDetail(det,d[0],d[1]);}
+  function doStep(){if(step>=STEPS-1)return false;step++;render();stats();setDet();return true;}
+  function reset(){stop();step=0;render();stats();setDet();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  var runBtn=btn("自动",function(){if(running){stop();return;}running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!doStep())stop();},1100);});
+  ctl.appendChild(btn("下一步",function(){stop();doStep();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="Progress + Preservation";ctl.appendChild(info);
+  reset();
+}
+
+// ===== MODULE 08 · Equivalence & Refinement (Bisimulation) =====
+function M08(sec){
+  var svg=sec.querySelector("svg"),ctl=sec.querySelector(".controls"),det=sec.querySelector(".detail-box"),st=sec.querySelector(".stats-row");
+  var PS=[
+    {id:0,x:130,y:80,l:"P0",init:true,fin:false},
+    {id:1,x:55,y:220,l:"P1",init:false,fin:false},
+    {id:2,x:205,y:220,l:"P2",init:false,fin:false},
+    {id:3,x:130,y:350,l:"P3",init:false,fin:true}
+  ];
+  var PT=[{f:0,t:1,a:"a"},{f:0,t:2,a:"a"},{f:1,t:3,a:"b"},{f:2,t:3,a:"b"}];
+  var QS=[
+    {id:0,x:560,y:80,l:"Q0",init:true,fin:false},
+    {id:1,x:560,y:220,l:"Q1",init:false,fin:false},
+    {id:2,x:560,y:350,l:"Q2",init:false,fin:true}
+  ];
+  var QT=[{f:0,t:1,a:"a"},{f:1,t:2,a:"b"}];
+  var REL=[[0,0],[1,1],[2,1],[3,2]];
+  var mode=0,gstep=0,running=false,timer=null;
+  var GAME=[
+    {who:"P0",move:"--a--> P1",match:"Q0 --a--> Q1",note:"P 做 a，Q 用 a 匹配 -> P1~Q1"},
+    {who:"P0",move:"--a--> P2",match:"Q0 --a--> Q1",note:"P 另一 a 分支，Q 仍用 a 匹配 -> P2~Q1"},
+    {who:"Q0",move:"--a--> Q1",match:"P0 --a--> P1 / P2",note:"Q 做 a，P 能用 a 匹配 (两条均可)"},
+    {who:"P1",move:"--b--> P3",match:"Q1 --b--> Q2",note:"P 做 b，Q 用 b 匹配 -> P3~Q2"},
+    {who:"Q1",move:"--b--> Q2",match:"P1/P2 --b--> P3",note:"Q 做 b，P 用 b 匹配 -> P3~Q2"},
+    {who:"OK",move:"所有动作可匹配",match:"R 是双模拟",note:"P ~ Q: 上下文等价 (contextually equivalent)"}
+  ];
+  var GHL=[{ps:1,qs:1},{ps:2,qs:1},{ps:0,qs:1},{ps:3,qs:2},{ps:3,qs:2},{ps:-1,qs:-1}];
+
+  function drawArrow(x1,y1,x2,y2,label,hl){
+    var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    if(len<1)return;
+    var ux=dx/len,uy=dy/len;
+    var sx=x1+ux*22,sy=y1+uy*22,ex=x2-ux*22,ey=y2-uy*22;
+    var col=hl?C.accent2:C.border,sw=hl?2.5:1.5;
+    E("line",{x1:sx,y1:sy,x2:ex,y2:ey,stroke:col,"stroke-width":sw},svg);
+    var ax=ex-ux*7,ay=ey-uy*7;
+    E("polygon",{points:ex+","+ey+" "+(ax-uy*4)+","+(ay+ux*4)+" "+(ax+uy*4)+","+(ay-ux*4),fill:col},svg);
+    E("text",{x:(sx+ex)/2+(-uy)*8,y:(sy+ey)/2+ux*8-3,"text-anchor":"middle","font-size":11,fill:hl?C.accent2:C.muted},svg,label);
+  }
+  function drawSys(states,trans,hlS){
+    states.forEach(function(s){
+      var hl=(hlS===s.id);
+      E("circle",{cx:s.x,cy:s.y,r:22,fill:hl?C.accent:s.fin?"rgba(95,214,166,.15)":C.surface2,stroke:hl?C.accent2:s.fin?C.good:C.border,"stroke-width":hl?2.2:1.5},svg);
+      E("text",{x:s.x,y:s.y+5,"text-anchor":"middle","font-size":13,fill:hl?"#fff":s.fin?C.good:C.ink},svg,s.l);
+      if(s.init)E("text",{x:s.x-30,y:s.y+5,"text-anchor":"end","font-size":10,fill:C.faint},svg,"->");
+    });
+    trans.forEach(function(t){
+      var s1=states[t.f],s2=states[t.t];
+      drawArrow(s1.x,s1.y,s2.x,s2.y,t.a,false);
+    });
+  }
+  function renderOverview(){
+    clear(svg);
+    var W=780;
+    E("text",{x:130,y:30,"text-anchor":"middle","font-size":13,fill:C.accent2},svg,"系统 P (非确定)");
+    E("text",{x:560,y:30,"text-anchor":"middle","font-size":13,fill:C.accent2},svg,"系统 Q (确定)");
+    drawSys(PS,PT,null);
+    drawSys(QS,QT,null);
+    E("text",{x:345,y:30,"text-anchor":"middle","font-size":11,fill:C.faint},svg,"双模拟 R");
+    REL.forEach(function(r){
+      var ps=PS[r[0]],qs=QS[r[1]];
+      E("line",{x1:ps.x+22,y1:ps.y,x2:qs.x-22,y2:qs.y,stroke:"rgba(124,92,255,.25)","stroke-width":1,"stroke-dasharray":"4 4"},svg);
+    });
+    E("text",{x:W/2,y:390,"text-anchor":"middle","font-size":12,fill:C.good},svg,"P ~ Q : 上下文等价 -- 外部观察者无法区分两个系统");
+  }
+  function renderGame(){
+    clear(svg);
+    var W=780;
+    var g=GAME[gstep],hl=GHL[gstep];
+    E("text",{x:W/2,y:22,"text-anchor":"middle","font-size":12,fill:C.faint},svg,"双模拟博弈 (Bisimulation Game) · 步 "+(gstep+1)+"/"+GAME.length);
+    E("text",{x:130,y:50,"text-anchor":"middle","font-size":12,fill:C.accent2},svg,"P");
+    E("text",{x:560,y:50,"text-anchor":"middle","font-size":12,fill:C.accent2},svg,"Q");
+    drawSys(PS,PT,hl.ps);
+    drawSys(QS,QT,hl.qs);
+    panel(svg,16,300,748,82,g.who+" 挑战",true);
+    E("text",{x:30,y:326,"font-size":13,fill:C.accent2},svg,"挑战: "+g.who+" "+g.move);
+    E("text",{x:30,y:350,"font-size":13,fill:C.good},svg,"匹配: "+g.match);
+    E("text",{x:400,y:350,"font-size":12,fill:C.muted},svg,g.note);
+  }
+  function renderRefine(){
+    clear(svg);
+    var W=780;
+    E("text",{x:W/2,y:22,"text-anchor":"middle","font-size":12,fill:C.faint},svg,"细化 (Refinement): 抽象规范 => 具体实现");
+    panel(svg,16,40,748,70,"abstract specification",true);
+    E("text",{x:30,y:68,"font-size":13,fill:C.faint},svg,"规范 Spec:");
+    E("text",{x:100,y:68,"font-size":15,fill:C.ink},svg,"a . b . done   (接受 a 后必定能做 b，然后终止)");
+    E("text",{x:30,y:92,"font-size":11,fill:C.faint},svg,"迹 trace = {a*b}   ·   不允许: a.a, a.b.a, ...");
+    panel(svg,16,124,362,130,"implementation P (非确定)",true);
+    E("text",{x:30,y:150,"font-size":12,fill:C.faint},svg,"P 有两个 a 分支，但都通向 b*done");
+    E("text",{x:30,y:175,"font-size":13,fill:C.ink},svg,"P0 --a--> P1 --b--> P3 done");
+    E("text",{x:30,y:197,"font-size":13,fill:C.ink},svg,"P0 --a--> P2 --b--> P3 done");
+    E("text",{x:30,y:224,"font-size":12,fill:C.good},svg,"所有迹 in {a*b}  =>  P <= Spec");
+    panel(svg,402,124,362,130,"implementation Q (确定)",true);
+    E("text",{x:416,y:150,"font-size":12,fill:C.faint},svg,"Q 单一路径，无冗余");
+    E("text",{x:416,y:175,"font-size":13,fill:C.ink},svg,"Q0 --a--> Q1 --b--> Q2 done");
+    E("text",{x:416,y:200,"font-size":12,fill:C.faint},svg,"迹 trace = {a*b}");
+    E("text",{x:416,y:224,"font-size":12,fill:C.good},svg,"所有迹 in {a*b}  =>  Q <= Spec");
+    panel(svg,16,270,748,110,"conclusion",true);
+    E("text",{x:30,y:296,"font-size":13,fill:C.good},svg,"P <= Spec    Q <= Spec    P ~ Q");
+    E("text",{x:30,y:322,"font-size":12,fill:C.muted},svg,"P 和 Q 都是 Spec 的细化 (refinement)。又因 P ~ Q (双模拟等价)，");
+    E("text",{x:30,y:344,"font-size":12,fill:C.muted},svg,"两者互为实现/抽象关系: 可用 Q 替换 P 而不改变可观察行为。");
+    E("text",{x:30,y:368,"font-size":11,fill:C.faint},svg,"这是程序精化和抽象解释 (abstract interpretation) 的理论基础。");
+  }
+  function render(){if(mode===0)renderOverview();else if(mode===1)renderGame();else renderRefine();}
+  function stats(){
+    if(mode===0)st.innerHTML=statHtml([{k:"P 状态",v:4},{k:"Q 状态",v:3},{k:"关系 R",v:4,cls:"accent"},{k:"等价",v:"P~Q",cls:"good"}]);
+    else if(mode===1)st.innerHTML=statHtml([{k:"步",v:(gstep+1)+"/"+GAME.length,cls:"accent"},{k:"挑战",v:GAME[gstep].who},{k:"匹配",v:"OK",cls:"good"},{k:"等价",v:"P~Q",cls:"good"}]);
+    else st.innerHTML=statHtml([{k:"Spec",v:"a.b",cls:"accent"},{k:"P<=Spec",v:"OK",cls:"good"},{k:"Q<=Spec",v:"OK",cls:"good"},{k:"P~Q",v:"OK",cls:"good"}]);
+  }
+  var DETA=[
+    ["Overview","<b>双模拟 (Bisimulation)</b>: 关系 R 中每对 (P,Q) 满足——P 能做的每个动作 a，Q 都能用 a 匹配到 R 中的状态，反之亦然。虚线 = 关系 R。"],
+    ["Game","<b>双模拟博弈</b>: 轮流挑战。一方做动作，另一方必须用相同动作匹配到相关状态。所有回合都能匹配 -> 双模拟成立 -> <b>上下文等价</b>。"],
+    ["Refinement","<b>细化</b>: 若实现的每个行为都符合规范，则 <code>Impl <= Spec</code>。P、Q 都是 <code>a.b.done</code> 的细化，且 P~Q，故互为抽象/细化。"]
+  ];
+  function setDet(){setDetail(det,DETA[mode][0],DETA[mode][1]);}
+  function doStep(){if(mode!==1||gstep>=GAME.length-1)return false;gstep++;render();stats();setDet();return true;}
+  function reset(){stop();gstep=0;render();stats();setDet();}
+  function stop(){if(timer){clearInterval(timer);timer=null;}running=false;runBtn.textContent="自动";}
+  function setMode(m){stop();mode=m;gstep=0;render();stats();setDet();mbs.forEach(function(b,i){b.classList.toggle("primary",i===m);});}
+  var mbs=[];
+  var b0=btn("总览",function(){setMode(0);},{primary:true});mbs.push(b0);
+  var b1=btn("博弈",function(){setMode(1);});mbs.push(b1);
+  var b2=btn("细化",function(){setMode(2);});mbs.push(b2);
+  var runBtn=btn("自动",function(){if(running){stop();return;}if(mode!==1)setMode(1);running=true;runBtn.textContent="停止";timer=setInterval(function(){if(!doStep())stop();},1300);});
+  ctl.appendChild(b0);ctl.appendChild(b1);ctl.appendChild(b2);
+  ctl.appendChild(sep());
+  ctl.appendChild(btn("下一步",function(){stop();doStep();},{primary:true}));
+  ctl.appendChild(btn("重置",reset,{ghost:true}));
+  ctl.appendChild(sep());ctl.appendChild(runBtn);
+  ctl.appendChild(sep());
+  var info=document.createElement("span");info.className="ctrl-info";info.textContent="P ~ Q";ctl.appendChild(info);
+  reset();
+}
+
+function boot(){
+  var prog=document.getElementById("progress");
+  function updateProgress(){var st=window.scrollY||document.documentElement.scrollTop;var sh=document.documentElement.scrollHeight-window.innerHeight;var p=sh>0?st/sh:0;prog.style.transform="scaleX("+p+")";}
+  window.addEventListener("scroll",updateProgress,{passive:true});updateProgress();
+
+  var ham=document.getElementById("ham"),side=document.getElementById("sidebar"),scrim=document.getElementById("scrim");
+  function closeSide(){side.classList.remove("open");scrim.classList.remove("show");}
+  ham.addEventListener("click",function(){side.classList.toggle("open");scrim.classList.toggle("show",side.classList.contains("open"));});
+  scrim.addEventListener("click",closeSide);
+
+  var navLinks=[].slice.call(document.querySelectorAll(".nav-link"));
+  navLinks.forEach(function(l){l.addEventListener("click",closeSide);});
+
+  var fadeIO=new IntersectionObserver(function(entries){entries.forEach(function(en){if(en.isIntersecting){en.target.classList.add("in");fadeIO.unobserve(en.target);}});},{threshold:0.12});
+  [].slice.call(document.querySelectorAll(".module, .hero")).forEach(function(el){fadeIO.observe(el);});
+
+  var sections=[].slice.call(document.querySelectorAll(".module"));
+  var activeIO=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){if(en.isIntersecting){var id=en.target.id;navLinks.forEach(function(l){l.classList.toggle("active",l.getAttribute("href")==="#"+id);});}});
+  },{rootMargin:"-45% 0px -50% 0px",threshold:0});
+  sections.forEach(function(s){activeIO.observe(s);});
+
+  var mods=[["m01",M01],["m02",M02],["m03",M03],["m04",M04],["m05",M05],["m06",M06],["m07",M07],["m08",M08]];
+  mods.forEach(function(m){var sec=document.getElementById(m[0]);if(sec){try{m[1](sec);}catch(err){console.error(m[0],err);}}});
+}
+if(document.readyState!=="loading")boot();else document.addEventListener("DOMContentLoaded",boot);
+})();
+</script>
+</body>
+</html>

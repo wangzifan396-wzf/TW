@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>distributed-algo-viz-lab · 分布式算法可视化实验室</title>
+<meta name="description" content="拜占庭容错 / Paxos / Raft / Gossip / CRDT / 2PC / 分布式快照 / 时钟与因果 — 纯 HTML/CSS/JS + SVG 可视化">
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  --bg:#08090a;
+  --surface:#101114;
+  --surface-2:#16181c;
+  --surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);
+  --border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;
+  --muted:#9b9fa8;
+  --faint:#62666d;
+  --accent:#2dd4ff;
+  --accent-2:#7c5cff;
+  --good:#34d399;
+  --bad:#fb7185;
+  --warn:#fbbf24;
+  --nav-h:56px;
+  --side-w:240px;
+  --sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --radius:12px;
+  --radius-sm:8px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+
+/* ============ 顶部进度条 ============ */
+.progress-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;background:transparent}
+.progress-fill{
+  height:100%;width:100%;
+  transform:scaleX(0);transform-origin:left center;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+}
+
+/* ============ 导航栏 ============ */
+.nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:900;
+  display:flex;align-items:center;gap:16px;
+  padding:0 20px;
+  background:rgba(16,17,20,.9);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+.nav-brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.nav-brand .name{font-family:var(--mono);font-size:14px}
+.nav-brand .name b{color:var(--accent)}
+.nav-spacer{flex:1}
+.nav-link{color:var(--muted);font-size:13px;padding:6px 12px;border-radius:var(--radius-sm);transition:color .2s,border-color .2s;border:1px solid transparent}
+.nav-link:hover{color:var(--ink)}
+.nav-link.github{border:1px solid var(--border-strong);font-family:var(--mono)}
+.nav-link.github:hover{border-color:var(--accent);color:var(--accent)}
+.menu-btn{display:none;background:none;border:1px solid var(--border-strong);color:var(--ink);width:36px;height:36px;border-radius:var(--radius-sm);font-size:18px;cursor:pointer}
+
+/* ============ 侧边栏 ============ */
+.sidebar{
+  position:fixed;top:var(--nav-h);left:0;bottom:0;width:var(--side-w);z-index:800;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  padding:18px 14px;
+}
+.sidebar-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.12em;padding:0 10px;margin-bottom:8px;font-family:var(--mono)}
+.side-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:var(--radius-sm);
+  color:var(--muted);font-size:13.5px;
+  transition:background .18s,color .18s;
+  border:1px solid transparent;
+}
+.side-link:hover{background:var(--surface-2);color:var(--ink)}
+.side-link.active{background:var(--surface-3);color:var(--accent);border-color:var(--border-strong)}
+.side-num{font-family:var(--mono);font-size:11px;color:var(--faint);width:22px}
+.side-link.active .side-num{color:var(--accent)}
+.sidebar-foot{margin-top:24px;padding:14px 12px;font-size:12px;color:var(--faint);border-top:1px solid var(--border);font-family:var(--mono)}
+
+/* ============ 主内容 ============ */
+.main{margin-left:var(--side-w);padding-top:var(--nav-h);min-height:100vh}
+.container{max-width:1080px;margin:0 auto;padding:40px 32px 80px}
+
+/* hero */
+.hero{padding:48px 0 32px;border-bottom:1px solid var(--border);margin-bottom:40px}
+.hero .tag{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--accent);border:1px solid var(--border-strong);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.hero .tag .pulse{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.hero h1{font-size:38px;letter-spacing:-.02em;line-height:1.15;margin-bottom:14px}
+.hero h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p.sub{color:var(--muted);font-size:16px;max-width:680px}
+.hero .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.hero .meta span b{color:var(--ink);font-weight:600}
+
+/* ============ 模块 ============ */
+.module{margin-bottom:56px;scroll-margin-top:78px}
+.fade{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.fade.visible{opacity:1;transform:none}
+.module-head{margin-bottom:16px}
+.kicker{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.14em;margin-bottom:6px}
+.module-title{font-size:24px;letter-spacing:-.01em;margin-bottom:6px;display:flex;align-items:baseline;gap:10px}
+.module-title .num{color:var(--faint);font-family:var(--mono);font-size:15px}
+.module-desc{color:var(--muted);font-size:14px;max-width:760px}
+
+/* card */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.viz-box{
+  background:
+    radial-gradient(circle at 20% 0%,rgba(45,212,255,.06),transparent 45%),
+    radial-gradient(circle at 80% 100%,rgba(124,92,255,.06),transparent 45%),
+    var(--surface-2);
+  border-bottom:1px solid var(--border);
+  padding:18px;
+}
+.viz-box svg{width:100%;height:auto;max-height:380px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface)}
+.btn{
+  font-family:var(--sans);font-size:13px;font-weight:600;
+  color:var(--ink);background:var(--surface-3);
+  border:1px solid var(--border-strong);
+  padding:8px 16px;border-radius:var(--radius-sm);
+  cursor:pointer;transition:background .15s,border-color .15s,color .15s,transform .1s;
+}
+.btn:hover{background:var(--surface-2);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);color:#04161c;border-color:var(--accent)}
+.btn-primary:hover{background:#5fdfff;border-color:#5fdfff}
+.btn-primary.playing{background:var(--warn);border-color:var(--warn);color:#1a1206}
+.toggle{display:flex;border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden}
+.toggle-btn{font-family:var(--mono);font-size:12px;color:var(--muted);background:transparent;border:none;padding:7px 12px;cursor:pointer;border-right:1px solid var(--border-strong);transition:background .15s,color .15s}
+.toggle-btn:last-child{border-right:none}
+.toggle-btn.active{background:var(--accent);color:#04161c}
+.toggle-btn:hover:not(.active){color:var(--ink);background:var(--surface-2)}
+
+.detail-box{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;
+  max-height:170px;overflow-y:auto;background:var(--surface-2);
+}
+.detail-box .dline{color:var(--muted);padding:1px 0;border-left:2px solid transparent;padding-left:10px;transition:border-color .2s}
+.detail-box .dline.hi{color:var(--accent);border-color:var(--accent)}
+.detail-box .dline.warn{color:var(--warn);border-color:var(--warn)}
+.detail-box .dline.bad{color:var(--bad);border-color:var(--bad)}
+.detail-box .dline.good{color:var(--good);border-color:var(--good)}
+.detail-box .dline .k{color:var(--faint)}
+.detail-box .dhead{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin:8px 0 4px}
+.detail-box .dhead:first-child{margin-top:0}
+
+.stats-row{display:flex;flex-wrap:wrap;gap:10px;padding:14px 18px;background:var(--surface)}
+.stat{display:flex;flex-direction:column;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;min-width:88px}
+.stat-k{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)}
+.stat-v{font-size:15px;font-weight:700;color:var(--ink);font-family:var(--mono)}
+.stat-v.accent{color:var(--accent)}
+.stat-v.good{color:var(--good)}
+.stat-v.bad{color:var(--bad)}
+.stat-v.warn{color:var(--warn)}
+
+/* footer */
+.foot{margin-top:40px;padding-top:24px;border-top:1px solid var(--border);color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--accent)}
+.foot .mono{font-family:var(--mono)}
+
+/* SVG element styles */
+.nlabel{font-family:var(--mono);font-size:11px;fill:var(--ink)}
+.nsub{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.mlabel{font-family:var(--mono);font-size:10px;fill:var(--accent)}
+.gtitle{font-family:var(--mono);font-size:10px;fill:var(--faint);text-transform:uppercase;letter-spacing:.1em}
+
+/* ============ 响应式 ============ */
+@media (max-width:920px){
+  :root{--side-w:0px}
+  .sidebar{
+    transform:translateX(-100%);transition:transform .25s ease;
+    width:260px;border-right:1px solid var(--border-strong);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .menu-btn{display:block}
+  .container{padding:28px 18px 60px}
+  .hero h1{font-size:30px}
+  .nav-brand .name{display:none}
+}
+@media (max-width:560px){
+  .module-title{font-size:20px}
+  .viz-box{padding:10px}
+  .controls{padding:12px}
+  .stat{min-width:72px;padding:7px 10px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .fade{opacity:1!important;transform:none!important;transition:none!important}
+  *{transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<!-- 导航栏 -->
+<header class="nav">
+  <button class="menu-btn" id="menuBtn" aria-label="目录">&#9776;</button>
+  <div class="nav-brand">
+    <span class="dot"></span>
+    <span class="name">distributed-algo-<b>viz-lab</b></span>
+  </div>
+  <div class="nav-spacer"></div>
+  <a class="nav-link github" href="https://github.com/wangzifan396-wzf/distributed-algo-viz-lab" target="_blank" rel="noopener">GitHub &#8599;</a>
+</header>
+
+<!-- 侧边栏 -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-label">模块导航</div>
+  <nav class="side-list" id="sideList"></nav>
+  <div class="sidebar-foot">8 modules · zero-dep<br>HTML / CSS / JS / SVG</div>
+</aside>
+
+<!-- 主内容 -->
+<main class="main">
+  <div class="container">
+    <section class="hero">
+      <span class="tag"><span class="pulse"></span> distributed-algo-viz-lab</span>
+      <h1>分布式算法 <span class="grad">可视化实验室</span></h1>
+      <p class="sub">从拜占庭叛将到 Chandy-Lamport 快照，8 个经典分布式算法的交互式可视化。纯 HTML / CSS / JS + SVG，零依赖，单文件运行。</p>
+      <div class="meta">
+        <span>模块 <b>8</b></span>
+        <span>依赖 <b>0</b></span>
+        <span>主题色 <b style="color:var(--accent)">#2dd4ff</b> / <b style="color:var(--accent-2)">#7c5cff</b></span>
+      </div>
+    </section>
+
+    <div class="modules" id="modules"></div>
+
+    <footer class="foot">
+      <span class="mono">distributed-algo-viz-lab &copy; 2026</span>
+      <span>MIT License &middot; <a href="https://github.com/wangzifan396-wzf/distributed-algo-viz-lab" target="_blank" rel="noopener">wangzifan396-wzf/distributed-algo-viz-lab</a></span>
+    </footer>
+  </div>
+</main>
+
+<script>
+"use strict";
+/* ===================================================================
+   distributed-algo-viz-lab · 单文件分布式算法可视化
+   纯 HTML/CSS/JS + SVG，零依赖
+=================================================================== */
+(function(){
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var SANS = "system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif";
+  var MONO = "ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace";
+
+  var C = {
+    accent:"#2dd4ff", accent2:"#7c5cff",
+    good:"#34d399", bad:"#fb7185", warn:"#fbbf24",
+    ink:"#f7f8f8", muted:"#9b9fa8", faint:"#62666d",
+    surface2:"#16181c", surface3:"#1c1f24",
+    border:"rgba(255,255,255,.14)"
+  };
+
+  /* ---------- 通用工具 ---------- */
+  function el(tag, attrs){
+    var e = document.createElementNS(SVGNS, tag);
+    if(attrs){ for(var k in attrs){ if(attrs[k]!=null) e.setAttribute(k, attrs[k]); } }
+    return e;
+  }
+  function h(tag, attrs, html){
+    var e = document.createElement(tag);
+    if(attrs){ for(var k in attrs){ e.setAttribute(k, attrs[k]); } }
+    if(html!=null){ e.innerHTML = html; }
+    return e;
+  }
+  function rnd(n){ return Math.floor(Math.random()*n); }
+  function pick(arr){ return arr[rnd(arr.length)]; }
+
+  /* 创建一个节点（圆+标签），用 transform 定位 */
+  function node(svg, x, y, r, label){
+    var g = el("g",{transform:"translate("+x+","+y+")"});
+    var c = el("circle",{cx:0,cy:0,r:r,fill:C.surface3,stroke:C.border,"stroke-width":1.5});
+    var t = el("text",{x:0,y:r+15,"text-anchor":"middle",class:"nlabel"});
+    t.textContent = label;
+    g.appendChild(c); g.appendChild(t);
+    svg.appendChild(g);
+    return {
+      g:g,c:c,t:t,x:x,y:y,r:r,
+      setFill:function(f){c.setAttribute("fill",f);},
+      setStroke:function(s,w){c.setAttribute("stroke",s);if(w)c.setAttribute("stroke-width",w);},
+      setLabel:function(s){t.textContent=s;},
+      setSub:function(s){
+        if(!this.sub){
+          this.sub = el("text",{x:0,y:r+28,"text-anchor":"middle",class:"nsub"});
+          g.appendChild(this.sub);
+        }
+        this.sub.textContent = s;
+      }
+    };
+  }
+
+  /* 沿直线飞行一个消息点（transform + rAF） */
+  function flyMessage(svg, p1, p2, opt){
+    opt = opt || {};
+    var dur = opt.dur || 850;
+    var color = opt.color || C.accent;
+    var r = opt.r || 4;
+    var label = opt.label;
+    var onArrive = opt.onArrive;
+    var line = el("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:color,"stroke-width":1,"stroke-opacity":0.22,"stroke-dasharray":"3 3"});
+    svg.appendChild(line);
+    var dot = el("circle",{cx:p1.x,cy:p1.y,r:r,fill:color});
+    if(opt.glow){ dot.setAttribute("filter",""); }
+    svg.appendChild(dot);
+    var textEl=null;
+    if(label){
+      textEl = el("text",{x:p1.x,y:p1.y-9,"text-anchor":"middle",class:"mlabel"});
+      textEl.setAttribute("fill",color);
+      textEl.textContent = label;
+      svg.appendChild(textEl);
+    }
+    var start = performance.now();
+    function frame(now){
+      var tt = (now-start)/dur;
+      if(tt>=1) tt=1;
+      var e = reduceMotion ? 1 : tt;
+      var x = p1.x+(p2.x-p1.x)*e;
+      var y = p1.y+(p2.y-p1.y)*e;
+      dot.setAttribute("cx",x); dot.setAttribute("cy",y);
+      if(textEl){ textEl.setAttribute("x",x); textEl.setAttribute("y",y-9); }
+      if(tt<1){ requestAnimationFrame(frame); }
+      else {
+        setTimeout(function(){ dot.remove(); line.remove(); if(textEl) textEl.remove(); }, 350);
+        if(onArrive) onArrive();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function setDetail(detail, lines){
+    detail.innerHTML = "";
+    lines.forEach(function(l){
+      var d = h("div",{class:"dline"+(l.cls?" "+l.cls:"")});
+      d.innerHTML = l.html!=null?l.html:l.text;
+      detail.appendChild(d);
+    });
+  }
+  function addDetail(detail, html, cls){
+    var d = h("div",{class:"dline"+(cls?" "+cls:"")});
+    d.innerHTML = html;
+    detail.appendChild(d);
+    detail.scrollTop = detail.scrollHeight;
+    return d;
+  }
+  function setStats(stats, items){
+    stats.innerHTML = "";
+    items.forEach(function(it){
+      var chip = h("div",{class:"stat"});
+      chip.appendChild(h("span",{class:"stat-k"},it.k));
+      chip.appendChild(h("span",{class:"stat-v"+(it.cls?" "+it.cls:"")},String(it.v)));
+      stats.appendChild(chip);
+    });
+  }
+  function delay(ms, fn){ return setTimeout(fn, ms); }
+
+  /* 通用控制器：管理 phase / play 循环 */
+  function createController(maxPhase, doStep, doReset){
+    var phase = 0, playing = false, timer = null;
+    function step(){
+      if(phase>=maxPhase) return false;
+      phase++;
+      doStep(phase);
+      return true;
+    }
+    function reset(){
+      playing = false; if(timer){ clearTimeout(timer); timer=null; }
+      phase = 0; doReset();
+    }
+    function play(onPlayingChange){
+      if(playing){ playing=false; if(timer){ clearTimeout(timer); timer=null; } if(onPlayingChange) onPlayingChange(false); return; }
+      if(phase>=maxPhase){ reset(); }
+      playing = true; if(onPlayingChange) onPlayingChange(true);
+      var go = function(){
+        if(!playing) return;
+        var ok = step();
+        if(!ok || phase>=maxPhase){ playing=false; if(onPlayingChange) onPlayingChange(false); return; }
+        timer = setTimeout(go, 2300);
+      };
+      go();
+    }
+    return {
+      step:step, reset:reset, play:play,
+      getPhase:function(){return phase;},
+      setPhase:function(p){phase=p;},
+      getMaxPhase:function(){return maxPhase;}
+    };
+  }
+
+  /* 模式切换 toggle */
+  function makeToggle(ctx, opts, onPick){
+    var wrap = h("div",{class:"toggle"});
+    var active = opts[0].v;
+    var btns = opts.map(function(o){
+      var b = h("button",{class:"toggle-btn"+(o.v===active?" active":"")},o.label);
+      b.onclick = function(){
+        active = o.v;
+        btns.forEach(function(x){x.classList.remove("active");});
+        b.classList.add("active");
+        onPick(active);
+      };
+      wrap.appendChild(b); return b;
+    });
+    ctx.ctrlBox.appendChild(wrap);
+    return {
+      get:function(){return active;},
+      set:function(v){ active=v; btns.forEach(function(b,i){ b.classList.toggle("active",opts[i].v===v); }); }
+    };
+  }
+
+  /* =================================================================
+     模块 01 · 拜占庭容错 (Byzantine Fault Tolerance)
+  ================================================================= */
+  function buildBFT(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var P = [[150,120],[450,120],[450,260],[150,260]];
+    var ns = [];
+    var commander = 0, traitor = 2;
+    var decide = ["-","-","-","-"];
+
+    function drawEdges(){
+      for(var i=0;i<4;i++) for(var j=0;j<4;j++){
+        if(i!==j){
+          svg.appendChild(el("line",{x1:P[i][0],y1:P[i][1],x2:P[j][0],y2:P[j][1],stroke:"rgba(255,255,255,.05)","stroke-width":1}));
+        }
+      }
+    }
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      ns = []; decide = ["-","-","-","-"];
+      drawEdges();
+      for(var i=0;i<4;i++){
+        var n = node(svg, P[i][0], P[i][1], 26, "N"+i);
+        n.idx = i;
+        if(i===commander){ n.setStroke(C.accent,2); n.setLabel("司令 N0"); }
+        else if(i===traitor){ n.setStroke(C.bad,2); n.setLabel("叛将 N2"); }
+        ns.push(n);
+      }
+      svg.appendChild(el("text",{x:300,y:24,class:"gtitle","text-anchor":"middle"})).textContent = "OM(1) 口头消息算法 · n=3f+1=4, f=1";
+      setDetail(detail,[
+        {html:"<span class='k'>算法</span> Byzantine Generals (Lamport)",cls:"hi"},
+        {text:"点击 播放 / 单步 观察司令下发命令、叛将篡改、各节点多数表决。",cls:""}
+      ]);
+      setStats(stats,[
+        {k:"n 节点",v:4},{k:"f 叛将",v:1,cls:"bad"},
+        {k:"阈值 n-f",v:3},{k:"决议",v:"-",cls:"accent"}
+      ]);
+    }
+    function doStep(phase){
+      var i;
+      if(phase===1){
+        setDetail(detail,[{html:"<span class='k'>阶段 1</span> 司令 N0 向所有副官广播命令 <b>v=1</b>",cls:"hi"}]);
+        for(i=1;i<4;i++){
+          (function(j){ delay((j-1)*220, function(){
+            flyMessage(svg, ns[0], ns[j], {label:"1",color:C.accent});
+          }); })(i);
+        }
+      } else if(phase===2){
+        addDetail(detail,"<span class='k'>阶段 2</span> 各副官将收到的命令转发给其余副官（OM(1)）");
+        var pairs = [[1,2],[1,3],[2,1],[2,3],[3,1],[3,2]];
+        pairs.forEach(function(p,idx){
+          delay(idx*180, function(){
+            var val = (p[0]===traitor) ? (p[1]===1?"1":"0") : "1";
+            var col = (p[0]===traitor) ? C.bad : C.good;
+            flyMessage(svg, ns[p[0]], ns[p[1]], {label:val,color:col});
+          });
+        });
+      } else if(phase===3){
+        addDetail(detail,"<span class='k'>阶段 3</span> 各节点对收到的命令做多数表决","warn");
+        decide = ["-","1","?","1"];
+        ns[1].setSub("decide=1"); ns[1].setFill("rgba(52,211,153,.18)");
+        ns[2].setSub("traitor"); ns[2].setFill("rgba(251,113,133,.18)");
+        ns[3].setSub("decide=1"); ns[3].setFill("rgba(52,211,153,.18)");
+      } else if(phase===4){
+        addDetail(detail,"<span class='k'>结论</span> 尽管叛将 N2 发送冲突指令，诚实节点均决议 v=1，达成共识","good");
+        ns[1].setStroke(C.good,2.5); ns[3].setStroke(C.good,2.5);
+        ns[2].setStroke(C.bad,2.5);
+        setStats(stats,[
+          {k:"n 节点",v:4},{k:"f 叛将",v:1,cls:"bad"},
+          {k:"达成共识",v:3,cls:"good"},{k:"决议",v:"v=1",cls:"good"}
+        ]);
+      }
+    }
+    var ctrl = createController(4, doStep, init);
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 02 · Paxos 多阶段
+  ================================================================= */
+  function buildPaxos(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var Ppos = [80,180], Apos=[[260,90],[260,180],[260,270]], Lpos=[520,180];
+    var nodes = {};
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      nodes.P = node(svg, Ppos[0],Ppos[1], 24, "Proposer");
+      nodes.A = Apos.map(function(p,i){ return node(svg, p[0],p[1], 22, "Acceptor"+(i+1)); });
+      nodes.L = node(svg, Lpos[0],Lpos[1], 24, "Learner");
+      nodes.P.setStroke(C.accent,2);
+      nodes.L.setStroke(C.accent2,2);
+      nodes.A.forEach(function(a){ a.setStroke(C.border,1.5); });
+      svg.appendChild(el("text",{x:80,y:30,class:"gtitle","text-anchor":"start"})).textContent="Phase 1 / 2";
+      svg.appendChild(el("text",{x:300,y:330,class:"gtitle","text-anchor":"middle"})).textContent="ballot n=1 · value v";
+      setDetail(detail,[
+        {html:"<span class='k'>角色</span> Proposer · Acceptor×3 · Learner",cls:"hi"},
+        {text:"两阶段：Prepare/Promise 选定编号，Accept/Accepted 提交值。"}
+      ]);
+      setStats(stats,[
+        {k:"阶段",v:"idle"},{k:"ballot n",v:"-"},
+        {k:"承诺数",v:0},{k:"已决值",v:"-"}
+      ]);
+    }
+    function doStep(phase){
+      var n = 1, v = "v";
+      if(phase===1){
+        setDetail(detail,[{html:"<span class='k'>Phase 1a</span> Proposer 发送 Prepare(n=1) 给所有 Acceptor",cls:"hi"}]);
+        nodes.A.forEach(function(a,i){ delay(i*220, function(){ flyMessage(svg, nodes.P, a, {label:"Prepare(1)",color:C.accent}); }); });
+        setStats(stats,[{k:"阶段",v:"Prepare"},{k:"ballot n",v:1,cls:"accent"},{k:"承诺数",v:0},{k:"已决值",v:"-"}]);
+      } else if(phase===2){
+        addDetail(detail,"<span class='k'>Phase 1b</span> Acceptor 回复 Promise(n=1)（多数 ≥2 即可）");
+        var promised = 0;
+        nodes.A.forEach(function(a,i){
+          delay(i*220, function(){
+            flyMessage(svg, a, nodes.P, {label:"Promise",color:C.good, onArrive:function(){
+              promised++; a.setFill("rgba(52,211,153,.2)"); a.setStroke(C.good,2);
+              setStats(stats,[{k:"阶段",v:"Promise"},{k:"ballot n",v:1,cls:"accent"},{k:"承诺数",v:promised,cls:"good"},{k:"已决值",v:"-"}]);
+            }});
+          });
+        });
+      } else if(phase===3){
+        addDetail(detail,"<span class='k'>Phase 2a</span> Proposer 发送 Accept(n=1, v)","warn");
+        nodes.A.forEach(function(a,i){ delay(i*220, function(){ flyMessage(svg, nodes.P, a, {label:"Accept(1,v)",color:C.warn}); }); });
+        setStats(stats,[{k:"阶段",v:"Accept"},{k:"ballot n",v:1,cls:"accent"},{k:"承诺数",v:3,cls:"good"},{k:"已决值",v:"pending"}]);
+      } else if(phase===4){
+        addDetail(detail,"<span class='k'>Phase 2b</span> Acceptor 持久化并回复 Accepted(n,v) → Learner 学习","good");
+        nodes.A.forEach(function(a,i){
+          delay(i*220, function(){
+            flyMessage(svg, a, nodes.L, {label:"Accepted",color:C.accent2, onArrive:function(){
+              a.setFill("rgba(124,92,255,.22)");
+            }});
+          });
+        });
+        delay(900, function(){ nodes.L.setFill("rgba(124,92,255,.25)"); nodes.L.setStroke(C.accent2,2.5); nodes.L.setSub("learned v"); });
+        setStats(stats,[{k:"阶段",v:"Done"},{k:"ballot n",v:1,cls:"accent"},{k:"承诺数",v:3,cls:"good"},{k:"已决值",v:"v",cls:"good"}]);
+      }
+    }
+    var ctrl = createController(4, doStep, init);
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 03 · Raft 选举 + 日志复制
+  ================================================================= */
+  function buildRaft(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var N = 5, xs = [80,200,320,440,560], y = 150;
+    var ns = []; var logs = [[],[],[],[],[]];
+    var term = 0, leader = -1, commitIdx = 0;
+
+    function drawLogs(){
+      ns.forEach(function(n,i){
+        if(n.logG){ n.logG.parentNode.removeChild(n.logG); }
+        var g = el("g",{transform:"translate("+xs[i]+",210)"});
+        logs[i].forEach(function(e,j){
+          var rx = -(logs[i].length*18)/2 + j*18;
+          var rect = el("rect",{x:rx,y:0,width:15,height:15,rx:2,fill:"rgba(45,212,255,.16)",stroke:C.accent,"stroke-width":1});
+          var tx = el("text",{x:rx+7.5,y:11,"text-anchor":"middle","font-size":8,fill:C.ink,"font-family":MONO});
+          tx.textContent = e;
+          g.appendChild(rect); g.appendChild(tx);
+        });
+        var lab = el("text",{x:0,y:35,"text-anchor":"middle",class:"nsub"});
+        lab.textContent = "log["+logs[i].length+"] commit="+commitIdx;
+        g.appendChild(lab);
+        svg.appendChild(g);
+        ns[i].logG = g;
+      });
+    }
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      ns = []; logs=[[],[],[],[],[]]; term=0; leader=-1; commitIdx=0;
+      for(var i=0;i<N;i++){
+        var n = node(svg, xs[i], y, 24, "N"+i);
+        n.setSub("follower");
+        n.setStroke(C.border,1.5);
+        ns.push(n);
+      }
+      svg.appendChild(el("text",{x:300,y:24,class:"gtitle","text-anchor":"middle"})).textContent="Raft · Leader Election + Log Replication";
+      drawLogs();
+      setDetail(detail,[
+        {html:"<span class='k'>Raft</span> 随机选举超时触发任期提升",cls:"hi"},
+        {text:"播放：N0 超时 → 任期 1 选举 → 成为 Leader → 复制日志。"}
+      ]);
+      setStats(stats,[{k:"term",v:0},{k:"leader",v:"-"},{k:"log len",v:0},{k:"commitIdx",v:0}]);
+    }
+    function doStep(phase){
+      if(phase===1){
+        setDetail(detail,[{html:"<span class='k'>选举</span> N0 选举超时，自增 term→1，成为 Candidate",cls:"warn"}]);
+        term = 1; leader = -1;
+        ns[0].setStroke(C.warn,2.5); ns[0].setSub("candidate T1"); ns[0].setFill("rgba(251,191,36,.16)");
+        setStats(stats,[{k:"term",v:1,cls:"warn"},{k:"leader",v:"-"},{k:"log len",v:0},{k:"commitIdx",v:0}]);
+      } else if(phase===2){
+        addDetail(detail,"<span class='k'>RequestVote</span> N0 向 N1-N4 请求投票");
+        for(var i=1;i<N;i++){ (function(j){ delay((j-1)*180, function(){ flyMessage(svg, ns[0], ns[j], {label:"Vote(T1)",color:C.warn}); }); })(i); }
+      } else if(phase===3){
+        addDetail(detail,"<span class='k'>投票</span> 多数同意 → N0 当选 Leader","good");
+        leader = 0;
+        ns[0].setStroke(C.accent2,3); ns[0].setFill("rgba(124,92,255,.22)"); ns[0].setSub("LEADER T1");
+        for(var k=1;k<N;k++){ ns[k].setSub("voted"); }
+        setStats(stats,[{k:"term",v:1,cls:"accent"},{k:"leader",v:"N0",cls:"good"},{k:"log len",v:0},{k:"commitIdx",v:0}]);
+      } else if(phase===4){
+        addDetail(detail,"<span class='k'>日志复制</span> Leader 追加 entry x=1，AppendEntries 广播","hi");
+        logs[0].push("x1");
+        for(var a=1;a<N;a++){ (function(j){ delay((j-1)*180, function(){ flyMessage(svg, ns[0], ns[j], {label:"AE(x1)",color:C.accent, onArrive:function(){ logs[j].push("x1"); drawLogs(); }}); }); })(a); }
+        delay(900, function(){ commitIdx=1; drawLogs(); });
+        setStats(stats,[{k:"term",v:1,cls:"accent"},{k:"leader",v:"N0",cls:"good"},{k:"log len",v:1},{k:"commitIdx",v:1,cls:"good"}]);
+      } else if(phase===5){
+        addDetail(detail,"<span class='k'>二次复制</span> 追加 x=2 并提交","hi");
+        logs[0].push("x2");
+        for(var b=1;b<N;b++){ (function(j){ delay((b-1)*180, function(){ flyMessage(svg, ns[0], ns[j], {label:"AE(x2)",color:C.accent, onArrive:function(){ logs[j].push("x2"); drawLogs(); }}); }); })(b); }
+        delay(900, function(){ commitIdx=2; drawLogs(); });
+        setStats(stats,[{k:"term",v:1,cls:"accent"},{k:"leader",v:"N0",cls:"good"},{k:"log len",v:2},{k:"commitIdx",v:2,cls:"good"}]);
+      }
+    }
+    var ctrl = createController(5, doStep, init);
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 04 · Gossip 协议
+  ================================================================= */
+  function buildGossip(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var COLS=5, ROWS=5, total=25;
+    var gx=[], gy=[];
+    var cell=[], infected=[];
+    var mode = "push";
+    var round = 0;
+    var modeToggle;
+
+    function pos(i){ return [gx[i], gy[i]]; }
+    function neighbors(i){
+      var r=Math.floor(i/COLS), c=i%COLS, res=[];
+      if(r>0) res.push((r-1)*COLS+c);
+      if(r<ROWS-1) res.push((r+1)*COLS+c);
+      if(c>0) res.push(r*COLS+(c-1));
+      if(c<COLS-1) res.push(r*COLS+(c+1));
+      return res;
+    }
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      cell=[]; infected=[]; round=0;
+      var ox=90, oy=40, sx=100, sy=60;
+      for(var i=0;i<total;i++){
+        var r=Math.floor(i/COLS), c=i%COLS;
+        gx[i]=ox+c*sx; gy[i]=oy+r*sy;
+      }
+      for(var j=0;j<total;j++){
+        var n = node(svg, gx[j], gy[j], 16, "");
+        n.setStroke(C.border,1.2);
+        cell.push(n);
+      }
+      infected[0]=true; cell[0].setFill(C.accent); cell[0].setStroke(C.accent,2);
+      svg.appendChild(el("text",{x:300,y:330,class:"gtitle","text-anchor":"middle"})).textContent="5×5 网格 · 初始 1 个感染源（左上）";
+      setDetail(detail,[
+        {html:"<span class='k'>Gossip</span> 切换 Push / Pull / Push-Pull 模式",cls:"hi"},
+        {text:"每轮：感染节点向随机邻居推送 / 易感节点从随机邻居拉取。"}
+      ]);
+      updateStats();
+    }
+    function updateStats(){
+      var cnt = infected.filter(Boolean).length;
+      setStats(stats,[
+        {k:"模式",v:mode},{k:"轮次",v:round},
+        {k:"感染",v:cnt+"/"+total,cls:cnt===total?"good":"accent"},
+        {k:"覆盖率",v:Math.round(cnt/total*100)+"%",cls:cnt===total?"good":"accent"}
+      ]);
+    }
+    function doStep(phase){
+      round = phase;
+      var next = infected.slice();
+      var anims = [];
+      for(var i=0;i<total;i++){
+        var nb = neighbors(i);
+        if(nb.length===0) continue;
+        var t = pick(nb);
+        if((mode==="push"||mode==="pushpull") && infected[i] && !infected[t]){
+          next[t]=true; anims.push({from:i,to:t});
+        }
+        if((mode==="pull"||mode==="pushpull") && !infected[i] && infected[t]){
+          next[i]=true; anims.push({from:t,to:i});
+        }
+      }
+      anims.forEach(function(a,idx){
+        delay(idx*40, function(){
+          flyMessage(svg, {x:gx[a.from],y:gy[a.from]}, {x:gx[a.to],y:gy[a.to]}, {dur:600,r:3,color:C.accent2});
+        });
+      });
+      delay(700, function(){
+        infected = next;
+        for(var k=0;k<total;k++){ if(infected[k]){ cell[k].setFill(C.accent); cell[k].setStroke(C.accent,1.8); } }
+        updateStats();
+        var cnt = infected.filter(Boolean).length;
+        if(cnt===total){ addDetail(detail,"<span class='k'>收敛</span> 全网感染，gossip 完成","good"); }
+        else { addDetail(detail,"<span class='k'>轮 "+round+"</span> 新增感染，当前 "+cnt+"/"+total); }
+      });
+    }
+    var ctrl = createController(20, doStep, init);
+    modeToggle = makeToggle(ctx, [
+      {v:"push",label:"Push"},
+      {v:"pull",label:"Pull"},
+      {v:"pushpull",label:"Push-Pull"}
+    ], function(m){ mode=m; ctrl.reset(); });
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 05 · CRDT 合并
+  ================================================================= */
+  function buildCRDT(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var type = "gcounter";
+    var typeToggle;
+    var repPos = [[150,180],[300,180],[450,180]];
+    var reps = [];
+    var merged = [0,0,0];
+    var mergedN = [0,0,0];
+    var mergedP = [0,0,0];
+    var orset = [[],[],[]];
+
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      reps = []; merged=[0,0,0]; mergedN=[0,0,0]; mergedP=[0,0,0]; orset=[[],[],[]];
+      for(var i=0;i<3;i++){
+        var n = node(svg, repPos[i][0], repPos[i][1], 26, "R"+i);
+        n.setStroke(C.accent,1.8);
+        n.setSub("0");
+        reps.push(n);
+      }
+      svg.appendChild(el("text",{x:300,y:24,class:"gtitle","text-anchor":"middle"})).textContent="3 副本 CRDT · 末次写赢 / 集合并集";
+      drawMerged();
+      refreshDetail();
+      refreshStats();
+    }
+    function drawMerged(){
+      var old = svg.querySelector(".merged");
+      if(old) old.parentNode.removeChild(old);
+      var g = el("g",{transform:"translate(300,290)",class:"merged"});
+      g.appendChild(el("text",{x:0,y:0,"text-anchor":"middle",class:"gtitle"})).textContent="MERGED";
+      var s = valueStr(merged);
+      var t = el("text",{x:0,y:24,"text-anchor":"middle",class:"nlabel"});
+      t.setAttribute("fill",C.accent2); t.setAttribute("font-size","15"); t.textContent = s;
+      g.appendChild(t);
+      svg.appendChild(g);
+    }
+    function valueStr(v){
+      if(type==="gcounter") return "["+v.join(",")+"] = "+v.reduce(function(a,b){return a+b;},0);
+      if(type==="pncounter") {
+        var p=v[0], n=mergedN;
+        var val = p.reduce(function(a,b,i){return a+b;},0) - n.reduce(function(a,b){return a+b;},0);
+        return "P"+parr(p)+" N"+parr(n)+" = "+val;
+      }
+      if(type==="orset") return "∪ = "+merged.length+" elems";
+      return "";
+    }
+    function parr(v){ return "["+v.join(",")+"]"; }
+    function localInc(i){
+      if(type==="gcounter"){ merged[i]++; reps[i].setSub(String(merged[i])); reps[i].setFill("rgba(45,212,255,.18)"); }
+      else if(type==="pncounter"){ mergedP[i]++; reps[i].setSub("P:"+mergedP[i]+" N:"+mergedN[i]); reps[i].setFill("rgba(45,212,255,.18)"); }
+      else if(type==="orset"){ var tag=String(i)+"-"+Date.now().toString(36); orset[i].push(tag); reps[i].setSub(orset[i].length+" add"); reps[i].setFill("rgba(45,212,255,.18)"); }
+      drawMerged(); refreshDetail(); refreshStats();
+    }
+    function doMerge(){
+      if(type==="gcounter"){
+        var mg=[0,0,0];
+        for(var i=0;i<3;i++) mg[i]=merged[i];
+        merged = mg.map(function(v,i){return Math.max(merged[i],v);});
+      } else if(type==="pncounter"){
+        for(var j=0;j<3;j++){ merged[j]=Math.max(merged[j],mergedP[j]); mergedN[j]=Math.max(mergedN[j],0); }
+        mergedP=merged.slice();
+      } else if(type==="orset"){
+        var seen={}; merged=[];
+        orset.forEach(function(s){ s.forEach(function(t){ if(!seen[t]){ seen[t]=1; merged.push(t); } }); });
+      }
+      reps.forEach(function(r){ r.setFill("rgba(124,92,255,.22)"); r.setStroke(C.accent2,2); });
+      drawMerged(); refreshDetail(); refreshStats();
+    }
+    function refreshDetail(){
+      if(type==="gcounter"){
+        setDetail(detail,[
+          {html:"<span class='k'>G-Counter</span> 各副本维护自己的计数槽，合并取 max",cls:"hi"},
+          {text:"点击 R0/R1/R2++ 自增，再点 合并 观察取最大值。"}
+        ]);
+      } else if(type==="pncounter"){
+        setDetail(detail,[
+          {html:"<span class='k'>PN-Counter</span> P(增)+N(减) 两个 G-Counter，值=P-N",cls:"hi"},
+          {text:"合并对 P、N 分别取 max。"}
+        ]);
+      } else {
+        setDetail(detail,[
+          {html:"<span class='k'>OR-Set</span> 每次加入带唯一 tag，合并取并集",cls:"hi"},
+          {text:"remove 仅删除已观察到的 tag（observed-remove）。"}
+        ]);
+      }
+    }
+    function refreshStats(){
+      var s;
+      if(type==="gcounter") s=[{k:"类型",v:"G-Counter"},{k:"R0/R1/R2",v:merged.join("/")},{k:"合并值",v:sum(merged),cls:"good"}];
+      else if(type==="pncounter") s=[{k:"类型",v:"PN-Counter"},{k:"P 向量",v:parr(mergedP)},{k:"N 向量",v:parr(mergedN)},{k:"值",v:sum(mergedP)-sum(mergedN),cls:"good"}];
+      else s=[{k:"类型",v:"OR-Set"},{k:"R0/R1/R2",v:orset.map(function(x){return x.length;}).join("/")},{k:"并集",v:merged.length,cls:"good"}];
+      setStats(stats,s);
+    }
+    function sum(v){ return v.reduce(function(a,b){return a+b;},0); }
+    function doStep(phase){
+      // 单步：随机给某副本自增一次
+      var i = rnd(3); localInc(i);
+      if(phase%3===0) doMerge();
+    }
+    var ctrl = createController(9, doStep, init);
+
+    // 自定义控制按钮
+    typeToggle = makeToggle(ctx, [
+      {v:"gcounter",label:"G-Counter"},
+      {v:"pncounter",label:"PN-Counter"},
+      {v:"orset",label:"OR-Set"}
+    ], function(t){ type=t; ctrl.reset(); });
+
+    var incBtns = h("div",{style:"display:flex;gap:6px"});
+    ["R0++","R1++","R2++"].forEach(function(lbl,i){
+      var b = h("button",{class:"btn"},lbl);
+      b.onclick = function(){ localInc(i); };
+      incBtns.appendChild(b);
+    });
+    ctx.ctrlBox.appendChild(incBtns);
+    var mergeBtn = h("button",{class:"btn btn-primary"},"合并");
+    mergeBtn.onclick = function(){ doMerge(); };
+    ctx.ctrlBox.appendChild(mergeBtn);
+
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 06 · 两阶段提交 (2PC)
+  ================================================================= */
+  function build2PC(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var cPos=[300,90], pPos=[[120,270],[300,270],[480,270]];
+    var coord, parts=[]; var votes=["yes","yes","yes"]; var phaseLabel="idle";
+    var noToggle;
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      coord = node(svg, cPos[0],cPos[1], 26, "Coordinator");
+      coord.setStroke(C.accent,2);
+      parts = pPos.map(function(p,i){ var n=node(svg,p[0],p[1],24,"P"+(i+1)); n.setStroke(C.border,1.5); n.setSub(votes[i]); return n; });
+      svg.appendChild(el("text",{x:300,y:24,class:"gtitle","text-anchor":"middle"})).textContent="2PC · Prepare → Commit/Abort";
+      setDetail(detail,[
+        {html:"<span class='k'>2PC</span> 协调者询问参与者能否提交",cls:"hi"},
+        {text:"切换 P2 投票 NO 可观察 Abort 分支。"}
+      ]);
+      setStats(stats,[{k:"阶段",v:"idle"},{k:"YES",v:0},{k:"NO",v:0},{k:"结果",v:"-"}]);
+    }
+    function doStep(phase){
+      if(phase===1){
+        setDetail(detail,[{html:"<span class='k'>Phase 1</span> Coordinator → PREPARE 广播",cls:"hi"}]);
+        phaseLabel="Prepare";
+        parts.forEach(function(p,i){ delay(i*200, function(){ flyMessage(svg, coord, p, {label:"PREPARE",color:C.accent}); }); });
+        setStats(stats,[{k:"阶段",v:"Prepare"},{k:"YES",v:0},{k:"NO",v:0},{k:"结果",v:"pending"}]);
+      } else if(phase===2){
+        var yes=0,no=0;
+        parts.forEach(function(p,i){
+          delay(i*200, function(){
+            var v = votes[i]; var col = v==="yes"?C.good:C.bad;
+            flyMessage(svg, p, coord, {label:v.toUpperCase(),color:col, onArrive:function(){
+              if(v==="yes"){ yes++; p.setFill("rgba(52,211,153,.2)"); p.setStroke(C.good,2); }
+              else { no++; p.setFill("rgba(251,113,133,.2)"); p.setStroke(C.bad,2); }
+              setStats(stats,[{k:"阶段",v:"Vote"},{k:"YES",v:yes,cls:"good"},{k:"NO",v:no,cls:"bad"},{k:"结果",v:"pending"}]);
+            }});
+          });
+        });
+      } else if(phase===3){
+        var allYes = votes.every(function(v){return v==="yes";});
+        if(allYes){
+          addDetail(detail,"<span class='k'>Phase 2</span> 全部 YES → COMMIT","good");
+          parts.forEach(function(p,i){ delay(i*200, function(){ flyMessage(svg, coord, p, {label:"COMMIT",color:C.good}); }); });
+          delay(900, function(){ parts.forEach(function(p){ p.setFill("rgba(52,211,153,.28)"); p.setStroke(C.good,2.5); p.setSub("committed"); }); coord.setStroke(C.good,3); });
+          setStats(stats,[{k:"阶段",v:"Commit"},{k:"YES",v:3,cls:"good"},{k:"NO",v:0},{k:"结果",v:"COMMIT",cls:"good"}]);
+        } else {
+          addDetail(detail,"<span class='k'>Phase 2</span> 存在 NO → ABORT","bad");
+          parts.forEach(function(p,i){ delay(i*200, function(){ flyMessage(svg, coord, p, {label:"ABORT",color:C.bad}); }); });
+          delay(900, function(){ parts.forEach(function(p){ p.setStroke(C.bad,2.5); p.setSub("aborted"); }); coord.setStroke(C.bad,3); });
+          setStats(stats,[{k:"阶段",v:"Abort"},{k:"YES",v:votes.filter(function(v){return v==="yes";}).length,cls:"good"},{k:"NO",v:votes.filter(function(v){return v==="no";}).length,cls:"bad"},{k:"结果",v:"ABORT",cls:"bad"}]);
+        }
+      } else if(phase===4){
+        addDetail(detail,"<span class='k'>ACK</span> 参与者确认，事务结束","good");
+        parts.forEach(function(p,i){ delay(i*200, function(){ flyMessage(svg, p, coord, {label:"ACK",color:C.accent2}); }); });
+      }
+    }
+    var ctrl = createController(4, doStep, init);
+    noToggle = makeToggle(ctx, [
+      {v:"yes",label:"P2: YES"},
+      {v:"no",label:"P2: NO"}
+    ], function(v){ votes[2]=v; ctrl.reset(); });
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 07 · 分布式快照 (Chandy-Lamport)
+  ================================================================= */
+  function buildSnapshot(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var pos=[[150,110],[450,110],[300,290]];
+    var ns=[]; var recorded=[false,false,false]; var chState=[[],[],[]]; var markers=0;
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      ns=[]; recorded=[false,false,false]; chState=[[],[],[]]; markers=0;
+      // 通道 0->1, 1->2, 2->0
+      [[0,1],[1,2],[2,0]].forEach(function(e){
+        svg.appendChild(el("line",{x1:pos[e[0]][0],y1:pos[e[0]][1],x2:pos[e[1]][0],y2:pos[e[1]][1],stroke:"rgba(255,255,255,.12)","stroke-width":1.5,"marker-end":"url(#arr)"}));
+      });
+      // arrow marker
+      var defs = el("defs",{});
+      var m = el("marker",{id:"arr",viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto"});
+      m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"rgba(255,255,255,.3)"}));
+      defs.appendChild(m);
+      svg.appendChild(defs);
+      for(var i=0;i<3;i++){ var n=node(svg,pos[i][0],pos[i][1],26,"P"+i); n.setStroke(C.border,1.5); n.setSub("running"); ns.push(n); }
+      svg.appendChild(el("text",{x:300,y:24,class:"gtitle","text-anchor":"middle"})).textContent="Chandy-Lamport · 环形通道 P0→P1→P2→P0";
+      setDetail(detail,[
+        {html:"<span class='k'>快照</span> P0 发起：记录自身状态 + 广播 Marker",cls:"hi"},
+        {text:"接收方首次收到 Marker 即记录状态并转发；通道状态=期间消息。"}
+      ]);
+      setStats(stats,[{k:"markers",v:0},{k:"已记录",v:0},{k:"通道状态",v:0}]);
+    }
+    function doStep(phase){
+      if(phase===1){
+        setDetail(detail,[{html:"<span class='k'>P0 发起</span> 记录状态，向 P1 发送 Marker",cls:"hi"}]);
+        recorded[0]=true; ns[0].setFill("rgba(45,212,255,.2)"); ns[0].setStroke(C.accent,2.5); ns[0].setSub("recorded");
+        markers++;
+        flyMessage(svg, ns[0], ns[1], {label:"MARKER",color:C.accent2});
+        setStats(stats,[{k:"markers",v:1,cls:"accent"},{k:"已记录",v:1,cls:"good"},{k:"通道状态",v:0}]);
+      } else if(phase===2){
+        addDetail(detail,"<span class='k'>P1 收到 Marker</span> 记录状态，向 P2 发 Marker");
+        recorded[1]=true; ns[1].setFill("rgba(45,212,255,.2)"); ns[1].setStroke(C.accent,2.5); ns[1].setSub("recorded");
+        markers++;
+        // 模拟一条 app 消息被通道 P0→P1 捕获
+        flyMessage(svg, ns[0], ns[1], {label:"m1",color:C.warn});
+        delay(500, function(){ flyMessage(svg, ns[1], ns[2], {label:"MARKER",color:C.accent2}); chState[0].push("m1"); });
+        setStats(stats,[{k:"markers",v:2,cls:"accent"},{k:"已记录",v:2,cls:"good"},{k:"通道状态",v:1}]);
+      } else if(phase===3){
+        addDetail(detail,"<span class='k'>P2 收到 Marker</span> 记录状态，向 P0 发 Marker");
+        recorded[2]=true; ns[2].setFill("rgba(45,212,255,.2)"); ns[2].setStroke(C.accent,2.5); ns[2].setSub("recorded");
+        markers++;
+        flyMessage(svg, ns[2], ns[2], {}); // no-op placeholder removed below
+        delay(300, function(){ flyMessage(svg, ns[2], ns[0], {label:"MARKER",color:C.accent2}); });
+        setStats(stats,[{k:"markers",v:3,cls:"accent"},{k:"已记录",v:3,cls:"good"},{k:"通道状态",v:1}]);
+      } else if(phase===4){
+        addDetail(detail,"<span class='k'>P0 收到 Marker</span> 通道 P2→P0 状态记录完成，快照结束","good");
+        chState[2].push("(empty)");
+        ns.forEach(function(n){ n.setStroke(C.good,3); });
+        setStats(stats,[{k:"markers",v:3,cls:"accent"},{k:"已记录",v:3,cls:"good"},{k:"通道状态",v:3,cls:"good"}]);
+        addDetail(detail,"全局一致快照 = {状态(P0),状态(P1),状态(P2),通道(m1),通道(∅),通道(∅)}","good");
+      }
+    }
+    var ctrl = createController(4, doStep, init);
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块 08 · 时钟与因果
+  ================================================================= */
+  function buildClock(ctx){
+    var svg = ctx.svg, detail = ctx.detail, stats = ctx.stats;
+    var type = "lamport";
+    var typeToggle;
+    var px=[140,300,460], topY=50;
+    var seq = [
+      {p:0,type:"local",l:1,v:[1,0,0]},
+      {p:0,type:"send",to:1,l:2,v:[2,0,0]},
+      {p:1,type:"recv",from:0,l:3,v:[2,1,0]},
+      {p:1,type:"local",l:4,v:[2,2,0]},
+      {p:1,type:"send",to:2,l:5,v:[2,3,0]},
+      {p:2,type:"recv",from:1,l:6,v:[2,3,1]},
+      {p:2,type:"local",l:7,v:[2,3,2]},
+      {p:2,type:"send",to:0,l:8,v:[2,3,3]},
+      {p:0,type:"recv",from:2,l:9,v:[3,3,3]}
+    ];
+    var shown = 0;
+    function init(){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      shown = 0;
+      // 时间线
+      for(var i=0;i<3;i++){
+        svg.appendChild(el("line",{x1:px[i],y1:topY,x2:px[i],y2:330,stroke:"rgba(255,255,255,.12)","stroke-width":1.5,"stroke-dasharray":"2 4"}));
+        var t = el("text",{x:px[i],y:38,"text-anchor":"middle",class:"nlabel"});
+        t.textContent = "P"+i; svg.appendChild(t);
+      }
+      svg.appendChild(el("text",{x:300,y:350,class:"gtitle","text-anchor":"middle"})).textContent="3 进程时间线 · 9 个事件";
+      setDetail(detail,[
+        {html:"<span class='k'>时钟</span> Lamport 标量 vs 向量时钟",cls:"hi"},
+        {text:"单步揭示事件，观察 happens-before 因果序。"}
+      ]);
+      setStats(stats,[{k:"类型",v:"Lamport"},{k:"已显示",v:0},{k:"事件总数",v:seq.length},{k:"最大戳",v:0}]);
+    }
+    function drawEvent(idx){
+      var e = seq[idx];
+      var y = topY + 20 + idx*28;
+      var dot = el("circle",{cx:px[e.p],cy:y,r:6,fill:C.accent,stroke:C.bg,"stroke-width":1.5});
+      svg.appendChild(dot);
+      var lbl = el("text",{x:px[e.p]+12,y:y+4,class:"nlabel"});
+      lbl.setAttribute("fill",C.accent);
+      lbl.textContent = type==="lamport" ? "L="+e.l : "V=["+e.v.join(",")+"]";
+      svg.appendChild(lbl);
+      if(e.type==="send"){
+        var target = idx;
+        for(var k=idx+1;k<seq.length;k++){ if(seq[k].type==="recv" && seq[k].from===e.p && seq[k].p===e.to){ target=k; break; } }
+        var ty = topY + 20 + target*28;
+        delay(150, function(){
+          flyMessage(svg, {x:px[e.p],y:y}, {x:px[e.to],y:ty}, {label:"m",color:C.accent2,dur:700});
+        });
+      }
+    }
+    function doStep(phase){
+      if(phase>seq.length) return;
+      drawEvent(phase-1);
+      shown = phase;
+      var e = seq[phase-1];
+      var desc = type==="lamport" ? ("L="+e.l) : ("V=["+e.v.join(",")+"]");
+      var cls = e.type==="recv" ? "warn" : (e.type==="send"?"hi":"");
+      addDetail(detail, "<span class='k'>P"+e.p+" "+e.type+"</span> "+desc, cls);
+      var maxL = Math.max.apply(null, seq.slice(0,shown).map(function(x){return x.l;}));
+      setStats(stats,[{k:"类型",v:type==="lamport"?"Lamport":"Vector",cls:"accent"},{k:"已显示",v:shown},{k:"事件总数",v:seq.length},{k:"最大戳",v:type==="lamport"?maxL:"["+seq[shown-1].v.join(",")+"]",cls:"accent"}]);
+    }
+    var ctrl = createController(seq.length, doStep, init);
+    typeToggle = makeToggle(ctx, [
+      {v:"lamport",label:"Lamport"},
+      {v:"vector",label:"Vector"}
+    ], function(t){ type=t; ctrl.reset(); });
+    return { play:ctrl.play, step:ctrl.step, reset:ctrl.reset };
+  }
+
+  /* =================================================================
+     模块配置 & 初始化
+  ================================================================= */
+  var MODULES = [
+    {id:"bft",num:"01",title:"拜占庭容错",desc:"3f+1 节点在 f 个叛将存在时达成共识；口头消息算法 OM(m)，叛将发送冲突指令。",build:buildBFT},
+    {id:"paxos",num:"02",title:"Paxos 多阶段",desc:"Proposer 发起 Prepare/Accept 两阶段，多数 Acceptor 持久化承诺，Learner 学习已决值。",build:buildPaxos},
+    {id:"raft",num:"03",title:"Raft 选举",desc:"随机超时触发 Leader 选举，胜出者通过 AppendEntries 复制日志并推进 commitIndex。",build:buildRaft},
+    {id:"gossip",num:"04",title:"Gossip 协议",desc:"Push / Pull / Push-Pull 三种谣言传播模式，对比收敛轮次与感染速度。",build:buildGossip},
+    {id:"crdt",num:"05",title:"CRDT 合并",desc:"G-Counter / PN-Counter / OR-Set 三种无冲突复制数据类型的合并语义。",build:buildCRDT},
+    {id:"twopc",num:"06",title:"两阶段提交 (2PC)",desc:"协调者发起 Prepare 询问，全部 YES 则 Commit，否则 Abort；阻塞式原子提交。",build:build2PC},
+    {id:"snapshot",num:"07",title:"分布式快照",desc:"Chandy-Lamport 算法：发起者记录自身状态并广播 Marker，接收方记录通道状态。",build:buildSnapshot},
+    {id:"clock",num:"08",title:"时钟与因果",desc:"Lamport 标量时钟与向量时钟，刻画 happens-before 因果偏序关系。",build:buildClock}
+  ];
+
+  function initModule(m, section){
+    var svg = section.querySelector("svg");
+    var detail = section.querySelector(".detail-box");
+    var stats = section.querySelector(".stats-row");
+    var ctrlBox = section.querySelector(".controls");
+
+    var bp = h("button",{class:"btn btn-primary"},"播放");
+    var bs = h("button",{class:"btn"},"单步");
+    var br = h("button",{class:"btn"},"重置");
+    ctrlBox.appendChild(bp); ctrlBox.appendChild(bs); ctrlBox.appendChild(br);
+
+    var ctx = {svg:svg, detail:detail, stats:stats, ctrlBox:ctrlBox};
+    var ctrl = m.build(ctx);
+    bp.onclick = function(){
+      ctrl.play(function(playing){
+        bp.classList.toggle("playing", playing);
+        bp.textContent = playing ? "暂停" : "播放";
+      });
+    };
+    bs.onclick = function(){ ctrl.step(); };
+    br.onclick = function(){ ctrl.reset(); bp.classList.remove("playing"); bp.textContent="播放"; };
+    ctrl.reset();
+  }
+
+  function buildSections(){
+    var main = document.getElementById("modules");
+    MODULES.forEach(function(m){
+      var sec = h("section",{class:"module fade",id:"m-"+m.id});
+      var head = h("div",{class:"module-head"});
+      head.appendChild(h("span",{class:"kicker"},m.num));
+      var title = h("h2",{class:"module-title"});
+      title.appendChild(h("span",{class:"num"},m.num));
+      title.appendChild(document.createTextNode(m.title));
+      head.appendChild(title);
+      head.appendChild(h("p",{class:"module-desc"},m.desc));
+      sec.appendChild(head);
+
+      var card = h("div",{class:"card"});
+      var viz = h("div",{class:"viz-box"});
+      viz.appendChild(el("svg",{viewBox:"0 0 600 360",preserveAspectRatio:"xMidYMid meet"}));
+      card.appendChild(viz);
+      card.appendChild(h("div",{class:"controls"}));
+      card.appendChild(h("div",{class:"detail-box"}));
+      card.appendChild(h("div",{class:"stats-row"}));
+      sec.appendChild(card);
+      main.appendChild(sec);
+
+      initModule(m, sec);
+    });
+  }
+
+  function buildSidebar(){
+    var list = document.getElementById("sideList");
+    MODULES.forEach(function(m){
+      var a = h("a",{class:"side-link",href:"#m-"+m.id});
+      a.appendChild(h("span",{class:"side-num"},m.num));
+      a.appendChild(h("span",{class:"side-text"},m.title));
+      list.appendChild(a);
+    });
+  }
+
+  function initObservers(){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add("visible"); }
+      });
+    },{threshold:0.12});
+    document.querySelectorAll(".fade").forEach(function(elx){ io.observe(elx); });
+
+    // 侧边栏激活态
+    var links = document.querySelectorAll(".side-link");
+    var sections = document.querySelectorAll(".module");
+    var sio = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          var id = en.target.id;
+          links.forEach(function(l){
+            l.classList.toggle("active", l.getAttribute("href")==="#"+id);
+          });
+        }
+      });
+    },{rootMargin:"-30% 0px -60% 0px"});
+    sections.forEach(function(s){ sio.observe(s); });
+  }
+
+  function initProgress(){
+    var fill = document.getElementById("progressFill");
+    function update(){
+      var doc = document.documentElement;
+      var sc = doc.scrollTop / (doc.scrollHeight - doc.clientHeight);
+      fill.style.transform = "scaleX("+(isFinite(sc)?sc:0)+")";
+    }
+    window.addEventListener("scroll", update, {passive:true});
+    window.addEventListener("resize", update, {passive:true});
+    update();
+  }
+
+  function initMenu(){
+    var btn = document.getElementById("menuBtn");
+    var sb = document.getElementById("sidebar");
+    btn.addEventListener("click", function(){ sb.classList.toggle("open"); });
+    document.querySelectorAll(".side-link").forEach(function(l){
+      l.addEventListener("click", function(){ sb.classList.remove("open"); });
+    });
+  }
+
+  // 启动
+  buildSidebar();
+  buildSections();
+  initObservers();
+  initProgress();
+  initMenu();
+})();
+</script>
+</body>
+</html>

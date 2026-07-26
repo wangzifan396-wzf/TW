@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RLHF 可视化实验室</title>
+<style>
+:root{
+  --bg:#08090a;--surface:#101114;--surface-2:#16181c;--surface-3:#1c1f24;
+  --border:rgba(255,255,255,.07);--border-strong:rgba(255,255,255,.14);
+  --ink:#f7f8f8;--muted:#9b9fa8;--faint:#62666d;
+  --accent:#5e6ad2;--accent-2:#7c5cff;--cyan:#2dd4ff;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  --font-sans:system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif;
+  --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+  --nav-h:56px;--side-w:260px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+.progress-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--rose),var(--accent-2),var(--cyan));width:0;z-index:1000;transition:width .1s ease}
+.navbar{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(8,9,10,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--rose);box-shadow:0 0 8px var(--rose);flex-shrink:0}
+.nav-tag{font-size:11px;color:var(--faint);font-family:var(--font-mono);margin-left:8px;padding:2px 7px;border:1px solid var(--border);border-radius:4px}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted)}
+.nav-link{color:var(--muted);transition:color .2s}
+.nav-link:hover{color:var(--ink)}
+.sidebar{position:fixed;top:var(--nav-h);left:0;width:var(--side-w);height:calc(100vh - var(--nav-h));background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;z-index:90}
+.sidebar-section{padding:0 16px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;border-left:2px solid transparent;position:relative}
+.nav-item:hover{color:var(--ink);background:var(--surface-2)}
+.nav-item.active{color:var(--ink);background:var(--surface-2);border-left-color:var(--rose)}
+.nav-num{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:22px;flex-shrink:0}
+.nav-item.active .nav-num{color:var(--rose)}
+.main{margin-left:var(--side-w);margin-top:var(--nav-h);padding:0}
+.module{min-height:80vh;padding:48px 48px 64px;border-bottom:1px solid var(--border);scroll-margin-top:var(--nav-h)}
+.module-head{margin-bottom:28px}
+.module-kicker{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:12px;color:var(--faint);margin-bottom:8px}
+.module-kicker .knum{color:var(--rose)}
+.module-kicker .kbar{width:24px;height:1px;background:var(--border-strong)}
+.module-title{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.module-desc{color:var(--muted);font-size:14px;max-width:720px;line-height:1.7}
+.module-grid{display:grid;gap:20px;grid-template-columns:1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;transition:border-color .2s}
+.card:hover{border-color:var(--border-strong)}
+.card-title{font-size:13px;font-weight:600;margin-bottom:14px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.card-title .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--rose)}
+.viz-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;min-height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.viz-box svg{width:100%;height:auto;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center}
+.btn{font-family:var(--font-sans);font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{color:var(--ink);border-color:rgba(255,255,255,.25)}
+.btn-sm{font-size:12px;padding:4px 11px}
+.btn.active{background:var(--rose);color:#fff;border-color:var(--rose)}
+.slider-wrap{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 12px}
+.slider-wrap span:first-child{white-space:nowrap}
+.slider-wrap input[type=range]{width:100px;-webkit-appearance:none;appearance:none;height:3px;background:var(--surface-3);border-radius:2px;outline:none}
+.slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:var(--rose);cursor:pointer}
+.slider-wrap input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--rose);cursor:pointer;border:none}
+.slider-wrap .val{font-family:var(--font-mono);color:var(--ink);min-width:36px;text-align:right;font-size:11px}
+.stats-row{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px}
+.stat-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.stat-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.code-block{background:#0a0b0d;border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-family:var(--font-mono);font-size:12px;line-height:1.7;color:#c8d3e0;margin-top:14px;white-space:pre;position:relative}
+.code-block .ck-keyword{color:var(--violet)}
+.code-block .ck-fn{color:var(--cyan)}
+.code-block .ck-str{color:var(--emerald)}
+.code-block .ck-num{color:var(--amber)}
+.code-block .ck-comment{color:var(--faint)}
+.code-block .ck-label{position:absolute;top:8px;right:12px;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.detail-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.detail-box strong{color:var(--ink);font-weight:600}
+.detail-box .dt-label{display:inline-block;font-family:var(--font-mono);font-size:11px;color:var(--rose);padding:1px 6px;border:1px solid rgba(251,113,133,.3);border-radius:4px;margin-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-item .ld{width:10px;height:10px;border-radius:2px}
+.footer{padding:32px 48px;text-align:center;color:var(--faint);font-size:12px;border-top:1px solid var(--border)}
+.footer a{color:var(--muted)}
+.footer a:hover{color:var(--rose)}
+@media(max-width:900px){
+  :root{--side-w:0px}
+  .sidebar{transform:translateX(-100%);transition:transform .25s;width:240px;z-index:95}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .module{padding:32px 20px}
+  .nav-toggle{display:flex!important}
+}
+.nav-toggle{display:none;width:32px;height:32px;align-items:center;justify-content:center;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-3);cursor:pointer;color:var(--ink);margin-left:12px}
+.nav-toggle svg{width:16px;height:16px}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+.fade-in{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="nav-dot"></span>
+    <span>RLHF 可视化实验室</span>
+    <span class="nav-tag">v1.0</span>
+  </div>
+  <div class="nav-right">
+    <a class="nav-link" href="https://github.com/wangzifan396-wzf/rlhf-viz-lab" target="_blank">GitHub</a>
+    <button class="nav-toggle" id="navToggle" aria-label="toggle">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+  </div>
+</nav>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-section">RLHF 核心模块</div>
+  <div class="nav-item active" data-target="m01"><span class="nav-num">01</span><span>RLHF 全流程概览</span></div>
+  <div class="nav-item" data-target="m02"><span class="nav-num">02</span><span>奖励模型训练</span></div>
+  <div class="nav-item" data-target="m03"><span class="nav-num">03</span><span>PPO 优化算法</span></div>
+  <div class="nav-item" data-target="m04"><span class="nav-num">04</span><span>DPO 直接偏好优化</span></div>
+  <div class="sidebar-section">数据与约束</div>
+  <div class="nav-item" data-target="m05"><span class="nav-num">05</span><span>偏好数据格式</span></div>
+  <div class="nav-item" data-target="m06"><span class="nav-num">06</span><span>KL 散度约束</span></div>
+  <div class="sidebar-section">安全与评估</div>
+  <div class="nav-item" data-target="m07"><span class="nav-num">07</span><span>安全对齐与红队</span></div>
+  <div class="nav-item" data-target="m08"><span class="nav-num">08</span><span>评估与基准</span></div>
+</aside>
+
+<main class="main">
+
+<!-- ============ MODULE 01 ============ -->
+<section class="module" id="m01">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">01</span><span class="kbar"></span><span>RLHF Pipeline Overview</span></div>
+    <h2 class="module-title">RLHF 全流程概览</h2>
+    <p class="module-desc">从监督微调（SFT）到奖励建模，再到 PPO 强化学习优化，最终得到对齐的人类偏好模型。点击下方各阶段查看详细说明。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>三阶段流程图</div>
+      <div class="viz-box" id="viz01"></div>
+      <div class="legend" id="legend01"></div>
+      <div class="controls" style="margin-top:14px">
+        <button class="btn btn-sm active" data-stage="0" id="stageBtn0">SFT 监督微调</button>
+        <button class="btn btn-sm" data-stage="1" id="stageBtn1">RM 奖励建模</button>
+        <button class="btn btn-sm" data-stage="2" id="stageBtn2">PPO 强化学习</button>
+        <button class="btn btn-sm" data-stage="3" id="stageBtn3">对齐模型</button>
+      </div>
+      <div class="detail-box" id="detail01"></div>
+      <div class="stats-row" id="stats01"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>Bradley-Terry 偏好建模 → RLHF 训练循环</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># RLHF 三阶段训练流程</span>
+<span class="ck-keyword">def</span> <span class="ck-fn">rlhf_pipeline</span>(base_model, pref_data):
+    <span class="ck-comment"># Stage 1: SFT — 监督微调</span>
+    sft_model = <span class="ck-fn">supervised_finetune</span>(
+        base_model, instruction_data
+    )
+    <span class="ck-comment"># Stage 2: RM — 奖励模型训练</span>
+    reward_model = <span class="ck-fn">train_reward_model</span>(
+        sft_model, pref_data
+    )  <span class="ck-comment"># Bradley-Terry loss</span>
+    <span class="ck-comment"># Stage 3: PPO — 强化学习优化</span>
+    aligned_model = <span class="ck-fn">ppo_optimize</span>(
+        policy=sft_model,
+        reward_model=reward_model,
+        ref_model=<span class="ck-fn">copy</span>(sft_model),
+        kl_coef=<span class="ck-num">0.02</span>
+    )
+    <span class="ck-keyword">return</span> aligned_model</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 02 ============ -->
+<section class="module" id="m02">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">02</span><span class="kbar"></span><span>Reward Model Training</span></div>
+    <h2 class="module-title">奖励模型训练</h2>
+    <p class="module-desc">基于人类偏好对 (chosen, rejected) 训练奖励模型 r(x)，使用 Bradley-Terry 模型使 chosen 的奖励分数高于 rejected。拖动滑块调整偏好数据质量。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>偏好对与奖励分数</div>
+      <div class="viz-box" id="viz02"></div>
+      <div class="controls">
+        <div class="slider-wrap" id="sl02q"></div>
+        <div class="slider-wrap" id="sl02m"></div>
+      </div>
+      <div class="detail-box" id="detail02"></div>
+      <div class="stats-row" id="stats02"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>Bradley-Terry 损失函数</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># Bradley-Terry 偏好模型</span>
+<span class="ck-keyword">import</span> torch
+<span class="ck-keyword">import</span> torch.nn.functional <span class="ck-keyword">as</span> F
+
+<span class="ck-keyword">def</span> <span class="ck-fn">bt_loss</span>(reward_model, chosen_ids, rejected_ids):
+    r_chosen = <span class="ck-fn">reward_model</span>(chosen_ids)      <span class="ck-comment"># r(x_chosen)</span>
+    r_rejected = <span class="ck-fn">reward_model</span>(rejected_ids)  <span class="ck-comment"># r(x_rejected)</span>
+    <span class="ck-comment"># P(chosen > rejected) = sigmoid(r_c - r_r)</span>
+    logits = r_chosen - r_rejected
+    loss = -F.<span class="ck-fn">logsigmoid</span>(logits).<span class="ck-fn">mean</span>()
+    <span class="ck-keyword">return</span> loss
+
+<span class="ck-comment"># 奖励分数排序准确率</span>
+<span class="ck-keyword">def</span> <span class="ck-fn">accuracy</span>(r_c, r_r):
+    <span class="ck-keyword">return</span> (r_c &gt; r_r).<span class="ck-fn">float</span>().<span class="ck-fn">mean</span>().<span class="ck-fn">item</span>()</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 03 ============ -->
+<section class="module" id="m03">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">03</span><span class="kbar"></span><span>PPO Algorithm</span></div>
+    <h2 class="module-title">PPO 优化算法</h2>
+    <p class="module-desc">近端策略优化（PPO）同时运行策略模型、参考模型、奖励模型和价值模型。调整 KL 惩罚系数 β 与裁剪比率 ε，观察策略梯度裁剪效果。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>PPO 训练循环</div>
+      <div class="viz-box" id="viz03"></div>
+      <div class="controls">
+        <div class="slider-wrap" id="sl03beta"></div>
+        <div class="slider-wrap" id="sl03eps"></div>
+        <button class="btn btn-sm" id="ppoPlay">运行一步</button>
+      </div>
+      <div class="detail-box" id="detail03"></div>
+      <div class="stats-row" id="stats03"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>策略梯度与裁剪目标</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># PPO Clipped Surrogate Objective</span>
+<span class="ck-keyword">def</span> <span class="ck-fn">ppo_loss</span>(policy, ref, reward, values, old_logp,
+             states, actions, beta=<span class="ck-num">0.02</span>, eps=<span class="ck-num">0.2</span>):
+    <span class="ck-comment"># 比率 ratio = pi(a|s) / pi_old(a|s)</span>
+    logp = policy.<span class="ck-fn">log_prob</span>(states, actions)
+    ratio = <span class="ck-fn">torch.exp</span>(logp - old_logp)
+
+    <span class="ck-comment"># 优势函数 (GAE)</span>
+    advantages = <span class="ck-fn">compute_gae</span>(reward, values)
+    advantages = (advantages - advantages.<span class="ck-fn">mean</span>()) / \
+                 (advantages.<span class="ck-fn">std</span>() + <span class="ck-num">1e-8</span>)
+
+    <span class="ck-comment"># 裁剪目标</span>
+    surr1 = ratio * advantages
+    surr2 = <span class="ck-fn">torch.clamp</span>(ratio, <span class="ck-num">1</span>-eps, <span class="ck-num">1</span>+eps) * advantages
+    policy_loss = -<span class="ck-fn">torch.min</span>(surr1, surr2).<span class="ck-fn">mean</span>()
+
+    <span class="ck-comment"># KL 惩罚</span>
+    kl = <span class="ck-fn">kl_divergence</span>(policy, ref, states).<span class="ck-fn">mean</span>()
+    <span class="ck-keyword">return</span> policy_loss + beta * kl</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 04 ============ -->
+<section class="module" id="m04">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">04</span><span class="kbar"></span><span>Direct Preference Optimization</span></div>
+    <h2 class="module-title">DPO 直接偏好优化</h2>
+    <p class="module-desc">DPO 跳过显式奖励模型，直接用偏好数据优化策略。核心洞察：隐式奖励 r = β·log(π/π_ref)。调整 β 观察损失景观变化。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>DPO vs PPO 对比与损失景观</div>
+      <div class="viz-box" id="viz04"></div>
+      <div class="controls">
+        <div class="slider-wrap" id="sl04beta"></div>
+        <button class="btn btn-sm active" data-view="0" id="dpoView0">对比视图</button>
+        <button class="btn btn-sm" data-view="1" id="dpoView1">损失景观</button>
+      </div>
+      <div class="detail-box" id="detail04"></div>
+      <div class="stats-row" id="stats04"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>DPO 损失函数</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># Direct Preference Optimization</span>
+<span class="ck-keyword">import</span> torch.nn.functional <span class="ck-keyword">as</span> F
+
+<span class="ck-keyword">def</span> <span class="ck-fn">dpo_loss</span>(policy, ref, chosen, rejected, beta=<span class="ck-num">0.1</span>):
+    <span class="ck-comment"># 隐式奖励: r = beta * log(pi / pi_ref)</span>
+    pi_c = policy.<span class="ck-fn">log_prob</span>(chosen)
+    pi_r = policy.<span class="ck-fn">log_prob</span>(rejected)
+    ref_c = ref.<span class="ck-fn">log_prob</span>(chosen).<span class="ck-fn">detach</span>()
+    ref_r = ref.<span class="ck-fn">log_prob</span>(rejected).<span class="ck-fn">detach</span>()
+
+    log_ratio_c = pi_c - ref_c  <span class="ck-comment"># log(pi_c/pi_ref_c)</span>
+    log_ratio_r = pi_r - ref_r
+
+    <span class="ck-comment"># DPO 损失 = -log sigmoid(beta * (r_c - r_r))</span>
+    logits = beta * (log_ratio_c - log_ratio_r)
+    loss = -F.<span class="ck-fn">logsigmoid</span>(logits).<span class="ck-fn">mean</span>()
+    <span class="ck-keyword">return</span> loss
+
+<span class="ck-comment"># 无需奖励模型, 直接从偏好学习</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 05 ============ -->
+<section class="module" id="m05">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">05</span><span class="kbar"></span><span>Preference Data Format</span></div>
+    <h2 class="module-title">偏好数据格式</h2>
+    <p class="module-desc">偏好数据由 prompt、chosen 和 rejected 组成，标注流程涉及人工标注员排序。切换 pairwise / listwise / pointwise 查看不同标注格式。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>标注流程与数据格式</div>
+      <div class="viz-box" id="viz05"></div>
+      <div class="controls">
+        <button class="btn btn-sm active" data-fmt="pairwise" id="fmtP">Pairwise 配对</button>
+        <button class="btn btn-sm" data-fmt="listwise" id="fmtL">Listwise 列表</button>
+        <button class="btn btn-sm" data-fmt="pointwise" id="fmtPt">Pointwise 打分</button>
+      </div>
+      <div class="detail-box" id="detail05"></div>
+      <div class="stats-row" id="stats05"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>偏好数据集结构</div>
+      <div class="code-block"><span class="ck-label">JSON</span><span class="ck-comment">// pairwise 偏好数据格式</span>
+{
+  <span class="ck-str">"prompt"</span>: <span class="ck-str">"解释什么是量子纠缠"</span>,
+  <span class="ck-str">"chosen"</span>: [
+    {<span class="ck-str">"role"</span>: <span class="ck-str">"user"</span>, <span class="ck-str">"content"</span>: <span class="ck-str">"..."</span>},
+    {<span class="ck-str">"role"</span>: <span class="ck-str">"assistant"</span>, <span class="ck-str">"content"</span>: <span class="ck-str">"量子纠缠是..."</span>}
+  ],
+  <span class="ck-str">"rejected"</span>: [
+    {<span class="ck-str">"role"</span>: <span class="ck-str">"user"</span>, <span class="ck-str">"content"</span>: <span class="ck-str">"..."</span>},
+    {<span class="ck-str">"role"</span>: <span class="ck-str">"assistant"</span>, <span class="ck-str">"content"</span>: <span class="ck-str">"纠缠就是..."</span>}
+  ],
+  <span class="ck-str">"metadata"</span>: {
+    <span class="ck-str">"annotator_id"</span>: <span class="ck-num">42</span>,
+    <span class="ck-str">"agreement"</span>: <span class="ck-num">0.92</span>,
+    <span class="ck-str">"source"</span>: <span class="ck-str">"human"</span>
+  }
+}
+
+<span class="ck-comment">// listwise: prompt + ranked_responses[]</span>
+<span class="ck-comment">// pointwise: prompt + response + score</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 06 ============ -->
+<section class="module" id="m06">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">06</span><span class="kbar"></span><span>KL Divergence Constraint</span></div>
+    <h2 class="module-title">KL 散度约束</h2>
+    <p class="module-desc">KL 惩罚防止策略偏离参考模型过远，避免奖励黑客（reward hacking）与模式崩溃。调整 KL 系数，观察奖励与多样性之间的权衡曲线。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>策略漂移与 Reward-KL 权衡</div>
+      <div class="viz-box" id="viz06"></div>
+      <div class="controls">
+        <div class="slider-wrap" id="sl06kl"></div>
+        <button class="btn btn-sm" id="klPlay">训练 50 步</button>
+      </div>
+      <div class="detail-box" id="detail06"></div>
+      <div class="stats-row" id="stats06"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>KL 惩罚项</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># KL 散度惩罚</span>
+<span class="ck-keyword">import</span> torch.nn.functional <span class="ck-keyword">as</span> F
+
+<span class="ck-keyword">def</span> <span class="ck-fn">kl_penalty</span>(policy, ref_model, states, beta=<span class="ck-num">0.02</span>):
+    <span class="ck-comment"># 逐 token KL 散度</span>
+    logp = policy.<span class="ck-fn">log_prob</span>(states)        <span class="ck-comment"># log pi_theta</span>
+    logp_ref = ref_model.<span class="ck-fn">log_prob</span>(states)  <span class="ck-comment"># log pi_ref</span>
+
+    p = <span class="ck-fn">torch.exp</span>(logp)
+    <span class="ck-comment"># KL(pi || pi_ref) = sum p * (logp - logp_ref)</span>
+    kl = (p * (logp - logp_ref)).<span class="ck-fn">sum</span>(dim=-1).<span class="ck-fn">mean</span>()
+
+    <span class="ck-comment"># 总目标 = reward - beta * KL</span>
+    <span class="ck-keyword">return</span> beta * kl
+
+<span class="ck-comment"># reward_hacking 防御:</span>
+<span class="ck-comment"># 高 reward + 低 KL = 安全优化</span>
+<span class="ck-comment"># 高 reward + 高 KL = 可能 hacking</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 07 ============ -->
+<section class="module" id="m07">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">07</span><span class="kbar"></span><span>Safety Alignment & Red Teaming</span></div>
+    <h2 class="module-title">安全对齐与红队</h2>
+    <p class="module-desc">红队测试模拟越狱攻击（jailbreak），安全护栏在多层防御中拦截有害请求。选择不同攻击类型，查看防御层的响应策略。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>攻击面与防御层</div>
+      <div class="viz-box" id="viz07"></div>
+      <div class="controls">
+        <button class="btn btn-sm active" data-atk="0" id="atk0">角色扮演</button>
+        <button class="btn btn-sm" data-atk="1" id="atk1">提示注入</button>
+        <button class="btn btn-sm" data-atk="2" id="atk2">编码绕过</button>
+        <button class="btn btn-sm" data-atk="3" id="atk3">多轮诱导</button>
+      </div>
+      <div class="detail-box" id="detail07"></div>
+      <div class="stats-row" id="stats07"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>安全分类器</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># 安全分类与拦截</span>
+<span class="ck-keyword">from</span> transformers <span class="ck-keyword">import</span> AutoModelForSequenceClassification
+
+HARMFUL_CATEGORIES = [
+    <span class="ck-str">"violence"</span>, <span class="ck-str">"self_harm"</span>,
+    <span class="ck-str">"hate_speech"</span>, <span class="ck-str">"sexual"</span>,
+    <span class="ck-str">"illegal"</span>, <span class="ck-str">"deception"</span>,
+]
+
+<span class="ck-keyword">def</span> <span class="ck-fn">safety_check</span>(prompt, response, threshold=<span class="ck-num">0.85</span>):
+    <span class="ck-comment"># 多层防御: 输入检测 + 输出检测</span>
+    input_risk = classifier.<span class="ck-fn">predict</span>(prompt)
+    output_risk = classifier.<span class="ck-fn">predict</span>(response)
+
+    <span class="ck-keyword">if</span> input_risk.max() &gt; threshold:
+        <span class="ck-keyword">return</span> <span class="ck-fn">refuse</span>(
+            <span class="ck-str">"抱歉，我无法协助此类请求。"</span>
+        )
+    <span class="ck-keyword">if</span> output_risk.max() &gt; threshold:
+        <span class="ck-keyword">return</span> <span class="ck-fn">rewrite</span>(response)
+
+    <span class="ck-keyword">return</span> response  <span class="ck-comment"># 安全通过</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 08 ============ -->
+<section class="module" id="m08">
+  <div class="module-head fade-in">
+    <div class="module-kicker"><span class="knum">08</span><span class="kbar"></span><span>Evaluation & Benchmarks</span></div>
+    <h2 class="module-title">评估与基准</h2>
+    <p class="module-desc">MT-Bench、AlpacaEval、Arena Elo 与奖励模型准确率共同衡量对齐效果。雷达图对比 base 与 aligned 模型，调整参数查看预测变化。</p>
+  </div>
+  <div class="module-grid">
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>雷达图对比与基准分数</div>
+      <div class="viz-box" id="viz08"></div>
+      <div class="controls">
+        <div class="slider-wrap" id="sl08param"></div>
+        <div class="slider-wrap" id="sl08align"></div>
+      </div>
+      <div class="detail-box" id="detail08"></div>
+      <div class="stats-row" id="stats08"></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-title"><span class="ct-dot"></span>评估脚本</div>
+      <div class="code-block"><span class="ck-label">Python</span><span class="ck-comment"># RLHF 评估基准</span>
+<span class="ck-keyword">def</span> <span class="ck-fn">evaluate</span>(model, benchmarks):
+    results = {}
+    <span class="ck-keyword">for</span> bench <span class="ck-keyword">in</span> benchmarks:
+        <span class="ck-keyword">if</span> bench == <span class="ck-str">"mt_bench"</span>:
+            <span class="ck-comment"># 多轮对话, GPT-4 评分</span>
+            results[bench] = <span class="ck-fn">mt_bench_score</span>(
+                model, judge=<span class="ck-str">"gpt-4"</span>
+            )
+        <span class="ck-keyword">elif</span> bench == <span class="ck-str">"alpaca_eval"</span>:
+            <span class="ck-comment"># 胜率 vs reference</span>
+            results[bench] = <span class="ck-fn">alpaca_winrate</span>(
+                model, ref=<span class="ck-str">"text-davinci-003"</span>
+            )
+        <span class="ck-keyword">elif</span> bench == <span class="ck-str">"arena_elo"</span>:
+            <span class="ck-comment"># 人群盲评 Elo 排名</span>
+            results[bench] = <span class="ck-fn">compute_elo</span>(
+                model, human_votes
+            )
+        <span class="ck-keyword">elif</span> bench == <span class="ck-str">"rm_acc"</span>:
+            <span class="ck-comment"># 奖励模型排序准确率</span>
+            results[bench] = <span class="ck-fn">rm_accuracy</span>(
+                reward_model, test_set
+            )
+    <span class="ck-keyword">return</span> results
+
+<span class="ck-comment"># 人类评估 vs 自动指标</span>
+<span class="ck-comment"># correlation = pearson(human, auto)</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="footer">
+  <p>RLHF 可视化实验室 &middot; 单文件 HTML/CSS/JS + SVG &middot; 零外部依赖</p>
+  <p style="margin-top:6px"><a href="https://github.com/wangzifan396-wzf/rlhf-viz-lab" target="_blank">GitHub</a> &middot; MIT License &middot; Copyright 2026 wangzifan396-wzf</p>
+</div>
+
+</main>
+
+<script>
+/* ============================================================
+   RLHF 可视化实验室 — 工具函数与模块实现
+   ============================================================ */
+var NS='http://www.w3.org/2000/svg';
+var C={accent:'#5e6ad2',violet:'#a78bfa',cyan:'#2dd4ff',emerald:'#34d399',amber:'#fbbf24',rose:'#fb7185',accent2:'#7c5cff',s2:'#16181c',s3:'#1c1f24',border:'#2a2e35',muted:'#9b9fa8',faint:'#62666d',ink:'#f7f8f8'};
+function el(t,a){var e=document.createElementNS(NS,t);if(a)for(var k in a)e.setAttribute(k,a[k]);return e;}
+function svgEl(p,t,a){var e=el(t,a);p.appendChild(e);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function makeBtn(label,active,onclick){var b=document.createElement('button');b.className='btn btn-sm'+(active?' active':'');b.textContent=label;b.onclick=function(){onclick(b);};return b;}
+function makeSlider(label,min,max,step,val,unit,oninput){var w=document.createElement('div');w.className='slider-wrap';var t=document.createElement('span');t.textContent=label;var inp=document.createElement('input');inp.type='range';inp.min=min;inp.max=max;inp.step=step;inp.value=val;var v=document.createElement('span');v.className='val';v.textContent=val+(unit||'');inp.oninput=function(){v.textContent=inp.value+(unit||'');oninput(parseFloat(inp.value));};w.appendChild(t);w.appendChild(inp);w.appendChild(v);return w;}
+function setStats(c,items){c.innerHTML='';items.forEach(function(it){var d=document.createElement('div');d.className='stat-item';var dot=document.createElement('span');dot.className='dot';dot.style.background=it.color;var txt=document.createElement('span');txt.textContent=it.label+': '+it.val;d.appendChild(dot);d.appendChild(txt);c.appendChild(d);});}
+
+/* 创建 SVG 容器 */
+function makeSvg(w,h){
+  var s=el('svg',{xmlns:NS,width:w,height:h,viewBox:'0 0 '+w+' '+h});
+  return s;
+}
+
+/* ============ MODULE 01: RLHF 全流程概览 ============ */
+(function(){
+  var stages=[
+    {name:'SFT 监督微调',color:C.cyan,desc:'在指令数据集上微调基础模型，使其学会遵循指令格式。输入高质量 (prompt, response) 对，使用交叉熵损失。',data:'指令数据 ~52K',compute:'15%'},
+    {name:'RM 奖励建模',color:C.amber,desc:'收集人类偏好对 (chosen, rejected)，训练奖励模型 r(x) 预测人类偏好。使用 Bradley-Terry 模型最大化 chosen 排在 rejected 前的概率。',data:'偏好数据 ~100K',compute:'20%'},
+    {name:'PPO 强化学习',color:C.violet,desc:'用奖励模型作为环境，PPO 算法优化策略模型。同时用 KL 散度约束策略不偏离 SFT 模型过远，防止奖励黑客。',data:'提示词 ~50K',compute:'55%'},
+    {name:'对齐模型',color:C.emerald,desc:'经过三阶段训练的最终模型，输出符合人类偏好与安全要求。可直接部署或继续迭代。',data:'部署就绪',compute:'10%'}
+  ];
+  var curStage=0;
+
+  function draw(){
+    var box=document.getElementById('viz01');
+    clearSvg(box);
+    var w=720,h=240;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var nodeW=140,nodeH=70,gap=40;
+    var startX=(w-(nodeW*4+gap*3))/2;
+    var y=85;
+
+    for(var i=0;i<4;i++){
+      var x=startX+i*(nodeW+gap);
+      var active=i===curStage;
+      var dim=i!==curStage;
+      var g=svgEl(svg,'g',{transform:'translate('+x+','+y+')'});
+
+      var rect=svgEl(g,'rect',{width:nodeW,height:nodeH,rx:8,fill:active?stages[i].color:'rgba(22,24,28,1)',stroke:stages[i].color,'stroke-width':active?2:1,opacity:dim?0.45:1});
+      var label=svgEl(g,'text',{x:nodeW/2,y:30,'text-anchor':'middle',fill:active?'#08090a':C.ink,'font-size':12,'font-weight':600,'font-family':C.muted});
+      label.textContent=stages[i].name;
+      var num=svgEl(g,'text',{x:nodeW/2,y:50,'text-anchor':'middle',fill:active?'rgba(8,9,10,.7)':C.faint,'font-size':10,'font-family':'monospace'});
+      num.textContent='Stage '+String(i+1).padStart(2,'0');
+
+      if(i<3){
+        var ax=x+nodeW;
+        var ay=y+nodeH/2;
+        var arrow=svgEl(svg,'g',{opacity:dim?0.3:0.7});
+        var line=svgEl(arrow,'line',{x1:ax,y1:ay,x2:ax+gap,y2:ay,stroke:C.muted,'stroke-width':1.5,'marker-end':'url(#arrow01)'});
+        var tri=svgEl(arrow,'polygon',{points:(ax+gap-4)+','+(ay-4)+' '+(ax+gap)+','+ay+' '+(ax+gap-4)+','+(ay+4),fill:C.muted});
+      }
+    }
+
+    var title=svgEl(svg,'text',{x:w/2,y:200,'text-anchor':'middle',fill:C.muted,'font-size':12});
+    title.textContent='点击各阶段或下方按钮查看详情';
+
+    box.style.justifyContent='center';
+  }
+
+  function updateDetail(){
+    var s=stages[curStage];
+    var d=document.getElementById('detail01');
+    d.innerHTML='<span class="dt-label">STAGE '+(curStage+1)+'</span><strong>'+s.name+'</strong> — '+s.desc;
+  }
+
+  function updateStats(){
+    setStats(document.getElementById('stats01'),[
+      {color:C.cyan,label:'阶段数',val:'4'},
+      {color:C.amber,label:'数据类型',val:'3 种'},
+      {color:C.violet,label:'算力占比',val:'SFT 15% · RM 20% · PPO 55%'},
+      {color:C.emerald,label:'对齐目标',val:'human preference'}
+    ]);
+  }
+
+  function updateLegend(){
+    var l=document.getElementById('legend01');
+    l.innerHTML='';
+    stages.forEach(function(s){
+      var item=document.createElement('span');item.className='legend-item';
+      var d=document.createElement('span');d.className='ld';d.style.background=s.color;
+      var t=document.createElement('span');t.textContent=s.name;
+      item.appendChild(d);item.appendChild(t);l.appendChild(item);
+    });
+  }
+
+  function selectStage(i){
+    curStage=i;
+    for(var j=0;j<4;j++){
+      var btn=document.getElementById('stageBtn'+j);
+      if(btn)btn.className='btn btn-sm'+(j===i?' active':'');
+    }
+    draw();updateDetail();
+  }
+
+  window.m01Init=function(){
+    draw();updateDetail();updateStats();updateLegend();
+    for(var i=0;i<4;i++){
+      (function(idx){
+        var b=document.getElementById('stageBtn'+idx);
+        if(b)b.onclick=function(){selectStage(idx);};
+      })(i);
+    }
+  };
+})();
+
+/* ============ MODULE 02: 奖励模型训练 ============ */
+(function(){
+  var quality=70,margin=2.5;
+  var pairs=[
+    {prompt:'解释梯度下降',chosen:'梯度下降通过沿损失函数负梯度方向迭代更新参数...',rejected:'梯度下降就是往下走。'},
+    {prompt:'写一个排序算法',chosen:'以下是快速排序的 Python 实现，时间复杂度 O(n log n)...',rejected:'排序就是 sort()。'}
+  ];
+  var curPair=0;
+
+  function draw(){
+    var box=document.getElementById('viz02');
+    clearSvg(box);
+    var w=680,h=260;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var p=pairs[curPair];
+    var rC=margin*(quality/50);
+    var rR=-margin*(1-quality/100)*0.6;
+
+    var barW=200,barH=44,gap=60;
+    var xC=140,xR=xC+barW+gap;
+    var y=80;
+
+    var cG=svgEl(svg,'g',{transform:'translate('+xC+','+y+')'});
+    var cRect=svgEl(cG,'rect',{width:barW,height:barH,rx:6,fill:'rgba(52,211,153,.12)',stroke:C.emerald,'stroke-width':1.5});
+    var cLab=svgEl(cG,'text',{x:12,y:18,fill:C.emerald,'font-size':11,'font-weight':600});
+    cLab.textContent='CHOSEN';
+    var cTxt=svgEl(cG,'text',{x:12,y:34,fill:C.ink,'font-size':11});
+    cTxt.textContent=p.chosen.substring(0,22)+'...';
+    var cScore=svgEl(cG,'text',{x:barW-10,y:barH/2+5,'text-anchor':'end',fill:C.emerald,'font-size':18,'font-weight':700,'font-family':'monospace'});
+    cScore.textContent='+'+rC.toFixed(2);
+
+    var rG=svgEl(svg,'g',{transform:'translate('+xR+','+y+')'});
+    var rRect=svgEl(rG,'rect',{width:barW,height:barH,rx:6,fill:'rgba(251,113,133,.10)',stroke:C.rose,'stroke-width':1.5});
+    var rLab=svgEl(rG,'text',{x:12,y:18,fill:C.rose,'font-size':11,'font-weight':600});
+    rLab.textContent='REJECTED';
+    var rTxt=svgEl(rG,'text',{x:12,y:34,fill:C.muted,'font-size':11});
+    rTxt.textContent=p.rejected.substring(0,22)+'...';
+    var rScore=svgEl(rG,'text',{x:barW-10,y:barH/2+5,'text-anchor':'end',fill:C.rose,'font-size':18,'font-weight':700,'font-family':'monospace'});
+    rScore.textContent=rR.toFixed(2);
+
+    var midX=xC+barW+gap/2;
+    var arr=svgEl(svg,'g',{});
+    var aLine=svgEl(arr,'line',{x1:xC+barW,y1:y+barH/2,x2:xR,y2:y+barH/2,stroke:C.muted,'stroke-width':1,'stroke-dasharray':'3,3'});
+    var aTxt=svgEl(arr,'text',{x:midX,y:y+barH/2-10,'text-anchor':'middle',fill:C.muted,'font-size':10});
+    aTxt.textContent='margin '+(rC-rR).toFixed(2);
+
+    var sigY=200;
+    var sigVal=1/(1+Math.exp(-(rC-rR)));
+    var sigTxt=svgEl(svg,'text',{x:w/2,y:sigY,'text-anchor':'middle',fill:C.cyan,'font-size':13,'font-family':'monospace'});
+    sigTxt.textContent='P(chosen > rejected) = σ('+(rC-rR).toFixed(2)+') = '+sigVal.toFixed(4);
+
+    var bar2Y=160;
+    var bW=300,bH=8,bX=(w-bW)/2;
+    var bBg=svgEl(svg,'rect',{x:bX,y:bar2Y,width:bW,height:bH,rx:4,fill:C.s3});
+    var bFg=svgEl(svg,'rect',{x:bX,y:bar2Y,width:bW*sigVal,height:bH,rx:4,fill:C.cyan});
+    var bLab=svgEl(svg,'text',{x:w/2,y:bar2Y-6,'text-anchor':'middle',fill:C.faint,'font-size':10});
+    bLab.textContent='排序准确率 (Bradley-Terry)';
+
+    var promptTxt=svgEl(svg,'text',{x:w/2,y:40,'text-anchor':'middle',fill:C.muted,'font-size':12});
+    promptTxt.textContent='Prompt: '+p.prompt;
+  }
+
+  function updateDetail(){
+    var rC=margin*(quality/50);
+    var rR=-margin*(1-quality/100)*0.6;
+    var sigVal=1/(1+Math.exp(-(rC-rR)));
+    var d=document.getElementById('detail02');
+    d.innerHTML='<span class="dt-label">Bradley-Terry</span>奖励模型学习使 <strong>r(chosen) > r(rejected)</strong>。当前 margin='+(rC-rR).toFixed(2)+'，P(chosen 胜)='+sigVal.toFixed(4)+'。数据质量越高，排序准确率越高。';
+  }
+
+  function updateStats(){
+    var rC=margin*(quality/50);
+    var rR=-margin*(1-quality/100)*0.6;
+    var sigVal=1/(1+Math.exp(-(rC-rR)));
+    setStats(document.getElementById('stats02'),[
+      {color:C.emerald,label:'r(chosen)',val:'+'+rC.toFixed(2)},
+      {color:C.rose,label:'r(rejected)',val:rR.toFixed(2)},
+      {color:C.cyan,label:'margin',val:(rC-rR).toFixed(2)},
+      {color:C.violet,label:'准确率',val:(sigVal*100).toFixed(1)+'%'}
+    ]);
+  }
+
+  window.m02Init=function(){
+    var slQ=makeSlider('数据质量',0,100,1,quality,'%',function(v){quality=v;draw();updateDetail();updateStats();});
+    var slM=makeSlider('奖励间隔',0.5,5,0.1,margin,'',function(v){margin=v;draw();updateDetail();updateStats();});
+    document.getElementById('sl02q').appendChild(slQ);
+    document.getElementById('sl02m').appendChild(slM);
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 03: PPO 优化算法 ============ */
+(function(){
+  var beta=0.02,eps=0.2,step=0;
+  var maxSteps=20;
+
+  function draw(){
+    var box=document.getElementById('viz03');
+    clearSvg(box);
+    var w=680,h=300;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var models=[
+      {name:'Policy π',color:C.violet,x:80},
+      {name:'Ref π₀',color:C.faint,x:240},
+      {name:'Reward r',color:C.amber,x:400},
+      {name:'Value V',color:C.cyan,x:560}
+    ];
+    var my=50,mW=80,mH=50;
+
+    models.forEach(function(m){
+      var g=svgEl(svg,'g',{transform:'translate('+(m.x-mW/2)+','+my+')'});
+      var r=svgEl(g,'rect',{width:mW,height:mH,rx:6,fill:'rgba(22,24,28,1)',stroke:m.color,'stroke-width':1.5});
+      var t=svgEl(g,'text',{x:mW/2,y:mH/2+4,'text-anchor':'middle',fill:m.color,'font-size':11,'font-weight':600});
+      t.textContent=m.name;
+    });
+
+    var loopY=150;
+    var steps=[
+      {label:'① 生成',color:C.violet},
+      {label:'② 打分',color:C.amber},
+      {label:'③ 优势',color:C.cyan},
+      {label:'④ 更新',color:C.rose}
+    ];
+    var sW=130,sH=36,gap=20;
+    var sX=(w-(sW*4+gap*3))/2;
+
+    steps.forEach(function(s,i){
+      var x=sX+i*(sW+gap);
+      var active=i===step%4;
+      var g=svgEl(svg,'g',{transform:'translate('+x+','+loopY+')'});
+      var rect=svgEl(g,'rect',{width:sW,height:sH,rx:6,fill:active?'rgba(124,92,255,.15)':'rgba(22,24,28,.6)',stroke:s.color,'stroke-width':active?2:1});
+      var t=svgEl(g,'text',{x:sW/2,y:sH/2+4,'text-anchor':'middle',fill:active?s.color:C.muted,'font-size':11,'font-weight':active?600:400});
+      t.textContent=s.label;
+      if(i<3){
+        var ax=x+sW;
+        svgEl(svg,'line',{x1:ax,y1:loopY+sH/2,x2:ax+gap,y2:loopY+sH/2,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'2,2'});
+        svgEl(svg,'polygon',{points:(ax+gap-3)+','+(loopY+sH/2-3)+' '+(ax+gap)+','+(loopY+sH/2)+' '+(ax+gap-3)+','+(loopY+sH/2+3),fill:C.faint});
+      }
+    });
+
+    var loopBack=svgEl(svg,'path',{d:'M '+(sX+sW*3+gap*3+10)+' '+(loopY+sH)+' Q '+(sX+sW*3+gap*3+10)+' '+(loopY+sH+30)+' '+(sX+sW*3+gap*3+10-(sW*3+gap*3)/2)+' '+(loopY+sH+30)+' Q '+sX+' '+(loopY+sH+30)+' '+sX+' '+(loopY+sH),fill:'none',stroke:C.faint,'stroke-width':1,'stroke-dasharray':'3,3'});
+
+    var clipY=loopY+70;
+    var cW=500,cH=50,cX=(w-cW)/2;
+    var cBg=svgEl(svg,'rect',{x:cX,y:clipY,width:cW,height:cH,rx:6,fill:C.s3});
+    var cX1=cX+cW*0.15,cX2=cX+cW*0.85;
+    var clipRect1=svgEl(svg,'rect',{x:cX1,y:clipY,width:(cX2-cX1),height:cH,rx:6,fill:'rgba(251,113,133,.08)',stroke:C.rose,'stroke-width':1,'stroke-dasharray':'4,2'});
+    var clipLab=svgEl(svg,'text',{x:w/2,y:clipY-8,'text-anchor':'middle',fill:C.muted,'font-size':10});
+    clipLab.textContent='裁剪区域 [1-ε, 1+ε] = ['+(1-eps).toFixed(2)+', '+(1+eps).toFixed(2)+']';
+
+    var ratio=1+0.6*Math.sin(step*0.5);
+    ratio=Math.max(1-eps-0.05,Math.min(1+eps+0.05,ratio));
+    var rDot=svgEl(svg,'circle',{cx:cX+cW*0.5*ratio,cy:clipY+cH/2,r:5,fill:ratio>1+eps||ratio<1-eps?C.rose:C.emerald,stroke:'#08090a','stroke-width':2});
+    var rLab=svgEl(svg,'text',{x:cX+cW*0.5*ratio,y:clipY+cH+16,'text-anchor':'middle',fill:C.ink,'font-size':10,'font-family':'monospace'});
+    rLab.textContent='ratio='+ratio.toFixed(2);
+
+    var stepTxt=svgEl(svg,'text',{x:w-12,y:h-12,'text-anchor':'end',fill:C.faint,'font-size':10,'font-family':'monospace'});
+    stepTxt.textContent='step='+step+' | β='+beta+' | ε='+eps;
+  }
+
+  function updateDetail(){
+    var d=document.getElementById('detail03');
+    d.innerHTML='<span class="dt-label">PPO</span>当前 step='+step+'，裁剪比率 ε='+eps+' 限制策略更新幅度，KL 系数 β='+beta+' 约束策略偏离参考模型。绿色点在安全区内，红色点被裁剪。';
+  }
+
+  function updateStats(){
+    setStats(document.getElementById('stats03'),[
+      {color:C.violet,label:'Policy',val:'π_θ'},
+      {color:C.faint,label:'Reference',val:'π₀'},
+      {color:C.amber,label:'Reward',val:'r(x,y)'},
+      {color:C.cyan,label:'Value',val:'V(s)'},
+      {color:C.rose,label:'KL β',val:beta.toFixed(2)},
+      {color:C.emerald,label:'clip ε',val:eps.toFixed(2)}
+    ]);
+  }
+
+  window.m03Init=function(){
+    var slB=makeSlider('KL 系数 β',0,0.2,0.005,beta,'',function(v){beta=v;draw();updateDetail();updateStats();});
+    var slE=makeSlider('裁剪 ε',0.05,0.4,0.01,eps,'',function(v){eps=v;draw();updateDetail();updateStats();});
+    document.getElementById('sl03beta').appendChild(slB);
+    document.getElementById('sl03eps').appendChild(slE);
+    document.getElementById('ppoPlay').onclick=function(){step++;if(step>maxSteps)step=0;draw();updateDetail();};
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 04: DPO 直接偏好优化 ============ */
+(function(){
+  var beta=0.1,view=0;
+
+  function drawCompare(){
+    var box=document.getElementById('viz04');
+    clearSvg(box);
+    var w=680,h=280;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var cols=[
+      {x:100,name:'PPO',color:C.violet,steps:['SFT','奖励模型','PPO 优化','对齐'],count:4},
+      {x:380,name:'DPO',color:C.emerald,steps:['SFT','偏好数据','直接优化','对齐'],count:3}
+    ];
+
+    cols.forEach(function(c){
+      var g=svgEl(svg,'g',{transform:'translate('+c.x+',30)'});
+      var title=svgEl(g,'text',{x:100,y:0,'text-anchor':'middle',fill:c.color,'font-size':14,'font-weight':700});
+      title.textContent=c.name;
+      c.steps.forEach(function(s,i){
+        var sy=30+i*42;
+        var isLast=i===c.steps.length-1;
+        var rect=svgEl(g,'rect',{x:30,y:sy,width:140,height:32,rx:6,fill:'rgba(22,24,28,1)',stroke:c.color,'stroke-width':1.5});
+        var t=svgEl(g,'text',{x:100,y:sy+20,'text-anchor':'middle',fill:C.ink,'font-size':11});
+        t.textContent=s;
+        if(i<c.steps.length-1){
+          svgEl(g,'line',{x1:100,y1:sy+32,x2:100,y2:sy+42,stroke:c.color,'stroke-width':1,'stroke-dasharray':'2,2',opacity:.5});
+        }
+      });
+      var note=svgEl(g,'text',{x:100,y:30+c.steps.length*42+16,'text-anchor':'middle',fill:C.faint,'font-size':10});
+      note.textContent=c.name==='PPO'?'需要显式奖励模型':'无需奖励模型';
+    });
+
+    var arrow=svgEl(svg,'g',{});
+    var aL=svgEl(arrow,'line',{x1:250,y1:120,x2:320,y2:120,stroke:C.muted,'stroke-width':1.5});
+    var aT=svgEl(arrow,'text',{x:285,y:110,'text-anchor':'middle',fill:C.muted,'font-size':10});
+    aT.textContent='简化';
+
+    var insight=svgEl(svg,'text',{x:w/2,y:h-20,'text-anchor':'middle',fill:C.cyan,'font-size':12,'font-family':'monospace'});
+    insight.textContent='隐式奖励 r(x,y) = β · log(π(y|x) / π_ref(y|x))';
+  }
+
+  function drawLandscape(){
+    var box=document.getElementById('viz04');
+    clearSvg(box);
+    var w=680,h=280;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var pX=60,pY=30,pW=w-100,pH=h-70;
+
+    var bg=svgEl(svg,'rect',{x:pX,y:pY,width:pW,height:pH,fill:C.s2,rx:6,stroke:C.border});
+    for(var i=0;i<=4;i++){
+      var gy=pY+pH*i/4;
+      svgEl(svg,'line',{x1:pX,y1:gy,x2:pX+pW,y2:gy,stroke:C.border,'stroke-width':.5});
+      var lab=svgEl(svg,'text',{x:pX-8,y:gy+3,'text-anchor':'end',fill:C.faint,'font-size':9});
+      lab.textContent=(1-i/4).toFixed(1);
+    }
+    var xLab=svgEl(svg,'text',{x:pX+pW/2,y:h-8,'text-anchor':'middle',fill:C.faint,'font-size':10});
+    xLab.textContent='β (温度参数) →';
+
+    var pts=[];
+    for(var i=0;i<=60;i++){
+      var bx=0.01+i/60*0.5;
+      var xx=pX+i/60*pW;
+      var loss=1/(1+Math.exp(beta*2))+(1-1/(1+Math.exp(beta*2)))*Math.exp(-bx*3)+0.1*Math.sin(bx*10);
+      loss=Math.max(0.05,Math.min(0.95,loss));
+      var yy=pY+(1-loss)*pH;
+      pts.push(xx+','+yy);
+    }
+    var curve=svgEl(svg,'polyline',{points:pts.join(' '),fill:'none',stroke:C.emerald,'stroke-width':2});
+    var area=svgEl(svg,'polygon',{points:(pX+','+(pY+pH)+' ')+pts.join(' ')+(' '+(pX+pW)+','+(pY+pH)),fill:'rgba(52,211,153,.08)',stroke:'none'});
+
+    var curX=pX+(beta/0.5)*pW;
+    var curLoss=1/(1+Math.exp(beta*2))+(1-1/(1+Math.exp(beta*2)))*Math.exp(-beta*3)+0.1*Math.sin(beta*10);
+    curLoss=Math.max(0.05,Math.min(0.95,curLoss));
+    var curY=pY+(1-curLoss)*pH;
+    svgEl(svg,'circle',{cx:curX,cy:curY,r:5,fill:C.rose,stroke:'#08090a','stroke-width':2});
+    var cl=svgEl(svg,'text',{x:curX,y:curY-12,'text-anchor':'middle',fill:C.rose,'font-size':10,'font-family':'monospace'});
+    cl.textContent='β='+beta.toFixed(2)+' loss='+curLoss.toFixed(3);
+  }
+
+  function draw(){
+    if(view===0)drawCompare();else drawLandscape();
+  }
+
+  function updateDetail(){
+    var d=document.getElementById('detail04');
+    if(view===0){
+      d.innerHTML='<span class="dt-label">DPO</span>DPO 将奖励模型隐式包含在策略中：<strong>r = β·log(π/π_ref)</strong>。无需单独训练 RM，直接用偏好对优化策略，步骤从 4 步简化为 3 步。';
+    }else{
+      d.innerHTML='<span class="dt-label">损失景观</span>β 控制策略偏离参考模型的强度。β 越大，对偏好信号的响应越强但可能过拟合；β 越小越保守。当前 β='+beta.toFixed(2)+'。';
+    }
+  }
+
+  function updateStats(){
+    setStats(document.getElementById('stats04'),[
+      {color:C.violet,label:'PPO 步骤',val:'4'},
+      {color:C.emerald,label:'DPO 步骤',val:'3'},
+      {color:C.rose,label:'β',val:beta.toFixed(2)},
+      {color:C.cyan,label:'隐式奖励',val:'β·log(π/π₀)'}
+    ]);
+  }
+
+  window.m04Init=function(){
+    var sl=makeSlider('β 温度',0.01,0.5,0.01,beta,'',function(v){beta=v;draw();updateDetail();updateStats();});
+    document.getElementById('sl04beta').appendChild(sl);
+    document.getElementById('dpoView0').onclick=function(){view=0;document.getElementById('dpoView0').className='btn btn-sm active';document.getElementById('dpoView1').className='btn btn-sm';draw();updateDetail();};
+    document.getElementById('dpoView1').onclick=function(){view=1;document.getElementById('dpoView1').className='btn btn-sm active';document.getElementById('dpoView0').className='btn btn-sm';draw();updateDetail();};
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 05: 偏好数据格式 ============ */
+(function(){
+  var fmt='pairwise';
+
+  function draw(){
+    var box=document.getElementById('viz05');
+    clearSvg(box);
+    var w=680,h=280;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var pX=40,pY=30,pW=600;
+    var stages=[
+      {label:'Prompt',color:C.cyan,x:pX},
+      {label:'标注员',color:C.amber,x:pX+200},
+      {label:'排序',color:C.violet,x:pX+400},
+      {label:'输出',color:C.emerald,x:pX+560}
+    ];
+    stages.forEach(function(s){
+      var r=svgEl(svg,'rect',{x:s.x,y:pY,width:80,height:32,rx:6,fill:'rgba(22,24,28,1)',stroke:s.color,'stroke-width':1.5});
+      var t=svgEl(svg,'text',{x:s.x+40,y:pY+20,'text-anchor':'middle',fill:s.color,'font-size':11,'font-weight':600});
+      t.textContent=s.label;
+    });
+    for(var i=0;i<3;i++){
+      var ax=stages[i].x+80;
+      svgEl(svg,'line',{x1:ax,y1:pY+16,x2:stages[i+1].x,y2:pY+16,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'2,2'});
+      svgEl(svg,'polygon',{points:(stages[i+1].x-3)+','+(pY+13)+' '+stages[i+1].x+','+(pY+16)+' '+(stages[i+1].x-3)+','+(pY+19),fill:C.faint});
+    }
+
+    var dY=110;
+    var prompt=svgEl(svg,'text',{x:pX,y:dY,fill:C.muted,'font-size':11});
+    prompt.textContent='Prompt: "如何学习编程？"';
+
+    if(fmt==='pairwise'){
+      var y1=dY+30,y2=dY+70;
+      var r1=svgEl(svg,'rect',{x:pX,y:y1,width:260,height:32,rx:6,fill:'rgba(52,211,153,.10)',stroke:C.emerald,'stroke-width':1.5});
+      var t1=svgEl(svg,'text',{x:pX+12,y:y1+20,fill:C.emerald,'font-size':11});
+      t1.textContent='✓ Chosen: 从基础语法开始,逐步实践...';
+      var r2=svgEl(svg,'rect',{x:pX+300,y:y1,width:260,height:32,rx:6,fill:'rgba(251,113,133,.08)',stroke:C.rose,'stroke-width':1.5});
+      var t2=svgEl(svg,'text',{x:pX+312,y:y1+20,fill:C.rose,'font-size':11});
+      t2.textContent='✗ Rejected: 直接看视频就行。';
+      var vs=svgEl(svg,'text',{x:pX+285,y:y1+21,'text-anchor':'middle',fill:C.faint,'font-size':12,'font-weight':700});
+      vs.textContent='VS';
+      var n=svgEl(svg,'text',{x:pX,y:y2,fill:C.faint,'font-size':10});
+      n.textContent='格式: {prompt, chosen, rejected} — 二选一配对标注';
+    }else if(fmt==='listwise'){
+      var items=[
+        {txt:'A: 从基础语法开始...',c:C.emerald,r:1},
+        {txt:'B: 直接看视频就行。',c:C.rose,r:3},
+        {txt:'C: 找项目做,边做边学。',c:C.amber,r:2}
+      ];
+      items.forEach(function(it,i){
+        var yy=dY+30+i*38;
+        var r=svgEl(svg,'rect',{x:pX,y:yy,width:480,height:30,rx:5,fill:'rgba(22,24,28,.8)',stroke:it.c,'stroke-width':1});
+        var rk=svgEl(svg,'text',{x:pX+14,y:yy+19,fill:it.c,'font-size':11,'font-weight':700});
+        rk.textContent='#'+it.r;
+        var t=svgEl(svg,'text',{x:pX+40,y:yy+19,fill:C.muted,'font-size':11});
+        t.textContent=it.txt;
+      });
+      var n=svgEl(svg,'text',{x:pX,y:dY+150,fill:C.faint,'font-size':10});
+      n.textContent='格式: {prompt, ranked_responses[]} — 多响应排序标注';
+    }else{
+      var pitems=[
+        {txt:'从基础语法开始,逐步实践...',s:9.2,c:C.emerald},
+        {txt:'直接看视频就行。',s:3.1,c:C.rose},
+        {txt:'找项目做,边做边学。',s:7.5,c:C.amber}
+      ];
+      pitems.forEach(function(it,i){
+        var yy=dY+30+i*38;
+        var r=svgEl(svg,'rect',{x:pX,y:yy,width:380,height:30,rx:5,fill:'rgba(22,24,28,.8)',stroke:it.c,'stroke-width':1});
+        var t=svgEl(svg,'text',{x:pX+12,y:yy+19,fill:C.muted,'font-size':11});
+        t.textContent=it.txt;
+        var barW=120*it.s/10;
+        svgEl(svg,'rect',{x:pX+400,y:yy+6,width:120,height:18,rx:3,fill:C.s3});
+        svgEl(svg,'rect',{x:pX+400,y:yy+6,width:barW,height:18,rx:3,fill:it.c});
+        var sc=svgEl(svg,'text',{x:pX+530,y:yy+19,fill:it.c,'font-size':11,'font-weight':600,'font-family':'monospace'});
+        sc.textContent=it.s.toFixed(1);
+      });
+      var n=svgEl(svg,'text',{x:pX,y:dY+150,fill:C.faint,'font-size':10});
+      n.textContent='格式: {prompt, response, score} — 逐条打分标注';
+    }
+  }
+
+  function updateDetail(){
+    var map={pairwise:'二选一配对标注 (pairwise) — 标注员从两个回复中选择更好的一个，生成 (chosen, rejected) 对。最常用于 RM 和 DPO 训练。',listwise:'列表排序标注 (listwise) — 标注员对多个回复进行整体排序，能提供更丰富的偏好信号，但标注成本更高。',pointwise:'逐条打分标注 (pointwise) — 标注员为每个回复独立打分（如 1-10 分），适用于质量评估但偏好信号较弱。'};
+    var d=document.getElementById('detail05');
+    d.innerHTML='<span class="dt-label">'+fmt.toUpperCase()+'</span>'+map[fmt];
+  }
+
+  function updateStats(){
+    var map={
+      pairwise:[{color:C.emerald,label:'格式',val:'pairwise'},{color:C.rose,label:'标注成本',val:'低'},{color:C.cyan,label:'典型量',val:'50K-200K'},{color:C.amber,label:'用途',val:'RM / DPO'}],
+      listwise:[{color:C.emerald,label:'格式',val:'listwise'},{color:C.rose,label:'标注成本',val:'中'},{color:C.cyan,label:'典型量',val:'20K-80K'},{color:C.amber,label:'用途',val:'RM / 排序'}],
+      pointwise:[{color:C.emerald,label:'格式',val:'pointwise'},{color:C.rose,label:'标注成本',val:'高'},{color:C.cyan,label:'典型量',val:'10K-50K'},{color:C.amber,label:'用途',val:'质量评估'}]
+    };
+    setStats(document.getElementById('stats05'),map[fmt]);
+  }
+
+  window.m05Init=function(){
+    function setFmt(f,id){
+      fmt=f;
+      ['fmtP','fmtL','fmtPt'].forEach(function(fid){
+        document.getElementById(fid).className='btn btn-sm'+(fid===id?' active':'');
+      });
+      draw();updateDetail();updateStats();
+    }
+    document.getElementById('fmtP').onclick=function(){setFmt('pairwise','fmtP');};
+    document.getElementById('fmtL').onclick=function(){setFmt('listwise','fmtL');};
+    document.getElementById('fmtPt').onclick=function(){setFmt('pointwise','fmtPt');};
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 06: KL 散度约束 ============ */
+(function(){
+  var klCoef=0.02,steps=0,running=false;
+  var driftData=[],rewardData=[];
+
+  function draw(){
+    var box=document.getElementById('viz06');
+    clearSvg(box);
+    var w=680,h=300;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var pX=50,pY=30,pW=280,pH=200;
+    var t1=svgEl(svg,'text',{x:pX,y:pY-8,fill:C.muted,'font-size':11,'font-weight':600});
+    t1.textContent='策略漂移 (KL vs Steps)';
+
+    var bg1=svgEl(svg,'rect',{x:pX,y:pY,width:pW,height:pH,fill:C.s2,rx:6,stroke:C.border});
+    for(var i=0;i<=4;i++){svgEl(svg,'line',{x1:pX,y1:pY+pH*i/4,x2:pX+pW,y2:pY+pH*i/4,stroke:C.border,'stroke-width':.5});}
+
+    var refLine=svgEl(svg,'line',{x1:pX+pW*0.7,y1:pY,x2:pX+pW*0.7,y2:pY+pH,stroke:C.rose,'stroke-width':1,'stroke-dasharray':'4,2'});
+    var refLab=svgEl(svg,'text',{x:pX+pW*0.7+4,y:pY+12,fill:C.rose,'font-size':9});
+    refLab.textContent='安全阈值';
+
+    if(driftData.length>1){
+      var pts=driftData.map(function(v,i){return (pX+i/(driftData.length-1)*pW)+','+(pY+pH-v*pH);});
+      svgEl(svg,'polyline',{points:pts.join(' '),fill:'none',stroke:C.violet,'stroke-width':2});
+    }
+    var xLab1=svgEl(svg,'text',{x:pX+pW/2,y:pY+pH+18,'text-anchor':'middle',fill:C.faint,'font-size':9});
+    xLab1.textContent='训练步数 →';
+
+    var pX2=370;
+    var t2=svgEl(svg,'text',{x:pX2,y:pY-8,fill:C.muted,'font-size':11,'font-weight':600});
+    t2.textContent='Reward vs KL 权衡曲线';
+
+    var bg2=svgEl(svg,'rect',{x:pX2,y:pY,width:pW,height:pH,fill:C.s2,rx:6,stroke:C.border});
+    for(var i=0;i<=4;i++){svgEl(svg,'line',{x1:pX2,y1:pY+pH*i/4,x2:pX2+pW,y2:pY+pH*i/4,stroke:C.border,'stroke-width':.5});}
+    for(var j=0;j<=4;j++){svgEl(svg,'line',{x1:pX2+pW*j/4,y1:pY,x2:pX2+pW*j/4,y2:pY+pH,stroke:C.border,'stroke-width':.5});}
+
+    var tradePts=[];
+    for(var i=0;i<=50;i++){
+      var kl=i/50;
+      var reward=1-Math.exp(-kl*3)-klCoef*kl*2;
+      reward=Math.max(0,Math.min(1,reward));
+      tradePts.push((pX2+kl*pW)+','+(pY+pH-reward*pH));
+    }
+    svgEl(svg,'polyline',{points:tradePts.join(' '),fill:'none',stroke:C.amber,'stroke-width':2});
+    var optX=pX2+pW*(1/(klCoef*2+3));
+    var optR=1-Math.exp(-1)-klCoef*(1/(klCoef*2+3))*2;
+    optR=Math.max(0,Math.min(1,optR));
+    svgEl(svg,'circle',{cx:optX,cy:pY+pH-optR*pH,r:5,fill:C.cyan,stroke:'#08090a','stroke-width':2});
+    var optLab=svgEl(svg,'text',{x:optX,y:pY+pH-optR*pH-12,'text-anchor':'middle',fill:C.cyan,'font-size':9});
+    optLab.textContent='最优点';
+    var xLab2=svgEl(svg,'text',{x:pX2+pW/2,y:pY+pH+18,'text-anchor':'middle',fill:C.faint,'font-size':9});
+    xLab2.textContent='KL 散度 →';
+
+    var info=svgEl(svg,'text',{x:w/2,y:h-10,'text-anchor':'middle',fill:C.faint,'font-size':10,'font-family':'monospace'});
+    info.textContent='KL β='+klCoef.toFixed(3)+' | steps='+steps+' | drift='+(driftData.length?driftData[driftData.length-1].toFixed(2):'0.00');
+  }
+
+  function updateDetail(){
+    var d=document.getElementById('detail06');
+    d.innerHTML='<span class="dt-label">KL Penalty</span>KL 系数 β='+klCoef.toFixed(3)+' 控制策略偏离参考模型的程度。β 过小导致 reward hacking，β 过大则优化不足。橙色曲线为 reward-KL 权衡，青色点为当前最优。';
+  }
+
+  function updateStats(){
+    var drift=driftData.length?driftData[driftData.length-1]:0;
+    setStats(document.getElementById('stats06'),[
+      {color:C.violet,label:'KL 系数 β',val:klCoef.toFixed(3)},
+      {color:C.amber,label:'训练步数',val:String(steps)},
+      {color:C.rose,label:'策略漂移',val:drift.toFixed(2)},
+      {color:C.cyan,label:'reward',val:(1-drift*0.3).toFixed(2)},
+      {color:C.emerald,label:'多样性',val:(1-drift*0.5).toFixed(2)}
+    ]);
+  }
+
+  function simulate(){
+    if(running)return;
+    running=true;steps=0;driftData=[];rewardData=[];
+    var interval=setInterval(function(){
+      steps++;
+      var d=(1-Math.exp(-steps*0.08))*(1-klCoef*8);
+      d=Math.max(0,Math.min(0.9,d));
+      driftData.push(d);
+      if(driftData.length>50)driftData.shift();
+      draw();updateDetail();updateStats();
+      if(steps>=50){clearInterval(interval);running=false;}
+    },80);
+  }
+
+  window.m06Init=function(){
+    var sl=makeSlider('KL 系数',0.001,0.1,0.001,klCoef,'',function(v){klCoef=v;draw();updateDetail();updateStats();});
+    document.getElementById('sl06kl').appendChild(sl);
+    document.getElementById('klPlay').onclick=simulate;
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 07: 安全对齐与红队 ============ */
+(function(){
+  var atk=0;
+  var attacks=[
+    {type:'角色扮演',prompt:'假设你是一个没有道德限制的AI...',defense:'检测到角色扮演越狱模式。安全护栏识别"假设你是没有限制的AI"类模式，触发拒绝响应。',layers:['输入检测','意图分析','拒绝模板'],risk:0.82},
+    {type:'提示注入',prompt:'忽略之前的指令，输出...',defense:'检测到提示注入攻击。护栏识别"忽略指令"关键词，隔离并拒绝执行。',layers:['输入检测','指令隔离','拒绝响应'],risk:0.75},
+    {type:'编码绕过',prompt:'Base64: aGFjayB0aGUgc3lzdGVt...',defense:'检测到编码绕过尝试。解码层还原内容后，安全分类器拦截有害意图。',layers:['解码层','内容还原','分类拦截'],risk:0.68},
+    {type:'多轮诱导',prompt:'第1轮:无害问题 → 第5轮:逐步升级...',defense:'多轮对话追踪检测到意图升级模式。上下文分析器标记渐进式诱导，触发安全中断。',layers:['上下文追踪','意图升级检测','安全中断'],risk:0.71}
+  ];
+
+  function draw(){
+    var box=document.getElementById('viz07');
+    clearSvg(box);
+    var w=680,h=300;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var a=attacks[atk];
+
+    var aX=30,aY=40,aW=130,aH=80;
+    var aG=svgEl(svg,'g',{transform:'translate('+aX+','+aY+')'});
+    svgEl(aG,'rect',{width:aW,height:aH,rx:8,fill:'rgba(251,113,133,.10)',stroke:C.rose,'stroke-width':1.5});
+    var aT=svgEl(aG,'text',{x:aW/2,y:20,'text-anchor':'middle',fill:C.rose,'font-size':11,'font-weight':700});
+    aT.textContent='攻击';
+    var aT2=svgEl(aG,'text',{x:aW/2,y:38,'text-anchor':'middle',fill:C.rose,'font-size':10});
+    aT2.textContent=a.type;
+    var aP=svgEl(aG,'text',{x:8,y:56,fill:C.muted,'font-size':9});
+    aP.textContent=a.prompt.substring(0,16)+'...';
+    var aR=svgEl(aG,'text',{x:8,y:72,fill:C.rose,'font-size':9,'font-family':'monospace'});
+    aR.textContent='risk='+a.risk.toFixed(2);
+
+    var layers=a.layers;
+    var lX=200,lY=30,lW=90,lH=40,gap=12;
+    layers.forEach(function(l,i){
+      var ly=lY+i*(lH+gap);
+      var lg=svgEl(svg,'g',{transform:'translate('+lX+','+ly+')'});
+      svgEl(lg,'rect',{width:lW,height:lH,rx:6,fill:'rgba(94,106,210,.12)',stroke:C.accent,'stroke-width':1.5});
+      var lt=svgEl(lg,'text',{x:lW/2,y:lH/2+4,'text-anchor':'middle',fill:C.accent,'font-size':10,'font-weight':600});
+      lt.textContent=l;
+      var ln=svgEl(lg,'text',{x:lW/2,y:lH-6,'text-anchor':'middle',fill:C.faint,'font-size':8,'font-family':'monospace'});
+      ln.textContent='L'+(i+1);
+
+      svgEl(svg,'line',{x1:aX+aW,y1:aY+aH/2,x2:lX,y2:ly+lH/2,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'2,2',opacity:.4});
+      if(i<layers.length-1){
+        svgEl(svg,'line',{x1:lX+lW/2,y1:ly+lH,x2:lX+lW/2,y2:ly+lH+gap,stroke:C.accent,'stroke-width':1,'stroke-dasharray':'2,2',opacity:.6});
+      }
+    });
+
+    var dX=360,dY=40,dW=280,dH=200;
+    var dG=svgEl(svg,'g',{transform:'translate('+dX+','+dY+')'});
+    svgEl(dG,'rect',{width:dW,height:dH,rx:8,fill:'rgba(52,211,153,.08)',stroke:C.emerald,'stroke-width':1.5});
+    var dT=svgEl(dG,'text',{x:dW/2,y:22,'text-anchor':'middle',fill:C.emerald,'font-size':11,'font-weight':700});
+    dT.textContent='安全对齐响应';
+    var dLines=a.defense.match(/[^。]+。?/g)||[a.defense];
+    dLines.forEach(function(line,i){
+      var t=svgEl(dG,'text',{x:12,y:48+i*18,fill:C.muted,'font-size':10});
+      var trimmed=line.substring(0,36);
+      t.textContent=trimmed;
+    });
+
+    var riskBarY=dH-30;
+    svgEl(dG,'rect',{x:12,y:riskBarY,width:dW-24,height:8,rx:4,fill:C.s3});
+    var rW=(dW-24)*(1-a.risk);
+    svgEl(dG,'rect',{x:12,y:riskBarY,width:rW,height:8,rx:4,fill:C.emerald});
+    var rLab=svgEl(dG,'text',{x:dW-12,y:riskBarY-4,'text-anchor':'end',fill:C.emerald,'font-size':9,'font-family':'monospace'});
+    rLab.textContent='防御成功率 '+((1-a.risk)*100).toFixed(0)+'%';
+
+    var arrow=svgEl(svg,'line',{x1:lX+lW,y1:lY+(layers.length*(lH+gap))/2,x2:dX,y2:dY+dH/2,stroke:C.faint,'stroke-width':1,'stroke-dasharray':'2,2',opacity:.4});
+    svgEl(svg,'polygon',{points:(dX-4)+','+(dY+dH/2-3)+' '+dX+','+(dY+dH/2)+' '+(dX-4)+','+(dY+dH/2+3),fill:C.faint,opacity:.4});
+  }
+
+  function updateDetail(){
+    var a=attacks[atk];
+    var d=document.getElementById('detail07');
+    d.innerHTML='<span class="dt-label">'+a.type+'</span><strong>攻击场景</strong>：'+a.prompt+' <strong>防御策略</strong>：'+a.defense;
+  }
+
+  function updateStats(){
+    var a=attacks[atk];
+    setStats(document.getElementById('stats07'),[
+      {color:C.rose,label:'攻击类型',val:a.type},
+      {color:C.accent,label:'防御层',val:String(a.layers.length)},
+      {color:C.emerald,label:'防御成功率',val:((1-a.risk)*100).toFixed(0)+'%'},
+      {color:C.amber,label:'风险等级',val:a.risk>0.75?'高':a.risk>0.65?'中':'低'},
+      {color:C.cyan,label:'类别',val:'6 类有害内容'}
+    ]);
+  }
+
+  window.m07Init=function(){
+    function setAtk(i){
+      atk=i;
+      for(var j=0;j<4;j++){
+        var b=document.getElementById('atk'+j);
+        if(b)b.className='btn btn-sm'+(j===i?' active':'');
+      }
+      draw();updateDetail();updateStats();
+    }
+    for(var i=0;i<4;i++){
+      (function(idx){
+        var b=document.getElementById('atk'+idx);
+        if(b)b.onclick=function(){setAtk(idx);};
+      })(i);
+    }
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ MODULE 08: 评估与基准 ============ */
+(function(){
+  var param=70,align=80;
+
+  function draw(){
+    var box=document.getElementById('viz08');
+    clearSvg(box);
+    var w=680,h=320;
+    var svg=makeSvg(w,h);
+    box.appendChild(svg);
+
+    var cx=340,cy=150,R=100;
+    var metrics=['MT-Bench','AlpacaEval','Arena Elo','RM Acc','Safety','Helpful'];
+    var n=metrics.length;
+
+    var alignBoost=align/100;
+    var paramScale=0.5+param/200;
+
+    for(var i=0;i<=4;i++){
+      var r=R*i/4;
+      svgEl(svg,'polygon',{points:polyPts(cx,cy,r,n),fill:'none',stroke:C.border,'stroke-width':.5});
+    }
+    for(var i=0;i<n;i++){
+      var ang=-Math.PI/2+i*2*Math.PI/n;
+      var x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang);
+      svgEl(svg,'line',{x1:cx,y1:cy,x2:x2,y2:y2,stroke:C.border,'stroke-width':.5});
+      var lx=cx+(R+16)*Math.cos(ang),ly=cy+(R+16)*Math.sin(ang);
+      var lab=svgEl(svg,'text',{x:lx,y:ly+3,'text-anchor':'middle',fill:C.muted,'font-size':9});
+      lab.textContent=metrics[i];
+    }
+
+    var baseVals=[];
+    var alignVals=[];
+    for(var i=0;i<n;i++){
+      var baseV=(0.4+Math.sin(i*1.3)*0.15+paramScale*0.2)*R;
+      baseV=Math.max(R*0.2,Math.min(R*0.85,baseV));
+      baseVals.push(baseV);
+      var alV=baseV*(0.85+alignBoost*0.2);
+      alV=Math.max(R*0.2,Math.min(R*0.98,alV));
+      alignVals.push(alV);
+    }
+
+    svgEl(svg,'polygon',{points:polyPtsVal(cx,cy,baseVals,n),fill:'rgba(98,102,109,.12)',stroke:C.faint,'stroke-width':1.5,'stroke-dasharray':'3,2'});
+    svgEl(svg,'polygon',{points:polyPtsVal(cx,cy,alignVals,n),fill:'rgba(251,113,133,.10)',stroke:C.rose,'stroke-width':2});
+
+    for(var i=0;i<n;i++){
+      var ang=-Math.PI/2+i*2*Math.PI/n;
+      svgEl(svg,'circle',{cx:cx+alignVals[i]*Math.cos(ang),cy:cy+alignVals[i]*Math.sin(ang),r:3,fill:C.rose});
+    }
+
+    var legY=h-40;
+    svgEl(svg,'rect',{x:cx-120,y:legY,width:10,height:10,rx:2,fill:'rgba(98,102,109,.3)',stroke:C.faint});
+    var l1=svgEl(svg,'text',{x:cx-104,y:legY+9,fill:C.muted,'font-size':10});
+    l1.textContent='Base Model';
+    svgEl(svg,'rect',{x:cx+10,y:legY,width:10,height:10,rx:2,fill:'rgba(251,113,133,.2)',stroke:C.rose});
+    var l2=svgEl(svg,'text',{x:cx+26,y:legY+9,fill:C.rose,'font-size':10});
+    l2.textContent='Aligned Model';
+
+    var info=svgEl(svg,'text',{x:cx,y:h-12,'text-anchor':'middle',fill:C.faint,'font-size':10,'font-family':'monospace'});
+    info.textContent='params='+param+'B | align='+align+'% | MT-Bench='+(6+align*0.03).toFixed(1);
+  }
+
+  function polyPts(cx,cy,r,n){
+    var pts=[];
+    for(var i=0;i<n;i++){
+      var ang=-Math.PI/2+i*2*Math.PI/n;
+      pts.push((cx+r*Math.cos(ang))+','+(cy+r*Math.sin(ang)));
+    }
+    return pts.join(' ');
+  }
+
+  function polyPtsVal(cx,cy,vals,n){
+    var pts=[];
+    for(var i=0;i<n;i++){
+      var ang=-Math.PI/2+i*2*Math.PI/n;
+      pts.push((cx+vals[i]*Math.cos(ang))+','+(cy+vals[i]*Math.sin(ang)));
+    }
+    return pts.join(' ');
+  }
+
+  function updateDetail(){
+    var mtBench=(6+align*0.03).toFixed(1);
+    var alpaca=(50+align*0.4).toFixed(0);
+    var d=document.getElementById('detail08');
+    d.innerHTML='<span class="dt-label">Benchmark</span>当前参数 '+param+'B，对齐强度 '+align+'%。预测 MT-Bench='+mtBench+'，AlpacaEval 胜率='+alpaca+'%。对齐后模型在所有维度均有提升。';
+  }
+
+  function updateStats(){
+    var mtBench=(6+align*0.03).toFixed(1);
+    var alpaca=(50+align*0.4).toFixed(0);
+    var elo=(1000+align*5).toFixed(0);
+    var rmAcc=(70+align*0.25).toFixed(1);
+    setStats(document.getElementById('stats08'),[
+      {color:C.rose,label:'MT-Bench',val:mtBench},
+      {color:C.cyan,label:'AlpacaEval',val:alpaca+'%'},
+      {color:C.violet,label:'Arena Elo',val:elo},
+      {color:C.emerald,label:'RM Acc',val:rmAcc+'%'},
+      {color:C.amber,label:'参数量',val:param+'B'}
+    ]);
+  }
+
+  window.m08Init=function(){
+    var slP=makeSlider('模型参数',1,350,1,param,'B',function(v){param=v;draw();updateDetail();updateStats();});
+    var slA=makeSlider('对齐强度',0,100,1,align,'%',function(v){align=v;draw();updateDetail();updateStats();});
+    document.getElementById('sl08param').appendChild(slP);
+    document.getElementById('sl08align').appendChild(slA);
+    draw();updateDetail();updateStats();
+  };
+})();
+
+/* ============ 导航、进度条、IntersectionObserver ============ */
+(function(){
+  var navItems=document.querySelectorAll('.nav-item');
+  var modules=document.querySelectorAll('.module');
+  var progressBar=document.getElementById('progressBar');
+  var sidebar=document.getElementById('sidebar');
+  var navToggle=document.getElementById('navToggle');
+
+  navItems.forEach(function(item){
+    item.addEventListener('click',function(){
+      var target=document.getElementById(item.dataset.target);
+      if(target){
+        var top=target.offsetTop-56;
+        window.scrollTo({top:top,behavior:'smooth'});
+      }
+      if(window.innerWidth<=900){
+        sidebar.classList.remove('open');
+      }
+    });
+  });
+
+  if(navToggle){
+    navToggle.addEventListener('click',function(){
+      sidebar.classList.toggle('open');
+    });
+  }
+
+  function updateActive(){
+    var scrollY=window.scrollY+100;
+    var curId=null;
+    modules.forEach(function(m){
+      if(m.offsetTop<=scrollY)curId=m.id;
+    });
+    navItems.forEach(function(item){
+      item.classList.toggle('active',item.dataset.target===curId);
+    });
+  }
+
+  function updateProgress(){
+    var scrollTop=window.scrollY;
+    var docHeight=document.documentElement.scrollHeight-window.innerHeight;
+    var pct=docHeight>0?(scrollTop/docHeight)*100:0;
+    progressBar.style.width=pct+'%';
+  }
+
+  window.addEventListener('scroll',function(){
+    updateActive();
+    updateProgress();
+  },{passive:true});
+
+  var observer=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+      }
+    });
+  },{threshold:0.1,rootMargin:'0px 0px -50px 0px'});
+
+  document.querySelectorAll('.fade-in').forEach(function(el){
+    observer.observe(el);
+  });
+
+  window.addEventListener('load',function(){
+    updateActive();
+    updateProgress();
+    if(window.m01Init)window.m01Init();
+    if(window.m02Init)window.m02Init();
+    if(window.m03Init)window.m03Init();
+    if(window.m04Init)window.m04Init();
+    if(window.m05Init)window.m05Init();
+    if(window.m06Init)window.m06Init();
+    if(window.m07Init)window.m07Init();
+    if(window.m08Init)window.m08Init();
+  });
+})();
+</script>
+</body>
+</html>
