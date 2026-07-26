@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · LLMOps 与 AI 可观测性可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">LLMOps 与 AI 可观测性可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 197</span>
+    <h1>LLMOps 与 AI 可观测性可视化实验室</h1>
+    <p>从部署监控到质量保障——把 2026 年 LLM 在生产环境中的运维、监控和持续优化的核心机制以可交互 SVG 呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">LLMOps 全景</button>
+    <button class="tab" data-m="m2">请求追踪</button>
+    <button class="tab" data-m="m3">质量评估</button>
+    <button class="tab" data-m="m4">成本监控</button>
+    <button class="tab" data-m="m5">幻觉检测</button>
+    <button class="tab" data-m="m6">A/B 测试</button>
+    <button class="tab" data-m="m7">Prompt 版本</button>
+    <button class="tab" data-m="m8">平台对比</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>LLMOps 全景生命周期</h2></div>
+    <p class="m-desc">LLM 运维全生命周期闭环：开发 → 部署 → 监控 → 评估 → 优化 → 迭代。点击按钮观察生命周期流转。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="lifecycleRun()">执行生命周期 ▸</button>
+      <button class="btn" onclick="lifecycleReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="lifecycle-svg" viewBox="0 0 880 360"></svg></div>
+    <div id="lifecycle-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>请求监控与分布式追踪</h2></div>
+    <p class="m-desc">LLM 请求的完整 Trace：入口 → 路由 → 模型推理 → 后处理 → 响应，每段标注延迟。点击按钮模拟一次请求追踪。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="traceRun()">模拟请求 ▸</button>
+    </div>
+    <div class="viz"><svg id="trace-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="trace-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>质量评估管线</h2></div>
+    <p class="m-desc">响应质量自动评估闭环：输出采集 → 质量打分(LLM-as-Judge) → 人工审核 → 反馈回流。点击按钮执行评估流程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="qualityRun()">执行评估 ▸</button>
+    </div>
+    <div class="viz"><svg id="quality-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="quality-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>成本与 Token 监控</h2></div>
+    <p class="m-desc">Token 消耗仪表盘：实时用量、预算告警、模型降级、缓存优化。拖动滑块调整日预算，观察告警状态变化。</p>
+    <div class="ctrl">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)">日预算($): <input type="range" id="budget-slider" min="50" max="500" value="200" oninput="costDraw()" style="width:160px"></label>
+      <span id="budget-val" style="font-family:var(--mono);font-size:12px;color:var(--accent)"></span>
+    </div>
+    <div class="viz"><svg id="cost-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">今日消耗</div><div class="v" id="c-spent">$0</div><div class="d">实时累计</div></div>
+      <div class="info-card"><div class="k">Token 用量</div><div class="v" id="c-tokens">0</div><div class="d">输入+输出</div></div>
+      <div class="info-card"><div class="k">缓存命中率</div><div class="v" id="c-cache">0%</div><div class="d">节省成本</div></div>
+      <div class="info-card"><div class="k">告警状态</div><div class="v" id="c-alert">正常</div><div class="d">预算阈值</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>幻觉检测多层策略</h2></div>
+    <p class="m-desc">幻觉检测四层防线：事实核查 → 引用验证 → 一致性检查 → 置信度评估。点击按钮执行检测流程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="hallucRun()">执行检测 ▸</button>
+    </div>
+    <div class="viz"><svg id="halluc-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="halluc-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>A/B 测试与灰度发布</h2></div>
+    <p class="m-desc">LLM A/B 测试：流量分割 → 多模型对比 → 统计显著性 → 渐进发布。点击按钮执行测试，观察流量分配与结果。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="abRun()">执行测试 ▸</button>
+    </div>
+    <div class="viz"><svg id="ab-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="ab-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>提示词版本管理</h2></div>
+    <p class="m-desc">Prompt 版本控制：版本存储 → 差异对比 → 回滚 → 效果追踪。用版本树展示 Prompt 演进历史。点击按钮切换版本。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="promptSwitch()">切换版本</button>
+      <button class="btn" onclick="promptRollback()">回滚到选中版本</button>
+    </div>
+    <div class="viz"><svg id="prompt-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="prompt-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>可观测性平台对比</h2></div>
+    <p class="m-desc">对比 LangSmith / Langfuse / Phoenix / Arize / PostHog 五大平台在追踪、评估、成本、实验、告警维度的能力。点击按钮切换高亮平台。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="platNext()">切换平台 ▸</button>
+    </div>
+    <div class="viz"><svg id="plat-svg" viewBox="0 0 880 380"></svg></div>
+  </section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: LLMOps Lifecycle
+var lifeTimer=null,lifeIdx=0;
+var lifePhases=[
+  {t:'开发',c:AC,d:'训练/微调/Prompt工程'},
+  {t:'部署',c:INFO,d:'蓝绿/金丝雀发布'},
+  {t:'监控',c:PUR,d:'延迟/吞吐/错误率'},
+  {t:'评估',c:WARN,d:'质量/幻觉/满意度'},
+  {t:'优化',c:ROSE,d:'模型切换/缓存/蒸馏'},
+  {t:'迭代',c:AC,d:'数据回流/再训练'}
+];
+function lifecycleBase(){
+  var svg=document.getElementById('lifecycle-svg');clear(svg);
+  var cx=440,cy=180,R=120;
+  // center
+  el('circle',{cx:cx,cy:cy,r:48,fill:'rgba(0,212,170,.05)',stroke:AC,'stroke-width':1.5,'stroke-dasharray':'3 3'},svg);
+  el('text',{x:cx,y:cy-4,'text-anchor':'middle',fill:AC,'font-size':13,'font-weight':600},svg).textContent='LLMOps';
+  el('text',{x:cx,y:cy+14,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='闭环';
+  // phases
+  lifePhases.forEach(function(p,i){
+    var a=-Math.PI/2+i*2*Math.PI/6;
+    var x=cx+Math.cos(a)*R,y=cy+Math.sin(a)*R;
+    // arrow to next
+    var a2=-Math.PI/2+((i+1)%6)*2*Math.PI/6;
+    var x2=cx+Math.cos(a2)*R,y2=cy+Math.sin(a2)*R;
+    var mx=(x+x2)/2,my=(y+y2)/2;
+    var dx=x2-x,dy=y2-y,len=Math.sqrt(dx*dx+dy*dy);
+    var ux=dx/len,uy=dy/len;
+    el('path',{d:'M '+(x+ux*38)+' '+(y+uy*38)+' Q '+mx+' '+my+' '+(x2-ux*38)+' '+(y2-uy*38),stroke:BD,'stroke-width':1,'fill':'none','stroke-dasharray':'4 3'},svg);
+    el('rect',{x:x-45,y:y-22,w:90,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:p.c,'stroke-width':1.5,class:'life-node','data-idx':i},svg);
+    el('text',{x:x,y:y-2,'text-anchor':'middle',fill:p.c,'font-size':12,'font-weight':600},svg).textContent=p.t;
+    el('text',{x:x,y:y+12,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=p.d;
+  });
+}
+function lifecycleRun(){
+  if(lifeTimer)clearInterval(lifeTimer);
+  lifecycleBase();
+  var svg=document.getElementById('lifecycle-svg');
+  lifeIdx=0;
+  var log=document.getElementById('lifecycle-log');
+  var logs=[];
+  lifeTimer=setInterval(function(){
+    var ns=svg.querySelectorAll('.life-node');
+    ns.forEach(function(n,i){
+      n.setAttribute('stroke-width',i===lifeIdx?3:1.5);
+      n.setAttribute('fill',i===lifeIdx?'rgba(0,212,170,.12)':'rgba(0,0,0,.3)');
+    });
+    var p=lifePhases[lifeIdx];
+    logs.push('['+p.t+'] '+p.d);
+    log.textContent=logs.join('\n');
+    lifeIdx++;
+    if(lifeIdx>=6){
+      clearInterval(lifeTimer);
+      log.textContent=logs.join('\n')+'\n✓ 生命周期闭环完成，进入下一迭代';
+    }
+  },600);
+}
+function lifecycleReset(){if(lifeTimer)clearInterval(lifeTimer);lifecycleBase();document.getElementById('lifecycle-log').textContent='';}
+lifecycleBase();
+
+// M2: Request Trace
+var traceTimer=null;
+function traceRun(){
+  if(traceTimer)clearInterval(traceTimer);
+  var svg=document.getElementById('trace-svg');clear(svg);
+  var log=document.getElementById('trace-log');
+  var spans=[
+    {x:60,w:80,t:'入口',c:AC,ms:12},
+    {x:170,w:100,t:'路由',c:INFO,ms:35},
+    {x:300,w:140,t:'模型推理',c:PUR,ms:850},
+    {x:470,w:100,t:'后处理',c:WARN,ms:95},
+    {x:600,w:90,t:'响应',c:AC,ms:18},
+    {x:720,w:90,t:'客户端',c:ROSE,ms:8}
+  ];
+  var total=spans.reduce(function(a,b){return a+b.ms;},0);
+  // title
+  el('text',{x:40,y:30,fill:AC,'font-size':12,'font-weight':600},svg).textContent='分布式追踪 Trace (总延迟 '+total+'ms)';
+  // base timeline
+  el('line',{x1:40,y1:60,x2:840,y2:60,stroke:BD,'stroke-width':1},svg);
+  // spans as bars on timeline
+  var scale=880/total;
+  var cx=40;
+  spans.forEach(function(s,i){
+    var bw=s.ms*scale*0.85;
+    el('rect',{x:cx,y:80+i*36,w:bw,h:26,rx:5,fill:s.c,'fill-opacity':0.12,stroke:s.c,'stroke-width':1.5,class:'trace-bar','data-idx':i},svg);
+    el('text',{x:cx+6,y:97+i*36,fill:s.c,'font-size':10,'font-weight':500},svg).textContent=s.t;
+    el('text',{x:cx+bw-6,y:97+i*36,'text-anchor':'end',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=s.ms+'ms';
+    cx+=bw;
+  });
+  // summary
+  el('text',{x:40,y:300,fill:DIM,'font-size':10},svg).textContent='瓶颈分析: 模型推理阶段占比 '+Math.round(spans[2].ms/total*100)+'%，P99 延迟 '+total+'ms';
+  el('text',{x:40,y:316,fill:DIM,'font-size':10},svg).textContent='建议: 启用推测解码 + KV缓存可降低推理延迟 ~40%';
+  // animate
+  var idx=0;
+  var logs=[];
+  traceTimer=setInterval(function(){
+    var bars=svg.querySelectorAll('.trace-bar');
+    bars.forEach(function(b,i){
+      b.setAttribute('stroke-width',i<=idx?2.5:1.5);
+      b.setAttribute('fill-opacity',i<=idx?0.25:0.12);
+    });
+    if(idx<spans.length){
+      logs.push('['+spans[idx].t+'] '+spans[idx].ms+'ms');
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(traceTimer);
+      log.textContent=logs.join('\n')+'\n✓ Trace 完成，总延迟 '+total+'ms';
+    }
+  },400);
+}
+traceRun();
+
+// M3: Quality Assessment Pipeline
+var qualTimer=null;
+function qualityRun(){
+  if(qualTimer)clearInterval(qualTimer);
+  var svg=document.getElementById('quality-svg');clear(svg);
+  var log=document.getElementById('quality-log');
+  var stages=[
+    {x:80,y:160,t:'输出采集',c:AC,d:'采样生产响应',score:null},
+    {x:260,y:160,t:'LLM-as-Judge',c:INFO,d:'自动质量打分',score:8.2},
+    {x:460,y:80,t:'人工审核',c:PUR,d:'抽检高优样本',score:8.5},
+    {x:460,y:240,t:'规则检查',c:WARN,d:'格式/安全',score:9.1},
+    {x:660,y:160,t:'反馈回流',c:ROSE,d:'写入评估库',score:null},
+    {x:820,y:160,t:'模型优化',c:AC,d:'再训练/SFT',score:null}
+  ];
+  var edges=[[0,1],[1,2],[1,3],[2,4],[3,4],[4,5]];
+  edges.forEach(function(e){
+    el('path',{d:'M '+stages[e[0]].x+' '+stages[e[0]].y+' L '+stages[e[1]].x+' '+stages[e[1]].y,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3',class:'q-edge','data-from':e[0],'data-to':e[1]},svg);
+  });
+  stages.forEach(function(s,i){
+    el('rect',{x:s.x-55,y:s.y-22,w:110,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'q-node','data-idx':i},svg);
+    el('text',{x:s.x,y:s.y-4,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':500},svg).textContent=s.t;
+    el('text',{x:s.x,y:s.y+10,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=s.d;
+    if(s.score!==null){
+      el('rect',{x:s.x+20,y:s.y-30,w:36,h:16,rx:4,fill:s.c,'fill-opacity':0.15,stroke:s.c,'stroke-width':1},svg);
+      el('text',{x:s.x+38,y:s.y-18,'text-anchor':'middle',fill:s.c,'font-size':9,'font-family':'monospace','font-weight':600},svg).textContent=s.score.toFixed(1);
+    }
+  });
+  // animate
+  var idx=0;
+  var logs=[];
+  qualTimer=setInterval(function(){
+    var ns=svg.querySelectorAll('.q-node');
+    ns.forEach(function(n,i){
+      n.setAttribute('stroke-width',i===idx?3:1.5);
+      n.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<stages.length){
+      var s=stages[idx];
+      logs.push('['+s.t+'] '+(s.score!==null?'评分 '+s.score.toFixed(1):s.d));
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(qualTimer);
+      log.textContent=logs.join('\n')+'\n✓ 评估闭环完成，综合质量 8.6/10，已回流至训练数据';
+    }
+  },500);
+}
+qualityRun();
+
+// M4: Cost & Token Monitoring
+function costDraw(){
+  var budget=+document.getElementById('budget-slider').value;
+  document.getElementById('budget-val').textContent='$'+budget+'/日';
+  var svg=document.getElementById('cost-svg');clear(svg);
+  // simulate daily consumption
+  var spent=Math.round(budget*(0.55+Math.random()*0.5));
+  var tokens=Math.round(spent*1200+Math.random()*5000);
+  var cacheHit=Math.round(28+Math.random()*25);
+  var ratio=spent/budget;
+  var alertStatus= ratio<0.7?'正常':ratio<0.9?'预警':'告警';
+  var alertColor=ratio<0.7?AC:ratio<0.9?WARN:ERR;
+  // Gauge 1: Budget usage
+  drawGauge(svg,140,150,80,ratio,'预算使用',(spent/budget*100).toFixed(0)+'%',alertColor);
+  // Gauge 2: Token consumption rate
+  var tokenRate=Math.min(1,tokens/300000);
+  drawGauge(svg,380,150,80,tokenRate,'Token速率',(tokens/1000).toFixed(1)+'K/s',INFO);
+  // Gauge 3: Cache hit rate
+  drawGauge(svg,620,150,80,cacheHit/100,'缓存命中',cacheHit+'%',AC);
+  // Budget bar
+  el('text',{x:40,y:30,fill:AC,'font-size':12,'font-weight':600},svg).textContent='成本与 Token 实时仪表盘';
+  // alert badge
+  el('rect',{x:740,y:20,w:100,h:28,rx:6,fill:alertColor,'fill-opacity':0.12,stroke:alertColor},svg);
+  el('text',{x:790,y:39,'text-anchor':'middle',fill:alertColor,'font-size':11,'font-weight':600},svg).textContent=alertStatus;
+  // Token breakdown bar chart
+  el('text',{x:40,y:260,fill:DIM,'font-size':10},svg).textContent='Token 构成 (输入 vs 输出 vs 缓存):';
+  var inTk=tokens*0.45,outTk=tokens*0.35,cachedTk=tokens*0.2;
+  var bx=40,by=270,bw=560,bh=24;
+  el('rect',{x:bx,y:by,width:bw,height:bh,rx:4,fill:'rgba(255,255,255,.03)',stroke:BD},svg);
+  el('rect',{x:bx,y:by,width:bw*inTk/tokens,height:bh,rx:4,fill:INFO,'fill-opacity':0.4},svg);
+  el('rect',{x:bx+bw*inTk/tokens,y:by,width:bw*outTk/tokens,height:bh,fill:PUR,'fill-opacity':0.4},svg);
+  el('rect',{x:bx+bw*(inTk+outTk)/tokens,y:by,width:bw*cachedTk/tokens,height:bh,rx:4,fill:AC,'fill-opacity':0.4},svg);
+  // legend
+  el('rect',{x:640,y:270,w:10,h:10,rx:2,fill:INFO,'fill-opacity':0.5},svg);
+  el('text',{x:656,y:279,fill:DIM,'font-size':9},svg).textContent='输入 '+Math.round(inTk/1000)+'K';
+  el('rect',{x:720,y:270,w:10,h:10,rx:2,fill:PUR,'fill-opacity':0.5},svg);
+  el('text',{x:736,y:279,fill:DIM,'font-size':9},svg).textContent='输出 '+Math.round(outTk/1000)+'K';
+  el('rect',{x:640,y:288,w:10,h:10,rx:2,fill:AC,'fill-opacity':0.5},svg);
+  el('text',{x:656,y:297,fill:DIM,'font-size':9},svg).textContent='缓存节省 '+Math.round(cachedTk/1000)+'K';
+  // model degradation suggestion
+  if(ratio>0.9){
+    el('text',{x:40,y:322,fill:ERR,'font-size':10},svg).textContent='⚠ 触发模型降级: GPT-4 → GPT-4-mini (成本降低 60%)';
+  }else if(ratio>0.7){
+    el('text',{x:40,y:322,fill:WARN,'font-size':10},svg).textContent='⚡ 建议启用响应缓存 (预计节省 '+(cacheHit+10)+'% 成本)';
+  }else{
+    el('text',{x:40,y:322,fill:AC,'font-size':10},svg).textContent='✓ 成本在预算范围内，运行正常';
+  }
+  // update info cards
+  document.getElementById('c-spent').textContent='$'+spent;
+  document.getElementById('c-tokens').textContent=tokens.toLocaleString();
+  document.getElementById('c-cache').textContent=cacheHit+'%';
+  document.getElementById('c-alert').textContent=alertStatus;
+  document.getElementById('c-alert').style.color=alertColor;
+}
+function drawGauge(svg,cx,cy,r,val,label,valText,color){
+  // background arc
+  el('path',{d:arcPath(cx,cy,r,-Math.PI*0.75,Math.PI*0.75),stroke:BD,'stroke-width':10,fill:'none','stroke-linecap':'round'},svg);
+  // value arc
+  var endAngle=-Math.PI*0.75+val*Math.PI*1.5;
+  el('path',{d:arcPath(cx,cy,r,-Math.PI*0.75,endAngle),stroke:color,'stroke-width':10,fill:'none','stroke-linecap':'round'},svg);
+  el('text',{x:cx,y:cy-4,'text-anchor':'middle',fill:color,'font-size':18,'font-weight':700,'font-family':'monospace'},svg).textContent=valText;
+  el('text',{x:cx,y:cy+22,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=label;
+}
+function arcPath(cx,cy,r,startAngle,endAngle){
+  var x1=cx+Math.cos(startAngle)*r,y1=cy+Math.sin(startAngle)*r;
+  var x2=cx+Math.cos(endAngle)*r,y2=cy+Math.sin(endAngle)*r;
+  var large=endAngle-startAngle>Math.PI?1:0;
+  return 'M '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2;
+}
+costDraw();
+
+// M5: Hallucination Detection
+var hallucTimer=null;
+function hallucRun(){
+  if(hallucTimer)clearInterval(hallucTimer);
+  var svg=document.getElementById('halluc-svg');clear(svg);
+  var log=document.getElementById('halluc-log');
+  var layers=[
+    {y:60,t:'事实核查',c:AC,d:'知识库比对',detected:false},
+    {y:120,t:'引用验证',c:INFO,d:'URL/来源可达性',detected:true},
+    {y:180,t:'一致性检查',c:PUR,d:'多采样投票',detected:false},
+    {y:240,t:'置信度评估',c:WARN,d:'模型logprob',detected:false}
+  ];
+  // input
+  el('rect',{x:40,y:130,w:90,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:85,y:155,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='LLM输出';
+  // layers
+  layers.forEach(function(l,i){
+    el('path',{d:'M 130 150 L 180 '+l.y+20,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+    el('rect',{x:180,y:l.y,w:300,h:40,rx:8,fill:'rgba(0,0,0,.3)',stroke:l.c,'stroke-width':1.5,class:'h-layer','data-idx':i},svg);
+    el('text',{x:200,y:l.y+25,fill:l.c,'font-size':11,'font-weight':500},svg).textContent=l.t;
+    el('text',{x:320,y:l.y+25,fill:DIM,'font-size':9},svg).textContent=l.d;
+    // result
+    var ok=!l.detected;
+    el('rect',{x:520,y:l.y+5,w:80,h:30,rx:6,fill:ok?'rgba(0,212,170,.08)':'rgba(239,68,68,.08)',stroke:ok?AC:ERR,'stroke-width':1,class:'h-result','data-idx':i},svg);
+    el('text',{x:560,y:l.y+25,'text-anchor':'middle',fill:ok?AC:ERR,'font-size':11,'font-weight':600},svg).textContent=ok?'✓ 通过':'✗ 风险';
+    // arrow to next
+    if(i<3){
+      el('path',{d:'M 330 '+(l.y+40)+' L 330 '+(layers[i+1].y),stroke:BD,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+    }
+  });
+  // final decision
+  el('rect',{x:640,y:120,w:160,h:60,rx:10,fill:'rgba(245,158,11,.08)',stroke:WARN,'stroke-width':2},svg);
+  el('text',{x:720,y:145,'text-anchor':'middle',fill:WARN,'font-size':12,'font-weight':600},svg).textContent='综合判定';
+  el('text',{x:720,y:165,'text-anchor':'middle',fill:WARN,'font-size':14,'font-weight':700,'font-family':'monospace'},svg).textContent='需人工复核';
+  // animate
+  var idx=0;
+  var logs=[];
+  hallucTimer=setInterval(function(){
+    var ls=svg.querySelectorAll('.h-layer');
+    ls.forEach(function(n,i){
+      n.setAttribute('stroke-width',i===idx?3:1.5);
+      n.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<layers.length){
+      var l=layers[idx];
+      logs.push('['+l.t+'] '+(l.detected?'⚠ 检测到风险':'✓ 通过'));
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(hallucTimer);
+      log.textContent=logs.join('\n')+'\n✓ 检测完成: 引用验证层发现风险，输出需人工复核';
+    }
+  },600);
+}
+hallucRun();
+
+// M6: A/B Testing
+var abTimer=null;
+function abRun(){
+  if(abTimer)clearInterval(abTimer);
+  var svg=document.getElementById('ab-svg');clear(svg);
+  var log=document.getElementById('ab-log');
+  // traffic source
+  el('rect',{x:40,y:140,w:80,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:80,y:165,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='流量入口';
+  // split
+  var splitA=0.5+Math.random()*0.2;
+  var splitB=1-splitA;
+  var convA=0.72+Math.random()*0.12;
+  var convB=0.78+Math.random()*0.12;
+  var models=[
+    {x:240,y:60,t:'模型 A (GPT-4)',c:INFO,split:splitA,conv:convA,n:Math.round(splitA*10000)},
+    {x:240,y:220,t:'模型 B (Claude)',c:PUR,split:splitB,conv:convB,n:Math.round(splitB*10000)}
+  ];
+  models.forEach(function(m,i){
+    el('path',{d:'M 120 160 Q 180 '+m.y+', 240 '+(m.y+20),stroke:m.c,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 2'},svg);
+    el('rect',{x:240,y:m.y,w:140,h:40,rx:8,fill:m.c,'fill-opacity':0.06,stroke:m.c,'stroke-width':1.5,class:'ab-model','data-idx':i},svg);
+    el('text',{x:310,y:m.y+25,'text-anchor':'middle',fill:m.c,'font-size':11,'font-weight':500},svg).textContent=m.t;
+    // split percentage
+    el('text',{x:180,y:m.y+25,fill:DIM,'font-size':10},svg).textContent=Math.round(m.split*100)+'%';
+  });
+  // metrics
+  models.forEach(function(m,i){
+    var mx=460,my=m.y;
+    el('rect',{x:mx,y:my,w:180,h:40,rx:6,fill:'rgba(0,0,0,.2)',stroke:BD},svg);
+    el('text',{x:mx+10,y:my+16,fill:DIM,'font-size':9},svg).textContent='样本量: '+m.n.toLocaleString();
+    el('text',{x:mx+10,y:my+32,fill:m.c,'font-size':10,'font-family':'monospace'},svg).textContent='转化率: '+(m.conv*100).toFixed(1)+'%';
+    // conversion bar
+    el('rect',{x:660,y:my+8,w:120,h:8,rx:4,fill:'rgba(255,255,255,.05)'},svg);
+    el('rect',{x:660,y:my+8,w:120*m.conv,height:8,rx:4,fill:m.c,'fill-opacity':0.5,class:'ab-bar','data-idx':i},svg);
+    el('text',{x:660,y:my+32,fill:DIM,'font-size':9},svg).textContent='置信度: '+(85+i*5)+'%';
+  });
+  // winner
+  var winner=convA>convB?0:1;
+  var lift=Math.abs(convA-convB)/Math.min(convA,convB)*100;
+  el('rect',{x:800,y:120,w:60,h:80,rx:8,fill:models[winner].c,'fill-opacity':0.1,stroke:models[winner].c,'stroke-width':2},svg);
+  el('text',{x:830,y:150,'text-anchor':'middle',fill:models[winner].c,'font-size':10,'font-weight':600},svg).textContent='胜出';
+  el('text',{x:830,y:168,'text-anchor':'middle',fill:models[winner].c,'font-size':16,'font-weight':700},svg).textContent=winner===0?'A':'B';
+  el('text',{x:830,y:188,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='+'+lift.toFixed(1)+'%';
+  // animate
+  var idx=0;
+  var logs=[];
+  abTimer=setInterval(function(){
+    var ms=svg.querySelectorAll('.ab-model');
+    ms.forEach(function(n,i){
+      n.setAttribute('stroke-width',i===idx?3:1.5);
+    });
+    if(idx<models.length){
+      var m=models[idx];
+      logs.push('['+m.t+'] 流量 '+Math.round(m.split*100)+'% | 样本 '+m.n+' | 转化 '+(m.conv*100).toFixed(1)+'%');
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(abTimer);
+      var sig=lift>3?'统计显著 (p<0.05)':'样本不足';
+      log.textContent=logs.join('\n')+'\n✓ 测试完成: 模型 '+(winner===0?'A':'B')+' 胜出, 提升 '+lift.toFixed(1)+'%, '+sig+'\n→ 建议灰度发布至 '+(winner===0?'A':'B')+' 的 20% 流量';
+    }
+  },700);
+}
+abRun();
+
+// M7: Prompt Version Management
+var promptVersions=[
+  {v:'v1.0',t:'基础版',x:120,y:60,parent:-1,c:AC,score:6.2,diff:'原始模板，无 Few-shot'},
+  {v:'v1.1',t:'优化版',x:120,y:160,parent:0,c:INFO,score:7.1,diff:'增加 3-shot 示例'},
+  {v:'v2.0',t:'CoT版',x:340,y:60,parent:1,c:PUR,score:8.3,diff:'引入思维链推理'},
+  {v:'v2.1',t:'安全版',x:340,y:160,parent:1,c:WARN,score:7.8,diff:'增加安全约束'},
+  {v:'v3.0',t:'当前版',x:560,y:110,parent:2,c:AC,score:8.9,diff:'CoT+Few-shot+约束'},
+  {v:'v3.1',t:'实验版',x:780,y:60,parent:4,c:ROSE,score:8.7,diff:'尝试自反思'},
+  {v:'v3.2',t:'实验版',x:780,y:160,parent:4,c:ROSE,score:9.1,diff:'多语言优化'}
+];
+var promptSel=4;
+function promptDraw(){
+  var svg=document.getElementById('prompt-svg');clear(svg);
+  // edges
+  promptVersions.forEach(function(p,i){
+    if(p.parent>=0){
+      var par=promptVersions[p.parent];
+      el('path',{d:'M '+par.x+' '+(par.y+20)+' L '+p.x+' '+(p.y-20),stroke:BD,'stroke-width':1,fill:'none','stroke-dasharray':'4 3'},svg);
+    }
+  });
+  // nodes
+  promptVersions.forEach(function(p,i){
+    var active=i===promptSel;
+    var isCurrent=i===4;
+    el('rect',{x:p.x-50,y:p.y-20,w:100,h:40,rx:8,fill:active?'rgba(0,212,170,.12)':(isCurrent?'rgba(0,212,170,.06)':'rgba(0,0,0,.2)'),stroke:active?AC:p.c,'stroke-width':active?2.5:1.5,class:'pv-node','data-idx':i,cursor:'pointer'},svg);
+    el('text',{x:p.x,y:p.y-2,'text-anchor':'middle',fill:active?AC:p.c,'font-size':11,'font-weight':600},svg).textContent=p.v;
+    el('text',{x:p.x,y:p.y+12,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=p.t;
+    if(isCurrent)el('circle',{cx:p.x+38,cy:p.y-12,r:4,fill:AC},svg);
+  });
+  // detail panel
+  var p=promptVersions[promptSel];
+  el('rect',{x:340,y:240,w:440,h:80,rx:8,fill:'rgba(0,0,0,.3)',stroke:p.c,'stroke-width':1},svg);
+  el('text',{x:360,y:262,fill:p.c,'font-size':12,'font-weight':600},svg).textContent=p.v+' · '+p.t;
+  el('text',{x:360,y:282,fill:DIM,'font-size':10},svg).textContent='变更: '+p.diff;
+  el('text',{x:360,y:302,fill:AC,'font-size':11,'font-family':'monospace'},svg).textContent='质量评分: '+p.score.toFixed(1)+'/10';
+  // score bar
+  el('rect',{x:640,y:292,w:120,h:8,rx:4,fill:'rgba(255,255,255,.05)'},svg);
+  el('rect',{x:640,y:292,w:120*p.score/10,height:8,rx:4,fill:p.c,'fill-opacity':0.6},svg);
+  // axis
+  el('text',{x:40,y:40,fill:DIM,'font-size':9},svg).textContent='版本演进树 →';
+  el('text',{x:40,y:322,fill:DIM,'font-size':9},svg).textContent='● 当前生产版本  ◆ 选中版本';
+}
+function promptSwitch(){
+  promptSel=(promptSel+1)%promptVersions.length;
+  promptDraw();
+  document.getElementById('prompt-log').textContent='[切换] 选中 '+promptVersions[promptSel].v+' · '+promptVersions[promptSel].t+'\n变更: '+promptVersions[promptSel].diff+'\n评分: '+promptVersions[promptSel].score.toFixed(1)+'/10';
+}
+function promptRollback(){
+  var p=promptVersions[promptSel];
+  document.getElementById('prompt-log').textContent='[回滚] 已将生产环境回滚至 '+p.v+' · '+p.t+'\n质量评分: '+p.score.toFixed(1)+'/10 (原 v3.0: 8.9)\n→ 灰度发布已暂停，等待重新评估';
+}
+promptDraw();
+
+// M8: Platform Comparison
+var platIdx=0;
+var plats=[
+  {name:'LangSmith',vals:[0.95,0.9,0.75,0.85,0.7],c:AC},
+  {name:'Langfuse',vals:[0.85,0.8,0.8,0.75,0.85],c:INFO},
+  {name:'Phoenix',vals:[0.8,0.75,0.7,0.8,0.75],c:PUR},
+  {name:'Arize',vals:[0.9,0.85,0.9,0.7,0.8],c:WARN},
+  {name:'PostHog',vals:[0.7,0.65,0.85,0.9,0.9],c:ROSE}
+];
+var dims=['追踪能力','评估体系','成本分析','实验管理','告警通知'];
+function platDraw(){
+  var svg=document.getElementById('plat-svg');clear(svg);
+  var cx=280,cy=190,R=130;
+  // axes
+  for(var i=0;i<5;i++){
+    var a=-Math.PI/2+i*2*Math.PI/5;
+    el('line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*R,y2:cy+Math.sin(a)*R,stroke:BD,'stroke-width':1},svg);
+    el('text',{x:cx+Math.cos(a)*(R+22),y:cy+Math.sin(a)*(R+22)+4,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=dims[i];
+  }
+  // grid
+  for(var r=1;r<=4;r++){
+    var pts=[];
+    for(var i=0;i<5;i++){var a=-Math.PI/2+i*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*r/4)+','+(cy+Math.sin(a)*R*r/4));}
+    el('polygon',{points:pts.join(' '),fill:'none',stroke:BD,'stroke-width':.5,'stroke-dasharray':'2 2'},svg);
+  }
+  // polygons
+  plats.forEach(function(p,i){
+    var pts=[];
+    for(var j=0;j<5;j++){var a=-Math.PI/2+j*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*p.vals[j])+','+(cy+Math.sin(a)*R*p.vals[j]));}
+    var active=i===platIdx;
+    el('polygon',{points:pts.join(' '),fill:p.c,'fill-opacity':active?0.15:0.04,stroke:p.c,'stroke-width':active?2.5:1.5},svg);
+  });
+  // table
+  var tx=540,ty=60;
+  el('text',{x:tx,y:ty-10,fill:AC,'font-size':11,'font-weight':600},svg).textContent='平台能力对比';
+  el('line',{x1:tx,y1:ty,x2:tx+310,y2:ty,stroke:BD},svg);
+  plats.forEach(function(p,i){
+    var active=i===platIdx;
+    el('rect',{x:tx-4,y:ty+8+i*32,w:318,h:28,rx:4,fill:active?'rgba(0,212,170,.06)':'transparent'},svg);
+    el('rect',{x:tx,y:ty+14+i*32,w:10,h:10,rx:2,fill:p.c,'fill-opacity':active?0.5:0.3,stroke:p.c},svg);
+    el('text',{x:tx+20,y:ty+24+i*32,fill:active?AC:p.c,'font-size':11,'font-weight':active?600:400},svg).textContent=p.name;
+    var avg=(p.vals.reduce(function(a,b){return a+b;},0)/5*100).toFixed(0);
+    el('text',{x:tx+140,y:ty+24+i*32,fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent=avg+'分';
+    // mini bars
+    p.vals.forEach(function(v,j){
+      el('rect',{x:tx+175+j*26,y:ty+18+i*32,w:22,h:v*20,rx:2,fill:p.c,'fill-opacity':active?0.5:0.2},svg);
+    });
+  });
+  // active detail
+  var ap=plats[platIdx];
+  el('text',{x:540,y:340,fill:ap.c,'font-size':12,'font-weight':600},svg).textContent='▶ '+ap.name;
+  var descs=['官方生态深度集成','开源自部署友好','Arize 出品，评估强','企业级监控平台','产品分析一体化'];
+  el('text',{x:620,y:340,fill:DIM,'font-size':10},svg).textContent='— '+descs[platIdx];
+}
+function platNext(){platIdx=(platIdx+1)%plats.length;platDraw();}
+platDraw();
+</script>
+</body>
+</html>

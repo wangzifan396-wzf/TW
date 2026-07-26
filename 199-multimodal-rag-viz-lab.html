@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 多模态 RAG 可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">多模态 RAG 可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 199</span>
+    <h1>多模态 RAG 可视化实验室</h1>
+    <p>从文本检索到跨模态理解——把 2026 年 RAG 如何处理图像、表格、音频、视频等多模态文档的核心机制以可交互 SVG 呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">RAG 架构</button>
+    <button class="tab" data-m="m2">文档解析</button>
+    <button class="tab" data-m="m3">跨模态嵌入</button>
+    <button class="tab" data-m="m4">分块策略</button>
+    <button class="tab" data-m="m5">混合检索</button>
+    <button class="tab" data-m="m6">表格理解</button>
+    <button class="tab" data-m="m7">视频 RAG</button>
+    <button class="tab" data-m="m8">评估体系</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>多模态 RAG 完整架构</h2></div>
+    <p class="m-desc">多模态 RAG 完整管线：文档解析 → 多模态分块 → 跨模态嵌入 → 统一向量索引 → 多模态检索 → 融合生成。点击按钮执行一次完整检索流程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="archRun()">执行检索 ▸</button>
+    </div>
+    <div class="viz"><svg id="arch-svg" viewBox="0 0 880 360"></svg></div>
+    <div id="arch-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>文档解析与版面分析</h2></div>
+    <p class="m-desc">复杂文档解析：PDF/Word/HTML → 版面分析 → 表格提取 → 图片识别 → 结构化输出。点击按钮模拟文档解析过程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="parseRun()">解析文档 ▸</button>
+    </div>
+    <div class="viz"><svg id="parse-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="parse-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>跨模态嵌入空间</h2></div>
+    <p class="m-desc">文本与图像的统一嵌入空间：CLIP/BLIP 编码 → 共享向量空间 → 跨模态相似度。点击按钮切换嵌入模型，观察嵌入空间分布变化。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="embedSwitch()">切换嵌入模型</button>
+      <span id="embed-name" style="font-family:var(--mono);font-size:12px;color:var(--accent)"></span>
+    </div>
+    <div class="viz"><svg id="embed-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid" id="embed-info"></div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>多模态分块策略</h2></div>
+    <p class="m-desc">不同模态的分块策略：文本(语义分块) → 表格(行级分块) → 图像(区域裁剪) → 音频(时间窗口)。点击按钮切换模态，查看分块方式。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="chunkSwitch()">切换模态</button>
+      <span id="chunk-name" style="font-family:var(--mono);font-size:12px;color:var(--accent)"></span>
+    </div>
+    <div class="viz"><svg id="chunk-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid" id="chunk-info"></div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>混合检索与重排</h2></div>
+    <p class="m-desc">多路检索融合：稠密向量检索 + 稀疏关键词检索 + 多模态检索 → 结果合并 → 交叉编码重排。点击按钮执行混合检索。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="hybridRun()">执行检索 ▸</button>
+    </div>
+    <div class="viz"><svg id="hybrid-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="hybrid-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>表格与图表理解</h2></div>
+    <p class="m-desc">表格数据 RAG：表格结构识别 → 单元格语义 → 行列关系 → 表格摘要 → 精确问答。点击按钮执行表格理解流程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="tableRun()">执行理解 ▸</button>
+    </div>
+    <div class="viz"><svg id="table-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="table-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>视频 RAG 处理流程</h2></div>
+    <p class="m-desc">视频内容 RAG：关键帧提取 → 场景分割 → 字幕对齐 → 视频片段检索 → 时间定位。点击按钮执行视频检索流程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="videoRun()">执行检索 ▸</button>
+    </div>
+    <div class="viz"><svg id="video-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="video-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>RAG 评估体系</h2></div>
+    <p class="m-desc">多模态 RAG 多维评估：忠实度/答案相关性/上下文精确率/上下文召回率/多模态覆盖率/延迟。点击按钮切换 RAG 方案，对比评估结果。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="evalSwitch()">切换方案 ▸</button>
+      <span id="eval-name" style="font-family:var(--mono);font-size:12px;color:var(--accent)"></span>
+    </div>
+    <div class="viz"><svg id="eval-svg" viewBox="0 0 880 380"></svg></div>
+  </section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: Multimodal RAG Architecture
+var archTimer=null;
+function archBase(){
+  var svg=document.getElementById('arch-svg');clear(svg);
+  var steps=[
+    {x:70,y:170,t:'文档解析',c:AC,d:'PDF/Word/HTML',icon:'📄'},
+    {x:210,y:170,t:'多模态分块',c:INFO,d:'文本/表格/图像',icon:'🧩'},
+    {x:350,y:170,t:'跨模态嵌入',c:PUR,d:'CLIP/BLIP',icon:'🔢'},
+    {x:490,y:170,t:'向量索引',c:WARN,d:'统一向量库',icon:'🗄'},
+    {x:630,y:170,t:'多模态检索',c:ROSE,d:'跨模态匹配',icon:'🔍'},
+    {x:790,y:170,t:'融合生成',c:AC,d:'LLM推理',icon:'✨'}
+  ];
+  // edges
+  for(var i=0;i<5;i++){
+    el('path',{d:'M '+(steps[i].x+50)+' '+steps[i].y+' L '+(steps[i+1].x-50)+' '+steps[i+1].y,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  }
+  steps.forEach(function(s){
+    el('rect',{x:s.x-50,y:s.y-30,w:100,h:60,rx:10,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'arch-step'},svg);
+    el('text',{x:s.x,y:s.y-8,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:s.x,y:s.y+8,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=s.d;
+    el('text',{x:s.x,y:s.y+24,'text-anchor':'middle',fill:DIM,'font-size':14},svg).textContent=s.icon;
+  });
+  // query input
+  el('rect',{x:30,y:40,w:160,h:30,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:110,y:60,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='用户查询: "展示营收图表"';
+  el('path',{d:'M 110 70 L 110 100 L 630 100 L 630 140',stroke:AC,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 2'},svg);
+  // output
+  el('rect',{x:700,y:40,w:160,h:30,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:780,y:60,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='输出: 文字+图表引用';
+  el('path',{d:'M 790 70 L 790 140',stroke:AC,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 2'},svg);
+  // vector store
+  el('rect',{x:420,y:260,w:160,h:50,rx:8,fill:'rgba(245,158,11,.06)',stroke:WARN},svg);
+  el('text',{x:500,y:282,'text-anchor':'middle',fill:WARN,'font-size':10,'font-weight':500},svg).textContent='向量数据库';
+  el('text',{x:500,y:298,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='Milvus/Pinecone/Qdrant';
+  el('path',{d:'M 490 200 L 490 260',stroke:WARN,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+  el('path',{d:'M 630 200 L 580 260',stroke:WARN,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+}
+function archRun(){
+  if(archTimer)clearInterval(archTimer);
+  archBase();
+  var svg=document.getElementById('arch-svg');
+  var log=document.getElementById('arch-log');
+  var idx=0;
+  var steps=['文档解析: 识别PDF含3页文本+2图表','多模态分块: 文本12块+表格3块+图像5块','跨模态嵌入: CLIP编码 → 768维向量','向量索引: 写入Milvus, 20条记录','多模态检索: 命中3文本+2图表(top-5)','融合生成: LLM整合上下文生成答案'];
+  var logs=[];
+  archTimer=setInterval(function(){
+    var ns=svg.querySelectorAll('.arch-step');
+    ns.forEach(function(n,i){
+      n.setAttribute('stroke-width',i===idx?3:1.5);
+      n.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<6){
+      logs.push('['+(idx+1)+'] '+steps[idx]);
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(archTimer);
+      log.textContent=logs.join('\n')+'\n✓ 多模态RAG完成，答案包含文字描述+图表引用，延迟 1.2s';
+    }
+  },600);
+}
+archBase();
+
+// M2: Document Parsing
+var parseTimer=null;
+function parseRun(){
+  if(parseTimer)clearInterval(parseTimer);
+  var svg=document.getElementById('parse-svg');clear(svg);
+  var log=document.getElementById('parse-log');
+  // source document
+  el('rect',{x:40,y:100,w:80,h:120,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC,'stroke-width':1.5},svg);
+  el('text',{x:80,y:120,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='PDF';
+  el('text',{x:80,y:140,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='12 页';
+  // lines representing content
+  for(var i=0;i<6;i++){
+    el('line',{x1:50,y1:150+i*10,x2:110,y2:150+i*10,stroke:DIM,'stroke-width':0.5},svg);
+  }
+  // parsing stages
+  var stages=[
+    {x:200,y:50,t:'版面分析',c:INFO,d:'检测文本/表格/图片区域',out:'区域: 28'},
+    {x:200,y:130,t:'表格提取',c:PUR,d:'识别表格结构',out:'表格: 3'},
+    {x:200,y:210,t:'图片识别',c:WARN,d:'OCR + 图像描述',out:'图片: 5'},
+    {x:200,y:290,t:'标题层级',c:ROSE,d:'构建文档大纲',out:'层级: 4'}
+  ];
+  stages.forEach(function(s,i){
+    el('path',{d:'M 120 160 Q 160 '+(s.y)+', 200 '+(s.y),stroke:s.c,'stroke-width':1,fill:'none','stroke-dasharray':'4 2'},svg);
+    el('rect',{x:200,y:s.y-22,w:160,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'parse-stage','data-idx':i},svg);
+    el('text',{x:280,y:s.y-4,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':500},svg).textContent=s.t;
+    el('text',{x:280,y:s.y+10,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=s.d;
+  });
+  // structured output
+  el('rect',{x:440,y:100,w:160,h:120,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC,'stroke-width':1.5,class:'parse-out'},svg);
+  el('text',{x:520,y:125,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':600},svg).textContent='结构化输出';
+  var outItems=['{"type":"text",...}','{"type":"table",...}','{"type":"image",...}','{"type":"heading",...}','{"type":"list",...}'];
+  outItems.forEach(function(it,i){
+    el('text',{x:455,y:145+i*14,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=it;
+  });
+  // arrows to output
+  stages.forEach(function(s){
+    el('path',{d:'M 360 '+(s.y)+' L 440 '+(s.y<160?120:160),stroke:s.c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+  });
+  // metrics
+  el('text',{x:640,y:100,fill:DIM,'font-size':10},svg).textContent='解析指标:';
+  var metrics=[['准确率','98.5%',AC],['处理速度','2.3页/秒',INFO],['表格识别','96.2%',PUR],['OCR精度','99.1%',WARN]];
+  metrics.forEach(function(m,i){
+    el('rect',{x:640,y:110+i*36,w:200,h:30,rx:6,fill:'rgba(0,0,0,.2)',stroke:BD},svg);
+    el('text',{x:655,y:130+i*36,fill:DIM,'font-size':9},svg).textContent=m[0];
+    el('text',{x:825,y:130+i*36,'text-anchor':'end',fill:m[2],'font-size':11,'font-weight':600,'font-family':'monospace'},svg).textContent=m[1];
+  });
+  // animate
+  var idx=0;
+  var logs=[];
+  parseTimer=setInterval(function(){
+    var ss=svg.querySelectorAll('.parse-stage');
+    ss.forEach(function(s,i){
+      s.setAttribute('stroke-width',i===idx?3:1.5);
+      s.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<4){
+      var s=stages[idx];
+      logs.push('['+s.t+'] '+s.d+' → '+s.out);
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(parseTimer);
+      log.textContent=logs.join('\n')+'\n✓ 文档解析完成，输出结构化JSON，含文本+表格+图片+标题';
+    }
+  },700);
+}
+parseRun();
+
+// M3: Cross-modal Embedding
+var embedIdx=0;
+var embedModels=[
+  {name:'CLIP',cn:'对比语言-图像预训练',dim:768,c:AC,acc:0.82,speed:'快',use:'图文匹配',items:[{t:'猫',x:0.3,y:0.2,m:'img'},{t:'猫',x:0.35,y:0.25,m:'txt'},{t:'狗',x:0.7,y:0.3,m:'img'},{t:'狗',x:0.68,y:0.35,m:'txt'},{t:'汽车',x:0.8,y:0.7,m:'img'},{t:'汽车',x:0.75,y:0.75,m:'txt'},{t:'天空',x:0.2,y:0.8,m:'img'},{t:'天空',x:0.25,y:0.75,m:'txt'}]},
+  {name:'BLIP-2',cn:'图文理解大模型',dim:1408,c:INFO,acc:0.88,speed:'中',use:'图像理解',items:[{t:'猫',x:0.32,y:0.22,m:'img'},{t:'猫',x:0.36,y:0.24,m:'txt'},{t:'狗',x:0.68,y:0.28,m:'img'},{t:'狗',x:0.72,y:0.32,m:'txt'},{t:'汽车',x:0.78,y:0.68,m:'img'},{t:'汽车',x:0.74,y:0.72,m:'txt'},{t:'天空',x:0.22,y:0.78,m:'img'},{t:'天空',x:0.26,y:0.76,m:'txt'}]},
+  {name:'E5-V',cn:'多语言视觉嵌入',dim:1024,c:PUR,acc:0.91,speed:'慢',use:'多语言+视觉',items:[{t:'猫',x:0.31,y:0.21,m:'img'},{t:'猫',x:0.34,y:0.23,m:'txt'},{t:'狗',x:0.69,y:0.27,m:'img'},{t:'狗',x:0.71,y:0.31,m:'txt'},{t:'汽车',x:0.77,y:0.69,m:'img'},{t:'汽车',x:0.73,y:0.71,m:'txt'},{t:'天空',x:0.21,y:0.77,m:'img'},{t:'天空',x:0.27,y:0.73,m:'txt'}]}
+];
+function embedDraw(){
+  var m=embedModels[embedIdx];
+  document.getElementById('embed-name').textContent=m.name+' / '+m.cn;
+  var svg=document.getElementById('embed-svg');clear(svg);
+  // embedding space
+  var sx=80,sy=40,sw=560,sh=280;
+  el('rect',{x:sx,y:sy,w:sw,h:sh,rx:8,fill:'rgba(0,0,0,.3)',stroke:BD,'stroke-width':1},svg);
+  // grid
+  for(var i=1;i<4;i++){
+    el('line',{x1:sx+i*sw/4,y1:sy,x2:sx+i*sw/4,y2:sy+sh,stroke:BD,'stroke-width':0.5,'stroke-dasharray':'2 4'},svg);
+    el('line',{x1:sx,y1:sy+i*sh/4,x2:sx+sw,y2:sy+i*sh/4,stroke:BD,'stroke-width':0.5,'stroke-dasharray':'2 4'},svg);
+  }
+  el('text',{x:sx+sw/2,y:sy-8,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='统一嵌入空间 (2D投影)';
+  // plot points
+  m.items.forEach(function(it,i){
+    var px=sx+it.x*sw,py=sy+it.y*sh;
+    var c=it.m==='img'?INFO:AC;
+    var r=it.m==='img'?7:5;
+    el('circle',{cx:px,cy:py,r:r,fill:c,'fill-opacity':0.3,stroke:c,'stroke-width':1.5,class:'embed-pt'},svg);
+    el('text',{x:px+r+3,y:py+4,fill:DIM,'font-size':8},svg).textContent=it.t;
+  });
+  // similarity lines
+  m.items.forEach(function(it,i){
+    if(it.m==='img'){
+      var txt=m.items.find(function(x,j){return j>i&&x.t===it.t;});
+      if(txt){
+        var x1=sx+it.x*sw,y1=sy+it.y*sh,x2=sx+txt.x*sw,y2=sy+txt.y*sh;
+        el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:WARN,'stroke-width':0.8,'stroke-dasharray':'2 2','stroke-opacity':0.5},svg);
+      }
+    }
+  });
+  // legend
+  el('circle',{cx:sx+15,cy:sy+sh+20,r:5,fill:INFO,'fill-opacity':0.3,stroke:INFO},svg);
+  el('text',{x:sx+25,y:sy+sh+24,fill:DIM,'font-size':9},svg).textContent='图像嵌入';
+  el('circle',{cx:sx+95,cy:sy+sh+20,r:5,fill:AC,'fill-opacity':0.3,stroke:AC},svg);
+  el('text',{x:sx+105,y:sy+sh+24,fill:DIM,'font-size':9},svg).textContent='文本嵌入';
+  el('line',{x1:sx+175,y1:sy+sh+20,x2:sx+195,y2:sy+sh+20,stroke:WARN,'stroke-width':1,'stroke-dasharray':'2 2'},svg);
+  el('text',{x:sx+200,y:sy+sh+24,fill:DIM,'font-size':9},svg).textContent='跨模态相似度';
+  // model info panel
+  el('rect',{x:680,y:40,w:180,h:280,rx:8,fill:'rgba(0,0,0,.3)',stroke:m.c,'stroke-width':1},svg);
+  el('text',{x:770,y:65,'text-anchor':'middle',fill:m.c,'font-size':13,'font-weight':700},svg).textContent=m.name;
+  el('text',{x:770,y:82,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent=m.cn;
+  // properties
+  var props=[['维度',m.dim+'D',AC],['精度',m.acc*100+'%',INFO],['速度',m.speed,PUR],['用途',m.use,WARN]];
+  props.forEach(function(p,i){
+    el('text',{x:700,y:110+i*30,fill:DIM,'font-size':9},svg).textContent=p[0]+':';
+    el('text',{x:840,y:110+i*30,'text-anchor':'end',fill:p[2],'font-size':10,'font-weight':500},svg).textContent=p[1];
+  });
+  el('text',{x:700,y:240,fill:DIM,'font-size':9},svg).textContent='跨模态匹配能力:';
+  el('rect',{x:700,y:248,w:140,h:8,rx:4,fill:'rgba(255,255,255,.05)'},svg);
+  el('rect',{x:700,y:248,w:140*m.acc,height:8,rx:4,fill:m.c,'fill-opacity':0.5},svg);
+  el('text',{x:700,y:275,fill:m.c,'font-size':10,'font-family':'monospace'},svg).textContent='★ 综合评分 '+Math.round(m.acc*100)+'/100';
+  // update info cards
+  var info=document.getElementById('embed-info');
+  info.innerHTML='<div class="info-card"><div class="k">模型</div><div class="v">'+m.name+'</div><div class="d">'+m.cn+'</div></div>'+
+    '<div class="info-card"><div class="k">维度</div><div class="v">'+m.dim+'D</div><div class="d">嵌入向量大小</div></div>'+
+    '<div class="info-card"><div class="k">精度</div><div class="v">'+(m.acc*100)+'%</div><div class="d">跨模态匹配准确率</div></div>';
+}
+function embedSwitch(){embedIdx=(embedIdx+1)%embedModels.length;embedDraw();}
+embedDraw();
+
+// M4: Chunking Strategy
+var chunkIdx=0;
+var chunkMods=[
+  {name:'文本',cn:'语义分块',c:AC,strategy:'按语义边界分块',size:'256-512 tokens',method:'Sentence-Aware',items:['标题边界','段落完整','语义连贯']},
+  {name:'表格',cn:'行级分块',c:INFO,strategy:'按行/列分组',size:'行级粒度',method:'Table-Aware',items:['保留表头','行组关联','单元格上下文']},
+  {name:'图像',cn:'区域裁剪',c:PUR,strategy:'目标检测+区域分割',size:'区域切片',method:'Region-Crop',items:['目标检测','区域分割','上下文标注']},
+  {name:'音频',cn:'时间窗口',c:WARN,strategy:'固定时间窗口+ASR',size:'30秒窗口',method:'Time-Window',items:['语音识别','时间戳对齐','语义合并']}
+];
+function chunkDraw(){
+  var m=chunkMods[chunkIdx];
+  document.getElementById('chunk-name').textContent=m.name+' / '+m.cn;
+  var svg=document.getElementById('chunk-svg');clear(svg);
+  // modality tabs
+  chunkMods.forEach(function(c,i){
+    var x=60+i*140;
+    var active=i===chunkIdx;
+    el('rect',{x:x,y:20,w:120,h:36,rx:6,fill:active?'rgba(0,212,170,.1)':'rgba(0,0,0,.2)',stroke:active?AC:c.c,'stroke-width':active?2:1,cursor:'pointer',onclick:'chunkSel('+i+')'},svg);
+    el('text',{x:x+60,y:42,'text-anchor':'middle',fill:active?AC:c.c,'font-size':11,'font-weight':active?600:400},svg).textContent=c.name;
+  });
+  // source
+  el('rect',{x:60,y:80,w:140,h:200,rx:8,fill:'rgba(0,0,0,.2)',stroke:m.c,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+  el('text',{x:130,y:100,'text-anchor':'middle',fill:m.c,'font-size':10,'font-weight':600},svg).textContent='原始'+m.name;
+  // draw source content based on modality
+  if(chunkIdx===0){
+    // text lines
+    for(var i=0;i<8;i++){
+      el('rect',{x:75,y:115+i*20,w:110,h:14,rx:3,fill:m.c,'fill-opacity':0.1},svg);
+    }
+  }else if(chunkIdx===1){
+    // table grid
+    el('rect',{x:75,y:110,w:110,h:160,rx:4,fill:'none',stroke:m.c,'stroke-width':1},svg);
+    for(var r=0;r<6;r++){
+      el('line',{x1:75,y1:110+r*27,x2:185,y2:110+r*27,stroke:m.c,'stroke-width':0.5},svg);
+    }
+    for(var c=0;c<3;c++){
+      el('line',{x1:75+c*37,y1:110,x2:75+c*37,y2:270,stroke:m.c,'stroke-width':0.5},svg);
+    }
+  }else if(chunkIdx===2){
+    // image regions
+    el('rect',{x:75,y:110,w:110,h:80,rx:4,fill:m.c,'fill-opacity':0.08,stroke:m.c},svg);
+    el('rect',{x:80,y:120,w:40,h:30,rx:2,fill:'none',stroke:WARN,'stroke-width':1,'stroke-dasharray':'2 2'},svg);
+    el('rect',{x:130,y:135,w:45,h:40,rx:2,fill:'none',stroke:WARN,'stroke-width':1,'stroke-dasharray':'2 2'},svg);
+    el('rect',{x:85,y:165,w:35,h:20,rx:2,fill:'none',stroke:WARN,'stroke-width':1,'stroke-dasharray':'2 2'},svg);
+  }else{
+    // audio waveform
+    for(var i=0;i<30;i++){
+      var h=5+Math.abs(Math.sin(i*0.5))*20;
+      el('rect',{x:75+i*4,y:160-h/2,w:3,h:h,rx:1,fill:m.c,'fill-opacity':0.4},svg);
+    }
+  }
+  // arrow
+  el('path',{d:'M 210 180 L 260 180',stroke:m.c,'stroke-width':2,fill:'none'},svg);
+  el('path',{d:'M 260 180 L 252 174 L 252 186 Z',fill:m.c},svg);
+  // chunks output
+  el('text',{x:280,y:80,fill:m.c,'font-size':10,'font-weight':600},svg).textContent='分块结果 ('+m.strategy+'):';
+  m.items.forEach(function(it,i){
+    var y=95+i*55;
+    el('rect',{x:280,y:y,w:240,h:45,rx:6,fill:'rgba(0,0,0,.3)',stroke:m.c,'stroke-width':1.5,class:'chunk-cell'},svg);
+    el('text',{x:295,y:y+18,fill:m.c,'font-size':10,'font-weight':500},svg).textContent='Chunk '+(i+1);
+    el('text',{x:295,y:y+34,fill:DIM,'font-size':9},svg).textContent=it;
+    el('rect',{x:430,y:y+10,w:80,h:24,rx:4,fill:m.c,'fill-opacity':0.1,stroke:m.c},svg);
+    el('text',{x:470,y:y+26,'text-anchor':'middle',fill:m.c,'font-size':8,'font-family':'monospace'},svg).textContent='→ 向量化';
+  });
+  // info
+  el('rect',{x:560,y:95,w:300,h:140,rx:8,fill:'rgba(0,0,0,.3)',stroke:m.c,'stroke-width':1},svg);
+  el('text',{x:580,y:118,fill:m.c,'font-size':11,'font-weight':600},svg).textContent='▶ '+m.cn+' 策略详情';
+  var info=[['分块方法',m.method],['块大小',m.size],['策略',m.strategy],['优势','保留'+m.name+'语义完整性']];
+  info.forEach(function(p,i){
+    el('text',{x:580,y:140+i*22,fill:DIM,'font-size':9},svg).textContent=p[0]+':';
+    el('text',{x:680,y:140+i*22,fill:AC,'font-size':9,'font-weight':500},svg).textContent=p[1];
+  });
+  // update info cards
+  var ic=document.getElementById('chunk-info');
+  ic.innerHTML='<div class="info-card"><div class="k">模态</div><div class="v">'+m.name+'</div><div class="d">'+m.cn+'</div></div>'+
+    '<div class="info-card"><div class="k">方法</div><div class="v">'+m.method+'</div><div class="d">'+m.strategy+'</div></div>'+
+    '<div class="info-card"><div class="k">块大小</div><div class="v">'+m.size+'</div><div class="d">检索粒度</div></div>';
+}
+function chunkSel(i){chunkIdx=i;chunkDraw();}
+function chunkSwitch(){chunkIdx=(chunkIdx+1)%chunkMods.length;chunkDraw();}
+chunkDraw();
+
+// M5: Hybrid Retrieval
+var hybridTimer=null;
+function hybridRun(){
+  if(hybridTimer)clearInterval(hybridTimer);
+  var svg=document.getElementById('hybrid-svg');clear(svg);
+  var log=document.getElementById('hybrid-log');
+  // query
+  el('rect',{x:40,y:140,w:90,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:85,y:160,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='用户查询';
+  el('text',{x:85,y:175,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='"营收趋势图"';
+  // three retrieval paths
+  var paths=[
+    {y:50,t:'稠密向量检索',c:INFO,d:'语义相似',results:['文档A 0.92','图表B 0.88','文档C 0.85'],n:3},
+    {y:160,t:'稀疏关键词检索',c:PUR,d:'BM25 精确匹配',results:['文档D 12.3','图表E 10.5','文档A 9.8'],n:3},
+    {y:270,t:'多模态检索',c:WARN,d:'跨模态匹配',results:['图像F 0.91','图表B 0.87','视频G 0.83'],n:3}
+  ];
+  paths.forEach(function(p,i){
+    el('path',{d:'M 130 160 Q 180 '+p.y+', 240 '+p.y,stroke:p.c,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 2'},svg);
+    el('rect',{x:240,y:p.y-22,w:160,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:p.c,'stroke-width':1.5,class:'hyb-path','data-idx':i},svg);
+    el('text',{x:320,y:p.y-4,'text-anchor':'middle',fill:p.c,'font-size':10,'font-weight':500},svg).textContent=p.t;
+    el('text',{x:320,y:p.y+10,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=p.d;
+  });
+  // merge
+  paths.forEach(function(p){
+    el('path',{d:'M 400 '+p.y+' Q 450 160, 500 160',stroke:p.c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+  });
+  el('rect',{x:500,y:140,w:100,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC,'stroke-width':1.5,class:'hyb-merge'},svg);
+  el('text',{x:550,y:160,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='结果合并';
+  el('text',{x:550,y:173,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='去重+加权';
+  // reranker
+  el('path',{d:'M 600 160 L 640 160',stroke:WARN,'stroke-width':2,fill:'none'},svg);
+  el('rect',{x:640,y:140,w:100,h:40,rx:8,fill:'rgba(245,158,11,.06)',stroke:WARN,'stroke-width':1.5,class:'hyb-rerank'},svg);
+  el('text',{x:690,y:158,'text-anchor':'middle',fill:WARN,'font-size':10,'font-weight':600},svg).textContent='交叉编码';
+  el('text',{x:690,y:172,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='重排 top-5';
+  // final
+  el('path',{d:'M 740 160 L 780 160',stroke:AC,'stroke-width':2,fill:'none'},svg);
+  el('rect',{x:780,y:140,w:80,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:820,y:160,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='Top-K';
+  el('text',{x:820,y:173,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='5条结果';
+  // results list
+  el('text',{x:40,y:310,fill:DIM,'font-size':10},svg).textContent='重排后结果:';
+  var finalResults=['1. 图表B (营收趋势图) 0.95','2. 文档A (Q3财报分析) 0.91','3. 图像F (营收图表截图) 0.89'];
+  finalResults.forEach(function(r,i){
+    el('text',{x:280+i*200,y:310,fill:AC,'font-size':9,'font-family':'monospace'},svg).textContent=r;
+  });
+  // animate
+  var idx=0;
+  var logs=[];
+  hybridTimer=setInterval(function(){
+    var ps=svg.querySelectorAll('.hyb-path');
+    ps.forEach(function(p,i){
+      p.setAttribute('stroke-width',i===idx?2.5:1.5);
+    });
+    if(idx<3){
+      var p=paths[idx];
+      logs.push('['+p.t+'] '+p.d+' → '+p.n+'条结果');
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      var merge=svg.querySelector('.hyb-merge');
+      merge.setAttribute('stroke-width',3);
+      logs.push('[结果合并] 去重后 7 条 → 加权融合');
+      log.textContent=logs.join('\n');
+      setTimeout(function(){
+        var rr=svg.querySelector('.hyb-rerank');
+        rr.setAttribute('stroke-width',3);
+        logs.push('[交叉编码重排] Cross-Encoder → top-5');
+        log.textContent=logs.join('\n');
+        setTimeout(function(){
+          clearInterval(hybridTimer);
+          log.textContent=logs.join('\n')+'\n✓ 混合检索完成，top-1: 图表B (营收趋势图) 相关度 0.95';
+        },600);
+      },600);
+    }
+  },700);
+}
+hybridRun();
+
+// M6: Table Understanding
+var tableTimer=null;
+function tableRun(){
+  if(tableTimer)clearInterval(tableTimer);
+  var svg=document.getElementById('table-svg');clear(svg);
+  var log=document.getElementById('table-log');
+  // original table
+  el('text',{x:40,y:30,fill:AC,'font-size':11,'font-weight':600},svg).textContent='原始表格:';
+  var headers=['季度','营收','增长率','利润'];
+  var rows=[['Q1','¥1.2B','+15%','¥320M'],['Q2','¥1.5B','+25%','¥410M'],['Q3','¥1.8B','+20%','¥480M'],['Q4','¥2.1B','+17%','¥560M']];
+  var tx=40,ty=40,cw=80,rh=24;
+  headers.forEach(function(h,i){
+    el('rect',{x:tx+i*cw,y:ty,w:cw,h:rh,fill:'rgba(0,212,170,.1)',stroke:AC,'stroke-width':1},svg);
+    el('text',{x:tx+i*cw+cw/2,y:ty+16,'text-anchor':'middle',fill:AC,'font-size':9,'font-weight':600},svg).textContent=h;
+  });
+  rows.forEach(function(r,i){
+    r.forEach(function(c,j){
+      el('rect',{x:tx+j*cw,y:ty+(i+1)*rh,w:cw,h:rh,fill:'rgba(0,0,0,.2)',stroke:BD,'stroke-width':0.5},svg);
+      el('text',{x:tx+j*cw+cw/2,y:ty+(i+1)*rh+16,'text-anchor':'middle',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=c;
+    });
+  });
+  // understanding layers
+  var layers=[
+    {x:400,y:50,t:'结构识别',c:INFO,d:'行列/合并单元格',detail:'4行×4列, 含1个合并表头'},
+    {x:400,y:110,t:'单元格语义',c:PUR,d:'类型推断+实体抽取',detail:'文本/数值/百分比/货币'},
+    {x:400,y:170,t:'行列关系',c:WARN,d:'外键+聚合关系',detail:'营收=Σ季度, 增长率=环比'},
+    {x:400,y:230,t:'表格摘要',c:ROSE,d:'自然语言描述',detail:'2024年营收增长趋势表'},
+    {x:400,y:290,t:'精确问答',c:AC,d:'NL2SQL+计算',detail:'Q4利润环比+16.7%'}
+  ];
+  // arrow
+  el('path',{d:'M 360 120 L 400 160',stroke:AC,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 2'},svg);
+  layers.forEach(function(l,i){
+    el('rect',{x:l.x,y:l.y,w:240,h:44,rx:8,fill:'rgba(0,0,0,.3)',stroke:l.c,'stroke-width':1.5,class:'tbl-layer','data-idx':i},svg);
+    el('text',{x:l.x+12,y:l.y+18,fill:l.c,'font-size':10,'font-weight':600},svg).textContent=l.t;
+    el('text',{x:l.x+12,y:l.y+34,fill:DIM,'font-size':8},svg).textContent=l.d;
+    el('text',{x:l.x+230,y:l.y+22,'text-anchor':'end',fill:l.c,'font-size':8,'font-family':'monospace'},svg).textContent=l.detail;
+    if(i<4){
+      el('path',{d:'M '+(l.x+120)+' '+(l.y+44)+' L '+(layers[i+1].x+120)+' '+(layers[i+1].y),stroke:l.c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+    }
+  });
+  // Q&A example
+  el('rect',{x:680,y:50,w:180,h:120,rx:8,fill:'rgba(0,0,0,.3)',stroke:AC,'stroke-width':1},svg);
+  el('text',{x:770,y:72,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='示例问答';
+  el('text',{x:695,y:92,fill:INFO,'font-size':9},svg).textContent='Q: 哪个季度增长最快?';
+  el('text',{x:695,y:110,fill:AC,'font-size':9},svg).textContent='A: Q2 (+25%)';
+  el('text',{x:695,y:130,fill:INFO,'font-size':9},svg).textContent='Q: 全年总营收?';
+  el('text',{x:695,y:148,fill:AC,'font-size':9},svg).textContent='A: ¥6.6B';
+  el('text',{x:695,y:165,fill:DIM,'font-size':8},svg).textContent='→ 自动生成SQL查询';
+  // animate
+  var idx=0;
+  var logs=[];
+  tableTimer=setInterval(function(){
+    var ls=svg.querySelectorAll('.tbl-layer');
+    ls.forEach(function(l,i){
+      l.setAttribute('stroke-width',i===idx?3:1.5);
+      l.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<5){
+      logs.push('['+layers[idx].t+'] '+layers[idx].detail);
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(tableTimer);
+      log.textContent=logs.join('\n')+'\n✓ 表格理解完成，支持自然语言精确问答';
+    }
+  },600);
+}
+tableRun();
+
+// M7: Video RAG
+var videoTimer=null;
+function videoRun(){
+  if(videoTimer)clearInterval(videoTimer);
+  var svg=document.getElementById('video-svg');clear(svg);
+  var log=document.getElementById('video-log');
+  // timeline
+  el('text',{x:40,y:30,fill:AC,'font-size':11,'font-weight':600},svg).textContent='视频时间轴 (总时长 120秒):';
+  el('rect',{x:40,y:40,w:800,h:30,rx:4,fill:'rgba(0,0,0,.3)',stroke:BD},svg);
+  // time markers
+  [0,30,60,90,120].forEach(function(t,i){
+    var x=40+i*200;
+    el('line',{x1:x,y1:40,x2:x,y2:70,stroke:DIM,'stroke-width':1},svg);
+    el('text',{x:x,y:84,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=t+'s';
+  });
+  // scenes
+  var scenes=[
+    {start:0,end:25,t:'场景1: 产品介绍',c:AC,frames:3},
+    {start:25,end:60,t:'场景2: 功能演示',c:INFO,frames:4},
+    {start:60,end:90,t:'场景3: 用户反馈',c:PUR,frames:3},
+    {start:90,end:120,t:'场景4: 总结',c:WARN,frames:2}
+  ];
+  scenes.forEach(function(s,i){
+    var x=40+s.start/120*800,w=(s.end-s.start)/120*800;
+    el('rect',{x:x,y:40,width:w,height:30,rx:3,fill:s.c,'fill-opacity':0.2,stroke:s.c,'stroke-width':1,class:'vid-scene','data-idx':i},svg);
+    el('text',{x:x+w/2,y:59,'text-anchor':'middle',fill:s.c,'font-size':8},svg).textContent=s.t;
+    // keyframe markers
+    for(var f=0;f<s.frames;f++){
+      var fx=x+(f+0.5)*w/s.frames;
+      el('circle',{cx:fx,cy:40,r:3,fill:s.c,stroke:'#0a0b0f','stroke-width':1},svg);
+    }
+  });
+  // processing stages
+  var stages=[
+    {y:120,t:'关键帧提取',c:AC,d:'每5秒采样+场景切换检测',out:'12帧'},
+    {y:170,t:'场景分割',c:INFO,d:'PySceneDetect 转场检测',out:'4场景'},
+    {y:220,t:'字幕对齐',c:PUR,d:'ASR + 时间戳映射',out:'48句'},
+    {y:270,t:'片段检索',c:WARN,d:'多模态向量匹配',out:'top-3'},
+    {y:320,t:'时间定位',c:ROSE,d:'精确定位回答片段',out:'25-40s'}
+  ];
+  stages.forEach(function(s,i){
+    el('rect',{x:40,y:s.y,w:160,h:40,rx:6,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'vid-stage','data-idx':i},svg);
+    el('text',{x:120,y:s.y+16,'text-anchor':'middle',fill:s.c,'font-size':10,'font-weight':500},svg).textContent=s.t;
+    el('text',{x:120,y:s.y+30,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=s.d;
+    // result
+    el('rect',{x:220,y:s.y,w:80,h:40,rx:6,fill:'rgba(0,0,0,.2)',stroke:s.c},svg);
+    el('text',{x:260,y:s.y+25,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600,'font-family':'monospace'},svg).textContent=s.out;
+    if(i<4){
+      el('path',{d:'M 120 '+(s.y+40)+' L 120 '+(stages[i+1].y),stroke:s.c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+    }
+  });
+  // query and answer
+  el('rect',{x:330,y:120,w:260,h:60,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:460,y:140,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='用户查询';
+  el('text',{x:460,y:158,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='"产品的主要功能是什么?"';
+  el('text',{x:460,y:172,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='→ 定位到场景2: 功能演示 (25-60s)';
+  // answer
+  el('rect',{x:620,y:120,w:220,h:60,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:730,y:140,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='检索结果';
+  el('text',{x:635,y:158,fill:DIM,'font-size':9},svg).textContent='片段: 25-40s (功能演示)';
+  el('text',{x:635,y:172,fill:DIM,'font-size':9},svg).textContent='字幕: "支持多模态RAG..."';
+  // animate
+  var idx=0;
+  var logs=[];
+  videoTimer=setInterval(function(){
+    var ss=svg.querySelectorAll('.vid-stage');
+    ss.forEach(function(s,i){
+      s.setAttribute('stroke-width',i===idx?3:1.5);
+      s.setAttribute('fill',i===idx?'rgba(0,212,170,.1)':'rgba(0,0,0,.3)');
+    });
+    if(idx<5){
+      logs.push('['+stages[idx].t+'] '+stages[idx].d+' → '+stages[idx].out);
+      log.textContent=logs.join('\n');
+      idx++;
+    }else{
+      clearInterval(videoTimer);
+      log.textContent=logs.join('\n')+'\n✓ 视频RAG完成，定位到 25-40s 片段，答案含字幕+画面引用';
+    }
+  },600);
+}
+videoRun();
+
+// M8: RAG Evaluation
+var evalIdx=0;
+var evalSchemes=[
+  {name:'Naive RAG',cn:'基础RAG',c:ROSE,vals:[0.65,0.6,0.55,0.5,0.3,0.9]},
+  {name:'Advanced RAG',cn:'进阶RAG',c:WARN,vals:[0.78,0.75,0.7,0.68,0.6,0.75]},
+  {name:'Modular RAG',cn:'模块化RAG',c:INFO,vals:[0.85,0.82,0.78,0.76,0.75,0.7]},
+  {name:'Multimodal RAG',cn:'多模态RAG',c:AC,vals:[0.92,0.88,0.86,0.84,0.95,0.6]}
+];
+var evalDims=['忠实度','答案相关性','上下文精确率','上下文召回率','多模态覆盖率','延迟评分'];
+function evalDraw(){
+  var s=evalSchemes[evalIdx];
+  document.getElementById('eval-name').textContent=s.name+' / '+s.cn;
+  var svg=document.getElementById('eval-svg');clear(svg);
+  var cx=280,cy=190,R=130;
+  // axes
+  for(var i=0;i<6;i++){
+    var a=-Math.PI/2+i*2*Math.PI/6;
+    el('line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*R,y2:cy+Math.sin(a)*R,stroke:BD,'stroke-width':1},svg);
+    el('text',{x:cx+Math.cos(a)*(R+22),y:cy+Math.sin(a)*(R+22)+4,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=evalDims[i];
+  }
+  // grid
+  for(var r=1;r<=4;r++){
+    var pts=[];
+    for(var i=0;i<6;i++){var a=-Math.PI/2+i*2*Math.PI/6;pts.push((cx+Math.cos(a)*R*r/4)+','+(cy+Math.sin(a)*R*r/4));}
+    el('polygon',{points:pts.join(' '),fill:'none',stroke:BD,'stroke-width':.5,'stroke-dasharray':'2 2'},svg);
+  }
+  // all schemes (faint)
+  evalSchemes.forEach(function(sc,i){
+    var pts=[];
+    for(var j=0;j<6;j++){var a=-Math.PI/2+j*2*Math.PI/6;pts.push((cx+Math.cos(a)*R*sc.vals[j])+','+(cy+Math.sin(a)*R*sc.vals[j]));}
+    var active=i===evalIdx;
+    el('polygon',{points:pts.join(' '),fill:sc.c,'fill-opacity':active?0.15:0.03,stroke:sc.c,'stroke-width':active?2.5:1},svg);
+  });
+  // active points
+  var s=evalSchemes[evalIdx];
+  for(var j=0;j<6;j++){
+    var a=-Math.PI/2+j*2*Math.PI/6;
+    var px=cx+Math.cos(a)*R*s.vals[j],py=cy+Math.sin(a)*R*s.vals[j];
+    el('circle',{cx:px,cy:py,r:4,fill:s.c,stroke:'#0a0b0f','stroke-width':1.5},svg);
+    el('text',{x:px,y:py-8,'text-anchor':'middle',fill:s.c,'font-size':9,'font-weight':600,'font-family':'monospace'},svg).textContent=Math.round(s.vals[j]*100);
+  }
+  // comparison table
+  var tx=540,ty=60;
+  el('text',{x:tx,y:ty-10,fill:AC,'font-size':11,'font-weight':600},svg).textContent='方案对比表';
+  el('line',{x1:tx,y1:ty,x2:tx+310,y2:ty,stroke:BD},svg);
+  // header
+  el('text',{x:tx,y:ty+16,fill:DIM,'font-size':9},svg).textContent='方案';
+  evalDims.forEach(function(d,i){
+    el('text',{x:tx+100+i*36,y:ty+16,fill:DIM,'font-size':7,'text-anchor':'middle'},svg).textContent=d.slice(0,2);
+  });
+  evalSchemes.forEach(function(sc,i){
+    var active=i===evalIdx;
+    var y=ty+30+i*30;
+    el('rect',{x:tx-4,y:y-12,w:318,h:26,rx:4,fill:active?'rgba(0,212,170,.06)':'transparent'},svg);
+    el('rect',{x:tx,y:y-6,w:8,h:8,rx:2,fill:sc.c,'fill-opacity':active?0.6:0.3},svg);
+    el('text',{x:tx+14,y:y+2,fill:active?AC:sc.c,'font-size':10,'font-weight':active?600:400},svg).textContent=sc.name;
+    sc.vals.forEach(function(v,j){
+      el('text',{x:tx+100+j*36,y:y+2,'text-anchor':'middle',fill:active?AC:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=Math.round(v*100);
+    });
+  });
+  // summary
+  var avg=s.vals.reduce(function(a,b){return a+b;},0)/6;
+  el('rect',{x:tx,y:ty+160,w:310,h:50,rx:8,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1},svg);
+  el('text',{x:tx+12,y:ty+182,fill:s.c,'font-size':12,'font-weight':700},svg).textContent='▶ '+s.name;
+  el('text',{x:tx+12,y:ty+200,fill:DIM,'font-size':9},svg).textContent=s.cn+' | 综合评分: '+Math.round(avg*100)+'/100';
+  // advantage
+  var bestDim=s.vals.indexOf(Math.max.apply(null,s.vals));
+  el('text',{x:tx+180,y:ty+182,fill:AC,'font-size':10,'font-weight':600},svg).textContent='优势: '+evalDims[bestDim];
+  el('text',{x:tx+180,y:ty+200,fill:DIM,'font-size':9},svg).textContent='最高维度得分';
+  // latency note
+  var latency=s.vals[5];
+  el('text',{x:tx+12,y:ty+215,fill:latency>0.8?AC:WARN,'font-size':9},svg).textContent='延迟: '+(latency>0.8?'<500ms 快':latency>0.6?'500ms-1s 中':'>1s 慢');
+}
+function evalSwitch(){evalIdx=(evalIdx+1)%evalSchemes.length;evalDraw();}
+evalDraw();
+</script>
+</body>
+</html>
