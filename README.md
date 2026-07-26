@@ -1,9 +1,9 @@
 # AI 可视化实验室集 · AI Visualization Labs
 
-> 170 个零依赖交互式可视化项目 + 30 个配套工具，1360+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 173 个零依赖交互式可视化项目 + 30 个配套工具，1384+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-170-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1360+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-173-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1384+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -35,7 +35,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 配套工具
 
-除了 170 个可视化实验室，TW 生态还包含三十个独立的大型交互工具：
+除了 173 个可视化实验室，TW 生态还包含三十个独立的大型交互工具：
 
 | 工具 | 描述 | 链接 |
 |------|------|------|
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 170 |
-| 可视化模块 | 1360+ |
+| 项目总数 | 173 |
+| 可视化模块 | 1384+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~13.5 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -84,7 +84,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 72 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
+| AI / 机器学习 | 75 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
 | CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
 | CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
 | 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
@@ -264,6 +264,9 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 168 | 神经符号AI可视化实验室 | 神经符号集成、可微逻辑编程、知识图谱推理、因果推理、概率逻辑、归纳逻辑、可微分编程、符号回归等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/neuro-symbolic-viz-lab/) |
 | 169 | AI伦理与公平性可视化实验室 | 算法偏见、公平性度量、伦理框架、道德推理、价值对齐、算法问责、隐私伦理、AI人权等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-ethics-viz-lab/) |
 | 170 | 多模态智能体可视化实验室 | VLA模型、GUI Agent、工具使用、任务分解、多模态推理、动作生成、环境交互、Agent评估等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multimodal-agent-viz-lab/) |
+| 171 | 推理大模型可视化实验室 | 思维链CoT、测试时计算、过程奖励模型PRM、MCTS思维树搜索、自洽性投票、推理蒸馏、o1/o3/DeepSeek-R1架构、推理评估基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/171-reasoning-llm-viz-lab.html) |
+| 172 | AI编程智能体可视化实验室 | 智能体编程循环、代码库理解、任务分解规划、工具编排、多文件编辑协同、自主调试、多智能体协作、Cursor/Devin/Claude Code对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/172-ai-coding-agent-viz-lab.html) |
+| 173 | 长上下文大模型可视化实验室 | 上下文窗口与位置编码、RoPE与位置插值、Ring Attention分布式、注意力复杂度、大海捞针测试、KV-Cache优化、长上下文基准、应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/TW/173-long-context-viz-lab.html) |
 
 ## 技术栈
 
@@ -281,7 +284,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 使用方式
 
-1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 170 个项目
+1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 173 个项目
 2. **搜索筛选** — 在 Hub 页面使用搜索框和分类标签快速定位
 3. **随机探索** — 点击 "🎲 随机探索" 按钮发现新项目
 4. **本地运行** — 下载任意项目的 `index.html`，双击即可在浏览器中打开

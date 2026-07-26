@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 推理大模型可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--text)}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:740px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:120px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650;letter-spacing:-.005em}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:780px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--text-2);margin-top:12px;font-family:var(--mono)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+.mono{font-family:var(--mono)}
+.slider{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-2);font-family:var(--mono)}
+.slider input[type=range]{-webkit-appearance:none;appearance:none;width:200px;height:4px;background:var(--bg-3);border-radius:3px;outline:none}
+.slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+.slider input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+.sel{font-family:var(--sans);font-size:12.5px;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:7px 12px;cursor:pointer;transition:.18s}
+.sel:hover{border-color:var(--accent)}
+.sel:focus{outline:none;border-color:var(--accent)}
+.stat-row{display:flex;flex-wrap:wrap;gap:18px;margin-top:10px;font-family:var(--mono);font-size:12px}
+.stat-row .s{color:var(--text-2)}
+.stat-row .s b{color:var(--accent);font-weight:600}
+.model-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.pill{font-size:12px;font-family:var(--mono);color:var(--text-2);background:var(--bg-3);border:1px solid var(--border-2);border-radius:20px;padding:6px 14px;cursor:pointer;transition:.18s}
+.pill:hover{color:var(--text);border-color:var(--border-2)}
+.pill.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim)}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .lbl{font-size:11px;fill:var(--text-2)}
+svg .dim{fill:var(--text-3)}
+svg .ax{stroke:var(--border-2);stroke-width:1}
+svg .ax-t{font-size:10px;fill:var(--text-3);font-family:var(--mono)}
+.tok{display:inline-block;padding:2px 7px;margin:2px;border-radius:4px;font-family:var(--mono);font-size:12px;background:var(--bg-3);border:1px solid var(--border-2);transition:.2s}
+.node-hit{cursor:pointer;transition:.18s}
+.node-hit:hover circle{stroke-width:2.6}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+@media (max-width:720px){
+  .tabs{position:static;top:auto}
+  .lab-header h1{font-size:21px}
+  .tab{min-width:90px;font-size:11px;padding:8px 6px}
+  .slider input[type=range]{width:130px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  .pulse{animation:none}
+}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="index.html" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">推理大模型可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">REASONING LLM LAB / 171</span>
+    <h1>推理大模型可视化实验室</h1>
+    <p>拆解 2026 年推理大模型的核心机制——思维链、测试时计算、过程奖励、思维树搜索、自洽性投票与推理蒸馏，以可交互 SVG 可视化呈现 o1/o3、DeepSeek-R1、QwQ、GPT-5 reasoning 的"慢思考"原理。</p>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">思维链 CoT</button>
+    <button class="tab" data-m="m2">测试时计算</button>
+    <button class="tab" data-m="m3">过程奖励 PRM</button>
+    <button class="tab" data-m="m4">模型架构对比</button>
+    <button class="tab" data-m="m5">思维树 MCTS</button>
+    <button class="tab" data-m="m6">自洽性投票</button>
+    <button class="tab" data-m="m7">推理蒸馏</button>
+    <button class="tab" data-m="m8">评估基准</button>
+  </nav>
+
+  <!-- 模块 1: 思维链推理 -->
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>思维链推理 Chain-of-Thought</h2></div>
+    <p class="m-desc">推理模型在给出答案前先输出一段中间推理步骤，将复杂问题分解为可验证的子步骤。点击"开始推理"逐步展开 CoT 链路，切换对比可观察"直接回答"与"思维链"的差异。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="cotRun()">开始推理 ▸</button>
+      <button class="btn" onclick="cotReset()">重置</button>
+      <button class="btn" id="cot-mode-btn" onclick="cotToggleMode()">模式：思维链 CoT</button>
+    </div>
+    <div class="viz"><svg id="cot-svg" viewBox="0 0 880 400"></svg></div>
+    <div id="cot-detail" style="font-family:var(--mono);font-size:12.5px;color:var(--text-2);min-height:42px;padding:4px 2px"></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>已完成步骤</span>
+      <span><i style="background:#f59e0b"></i>当前步骤（脉冲）</span>
+      <span><i style="background:#62697b"></i>待执行</span>
+      <span><i style="background:#ef4444"></i>直接回答（易错）</span>
+    </div>
+  </section>
+
+  <!-- 模块 2: 测试时计算 -->
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>测试时计算 Test-Time Compute</h2></div>
+    <p class="m-desc">推理模型在推理阶段花费更多"思考 token"通常能换取更高准确率，但边际收益递减、计算成本递增。拖动滑块调整思考预算，观察慢思考与快思考曲线的 tradeoff。</p>
+    <div class="ctrl">
+      <div class="slider">思考预算 <input type="range" id="ttc-slider" min="0" max="100" value="40"><span id="ttc-val" style="color:var(--accent);min-width:96px"></span></div>
+    </div>
+    <div class="viz"><svg id="ttc-svg" viewBox="0 0 880 380"></svg></div>
+    <div class="stat-row" id="ttc-stats"></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>慢思考（reasoning）准确率</span>
+      <span><i style="background:#38bdf8"></i>快思考（直答）准确率</span>
+      <span><i style="background:#f59e0b"></i>计算成本</span>
+      <span><i style="background:#ef4444"></i>当前预算标记</span>
+    </div>
+  </section>
+
+  <!-- 模块 3: 过程奖励模型 -->
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>过程奖励模型 Process Reward Model</h2></div>
+    <p class="m-desc">PRM 对推理链中每一步打分，而非只评最终答案。绿色节点表示高分步骤、红色表示低分步骤。点击节点查看奖励分数，best-of-N 采样会沿最高累积奖励路径选择最优推理链。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="prmExpand()">展开推理树 ▸</button>
+      <button class="btn" onclick="prmBest()">选择最优路径（best-of-N）</button>
+      <button class="btn" onclick="prmReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="prm-svg" viewBox="0 0 880 420"></svg></div>
+    <div id="prm-info" style="font-family:var(--mono);font-size:12.5px;color:var(--text-2);min-height:24px;padding:4px 2px"></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>高分步骤（&gt;0.7）</span>
+      <span><i style="background:#f59e0b"></i>中等（0.4-0.7）</span>
+      <span><i style="background:#ef4444"></i>低分（&lt;0.4）</span>
+      <span><i style="background:#a78bfa"></i>最优路径</span>
+    </div>
+  </section>
+
+  <!-- 模块 4: 架构对比 -->
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>推理模型架构对比</h2></div>
+    <p class="m-desc">不同推理大模型采用不同训练范式与推理策略：o1/o3 走大规模 RL 学习"如何思考"，DeepSeek-R1 用纯 RL（GRPO）从基础模型直接激发推理，QwQ 基于 Qwen2.5 长上下文 RL，GPT-5 reasoning 融合多范式。点击下方模型卡片切换。</p>
+    <div class="ctrl">
+      <div class="model-pick" id="m4-pick"></div>
+    </div>
+    <div class="viz"><svg id="m4-svg" viewBox="0 0 880 400"></svg></div>
+    <div class="info-grid" id="m4-cards"></div>
+  </section>
+
+  <!-- 模块 5: 思维树 MCTS -->
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>思维树搜索 Tree of Thoughts / MCTS</h2></div>
+    <p class="m-desc">蒙特卡洛树搜索将推理建模为搜索过程：选择（UCB）→ 扩展 → 评估 → 回溯更新价值。点击"单步搜索"逐步走完四个阶段，观察节点扩展与价值反向传播。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="mctsStep()">单步搜索 ▸</button>
+      <button class="btn" onclick="mctsAuto()">自动搜索</button>
+      <button class="btn" onclick="mctsReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="mcts-svg" viewBox="0 0 880 420"></svg></div>
+    <div id="mcts-phase" style="font-family:var(--mono);font-size:12.5px;color:var(--text-2);min-height:24px;padding:4px 2px"></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>已访问节点</span>
+      <span><i style="background:#f59e0b"></i>当前选择/扩展</span>
+      <span><i style="background:#a78bfa"></i>评估中</span>
+      <span><i style="background:#38bdf8"></i>回溯更新</span>
+      <span><i style="background:#62697b"></i>未访问</span>
+    </div>
+  </section>
+
+  <!-- 模块 6: 自洽性 -->
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>自洽性与多数投票 Self-Consistency</h2></div>
+    <p class="m-desc">对同一问题采样多条独立推理路径，对最终答案做多数投票。正确答案往往被多条路径一致命中。调整采样数 N，观察答案分布与投票结果。</p>
+    <div class="ctrl">
+      <div class="slider">采样数 N <input type="range" id="sc-slider" min="3" max="16" value="8"><span id="sc-val" style="color:var(--accent);min-width:48px"></span></div>
+      <button class="btn primary" onclick="scRun()">重新采样 ▸</button>
+    </div>
+    <div class="viz"><svg id="sc-svg" viewBox="0 0 880 400"></svg></div>
+    <div id="sc-info" style="font-family:var(--mono);font-size:12.5px;color:var(--text-2);min-height:24px;padding:4px 2px"></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>命中正确答案</span>
+      <span><i style="background:#38bdf8"></i>多数票（采纳）</span>
+      <span><i style="background:#ef4444"></i>错误答案</span>
+    </div>
+  </section>
+
+  <!-- 模块 7: 推理蒸馏 -->
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>推理链压缩与蒸馏 Reasoning Distillation</h2></div>
+    <p class="m-desc">教师模型（长 CoT，数千思考 token）的知识被蒸馏到学生模型（短 CoT）。学生学会精炼推理，token 数大幅下降而准确率接近保持。点击切换对比教师/学生推理链。</p>
+    <div class="ctrl">
+      <button class="btn primary" id="dist-btn" onclick="distToggle()">显示学生模型（蒸馏后）</button>
+    </div>
+    <div class="viz"><svg id="dist-svg" viewBox="0 0 880 380"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">思考 token</div><div class="v" id="dist-tok">4200 → 680</div><div class="d">压缩 83.8%</div></div>
+      <div class="info-card"><div class="k">准确率（MATH）</div><div class="v" id="dist-acc">91.2% → 86.4%</div><div class="d">仅下降 4.8 个百分点</div></div>
+      <div class="info-card"><div class="k">推理延迟</div><div class="v" id="dist-lat">12.4s → 2.1s</div><div class="d">加速约 5.9×</div></div>
+    </div>
+  </section>
+
+  <!-- 模块 8: 评估基准 -->
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>推理模型评估基准 Benchmarks</h2></div>
+    <p class="m-desc">雷达图对比推理模型在五大基准上的表现：AIME（奥数）、MATH（竞赛数学）、GPQA（研究生级科学）、Codeforces（竞技编程）、ARC-AGI（抽象推理）。下拉选择模型，雷达图动态更新。</p>
+    <div class="ctrl">
+      <select class="sel" id="bm-sel"></select>
+      <span style="font-size:12px;color:var(--text-3);font-family:var(--mono)">数值为 pass@1 / Elo 归一化分数（0-100）</span>
+    </div>
+    <div class="viz"><svg id="bm-svg" viewBox="0 0 880 440"></svg></div>
+    <div class="info-grid" id="bm-cards"></div>
+  </section>
+</main>
+
+<script>
+// ===== 通用工具 =====
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',DIM='#62697b',BD='#2d3344',BG3='#161922';
+var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+function el(tag,attrs,parent){var e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+// 颜色插值：t=0 绿(好) → t=1 红(差)
+function scoreColor(t){t=clamp(t,0,1);var r=Math.round(lerp(0,239,t)),g=Math.round(lerp(212,68,t)),b=Math.round(lerp(170,68,t));return 'rgb('+r+','+g+','+b+')';}
+
+// ===== 标签页切换 =====
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){
+  tabs.forEach(function(x){x.classList.remove('active')});
+  t.classList.add('active');
+  mods.forEach(function(m){m.classList.remove('active')});
+  document.getElementById(t.dataset.m).classList.add('active');
+});});
+
+// ===== 模块1 思维链 CoT =====
+var cotProblem='水池进水管单独6小时注满，出水管单独8小时排空，两管同开几小时注满？';
+var cotSteps=[
+  {t:'理解题意',d:'进水管速率 1/6 池/时；出水管速率 1/8 池/时（排空为负）。'},
+  {t:'净注水率',d:'1/6 − 1/8 = (4−3)/24 = 1/24 池/时。'},
+  {t:'列方程',d:'设 t 小时注满：t × (1/24) = 1。'},
+  {t:'求解',d:'t = 24 小时。'},
+  {t:'验证',d:'24×(1/6−1/8)=24×1/24=1 ✓ 正好注满。'}
+];
+var cotDirect='直接回答：约 7 小时（直觉取平均，错误）';
+var cotStep=-1,cotMode='cot',cotTimer=null;
+function cotNodeX(i){return 90+i*170;}
+function cotRender(){
+  var s=document.getElementById('cot-svg');clear(s);
+  // 题目框
+  el('rect',{x:40,y:24,width:800,height:48,fill:BG3,stroke:BD,'rx':8},s);
+  el('text',{x:56,y:48,fill:'var(--text-2)','font-size':12,'font-family':'var(--mono)'},s).textContent='问题 ▸';
+  el('text',{x:104,y:48,fill:'var(--text)','font-size':12.5},s).textContent=cotProblem;
+  var isDirect=cotMode==='direct';
+  var steps=isDirect?[{t:'直觉回答',d:cotDirect}]:cotSteps;
+  var baseY=140;
+  steps.forEach(function(st,i){
+    var x=cotNodeX(i),done=cotStep>=i,cur=cotStep===i,pend=cotStep<i;
+    // 连接箭头
+    if(i>0){
+      var px=cotNodeX(i-1)+34;
+      el('path',{d:'M'+px+','+baseY+' L'+(x-34)+','+baseY,fill:'none',stroke:done?AC:BD,'stroke-width':1.8,'marker-end':'url(#cotArr)'},s);
+    }
+    var col=cur?WARN:(done?(isDirect&&done?ERR:AC):DIM);
+    el('circle',{cx:x,cy:baseY,r:cur?22:18,fill:col+'22',stroke:col,'stroke-width':cur?2.4:1.4,class:cur?'pulse':''},s);
+    el('text',{x:x,y:baseY+4,'text-anchor':'middle',fill:col,'font-family':'var(--mono)','font-size':13,'font-weight':600},s).textContent=isDirect?'!':(i+1);
+    el('text',{x:x,y:baseY+40,'text-anchor':'middle',fill:done?'var(--text)':'var(--text-3)','font-size':11.5},s).textContent=st.t.length>6?st.t.slice(0,5)+'…':st.t;
+  });
+  el('defs',{},s).innerHTML='<marker id="cotArr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="'+AC+'"/></marker>';
+  // 答案框
+  var ansY=240;
+  el('rect',{x:40,y:ansY,width:800,height:130,fill:BG3,stroke:cotStep>=steps.length-1&&cotStep>-1?(isDirect?ERR:AC):BD,'rx':8},s);
+  el('text',{x:56,y:ansY+24,fill:'var(--text-2)','font-size':11,'font-family':'var(--mono)'},s).textContent=isDirect?'直接回答（无推理）':'推理过程';
+  var d=document.getElementById('cot-detail');
+  if(cotStep<0){el('text',{x:56,y:ansY+56,fill:'var(--text-3)','font-size':12},s).textContent='点击「开始推理」逐步展开思维链';d.innerHTML='';}
+  else{
+    var vis=steps.slice(0,cotStep+1);
+    vis.forEach(function(st,i){
+      el('text',{x:56,y:ansY+50+i*24,fill:isDirect&&i===cotStep?ERR:'var(--text)','font-size':12,'font-family':'var(--mono)'},s).textContent='› '+st.d;
+    });
+    d.innerHTML=vis.map(function(st,i){return '<span style="color:'+(isDirect&&i===cotStep?ERR:AC)+'">['+(i+1)+']</span> '+st.d;}).join('<br>');
+  }
+  // 顶部对比标签
+  el('text',{x:440,y:ansY+116,'text-anchor':'middle',fill:isDirect?ERR:AC,'font-size':11,'font-family':'var(--mono)'},s).textContent=isDirect?'模式：直接回答 — 跳过推理，易出错':'模式：思维链 — 分步推理，可验证';
+}
+cotRender();
+function cotRun(){
+  if(cotTimer)return;cotReset();
+  var total=cotMode==='direct'?1:cotSteps.length;
+  var i=0;
+  cotTimer=setInterval(function(){cotStep=i;cotRender();i++;if(i>=total){clearInterval(cotTimer);cotTimer=null;}},reduced?120:850);
+}
+function cotReset(){if(cotTimer){clearInterval(cotTimer);cotTimer=null;}cotStep=-1;cotRender();}
+function cotToggleMode(){
+  cotMode=cotMode==='cot'?'direct':'cot';
+  document.getElementById('cot-mode-btn').textContent='模式：'+(cotMode==='cot'?'思维链 CoT':'直接回答');
+  cotReset();
+}
+
+// ===== 模块2 测试时计算 =====
+// 慢思考：随思考token上升准确率(对数式饱和)；快思考：恒定低准确率
+function ttcSlow(b){return 62+33*(1-Math.exp(-b/35));}   // b:0-100 → 62→95
+function ttcFast(b){return 58+2*(b/100);}                 // 约58-60
+function ttcCost(b){return Math.pow(b/100,1.6)*100;}       // 成本递增
+function ttcRender(){
+  var s=document.getElementById('ttc-svg');clear(s);
+  var b=+document.getElementById('ttc-slider').value;
+  document.getElementById('ttc-val').textContent=(b*100)+' tok';
+  var W=880,H=380,mx=70,my=40,plotW=740,plotH=270;
+  // 坐标轴
+  el('line',{x1:mx,y1:H-my,x2:mx+plotW,y2:H-my,class:'ax'},s);
+  el('line',{x1:mx,y1:my,x2:mx,y2:H-my,class:'ax'},s);
+  el('text',{x:mx+plotW/2,y:H-8,'text-anchor':'middle',class:'lbl'},s).textContent='思考 token 预算（×100）';
+  el('text',{x:24,y:H/2,'text-anchor':'middle',class:'lbl',transform:'rotate(-90 24 '+(H/2)+')'},s).textContent='准确率 %';
+  // 网格 + y刻度
+  for(var p=0;p<=100;p+=20){
+    var gy=H-my-(p/100)*plotH;
+    el('line',{x1:mx,y1:gy,x2:mx+plotW,y2:gy,stroke:'#161922','stroke-width':1},s);
+    el('text',{x:mx-8,y:gy+3,'text-anchor':'end',class:'ax-t'},s).textContent=p;
+  }
+  for(var bx=0;bx<=100;bx+=20){
+    var gx=mx+(bx/100)*plotW;
+    el('text',{x:gx,y:H-my+16,'text-anchor':'middle',class:'ax-t'},s).textContent=bx;
+  }
+  function pt(vx,vy){return {x:mx+(vx/100)*plotW,y:H-my-(vy/100)*plotH};}
+  // 慢思考曲线
+  var slowPath='',fastPath='';
+  for(var i=0;i<=100;i+=2){
+    var sp=pt(i,ttcSlow(i)),fp=pt(i,ttcFast(i));
+    slowPath+=(i===0?'M':'L')+sp.x+','+sp.y+' ';
+    fastPath+=(i===0?'M':'L')+fp.x+','+fp.y+' ';
+  }
+  el('path',{d:slowPath,fill:'none',stroke:AC,'stroke-width':2.2},s);
+  el('path',{d:fastPath,fill:'none',stroke:INFO,'stroke-width':1.8,'stroke-dasharray':'5 4'},s);
+  // 成本曲线（右轴 0-100）
+  var costPath='';
+  for(var i=0;i<=100;i+=2){var cp=pt(i,ttcCost(i)*0.95);costPath+=(i===0?'M':'L')+cp.x+','+cp.y+' ';}
+  el('path',{d:costPath,fill:'none',stroke:WARN,'stroke-width':1.6,'stroke-dasharray':'2 3',opacity:.8},s);
+  // 当前预算标记
+  var cur=pt(b,ttcSlow(b));
+  el('line',{x1:cur.x,y1:H-my,x2:cur.x,y2:cur.y,stroke:ERR,'stroke-width':1,'stroke-dasharray':'3 3',opacity:.6},s);
+  el('circle',{cx:cur.x,cy:cur.y,r:7,fill:ERR+'33',stroke:ERR,'stroke-width':1.8},s);
+  el('circle',{cx:cur.x,cy:cur.y,r:13,fill:'none',stroke:ERR,'stroke-width':1,opacity:.5,class:'pulse'},s);
+  el('text',{x:cur.x+12,y:cur.y-10,fill:ERR,'font-size':11,'font-family':'var(--mono)'},s).textContent=ttcSlow(b).toFixed(1)+'%';
+  // 图例文字
+  el('text',{x:mx+plotW-150,y:my+16,fill:AC,'font-size':10.5,'font-family':'var(--mono)'},s).textContent='— 慢思考';
+  el('text',{x:mx+plotW-80,y:my+16,fill:INFO,'font-size':10.5,'font-family':'var(--mono)'},s).textContent='-- 快思考';
+  // 成本轴标签
+  el('text',{x:mx+plotW-6,y:my+30,'text-anchor':'end',fill:WARN,'font-size':10,'font-family':'var(--mono)'},s).textContent='·-· 计算成本';
+  // 统计
+  var accSlow=ttcSlow(b),accFast=ttcFast(b),cost=ttcCost(b);
+  document.getElementById('ttc-stats').innerHTML=
+    '<span class="s">慢思考准确率 <b>'+accSlow.toFixed(1)+'%</b></span>'+
+    '<span class="s">快思考准确率 <b style="color:'+INFO+'">'+accFast.toFixed(1)+'%</b></span>'+
+    '<span class="s">推理增益 <b style="color:'+(accSlow-accFast>10?AC:WARN)+'">+'+(accSlow-accFast).toFixed(1)+'</b></span>'+
+    '<span class="s">计算成本 <b style="color:'+WARN+'">'+cost.toFixed(0)+'</b></span>'+
+    '<span class="s">边际收益 <b>'+(b>70?'递减':'上升')+'</b></span>';
+}
+document.getElementById('ttc-slider').addEventListener('input',ttcRender);
+ttcRender();
+
+// ===== 模块3 过程奖励模型 PRM =====
+// 推理树：每节点 {t:步骤, s:PRM分数 0-1, children:[]}
+var prmTree={t:'理解题意',s:0.9,children:[
+  {t:'设未知数 x',s:0.85,children:[
+    {t:'列方程 3x+5=23',s:0.82,children:[{t:'移项 3x=18',s:0.9,children:[{t:'x=6 ✓',s:0.95}]}]},
+    {t:'尝试代入法',s:0.55,children:[{t:'枚举x=1..6',s:0.4,children:[{t:'耗时易漏',s:0.3}]}]}
+  ]},
+  {t:'直接猜答案',s:0.25,children:[{t:'x=7',s:0.15}]}
+]};
+var prmLayoutData=[];
+function prmLayout(node,x,y,sp,depth){
+  node.x=x;node.y=y;node.depth=depth;
+  prmLayoutData.push(node);
+  if(node.children){
+    var n=node.children.length,start=x-(n-1)*sp/2;
+    node.children.forEach(function(c,i){prmLayout(c,start+i*sp,y+92,sp/Math.max(1.2,n*0.7),depth+1);});
+  }
+}
+prmLayout(prmTree,440,50,320,0);
+var prmExpanded={},prmBestPath=null,prmHL=null;
+function prmFindBest(node){
+  if(!node.children||!node.children.length)return {score:node.s,path:[node]};
+  var best=null;
+  node.children.forEach(function(ch){var r=prmFindBest(ch);if(!best||r.score>best.score)best=r;});
+  return {score:(node.s+best.score*2)/3,path:[node].concat(best.path)};
+}
+function prmIsBest(node){
+  if(!prmBestPath)return false;
+  return prmBestPath.indexOf(node)>=0;
+}
+function prmNodeColor(node){
+  if(prmIsBest(node))return PUR;
+  return scoreColor(1-node.s);
+}
+function prmRender(){
+  var s=document.getElementById('prm-svg');clear(s);
+  // 连线
+  (function drawEdges(node){
+    if(node.children)node.children.forEach(function(ch){
+      var best=prmIsBest(node)&&prmIsBest(ch);
+      el('path',{d:'M'+node.x+','+(node.y+20)+' L'+ch.x+','+(ch.y-20),fill:'none',stroke:best?PUR:BD,'stroke-width':best?2.4:1.2,opacity:best?1:0.7},s);
+      drawEdges(ch);
+    });
+  })(prmTree);
+  // 节点
+  prmLayoutData.forEach(function(node){
+    var shown=prmExpanded[node.depth]!==false;
+    var col=prmNodeColor(node);
+    var isHL=node===prmHL;
+    var g=el('g',{class:'node-hit'},s);
+    g.addEventListener('click',function(e){e.stopPropagation();prmHL=node;prmRender();showPrmInfo(node);});
+    el('circle',{cx:node.x,cy:node.y,r:isHL?21:17,fill:col+'22',stroke:isHL?'#fff':col,'stroke-width':isHL?2.4:1.5},g);
+    el('text',{x:node.x,y:node.y+3.5,'text-anchor':'middle',fill:col,'font-size':11},g).textContent=node.s.toFixed(2);
+    el('text',{x:node.x,y:node.y+34,'text-anchor':'middle',fill:'var(--text-2)','font-size':10.5},g).textContent=node.t;
+  });
+}
+function showPrmInfo(node){
+  var onBest=prmIsBest(node);
+  document.getElementById('prm-info').innerHTML='步骤：<span style="color:'+AC+'">'+node.t+'</span>　PRM 奖励分数：<span style="color:'+scoreColor(1-node.s)+'">'+node.s.toFixed(2)+'</span>　'+(onBest?'<span style="color:'+PUR+'">★ 位于最优路径</span>':'');
+}
+prmRender();
+function prmExpand(){
+  var depths=prmLayoutData.map(function(n){return n.depth;});
+  var maxD=Math.max.apply(null,depths);
+  var d=0;
+  prmExpanded={};prmLayoutData.forEach(function(n){prmExpanded[n.depth]=false;});
+  prmLayoutData.forEach(function(n){prmExpanded[n.depth]=false;});
+  var iv=setInterval(function(){
+    prmExpanded[d]=true;d++;prmRender();
+    if(d>maxD){clearInterval(iv);}
+  },reduced?80:380);
+}
+function prmBest(){
+  prmLayoutData.forEach(function(n){prmExpanded[n.depth]=true;});
+  prmBestPath=prmFindBest(prmTree).path;prmHL=null;prmRender();
+  document.getElementById('prm-info').innerHTML='<span style="color:'+PUR+'">★ best-of-N 已选择累积奖励最高的推理链</span>（'+prmBestPath.map(function(n){return n.t;}).join(' → ')+'）';
+}
+function prmReset(){
+  if(prmExpanded){Object.keys(prmExpanded).forEach(function(k){prmExpanded[k]=true;});}
+  prmBestPath=null;prmHL=null;prmRender();
+  document.getElementById('prm-info').innerHTML='点击节点查看奖励分数';
+}
+document.getElementById('prm-svg').addEventListener('click',function(){prmHL=null;prmRender();});
+
+// ===== 模块4 架构对比 =====
+var m4Models=[
+  {id:'o3',name:'OpenAI o3',color:AC,
+   stages:[{n:'预训练',on:1},{n:'SFT 冷启动',on:1},{n:'大规模 RL',on:1},{n:'推理 RL',on:1}],
+   train:'大规模强化学习（RLHF + 推理 RL）',
+   strat:'隐式长 CoT，思考 token 不对用户可见，内部搜索',
+   feat:'测试时计算随难度自适应，AIME 接近满分',
+   params:'万亿级（估），推理算力可伸缩',
+   ctx:'200K'},
+  {id:'r1',name:'DeepSeek-R1',color:INFO,
+   stages:[{n:'预训练',on:1},{n:'少量 SFT',on:1},{n:'纯 RL (GRPO)',on:1},{n:'蒸馏',on:1}],
+   train:'纯 RL（GRPO）从基础模型直接激发推理，无需 SFT 冷启动',
+   strat:'显式 CoT，思考过程可见可蒸馏，开源权重',
+   feat:'R1-Zero 证明纯 RL 可涌现推理；R1 蒸馏出 1.5B-70B 系列',
+   params:'671B (MoE, 37B 激活)',
+   ctx:'128K'},
+  {id:'qwq',name:'Qwen QwQ-32B',color:PUR,
+   stages:[{n:'预训练',on:1},{n:'SFT',on:1},{n:'长思维链 RL',on:1},{n:'—',on:0}],
+   train:'基于 Qwen2.5 长上下文 + 推理 RL',
+   strat:'显式反思与自我验证，超长思考链（数万 token）',
+   feat:'32B 密集模型即达一线推理水平，可本地部署',
+   params:'32B 密集',
+   ctx:'128K'},
+  {id:'gpt5',name:'GPT-5 reasoning',color:WARN,
+   stages:[{n:'多模态预训练',on:1},{n:'SFT+RLHF',on:1},{n:'推理 RL',on:1},{n:'工具/智能体 RL',on:1}],
+   train:'统一多范式：预训练 + RLHF + 推理 RL + 工具调用 RL',
+   strat:'按需切换快/慢思考，融合工具调用与长程规划',
+   feat:'原生多模态推理，统一快慢思考，智能体能力',
+   params:'未公开（前沿规模）',
+   ctx:'400K+'}
+];
+var m4Cur='o3';
+function m4Render(){
+  var s=document.getElementById('m4-svg');clear(s);
+  var m=m4Models.filter(function(x){return x.id===m4Cur;})[0];
+  // 流程阶段
+  var stageNames=['预训练','监督微调','强化学习','进阶'];
+  var subLabels=['base LLM','SFT','RL','推理/工具'];
+  var stLabels=[m.stages[0],m.stages[1],m.stages[2],m.stages[3]];
+  var bx=60,by=70,bw=170,gap=24;
+  el('text',{x:60,y:40,class:'lbl'},s).textContent=m.name+' · 训练与推理管线';
+  stLabels.forEach(function(st,i){
+    var x=bx+i*(bw+gap),on=st.on;
+    el('rect',{x:x,y:by,width:bw,height:70,fill:on?m.color+'18':BG3,stroke:on?m.color:BD,'stroke-width':on?1.6:1.1,'rx':9},s);
+    el('text',{x:x+bw/2,y:by+26,'text-anchor':'middle',fill:on?m.color:'var(--text-3)','font-size':13,'font-weight':600},s).textContent=stageNames[i];
+    el('text',{x:x+bw/2,y:by+48,'text-anchor':'middle',fill:on?'var(--text-2)':'var(--text-3)','font-size':10.5,'font-family':'var(--mono)'},s).textContent=st.n;
+    if(!on){el('text',{x:x+bw/2,y:by+62,'text-anchor':'middle',fill:DIM,'font-size':9},s).textContent='不适用';}
+    if(i<3){var ax1=x+bw,ax2=x+bw+gap;el('path',{d:'M'+ax1+','+(by+35)+' L'+ax2+','+(by+35),stroke:on&&stLabels[i+1].on?m.color:BD,'stroke-width':1.6,fill:'none','marker-end':'url(#m4Arr)'},s);}
+  });
+  el('defs',{},s).innerHTML='<marker id="m4Arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="'+m.color+'"/></marker>';
+  // 推理策略示意：思考链
+  el('text',{x:60,y:180,class:'lbl'},s).textContent='推理策略';
+  var chain=['问题','思考①','思考②','思考③','验证','答案'];
+  chain.forEach(function(c,i){
+    var x=80+i*130,y=210;
+    var isThink=c.indexOf('思考')>=0;
+    el('rect',{x:x,y:y,width:108,height:34,fill:isThink?m.color+'18':BG3,stroke:isThink?m.color:BD,'stroke-width':1.2,'rx':6},s);
+    el('text',{x:x+54,y:y+21,'text-anchor':'middle',fill:isThink?m.color:'var(--text-2)','font-size':11,'font-family':'var(--mono)'},s).textContent=c;
+    if(i<chain.length-1)el('path',{d:'M'+(x+108)+','+(y+17)+' L'+(x+130)+','+(y+17),stroke:BD,'stroke-width':1.2,fill:'none','marker-end':'url(#m4Arr2)'},s);
+  });
+  el('defs',{},s).innerHTML+='<marker id="m4Arr2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="'+BD+'"/></marker>';
+  // 底部关键指标
+  el('text',{x:60,y:285,class:'lbl'},s).textContent='关键属性';
+  var attrs=[['训练范式',m.train.split('（')[0]],['推理策略',m.strat.split('，')[0]],['参数规模',m.params],['上下文',m.ctx]];
+  attrs.forEach(function(a,i){
+    var x=60+i*195,y=300;
+    el('rect',{x:x,y:y,width:180,height:62,fill:BG3,stroke:BD,'rx':7},s);
+    el('text',{x:x+10,y:y+20,fill:m.color,'font-size':10,'font-family':'var(--mono)'},s).textContent=a[0];
+    el('text',{x:x+10,y:y+42,fill:'var(--text)','font-size':11.5},s).textContent=a[1].length>14?a[1].slice(0,13)+'…':a[1];
+  });
+  // 卡片
+  document.getElementById('m4-cards').innerHTML=[
+    {k:'训练方式',v:m.train,d:m.id==='r1'?'无需人工推理标注':(m.id==='o3'?'RL 驱动思考能力':(m.id==='gpt5'?'多阶段联合优化':'RL 微调'))},
+    {k:'推理策略',v:m.strat,d:m.id==='o3'?'思考过程隐藏':(m.id==='r1'?'思考链可见可蒸馏':(m.id==='gpt5'?'快慢思考统一':'长链自我反思'))},
+    {k:'核心特点',v:m.feat,d:'2026 推理前沿代表'},
+    {k:'参数 / 上下文',v:m.params,d:'上下文窗口 '+m.ctx}
+  ].map(function(c){return '<div class="info-card"><div class="k">'+c.k+'</div><div class="v">'+c.v+'</div><div class="d">'+c.d+'</div></div>';}).join('');
+}
+function m4Pick(){
+  var p=document.getElementById('m4-pick');p.innerHTML='';
+  m4Models.forEach(function(m){
+    var b=document.createElement('button');b.className='pill'+(m.id===m4Cur?' active':'');b.textContent=m.name;
+    b.addEventListener('click',function(){m4Cur=m.id;m4Pick();m4Render();});
+    p.appendChild(b);
+  });
+}
+m4Pick();m4Render();
+
+// ===== 模块5 思维树 MCTS =====
+// 树结构（固定布局）
+var mctsNodes=[
+  {id:0,x:440,y:50,t:'根',v:0,n:0,children:[1,2,3],parent:-1},
+  {id:1,x:200,y:150,t:'思路A',v:0,n:0,children:[4,5],parent:0},
+  {id:2,x:440,y:150,t:'思路B',v:0,n:0,children:[6,7],parent:0},
+  {id:3,x:680,y:150,t:'思路C',v:0,n:0,children:[8],parent:0},
+  {id:4,x:120,y:260,t:'A1',v:0,n:0,children:[],parent:1},
+  {id:5,x:280,y:260,t:'A2',v:0,n:0,children:[],parent:1},
+  {id:6,x:380,y:260,t:'B1',v:0,n:0,children:[],parent:2},
+  {id:7,x:500,y:260,t:'B2',v:0,n:0,children:[],parent:2},
+  {id:8,x:680,y:260,t:'C1',v:0,n:0,children:[],parent:3}
+];
+// 叶子的真实评估值（用于回溯）
+var mctsLeafEval={4:0.82,5:0.35,6:0.6,7:0.9,8:0.45};
+var mctsPhase=0; // 0:select 1:expand 2:eval 3:backprop
+var mctsStepIdx=0;
+var mctsVisited={0:true};
+var mctsCurPath=[];
+var mctsCurNode=null;
+var mctsExpandFrom=null;
+var mctsEvalNode=null;
+var mctsBackNodes=[];
+var mctsAutoTimer=null;
+function mctsUCB(node,cParam){
+  if(node.n===0)return 999;
+  var parent=mctsNodes[node.parent];
+  var N=parent?parent.n:1;
+  return node.v/Math.max(1,node.n)+cParam*Math.sqrt(Math.log(N+1)/Math.max(1,node.n));
+}
+function mctsSelectBestChild(node){
+  var best=null,bestU=-1;
+  node.children.forEach(function(cid){var c=mctsNodes[cid];if(mctsVisited[cid]){var u=mctsUCB(c,1.4);if(u>bestU){bestU=u;best=c;}}});
+  return best;
+}
+function mctsPhaseName(){return ['① 选择 Selection','② 扩展 Expansion','③ 评估 Evaluation','④ 回溯 Backpropagation'][mctsPhase];}
+function mctsRender(){
+  var s=document.getElementById('mcts-svg');clear(s);
+  // 阶段标签条
+  var phases=['选择','扩展','评估','回溯'];
+  phases.forEach(function(p,i){
+    var x=60+i*205,active=i===mctsPhase,done=i<mctsPhase;
+    el('rect',{x:x,y:20,width:190,height:30,fill:active?AC+'18':(done?AC+'0c':BG3),stroke:active?AC:(done?AC+'66':BD),'stroke-width':active?1.6:1,'rx':6},s);
+    el('text',{x:x+95,y:39,'text-anchor':'middle',fill:active?AC:(done?'var(--text-2)':'var(--text-3)'),'font-size':11.5,'font-family':'var(--mono)','font-weight':active?600:400},s).textContent=p;
+    if(i<3)el('text',{x:x+195,y:39,fill:DIM,'font-size':11},s).textContent='→';
+  });
+  // 边
+  mctsNodes.forEach(function(n){
+    n.children.forEach(function(cid){
+      var c=mctsNodes[cid];
+      var onPath=mctsCurPath.indexOf(n.id)>=0&&mctsCurPath.indexOf(cid)>=0;
+      var back=mctsBackNodes.indexOf(n.id)>=0&&mctsBackNodes.indexOf(cid)>=0;
+      var stroke=onPath?AC:(back?INFO:BD);
+      el('path',{d:'M'+n.x+','+(n.y+18)+' L'+c.x+','+(c.y-18),fill:'none',stroke:stroke,'stroke-width':onPath||back?2.2:1.1,opacity:onPath||back?1:0.55},s);
+    });
+  });
+  // 节点
+  mctsNodes.forEach(function(n){
+    var visited=mctsVisited[n.id];
+    var isCur=n.id===(mctsCurNode!==null?mctsCurNode:-99);
+    var isEval=n.id===mctsEvalNode;
+    var isBack=mctsBackNodes.indexOf(n.id)>=0;
+    var col=isEval?PUR:(isBack?INFO:(isCur?WARN:(visited?AC:DIM)));
+    var r=visited?16:(isCur?16:13);
+    el('circle',{cx:n.x,cy:n.y,r:r,fill:col+'22',stroke:col,'stroke-width':isCur||isEval?2.4:1.4},s);
+    if(isCur)el('circle',{cx:n.x,cy:n.y,r:r+6,fill:'none',stroke:col,'stroke-width':1,opacity:.5,class:'pulse'},s);
+    el('text',{x:n.x,y:n.y+3.5,'text-anchor':'middle',fill:col,'font-size':10.5,'font-family':'var(--mono)'},s).textContent=n.t;
+    if(visited&&n.n>0){el('text',{x:n.x,y:n.y+34,'text-anchor':'middle',fill:'var(--text-2)','font-size':9.5,'font-family':'var(--mono)'},s).textContent='v='+n.v.toFixed(2)+' n='+n.n;}
+    else if(visited){el('text',{x:n.x,y:n.y+32,'text-anchor':'middle',fill:'var(--text-3)','font-size':9.5,'font-family':'var(--mono)'},s).textContent='已访问';}
+  });
+  // 阶段说明
+  var desc=['沿 UCB 最大子节点向下，直到未访问节点','在选中节点展开一个新子节点','对叶子节点估值（ rollout / 价值网络）','将估值沿路径反向传播更新各节点价值'][mctsPhase];
+  document.getElementById('mcts-phase').innerHTML='<span style="color:'+AC+'">'+mctsPhaseName()+'</span> — '+desc;
+}
+mctsRender();
+function mctsReset(){
+  if(mctsAutoTimer){clearInterval(mctsAutoTimer);mctsAutoTimer=null;}
+  mctsNodes.forEach(function(n){n.v=0;n.n=0;});
+  mctsVisited={0:true};mctsPhase=0;mctsStepIdx=0;mctsCurPath=[0];mctsCurNode=0;mctsExpandFrom=null;mctsEvalNode=null;mctsBackNodes=[];
+  mctsRender();
+}
+// 单步：按 4 阶段循环，每轮完成一次完整迭代
+function mctsStep(){
+  // 选择阶段：从根沿UCB向下
+  if(mctsPhase===0){
+    mctsCurPath=[0];mctsBackNodes=[];mctsEvalNode=null;mctsExpandFrom=null;
+    var cur=mctsNodes[0];
+    while(true){
+      var children=cur.children.map(function(c){return mctsNodes[c];}).filter(function(c){return mctsVisited[c.id];});
+      var unvisited=cur.children.map(function(c){return mctsNodes[c];}).filter(function(c){return !mctsVisited[c.id];});
+      if(unvisited.length||!children.length){
+        mctsCurNode=cur.id;mctsCurPath.push(cur.id);
+        break;
+      }
+      var best=mctsSelectBestChild(cur);
+      cur=best;mctsCurPath.push(cur.id);
+    }
+    mctsCurNode=cur.id;
+    mctsRender();
+    mctsPhase=1;return;
+  }
+  if(mctsPhase===1){
+    // 扩展：从当前节点选一个未访问子节点
+    var cur=mctsNodes[mctsCurNode];
+    var unvisited=cur.children.map(function(c){return mctsNodes[c];}).filter(function(c){return !mctsVisited[c.id];});
+    if(unvisited.length){
+      var pick=unvisited[0];
+      mctsVisited[pick.id]=true;mctsCurNode=pick.id;mctsCurPath.push(pick.id);mctsExpandFrom=pick.id;
+    }
+    mctsRender();mctsPhase=2;return;
+  }
+  if(mctsPhase===2){
+    // 评估
+    mctsEvalNode=mctsCurNode;
+    mctsRender();mctsPhase=3;return;
+  }
+  if(mctsPhase===3){
+    // 回溯
+    var leaf=mctsNodes[mctsEvalNode];
+    var val=mctsLeafEval[leaf.id]!==undefined?mctsLeafEval[leaf.id]:0.5;
+    leaf.v+=val;leaf.n+=1;
+    mctsBackNodes=mctsCurPath.slice();
+    var pid=leaf.parent;
+    while(pid>=0){var p=mctsNodes[pid];p.v+=val;p.n+=1;pid=p.parent;}
+    mctsEvalNode=null;
+    mctsRender();
+    mctsPhase=0;mctsCurPath=[];mctsStepIdx++;
+    return;
+  }
+}
+function mctsAuto(){
+  if(mctsAutoTimer){clearInterval(mctsAutoTimer);mctsAutoTimer=null;return;}
+  mctsAutoTimer=setInterval(function(){mctsStep();},reduced?150:650);
+}
+
+// ===== 模块6 自洽性 =====
+var scQuestion='问：一个数加上它的一半等于9，这个数是多少？';
+var scCorrect=6;
+var scWrongPool=[7,8,9,4.5,5,12,3];
+var scN=8,scPaths=[],scDist={};
+function scGen(){
+  scPaths=[];scDist={};
+  for(var i=0;i<scN;i++){
+    // 越多路径越倾向正确，但仍有错误
+    var pCorrect=Math.min(0.92,0.5+scN*0.04);
+    var ans=Math.random()<pCorrect?scCorrect:scWrongPool[Math.floor(Math.random()*scWrongPool.length)];
+    scPaths.push({ans:ans,correct:ans===scCorrect});
+    scDist[ans]=(scDist[ans]||0)+1;
+  }
+}
+function scRender(){
+  var s=document.getElementById('sc-svg');clear(s);
+  scN=+document.getElementById('sc-slider').value;
+  document.getElementById('sc-val').textContent=scN;
+  scGen();
+  // 问题
+  el('rect',{x:40,y:24,width:800,height:40,fill:BG3,stroke:BD,'rx':8},s);
+  el('text',{x:56,y:48,fill:'var(--text-2)','font-size':12,'font-family':'var(--mono)'},s).textContent=scQuestion;
+  // 多路径
+  var startX=90,endX=560,pathY=110,gap=Math.min(40,260/Math.max(scN,1));
+  el('text',{x:90,y:96,fill:'var(--text-3)','font-size':10.5,'font-family':'var(--mono)'},s).textContent='采样 '+scN+' 条独立推理路径';
+  scPaths.forEach(function(p,i){
+    var y=110+i*gap;
+    var col=p.correct?AC:ERR;
+    el('path',{d:'M'+startX+','+y+' C'+(startX+120)+','+y+' '+(endX-120)+','+(y+(i%2?6:-6))+' '+endX+','+y,fill:'none',stroke:col,'stroke-width':1.3,opacity:.7},s);
+    el('circle',{cx:startX,cy:y,r:5,fill:col+'33',stroke:col},s);
+    el('circle',{cx:endX,cy:y,r:7,fill:col+'33',stroke:col},s);
+    el('text',{x:endX+12,y:y+3.5,fill:col,'font-size':11,'font-family':'var(--mono)'},s).textContent='→ '+p.ans+(p.correct?' ✓':' ✗');
+  });
+  // 聚合柱状图
+  var bx=620,by=110,bw=220,bh=240;
+  el('text',{x:bx+bw/2,y:96,'text-anchor':'middle',fill:'var(--text-3)','font-size':10.5,'font-family':'var(--mono)'},s).textContent='答案投票分布';
+  var entries=Object.keys(scDist).map(function(k){return {ans:k,c:scDist[k]};}).sort(function(a,b){return b.c-a.c;});
+  var maxC=Math.max.apply(null,entries.map(function(e){return e.c;}));
+  var bw2=bw/entries.length-8;
+  entries.forEach(function(e,i){
+    var h=(e.c/maxC)*(bh-30);
+    var isMaj=e.ans==String(scCorrect);
+    var isTop=i===0;
+    var col=isTop?INFO:(isMaj?AC:ERR);
+    var x=bx+8+i*(bw2+8);
+    el('rect',{x:x,y:by+bh-h-20,width:bw2,height:h,fill:col+'22',stroke:col,'stroke-width':1.4,'rx':4},s);
+    el('text',{x:x+bw2/2,y:by+bh-8,'text-anchor':'middle',fill:'var(--text-2)','font-size':10.5,'font-family':'var(--mono)'},s).textContent=e.ans;
+    el('text',{x:x+bw2/2,y:by+bh-h-26,'text-anchor':'middle',fill:col,'font-size':11,'font-family':'var(--mono)','font-weight':600},s).textContent=e.c;
+  });
+  el('rect',{x:bx,y:by+bh-2,width:bw,height:1.5,fill:BD},s);
+  // 投票结果
+  var winner=entries[0];
+  var correctCount=scDist[String(scCorrect)]||0;
+  var accuracy=(correctCount/scN*100).toFixed(0);
+  var voted=winner.ans==String(scCorrect);
+  document.getElementById('sc-info').innerHTML='多数投票采纳答案 <span style="color:'+INFO+'">'+winner.ans+'</span>（'+winner.c+'/'+scN+' 票）　'+(voted?'<span style="color:'+AC+'">✓ 投票正确</span>':'<span style="color:'+ERR+'">✗ 投票错误</span>')+'　路径正确率 <span style="color:'+AC+'">'+accuracy+'%</span>';
+  el('text',{x:440,y:370,'text-anchor':'middle',fill:voted?AC:ERR,'font-size':11.5,'font-family':'var(--mono)'},s).textContent='多数投票 → '+winner.ans+(voted?'  ✓ 正确':'  ✗ 错误');
+}
+document.getElementById('sc-slider').addEventListener('input',scRender);
+scRender();
+function scRun(){scRender();}
+
+// ===== 模块7 推理蒸馏 =====
+var distAfter=false;
+// 教师长CoT步骤
+var distTeacher=[
+  '理解题意','设x','列方程','移项','化简','代入检验','讨论边界','回顾方法','考虑推广','最终答案'
+];
+var distStudent=['理解','列方程','求解','验证','答案'];
+function distRender(){
+  var s=document.getElementById('dist-svg');clear(s);
+  // 左：当前模型 CoT 链（教师长链 / 学生短链）
+  el('text',{x:200,y:36,'text-anchor':'middle',fill:distAfter?AC:PUR,'font-size':13,'font-weight':600},s).textContent=distAfter?'学生模型 · 短 CoT':'教师模型 · 长 CoT';
+  el('rect',{x:60,y:50,width:280,height:300,fill:BG3,stroke:distAfter?AC:PUR,'stroke-width':1.2,'rx':10},s);
+  var steps=distAfter?distStudent:distTeacher;
+  var tokens=distAfter?680:4200;
+  // token 块（两列网格铺排）
+  steps.forEach(function(st,i){
+    var col=i%2,row=Math.floor(i/2);
+    var x=78+col*132,y=78+row*30;
+    el('rect',{x:x,y:y,width:120,height:22,fill:(distAfter?AC:PUR)+'18',stroke:distAfter?AC:PUR,'stroke-width':1,'rx':4},s);
+    el('text',{x:x+60,y:y+15,'text-anchor':'middle',fill:distAfter?AC:PUR,'font-size':10.5,'font-family':'var(--mono)'},s).textContent=st;
+  });
+  // token 计数
+  el('text',{x:200,y:300,'text-anchor':'middle',fill:'var(--text-2)','font-size':11,'font-family':'var(--mono)'},s).textContent='思考 token ≈ '+tokens;
+  el('text',{x:200,y:322,'text-anchor':'middle',fill:'var(--text-3)','font-size':10},s).textContent=distAfter?'精炼推理，延迟低':'详尽推理，延迟高';
+  // 中间蒸馏箭头
+  if(!distAfter){
+    el('path',{d:'M350,200 L470,200',stroke:AC,'stroke-width':2.4,fill:'none','marker-end':'url(#dArr)'},s);
+    el('defs',{},s).innerHTML='<marker id="dArr" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10" fill="'+AC+'"/></marker>';
+    el('text',{x:410,y:186,'text-anchor':'middle',fill:AC,'font-size':11,'font-family':'var(--mono)'},s).textContent='蒸馏';
+    el('text',{x:410,y:218,'text-anchor':'middle',fill:'var(--text-3)','font-size':9.5},s).textContent='KL + SFT';
+  }else{
+    el('text',{x:440,y:200,'text-anchor':'middle',fill:'var(--text-3)','font-size':10.5,'font-family':'var(--mono)'},s).textContent='蒸馏后 →';
+  }
+  // 右：指标对比柱
+  var bx=500,by=70;
+  el('text',{x:bx+170,y:36,'text-anchor':'middle',class:'lbl'},s).textContent='教师 vs 学生 对比';
+  var metrics=[
+    {name:'思考 token',t:4200,s:680,max:4200,col:PUR,col2:AC},
+    {name:'准确率 %',t:91.2,s:86.4,max:100,col:PUR,col2:AC},
+    {name:'延迟 s',t:12.4,s:2.1,max:14,col:PUR,col2:AC}
+  ];
+  metrics.forEach(function(m,i){
+    var y=by+i*90;
+    el('text',{x:bx,y:y,fill:'var(--text-2)','font-size':11,'font-family':'var(--mono)'},s).textContent=m.name;
+    // 教师柱
+    var th=(m.t/m.max)*60;
+    el('rect',{x:bx,y:y+10,width:th*3,height:18,fill:m.col+'22',stroke:m.col,'stroke-width':1.2,'rx':4},s);
+    el('text',{x:bx+th*3+8,y:y+23,fill:m.col,'font-size':11,'font-family':'var(--mono)'},s).textContent=m.t;
+    // 学生柱
+    var sh=(m.s/m.max)*60;
+    el('rect',{x:bx,y:y+34,width:sh*3,height:18,fill:m.col2+'22',stroke:m.col2,'stroke-width':1.2,'rx':4},s);
+    el('text',{x:bx+sh*3+8,y:y+47,fill:m.col2,'font-size':11,'font-family':'var(--mono)'},s).textContent=m.s;
+  });
+  el('text',{x:bx+170,y:by+3*90+6,'text-anchor':'middle',fill:'var(--text-3)','font-size':10,'font-family':'var(--mono)'},s).textContent=distAfter?'上=教师 下=学生':'上=教师 下=学生';
+}
+distRender();
+function distToggle(){
+  distAfter=!distAfter;
+  document.getElementById('dist-btn').textContent=distAfter?'显示教师模型（蒸馏前）':'显示学生模型（蒸馏后）';
+  document.getElementById('dist-tok').innerHTML=distAfter?'4200 → <span style="color:'+AC+'">680</span>':'4200 → 680';
+  document.getElementById('dist-acc').innerHTML=distAfter?'91.2% → <span style="color:'+AC+'">86.4%</span>':'91.2% → 86.4%';
+  document.getElementById('dist-lat').innerHTML=distAfter?'12.4s → <span style="color:'+AC+'">2.1s</span>':'12.4s → 2.1s';
+  distRender();
+}
+
+// ===== 模块8 评估基准 =====
+var bmAxes=[
+  {name:'AIME',desc:'美国数学邀请赛（奥数级）',diff:'极难'},
+  {name:'MATH',desc:'竞赛数学题集',diff:'困难'},
+  {name:'GPQA',desc:'研究生级科学问答',diff:'困难'},
+  {name:'Codeforces',desc:'竞技编程 Elo',diff:'困难'},
+  {name:'ARC-AGI',desc:'抽象推理（新颖模式）',diff:'极难'}
+];
+var bmData={
+  'o1':[83.4,96.4,78.0,89.0,21.2],
+  'o3':[96.7,99.1,87.7,96.6,75.2],
+  'r1':[79.8,97.3,71.5,96.3,15.0],
+  'qwq':[86.7,96.5,75.1,90.6,18.5],
+  'gpt4o':[13.4,76.6,53.6,23.6,5.0]
+};
+var bmNames={'o1':'OpenAI o1','o3':'OpenAI o3','r1':'DeepSeek-R1','qwq':'Qwen QwQ-32B','gpt4o':'GPT-4o'};
+var bmColors={'o1':INFO,'o3':AC,'r1':PUR,'qwq':WARN,'gpt4o':ERR};
+var bmCur='o3';
+function bmRender(){
+  var s=document.getElementById('bm-svg');clear(s);
+  var cx=300,cy=210,R=150;
+  var n=bmAxes.length;
+  var data=bmData[bmCur],col=bmColors[bmCur];
+  // 同心网格
+  for(var r=1;r<=5;r++){
+    var rr=R*r/5;
+    var pts=[];
+    for(var i=0;i<n;i++){var ang=-Math.PI/2+i*2*Math.PI/n;pts.push((cx+rr*Math.cos(ang))+','+(cy+rr*Math.sin(ang)));}
+    el('polygon',{points:pts.join(' '),fill:'none',stroke:'#1c2030','stroke-width':1},s);
+  }
+  // 轴线 + 标签
+  for(var i=0;i<n;i++){
+    var ang=-Math.PI/2+i*2*Math.PI/n;
+    var ex=cx+R*Math.cos(ang),ey=cy+R*Math.sin(ang);
+    el('line',{x1:cx,y1:cy,x2:ex,y2:ey,stroke:'#1c2030','stroke-width':1},s);
+    var lx=cx+(R+24)*Math.cos(ang),ly=cy+(R+24)*Math.sin(ang);
+    el('text',{x:lx,y:ly,'text-anchor':'middle',fill:'var(--text)','font-size':11.5,'font-weight':600},s).textContent=bmAxes[i].name;
+    el('text',{x:lx,y:ly+13,'text-anchor':'middle',fill:'var(--text-3)','font-size':9,'font-family':'var(--mono)'},s).textContent=data[i].toFixed(1);
+  }
+  // 数据多边形
+  var dpts=[];
+  for(var i=0;i<n;i++){var ang=-Math.PI/2+i*2*Math.PI/n;var rr=R*data[i]/100;dpts.push((cx+rr*Math.cos(ang))+','+(cy+rr*Math.sin(ang)));}
+  el('polygon',{points:dpts.join(' '),fill:col+'22',stroke:col,'stroke-width':2},s);
+  dpts.forEach(function(p,i){var xy=p.split(',');el('circle',{cx:xy[0],cy:xy[1],r:4,fill:col,stroke:'#0a0b0f','stroke-width':1.5},s);});
+  // 刻度
+  for(var r=1;r<=5;r++){var ang=-Math.PI/2;el('text',{x:cx+6,y:cy-R*r/5+4,fill:'var(--text-3)','font-size':9,'font-family':'var(--mono)'},s).textContent=(r*20);}
+  // 右侧：基准说明
+  var rx=540;
+  el('text',{x:rx,y:50,fill:col,'font-size':14,'font-weight':600},s).textContent=bmNames[bmCur];
+  el('text',{x:rx,y:70,fill:'var(--text-3)','font-size':10.5,'font-family':'var(--mono)'},s).textContent='五项基准归一化得分';
+  bmAxes.forEach(function(a,i){
+    var y=110+i*46;
+    el('rect',{x:rx,y:y,width:300,height:38,fill:BG3,stroke:BD,'rx':7},s);
+    el('text',{x:rx+12,y:y+16,fill:'var(--text)','font-size':11.5,'font-weight':600},s).textContent=a.name;
+    el('text',{x:rx+90,y:y+16,fill:'var(--text-3)','font-size':10},s).textContent=a.desc;
+    el('text',{x:rx+12,y:y+31,fill:'var(--text-3)','font-size':9.5,'font-family':'var(--mono)'},s).textContent='难度：'+a.diff;
+    // 得分条
+    var sc=data[i],bw=180;
+    el('rect',{x:rx+110,y:y+24,width:bw,height:8,fill:'#1c2030','rx':4},s);
+    el('rect',{x:rx+110,y:y+24,width:bw*sc/100,height:8,fill:col,'rx':4},s);
+    el('text',{x:rx+298,y:y+31,'text-anchor':'end',fill:col,'font-size':10.5,'font-family':'var(--mono)'},s).textContent=sc.toFixed(1);
+  });
+  // 卡片
+  document.getElementById('bm-cards').innerHTML=bmAxes.map(function(a,i){
+    return '<div class="info-card"><div class="k">'+a.name+'</div><div class="v">'+a.desc+'</div><div class="d">难度等级：'+a.diff+' · 当前得分 '+data[i].toFixed(1)+'</div></div>';
+  }).join('');
+}
+function bmInitSel(){
+  var sel=document.getElementById('bm-sel');sel.innerHTML='';
+  Object.keys(bmNames).forEach(function(k){
+    var o=document.createElement('option');o.value=k;o.textContent=bmNames[k];if(k===bmCur)o.selected=true;sel.appendChild(o);
+  });
+  sel.addEventListener('change',function(){bmCur=sel.value;bmRender();});
+}
+bmInitSel();bmRender();
+</script>
+</body>
+</html>

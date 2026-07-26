@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>长上下文大模型可视化实验室 · Long Context LLM Lab</title>
+<style>
+:root{
+  --bg:#0a0b0f;--bg-2:#101218;--bg-3:#161922;--border:#232734;--border-2:#2d3344;
+  --text:#e6e8ee;--text-2:#9aa0b0;--text-3:#62697b;
+  --accent:#f59e0b;--accent-dim:rgba(245,158,11,.14);--accent-soft:rgba(245,158,11,.08);
+  --warn:#f59e0b;--err:#ef4444;--info:#38bdf8;--pur:#a78bfa;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}svg{display:block}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(10,11,15,.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:10px 24px}
+.topbar .back{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:13px;
+  padding:6px 12px;border:1px solid var(--border);border-radius:8px;transition:all .2s;font-family:var(--mono)}
+.topbar .back:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.topbar .crumb{font-size:13px;color:var(--text-3);font-family:var(--mono)}
+.topbar .crumb b{color:var(--accent);font-weight:600}
+.topbar .spacer{flex:1}
+.topbar .badge{font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:.5px}
+.lab-header{max-width:1200px;margin:0 auto;padding:48px 24px 24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:2px;
+  color:var(--accent);background:var(--accent-dim);border:1px solid rgba(245,158,11,.3);
+  padding:4px 12px;border-radius:4px;margin-bottom:16px}
+.lab-header h1{font-size:34px;font-weight:700;letter-spacing:-.5px;margin-bottom:14px;
+  background:linear-gradient(135deg,var(--text) 30%,var(--accent) 130%);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text}
+.lab-header p{color:var(--text-2);font-size:15px;max-width:780px}
+.lab-header .meta{display:flex;gap:18px;margin-top:18px;flex-wrap:wrap}
+.lab-header .meta span{font-family:var(--mono);font-size:12px;color:var(--text-3)}
+.lab-header .meta span b{color:var(--info);font-weight:500}
+.tabs{position:sticky;top:43px;z-index:40;background:rgba(10,11,15,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);overflow-x:auto}
+.tabs .inner{max-width:1200px;margin:0 auto;display:flex;gap:2px;padding:6px 16px}
+.tabs button{flex:0 0 auto;background:none;border:none;color:var(--text-3);font-family:var(--sans);
+  font-size:13px;padding:10px 16px;cursor:pointer;border-radius:8px;white-space:nowrap;transition:all .18s;
+  border-bottom:2px solid transparent}
+.tabs button:hover{color:var(--text-2);background:var(--bg-3)}
+.tabs button.active{color:var(--accent);background:var(--accent-soft);border-bottom-color:var(--accent)}
+.tabs button .num{font-family:var(--mono);font-size:11px;color:var(--text-3);margin-right:6px}
+.tabs button.active .num{color:var(--accent)}
+.modules{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
+.module{display:none;animation:fade .4s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.module .m-head{margin-bottom:20px}
+.module .m-head h2{font-size:22px;font-weight:600;margin-bottom:6px}
+.module .m-head p{color:var(--text-2);font-size:14px}
+.module .m-head .kw{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.module .m-head .kw span{font-family:var(--mono);font-size:11px;color:var(--text-3);
+  background:var(--bg-3);border:1px solid var(--border);padding:2px 8px;border-radius:4px}
+.controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;
+  padding:14px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px}
+.controls label{font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px}
+.controls .val{font-family:var(--mono);color:var(--accent);font-weight:600;min-width:56px}
+.btn{background:var(--bg-3);border:1px solid var(--border-2);color:var(--text-2);font-family:var(--sans);
+  font-size:13px;padding:8px 16px;border-radius:8px;cursor:pointer;transition:all .18s}
+.btn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#0a0b0f;font-weight:600}
+.btn.primary:hover{background:#fbbf24;box-shadow:0 0 20px rgba(245,158,11,.3)}
+.btn.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--border-2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(245,158,11,.5)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+select{background:var(--bg-3);border:1px solid var(--border-2);color:var(--text);font-family:var(--sans);font-size:13px;padding:7px 12px;border-radius:8px;cursor:pointer;outline:none}
+select:focus{border-color:var(--accent)}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px;overflow:hidden}
+.viz svg{width:100%;height:auto}
+.viz-title{font-size:13px;color:var(--text-3);font-family:var(--mono);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.viz-title::before{content:'';width:3px;height:12px;background:var(--accent);border-radius:2px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.legend .item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);font-family:var(--mono)}
+.legend .swatch{width:14px;height:14px;border-radius:3px}
+.metrics{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px}
+.metric{background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:130px}
+.metric .lab{font-size:11px;color:var(--text-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px}
+.metric .v{font-size:20px;font-weight:700;color:var(--accent);font-family:var(--mono);margin-top:2px}
+.metric .v small{font-size:12px;color:var(--text-2);font-weight:400}
+.metric .sub{font-size:11px;color:var(--text-3);margin-top:2px}
+.note{background:var(--bg-3);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;
+  padding:12px 16px;margin-top:16px;font-size:13px;color:var(--text-2)}
+.note b{color:var(--accent)}.note code{font-family:var(--mono);background:var(--bg);padding:1px 6px;border-radius:3px;font-size:12px;color:var(--info)}
+.scene-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:18px}
+.scene-card{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s}
+.scene-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.scene-card.active{border-color:var(--accent);background:var(--accent-soft)}
+.scene-card .ic{font-size:28px;margin-bottom:10px;color:var(--accent)}
+.scene-card h4{font-size:15px;margin-bottom:6px}.scene-card p{font-size:12px;color:var(--text-3)}
+.scene-card .ctx{font-family:var(--mono);font-size:11px;color:var(--info);margin-top:8px}
+@media(max-width:720px){.lab-header h1{font-size:26px}.tabs .inner{padding:6px 10px}.modules{padding:20px 14px 60px}.controls{padding:12px}.metric{min-width:100px}}
+.svg-text{font-family:var(--mono);fill:var(--text-2);font-size:11px}
+.svg-grid{stroke:var(--border);stroke-width:1;stroke-dasharray:2,4}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="index.html" class="back">← TW Hub</a>
+  <span class="crumb">/ <b>173</b> · long-context-viz-lab</span>
+  <div class="spacer"></div>
+  <span class="badge">v1.0</span>
+</div>
+<div class="lab-header">
+  <span class="tag">LONG CONTEXT LAB</span>
+  <h1>长上下文大模型可视化实验室</h1>
+  <p>探索长上下文大模型核心技术：从 RoPE 旋转位置编码到位置插值，从 Ring Attention 分布式计算到大海捞针评估。通过交互式可视化理解模型如何突破上下文窗口限制，处理百万级 token 序列。</p>
+  <div class="meta">
+    <span>范围 <b>4K → 10M</b> tokens</span><span>技术 <b>RoPE / YaRN / Ring-Attn</b></span>
+    <span>评估 <b>∞Bench</b></span><span>模块 <b>8</b></span>
+  </div>
+</div>
+<div class="tabs"><div class="inner" id="tabBar">
+  <button class="active" data-tab="0"><span class="num">01</span>上下文窗口</button>
+  <button data-tab="1"><span class="num">02</span>RoPE 与插值</button>
+  <button data-tab="2"><span class="num">03</span>Ring Attention</button>
+  <button data-tab="3"><span class="num">04</span>注意力复杂度</button>
+  <button data-tab="4"><span class="num">05</span>大海捞针</button>
+  <button data-tab="5"><span class="num">06</span>KV-Cache</button>
+  <button data-tab="6"><span class="num">07</span>评估基准</button>
+  <button data-tab="7"><span class="num">08</span>应用场景</button>
+</div></div>
+<div class="modules">
+
+<!-- 模块 1 -->
+<div class="module active" data-mod="0">
+  <div class="m-head"><h2>上下文窗口与位置编码</h2>
+    <p>不同上下文长度规模对比，及 RoPE 旋转位置编码在外推时的角度变化。</p>
+    <div class="kw"><span>RoPE</span><span>Context Window</span><span>Extrapolation</span></div></div>
+  <div class="controls">
+    <label>上下文长度 <input type="range" id="m1range" min="0" max="100" value="30"><span class="val" id="m1val">128K</span></label>
+    <button class="btn" id="m1reset">重置</button></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">Token 数</div><div class="v" id="m1tokens">131,072</div><div class="sub" id="m1tokensSub">≈ 97K 词</div></div>
+    <div class="metric"><div class="lab">等效文本</div><div class="v" id="m1equiv">1 本</div><div class="sub">长篇小说</div></div>
+    <div class="metric"><div class="lab">最大角度</div><div class="v" id="m1angle">8192π</div><div class="sub">旋转圈数</div></div></div>
+  <div class="viz"><div class="viz-title">上下文长度规模对比</div><svg id="m1bars" viewBox="0 0 760 220"></svg>
+    <div class="legend"><div class="item"><div class="swatch" style="background:#2d3344"></div>历史基线</div>
+      <div class="item"><div class="swatch" style="background:#f59e0b"></div>当前选择</div>
+      <div class="item"><div class="swatch" style="background:rgba(245,158,11,.3)"></div>训练范围</div></div></div>
+  <div class="viz"><div class="viz-title">RoPE 旋转向量</div><svg id="m1rope" viewBox="0 0 760 280"></svg></div>
+  <div class="note">RoPE 对位置 <code>m</code> 每个维度施加旋转 <code>m·θᵢ</code>，<code>θᵢ=10000^(-2i/d)</code>。序列超过训练长度时，<b>低频维度角度外推</b>导致位置编码进入未见区域，引发性能下降。</div>
+</div>
+
+<!-- 模块 2 -->
+<div class="module" data-mod="1">
+  <div class="m-head"><h2>RoPE 与位置插值</h2>
+    <p>对比原始 RoPE、线性插值（PI）、NTK-aware、YaRN 四种位置编码扩展方法的频率缩放。</p>
+    <div class="kw"><span>Position Interpolation</span><span>NTK-aware</span><span>YaRN</span><span>Frequency Scaling</span></div></div>
+  <div class="controls"><label>方法
+    <button class="btn active" data-m2="orig">原始 RoPE</button>
+    <button class="btn" data-m2="pi">线性插值</button>
+    <button class="btn" data-m2="ntk">NTK-aware</button>
+    <button class="btn" data-m2="yarn">YaRN</button></label>
+    <label>扩展倍数 <input type="range" id="m2scale" min="1" max="16" value="4" step="0.5"><span class="val" id="m2scaleVal">4×</span></label></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">方法</div><div class="v" id="m2name" style="font-size:15px">原始 RoPE</div><div class="sub" id="m2desc">无缩放</div></div>
+    <div class="metric"><div class="lab">高频维度</div><div class="v" id="m2hf">保留</div><div class="sub">局部注意力</div></div>
+    <div class="metric"><div class="lab">低频维度</div><div class="v" id="m2lf">保留</div><div class="sub">长程依赖</div></div></div>
+  <div class="viz"><div class="viz-title">复平面旋转向量对比</div><svg id="m2complex" viewBox="0 0 760 260"></svg></div>
+  <div class="viz"><div class="viz-title">频率缩放曲线</div><svg id="m2freq" viewBox="0 0 760 240"></svg>
+    <div class="legend" id="m2legend"></div></div>
+  <div class="note" id="m2note"><b>原始 RoPE</b>：直接外推，所有频率维度角度线性增长，低频维度快速进入未训练区域。</div>
+</div>
+
+<!-- 模块 3 -->
+<div class="module" data-mod="2">
+  <div class="m-head"><h2>Ring Attention 分布式长上下文</h2>
+    <p>Ring Attention 将长序列分片到多 GPU 组成环形拓扑，KV 块在环上循环传递，实现序列并行注意力。</p>
+    <div class="kw"><span>Ring Attention</span><span>Sequence Parallelism</span><span>Striped Attention</span></div></div>
+  <div class="controls">
+    <label>GPU 数量 <input type="range" id="m3gpu" min="2" max="8" value="4" step="1"><span class="val" id="m3gpuVal">4</span></label>
+    <button class="btn primary" id="m3step">单步执行</button>
+    <button class="btn" id="m3auto">自动播放</button>
+    <button class="btn" id="m3reset">重置</button></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">当前步</div><div class="v" id="m3stepN">0</div><div class="sub">/ <span id="m3total">4</span> 轮</div></div>
+    <div class="metric"><div class="lab">序列分片</div><div class="v" id="m3shard">256K</div><div class="sub">每 GPU</div></div>
+    <div class="metric"><div class="lab">总上下文</div><div class="v" id="m3totalCtx">1M</div><div class="sub">token</div></div></div>
+  <div class="viz"><div class="viz-title">GPU 环形拓扑与数据流</div><svg id="m3ring" viewBox="0 0 760 380"></svg></div>
+  <div class="note">每个 GPU 持有 <code>Q</code> 和一块 <code>KV</code>。每步：① 本地计算 <code>Q×KV</code> 部分注意力；② 将 KV 块<b>发给环上下一个 GPU</b>。N 步后每个 GPU 的 query 见过全部 KV，注意力完成。</div>
+</div>
+
+<!-- 模块 4 -->
+<div class="module" data-mod="3">
+  <div class="m-head"><h2>注意力机制与复杂度</h2>
+    <p>标准注意力 O(n²) 与稀疏、线性注意力的复杂度与内存消耗对比。</p>
+    <div class="kw"><span>O(n²)</span><span>Sparse Attention</span><span>Linear Attention</span><span>FlashAttention</span></div></div>
+  <div class="controls">
+    <label>序列长度 n <input type="range" id="m4n" min="8" max="131072" value="8192" step="8"><span class="val" id="m4nVal">8K</span></label>
+    <span style="color:var(--text-3);font-size:12px;font-family:var(--mono)">对数滑块</span></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">标准</div><div class="v" id="m4std">67M</div><div class="sub">O(n²) FLOPs</div></div>
+    <div class="metric"><div class="lab">稀疏</div><div class="v" id="m4sparse">2.1M</div><div class="sub">O(n·√n)</div></div>
+    <div class="metric"><div class="lab">线性</div><div class="v" id="m4linear">24K</div><div class="sub">O(n)</div></div></div>
+  <div class="viz"><div class="viz-title">注意力矩阵热力图</div><svg id="m4heat" viewBox="0 0 760 250"></svg>
+    <div class="legend"><div class="item"><div class="swatch" style="background:#f59e0b"></div>标准稠密</div>
+      <div class="item"><div class="swatch" style="background:#38bdf8"></div>稀疏带状</div>
+      <div class="item"><div class="swatch" style="background:#a78bfa"></div>线性核</div></div></div>
+  <div class="viz"><div class="viz-title">复杂度曲线</div><svg id="m4curve" viewBox="0 0 760 240"></svg></div>
+  <div class="note">标准注意力 <code>n×n</code> 矩阵在 128K 序列下需 <b>64GB</b> 内存。<code>FlashAttention</code> 不改变复杂度但分块 IO 优化降内存至 O(n)；<code>稀疏/线性注意力</code>从算法层面降复杂度，但可能损失长程精度。</div>
+</div>
+
+<!-- 模块 5 -->
+<div class="module" data-mod="4">
+  <div class="m-head"><h2>Needle-in-Haystack 测试（大海捞针）</h2>
+    <p>在长文档中藏入事实（"针"），测试模型在不同文档长度和针深度下的检索成功率。</p>
+    <div class="kw"><span>Needle-in-Haystack</span><span>Retrieval</span><span>Lost in the Middle</span></div></div>
+  <div class="controls">
+    <label>针位置<input type="range" id="m5depth" min="0" max="100" value="50"><span class="val" id="m5depthVal">50%</span></label>
+    <label>文档长度 <input type="range" id="m5len" min="0" max="100" value="40"><span class="val" id="m5lenVal">32K</span></label>
+    <button class="btn primary" id="m5test">投针测试</button>
+    <button class="btn" id="m5full">全量扫描</button></div>
+    <div class="metrics">
+    <div class="metric"><div class="lab">成功率</div><div class="v" id="m5rate">—</div><div class="sub" id="m5rateSub">点击测试</div></div>
+    <div class="metric"><div class="lab">针深度</div><div class="v" id="m5depthM">中段</div><div class="sub" id="m5depthSub">50%</div></div>
+    <div class="metric"><div class="lab">文档长度</div><div class="v" id="m5lenM">32K</div><div class="sub">token</div></div></div>
+  <div class="viz"><div class="viz-title">检索成功率热力图</div><svg id="m5heat" viewBox="0 0 760 320"></svg>
+    <div class="legend"><div class="item"><div class="swatch" style="background:#ef4444"></div>失败 0%</div>
+      <div class="item"><div class="swatch" style="background:#f59e0b"></div>部分 50%</div>
+      <div class="item"><div class="swatch" style="background:#10b981"></div>成功 100%</div></div></div>
+  <div class="note">经典发现：<b>Lost in the Middle</b> — 当"针"位于文档中段时检索成功率显著下降。优秀模型应使热力图呈现<b>均匀绿色</b>。针在首尾成功率最高。</div>
+</div>
+
+<!-- 模块 6 -->
+<div class="module" data-mod="5">
+  <div class="m-head"><h2>KV-Cache 与内存优化</h2>
+    <p>长上下文下 KV-Cache 内存爆炸问题，及量化、驱逐、压缩等优化策略对比。</p>
+    <div class="kw"><span>KV-Cache</span><span>INT4 Quantization</span><span>PagedAttention</span><span>Eviction</span></div></div>
+  <div class="controls">
+    <label>上下文长度 <input type="range" id="m6ctx" min="1" max="6" value="3" step="1"><span class="val" id="m6ctxVal">128K</span></label>
+    <label>策略
+    <button class="btn active" data-m6="fp16">FP16</button>
+    <button class="btn" data-m6="int8">INT8 量化</button>
+    <button class="btn" data-m6="int4">INT4 量化</button>
+    <button class="btn" data-m6="evict">窗口驱逐</button></label></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">KV 内存</div><div class="v" id="m6mem">40.0<small> GB</small></div><div class="sub" id="m6memSub">FP16 / 128K</div></div>
+    <div class="metric"><div class="lab">压缩比</div><div class="v" id="m6ratio">1.0×</div><div class="sub">vs FP16</div></div>
+    <div class="metric"><div class="lab">精度损失</div><div class="v" id="m6loss">0%</div><div class="sub" id="m6lossSub">无损</div></div></div>
+  <div class="viz"><div class="viz-title">KV-Cache 内存占用</div><svg id="m6bars" viewBox="0 0 760 240"></svg></div>
+  <div class="viz"><div class="viz-title">内存随上下文长度增长</div><svg id="m6curve" viewBox="0 0 760 220"></svg></div>
+  <div class="note">KV-Cache = <code>2 × layers × heads × seq × dim × bytes</code>。128K FP16 下 Llama-70B 需约 <b>40GB</b> 仅存 KV。<code>PagedAttention</code> 减少碎片；<code>INT4</code> 降至 1/4；<code>滑动窗口</code>只保留最近 W 个 token，代价是丢失早期上下文。</div>
+</div>
+
+<!-- 模块 7 -->
+<div class="module" data-mod="6">
+  <div class="m-head"><h2>长上下文评估基准</h2>
+    <p>对比主流模型在 RULER、LongBench、∞Bench、Needle、HELM 等基准上的表现。</p>
+    <div class="kw"><span>RULER</span><span>LongBench</span><span>∞Bench</span><span>HELM</span></div></div>
+  <div class="controls">
+    <label>模型 <select id="m7model">
+      <option value="gpt4">GPT-4 Turbo (128K)</option>
+      <option value="claude">Claude 3 Opus (200K)</option>
+      <option value="gemini" selected>Gemini 1.5 Pro (2M)</option>
+      <option value="llama">Llama 3.1 405B (128K)</option></select></label>
+    <button class="btn" id="m7compare">对比全部</button></div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">模型</div><div class="v" id="m7name" style="font-size:14px">Gemini 1.5 Pro</div><div class="sub" id="m7ctx">2M 上下文</div></div>
+    <div class="metric"><div class="lab">综合得分</div><div class="v" id="m7score">87.3</div><div class="sub">/ 100</div></div>
+    <div class="metric"><div class="lab">强项</div><div class="v" id="m7best" style="font-size:14px">Needle</div><div class="sub" id="m7bestSub">检索能力</div></div></div>
+  <div class="viz"><div class="viz-title">长上下文能力雷达图</div><svg id="m7radar" viewBox="0 0 760 420"></svg>
+    <div class="legend" id="m7legend"></div></div>
+  <div class="note"><b>RULER</b> 综合测试多类型长上下文任务；<b>∞Bench</b> 平均 100K+；<b>LongBench</b> 中英双语 21 项。标称长度 ≠ 有效长度。</div>
+</div>
+
+<!-- 模块 8 -->
+<div class="module" data-mod="7">
+  <div class="m-head"><h2>长上下文应用场景</h2>
+    <p>长上下文模型典型应用：整本书理解、代码库分析、多轮长对话、文档问答。点击卡片查看上下文使用模式。</p>
+    <div class="kw"><span>Whole-Book</span><span>Codebase QA</span><span>Long Dialog</span><span>Doc QA</span></div></div>
+  <div class="scene-grid" id="m8scenes"></div>
+  <div class="viz"><div class="viz-title" id="m8vizTitle">场景示意图 — 整本书理解</div><svg id="m8svg" viewBox="0 0 760 300"></svg></div>
+  <div class="note" id="m8note">整本书（~10万词 ≈ 130K token）一次性输入，实现跨章节人物关系、伏笔、主题的<b>全局一致性理解</b>。挑战：长程依赖衰减、中段信息丢失。</div>
+</div>
+
+</div>
+<script>
+/* 全局：标签切换 */
+const tabBtns=document.querySelectorAll('#tabBar button'),modules=document.querySelectorAll('.module');
+tabBtns.forEach(b=>b.addEventListener('click',()=>{
+  tabBtns.forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  const i=+b.dataset.tab;modules.forEach(m=>m.classList.remove('active'));modules[i].classList.add('active');
+}));
+/* SVG 工具 */
+const NS='http://www.w3.org/2000/svg';
+function el(t,a){const e=document.createElementNS(NS,t);if(a)for(const k in a)e.setAttribute(k,a[k]);return e;}
+function txt(s,x,y,fs){const e=el('text',{x,y,'class':'svg-text'});if(fs)e.style.fontSize=fs;e.textContent=s;return e;}
+function mid(n){n.setAttribute('text-anchor','middle');return n;}
+function fmtK(n){return n>=1e6?(n/1e6).toFixed(n%1e6===0?0:1)+'M':n>=1e3?(n/1e3).toFixed(n%1e3===0?0:0)+'K':''+n;}
+
+/* ===== 模块 1：上下文窗口与位置编码 ===== */
+const m1ctx=[4e3,8e3,16e3,32e3,128e3,256e3,512e3,1e6,2e6,10e6];
+const m1labels=['4K','8K','16K','32K','128K','256K','512K','1M','2M','10M'];
+const m1range=document.getElementById('m1range'),m1val=document.getElementById('m1val');
+let m1sel=4;
+function drawM1Bars(){
+  const svg=document.getElementById('m1bars');svg.innerHTML='';
+  const W=760,H=220,padL=50,padB=34,padT=16,baseY=H-padB,maxLog=Math.log10(10e6);
+  for(let i=0;i<=4;i++){const y=padT+(baseY-padT)*i/4;svg.appendChild(el('line',{x1:padL,y1:y,x2:W-12,y2:y,'class':'svg-grid'}));}
+  const gap=(W-padL-12)/m1ctx.length,bw=gap*0.7;
+  m1ctx.forEach((c,i)=>{
+    const h=(baseY-padT)*(Math.log10(c)/maxLog)*0.92,x=padL+gap*i+gap*0.15,isSel=i===m1sel,isTrain=i<=4;
+    svg.appendChild(el('rect',{x,y:baseY-h,width:bw,height:h,rx:3,
+      fill:isSel?'#f59e0b':(isTrain?'#2d3344':'rgba(245,158,11,.25)'),
+      stroke:isSel?'#fbbf24':'var(--border-2)','stroke-width':isSel?1.5:1}));
+    svg.appendChild(mid(txt(m1labels[i],x+bw/2,baseY+16,'11px')));
+    if(isSel){const a=mid(txt('▲',x+bw/2,baseY-h-6,'11px'));a.setAttribute('fill','#f59e0b');svg.appendChild(a);}
+  });
+  svg.appendChild(el('line',{x1:padL,y1:padT,x2:padL+gap*5,y2:padT,stroke:'#f59e0b','stroke-width':1,'stroke-dasharray':'4,3',opacity:.5}));
+  const tl=txt('训练范围 ≤128K',padL+gap*5+6,padT+4,'10px');tl.setAttribute('fill','#f59e0b');svg.appendChild(tl);
+  ['10M','1M','100K','10K','1K'].forEach((l,i)=>svg.appendChild(txt(l,8,padT+(baseY-padT)*i/4+4,'10px')));
+}
+function drawM1Rope(){
+  const svg=document.getElementById('m1rope');svg.innerHTML='';
+  const W=760,H=280,positions=[1,16,256],pLabels=['位置 1','位置 16','位置 256'],subW=W/3;
+  const colors=['#f59e0b','#fbbf24','#fde68a','#38bdf8','#a78bfa','#10b981'];
+  positions.forEach((pos,idx)=>{
+    const cx=subW*idx+subW/2,cy=H/2+10,R=70;
+    svg.appendChild(el('circle',{cx,cy,r:R,fill:'none',stroke:'var(--border-2)','stroke-width':1,opacity:.5}));
+    svg.appendChild(el('line',{x1:cx-R,y1:cy,x2:cx+R,y2:cy,'class':'svg-grid'}));
+    svg.appendChild(el('line',{x1:cx,y1:cy-R,x2:cx,y2:cy+R,'class':'svg-grid'}));
+    const extra=m1sel>=5?(m1sel-4)*0.3:0;
+    for(let d=0;d<6;d++){
+      const theta=10000**(-2*d/64),a=pos*theta*(1+extra);
+      const ex=cx+R*0.85*Math.cos(a),ey=cy-R*0.85*Math.sin(a);
+      svg.appendChild(el('line',{x1:cx,y1:cy,x2:ex,y2:ey,stroke:colors[d],'stroke-width':2,opacity:.85}));
+      svg.appendChild(el('circle',{cx:ex,cy:ey,r:3,fill:colors[d]}));
+    }
+    svg.appendChild(mid(txt(pLabels[idx],cx,cy+R+22,'12px')));
+    if(m1sel>=5&&idx===2){const w=mid(txt('⚠ 外推区',cx,cy-R-10,'10px'));w.setAttribute('fill','#ef4444');svg.appendChild(w);}
+  });
+    svg.appendChild(txt('每个向量代表一个头维度，角度=位置×基频。低频维度（紫/绿）旋转慢，长序列下角度超出训练范围。',12,H-6,'10px'));
+}
+function updateM1(){
+  m1sel=Math.min(m1ctx.length-1,+m1range.value/100*m1ctx.length|0);
+  const ctx=m1ctx[m1sel];m1val.textContent=m1labels[m1sel];
+  document.getElementById('m1tokens').textContent=ctx.toLocaleString();
+  document.getElementById('m1tokensSub').textContent='≈ '+fmtK(Math.round(ctx*0.75))+' 词';
+  document.getElementById('m1equiv').textContent=['1 页','2 页','1 章','2 章','1 本','2 本','4 本','8 本','16 本','80 本'][m1sel];
+  document.getElementById('m1angle').textContent=fmtK(Math.round(ctx/8))+'π';
+  drawM1Bars();drawM1Rope();
+}
+m1range.addEventListener('input',updateM1);
+document.getElementById('m1reset').addEventListener('click',()=>{m1range.value=30;updateM1();});
+updateM1();
+
+/* ===== 模块 2：RoPE 与位置插值 ===== */
+let m2method='orig',m2s=4;
+const m2info={orig:{name:'原始 RoPE',desc:'无缩放直接外推',hf:'保留',lf:'保留（外推）'},
+  pi:{name:'线性插值 (PI)',desc:'位置 ÷ 缩放因子',hf:'压缩',lf:'压缩'},
+  ntk:{name:'NTK-aware',desc:'仅缩放低频',hf:'保留',lf:'缩放'},
+  yarn:{name:'YaRN',desc:'分段混合缩放',hf:'保留',lf:'分段缩放'}};
+const m2notes={
+  orig:'<b>原始 RoPE</b>：直接外推，所有频率维度角度线性增长，低频维度快速进入未训练区域，长序列性能骤降。',
+  pi:'<b>线性插值 (PI)</b>：所有位置除以缩放因子 s，压缩旋转角度。简单有效但<b>牺牲短距离分辨率</b>，所有维度同等压缩。',
+  ntk:'<b>NTK-aware</b>：基于 NTK 理论，<b>只缩放低频、保留高频</b>。高频负责局部无需外推，低频负责长程需缩放。比 PI 更好保留局部精度。',
+  yarn:'<b>YaRN</b>：分段策略 — 高频保留、中频平滑过渡、低频缩放为 1/s。结合温度缩放，是最强 RoPE 扩展方法之一。'};
+function m2sf(dimIdx,N,method,s){
+  const r=dimIdx/N;
+  if(method==='orig')return 1;
+  if(method==='pi')return 1/s;
+  if(method==='ntk')return 1+(s-1)*r*r;
+  if(method==='yarn'){if(r<0.3)return 1;if(r>0.7)return 1/s;const t=(r-0.3)/0.4;return 1-(1-1/s)*(0.5-0.5*Math.cos(t*Math.PI));}
+  return 1;
+}
+function drawM2Complex(){
+  const svg=document.getElementById('m2complex');svg.innerHTML='';
+  const W=760,H=260,cx=W/2,cy=H/2,R=90;
+  svg.appendChild(el('circle',{cx,cy,r:R,fill:'none',stroke:'var(--border-2)','stroke-width':1}));
+  svg.appendChild(el('line',{x1:cx-R,y1:cy,x2:cx+R,y2:cy,'class':'svg-grid'}));
+  svg.appendChild(el('line',{x1:cx,y1:cy-R,x2:cx,y2:cy+R,'class':'svg-grid'}));
+  const trainPos=128,extPos=trainPos*m2s,dims=8;
+  const colors=['#f59e0b','#fbbf24','#fde68a','#38bdf8','#0ea5e9','#a78bfa','#8b5cf6','#10b981'];
+  for(let d=0;d<dims;d++){
+    const base=10000**(-2*d/64),sf=m2sf(d,dims,m2method,m2s);
+    const a1=trainPos*base;
+    svg.appendChild(el('line',{x1:cx,y1:cy,x2:cx+R*0.7*Math.cos(a1),y2:cy-R*0.7*Math.sin(a1),stroke:colors[d],'stroke-width':1.5,opacity:.3}));
+    const a2=extPos*base*sf;
+    svg.appendChild(el('line',{x1:cx,y1:cy,x2:cx+R*0.92*Math.cos(a2),y2:cy-R*0.92*Math.sin(a2),stroke:colors[d],'stroke-width':2.5,opacity:.9}));
+    svg.appendChild(el('circle',{cx:cx+R*0.92*Math.cos(a2),cy:cy-R*0.92*Math.sin(a2),r:3.5,fill:colors[d]}));
+  }
+  svg.appendChild(txt('实部 Re',cx+R+8,cy+4,'10px'));
+  svg.appendChild(txt('虚部 Im',cx-20,cy-R-6,'10px'));
+    svg.appendChild(txt('灰线=训练(128) · 彩线=扩展('+extPos+') × '+m2s,12,H-8,'10px'));
+}
+function drawM2Freq(){
+  const svg=document.getElementById('m2freq');svg.innerHTML='';
+  const W=760,H=240,padL=46,padB=30,padT=14,baseY=H-padB,N=64,bw=(W-padL-12)/N;
+  for(let i=0;i<=2;i++){const y=padT+(baseY-padT)*i/2;svg.appendChild(el('line',{x1:padL,y1:y,x2:W-12,y2:y,'class':'svg-grid'}));}
+  ['1.0','0.5','0.0'].forEach((l,i)=>svg.appendChild(txt(l,8,padT+(baseY-padT)*i/2+4,'10px')));
+  const cm={orig:'#62697b',pi:'#38bdf8',ntk:'#a78bfa',yarn:'#f59e0b'};
+  ['orig','pi','ntk','yarn'].forEach(m=>{
+    const isAct=m===m2method;let path='';
+    for(let i=0;i<N;i++){const sf=m2sf(i,N,m,m2s),x=padL+bw*i+bw/2,y=padT+(baseY-padT)*(1-sf);path+=(i?'L':'M')+x.toFixed(1)+','+y.toFixed(1)+' ';}
+    svg.appendChild(el('path',{d:path,fill:'none',stroke:cm[m],'stroke-width':isAct?3:1.5,opacity:isAct?1:.4}));
+  });
+  svg.appendChild(mid(txt('维度索引 i →',W/2,H-4,'10px')));
+}
+function updateM2(){
+  const inf=m2info[m2method];
+  document.getElementById('m2name').textContent=inf.name;
+  document.getElementById('m2desc').textContent=inf.desc;
+  document.getElementById('m2hf').textContent=inf.hf;
+  document.getElementById('m2lf').textContent=inf.lf;
+  document.getElementById('m2scaleVal').textContent=m2s+'×';
+  document.getElementById('m2note').innerHTML=m2notes[m2method];
+  drawM2Complex();drawM2Freq();
+  const lg=document.getElementById('m2legend');lg.innerHTML='';
+  [['#62697b','原始 RoPE'],['#38bdf8','线性插值'],['#a78bfa','NTK-aware'],['#f59e0b','YaRN']].forEach(it=>{
+    const d=document.createElement('div');d.className='item';d.innerHTML='<div class="swatch" style="background:'+it[0]+'"></div>'+it[1];lg.appendChild(d);});
+}
+document.querySelectorAll('[data-m2]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-m2]').forEach(x=>x.classList.remove('active'));b.classList.add('active');m2method=b.dataset.m2;updateM2();}));
+document.getElementById('m2scale').addEventListener('input',e=>{m2s=+e.target.value;updateM2();});
+updateM2();
+
+/* ===== 模块 3：Ring Attention ===== */
+let m3n=4,m3step=0,m3autoT=null;
+const m3gpu=document.getElementById('m3gpu');
+function drawM3Ring(){
+  const svg=document.getElementById('m3ring');svg.innerHTML='';
+  const W=760,H=380,cx=W/2,cy=H/2+10,R=130;
+  const gc=['#f59e0b','#38bdf8','#a78bfa','#10b981','#ef4444','#fbbf24','#0ea5e9','#8b5cf6'];
+  const pos=[];for(let i=0;i<m3n;i++){const a=-Math.PI/2+i*2*Math.PI/m3n;pos.push({x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)});}
+  for(let i=0;i<m3n;i++){const a=pos[i],b=pos[(i+1)%m3n];svg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'var(--border-2)','stroke-width':1.5,'stroke-dasharray':'5,4'}));}
+  const flowFrom=m3step%m3n;
+  for(let i=0;i<m3n;i++){
+    const p=pos[i],isActive=i===flowFrom,kvSrc=(i-m3step+m3n*10)%m3n;
+    svg.appendChild(el('circle',{cx:p.x,cy:p.y,r:34,fill:isActive?'var(--accent-dim)':'var(--bg-3)',stroke:isActive?'var(--accent)':'var(--border-2)','stroke-width':isActive?2.5:1.5}));
+    svg.appendChild(mid(txt('GPU'+i,p.x,p.y-2,'11px')));
+    const q=mid(txt('Q:'+i,p.x,p.y+12,'9px'));q.setAttribute('fill','#38bdf8');svg.appendChild(q);
+    const kv=mid(txt('←KV:'+kvSrc,p.x,p.y+26,'9px'));kv.setAttribute('fill',gc[kvSrc%m3n]);svg.appendChild(kv);
+    if(m3step>0){const done=Math.min(m3step,m3n);svg.appendChild(el('circle',{cx:p.x+22,cy:p.y-22,r:8,fill:'#10b981',opacity:i<done?1:.2}));
+      if(i<done){const c=mid(txt('✓',p.x+22,p.y-19,'9px'));c.setAttribute('fill','#0a0b0f');svg.appendChild(c);}}
+  }
+  if(m3step>0&&m3step<=m3n){
+    const a=pos[flowFrom],b=pos[(flowFrom+1)%m3n];
+    const dot=el('circle',{cx:a.x,cy:a.y,r:6,fill:'#f59e0b',opacity:.9});
+    dot.appendChild(el('animate',{'attributeName':'cx',from:a.x,to:b.x,dur:'0.6s',fill:'freeze'}));
+    dot.appendChild(el('animate',{'attributeName':'cy',from:a.y,to:b.y,dur:'0.6s',fill:'freeze'}));
+    svg.appendChild(dot);
+    const ft=txt('KV '+flowFrom+' → GPU'+((flowFrom+1)%m3n),(a.x+b.x)/2-30,(a.y+b.y)/2-12,'10px');ft.setAttribute('fill','#f59e0b');svg.appendChild(ft);
+  }
+  const st=m3step===0?'准备阶段：各 GPU 持有本地 Q 和初始 KV 分片':m3step<=m3n?'步骤 '+m3step+'：GPU'+flowFrom+' 将 KV 传给 GPU'+((flowFrom+1)%m3n)+'，并行计算部分注意力':'完成：所有 GPU 的 Q 已见过全部 KV，注意力结束';
+  const sn=txt(st,12,H-12,'11px');sn.setAttribute('fill',m3step>m3n?'#10b981':'var(--text-2)');svg.appendChild(sn);
+}
+function updateM3(){
+  m3n=+m3gpu.value;
+  document.getElementById('m3gpuVal').textContent=m3n;
+  document.getElementById('m3stepN').textContent=m3step;
+  document.getElementById('m3total').textContent=m3n;
+  document.getElementById('m3shard').textContent='256K';
+  document.getElementById('m3totalCtx').textContent=fmtK(m3n*256*1024);
+  drawM3Ring();
+}
+m3gpu.addEventListener('input',()=>{m3step=0;updateM3();});
+document.getElementById('m3step').addEventListener('click',()=>{m3step++;if(m3step>m3n+1)m3step=0;updateM3();});
+document.getElementById('m3auto').addEventListener('click',function(){
+  if(m3autoT){clearInterval(m3autoT);m3autoT=null;this.textContent='自动播放';return;}
+  this.textContent='停止';m3step=0;updateM3();
+  m3autoT=setInterval(()=>{m3step++;if(m3step>m3n){clearInterval(m3autoT);m3autoT=null;document.getElementById('m3auto').textContent='自动播放';}updateM3();},800);});
+document.getElementById('m3reset').addEventListener('click',()=>{
+  if(m3autoT){clearInterval(m3autoT);m3autoT=null;document.getElementById('m3auto').textContent='自动播放';}m3step=0;updateM3();});
+updateM3();
+
+/* ===== 模块 4：注意力复杂度 ===== */
+const m4n=document.getElementById('m4n');
+function m4RealN(){const min=8,max=131072,v=+m4n.value;return Math.round(min*(max/min)**((v-min)/(max-min)));}
+function drawM4Heat(){
+  const svg=document.getElementById('m4heat');svg.innerHTML='';
+  const W=760,H=250,labels=['标准稠密','稀疏带状','线性核'],subW=W/3,gridN=16,colors=['#f59e0b','#38bdf8','#a78bfa'];
+  for(let m=0;m<3;m++){
+    const ox=subW*m+20,oy=30,sz=180;
+    svg.appendChild(mid(txt(labels[m],ox+sz/2,oy-10,'12px')));
+    for(let i=0;i<gridN;i++)for(let j=0;j<gridN;j++){
+      let on=false;
+      if(m===0)on=true;else if(m===1)on=Math.abs(i-j)<=2||(i%5===0&&j%5===0);else if(m===2)on=(i+j)%3===0||i===j;
+      svg.appendChild(el('rect',{x:ox+j*(sz/gridN),y:oy+i*(sz/gridN),width:sz/gridN-0.5,height:sz/gridN-0.5,fill:on?colors[m]:'var(--bg-3)',opacity:on?.85:.3}));
+    }
+    svg.appendChild(el('rect',{x:ox,y:oy,width:sz,height:sz,fill:'none',stroke:'var(--border-2)'}));
+    svg.appendChild(mid(txt('n',ox+sz/2,oy+sz+16,'10px')));
+  }
+  svg.appendChild(txt('热力图每格代表 query-key 注意力连接。稠密=全连接(n²)，稀疏=局部窗口(√n)，线性=低秩近似(n)。',12,H-8,'10px'));
+}
+function drawM4Curve(){
+  const svg=document.getElementById('m4curve');svg.innerHTML='';
+  const W=760,H=240,padL=50,padB=30,padT=14,baseY=H-padB,maxLog=Math.log10(131072),maxFlops=Math.log10(131072*131072);
+  for(let i=0;i<=4;i++){const y=padT+(baseY-padT)*i/4;svg.appendChild(el('line',{x1:padL,y1:y,x2:W-12,y2:y,'class':'svg-grid'}));}
+  const curves=[['#f59e0b',n=>n*n],['#38bdf8',n=>n*Math.sqrt(n)],['#a78bfa',n=>n]];
+  curves.forEach(c=>{let path='';for(let nx=8;nx<=131072;nx*=1.5){const x=padL+(W-padL-12)*(Math.log10(nx)/maxLog),f=Math.log10(c[1](nx)+1)/maxFlops,y=padT+(baseY-padT)*(1-f);path+=(path?'L':'M')+x.toFixed(1)+','+y.toFixed(1)+' ';}svg.appendChild(el('path',{d:path,fill:'none',stroke:c[0],'stroke-width':2.5}));});
+  const n=m4RealN(),x=padL+(W-padL-12)*(Math.log10(n)/maxLog);
+  svg.appendChild(el('line',{x1:x,y1:padT,x2:x,y2:baseY,stroke:'var(--accent)','stroke-width':1,'stroke-dasharray':'3,3',opacity:.6}));
+  const nt=mid(txt('n='+fmtK(n),x,padT-2,'10px'));nt.setAttribute('fill','#f59e0b');svg.appendChild(nt);
+  ['1M','100K','10K','1K','100'].forEach((l,i)=>svg.appendChild(txt(l,padL+(W-padL-12)*i/4,baseY+16,'10px')));
+  svg.appendChild(txt('FLOPs (log)',8,padT,'10px'));
+  svg.appendChild(mid(txt('序列长度 n (log) →',W/2,H-4,'10px')));
+}
+function updateM4(){
+  const n=m4RealN();document.getElementById('m4nVal').textContent=fmtK(n);
+  const fmtF=x=>x>=1e9?(x/1e9).toFixed(1)+'G':x>=1e6?(x/1e6).toFixed(1)+'M':x>=1e3?(x/1e3).toFixed(1)+'K':''+x;
+  document.getElementById('m4std').textContent=fmtF(n*n);
+  document.getElementById('m4sparse').textContent=fmtF(n*Math.sqrt(n));
+  document.getElementById('m4linear').textContent=fmtF(n);
+  drawM4Heat();drawM4Curve();
+}
+m4n.addEventListener('input',updateM4);updateM4();
+
+/* ===== 模块 5：Needle-in-Haystack ===== */
+const m5depth=document.getElementById('m5depth'),m5len=document.getElementById('m5len');
+let m5grid=[];
+const m5lensLabel=['1K','2K','4K','8K','16K','32K','64K','128K','256K','512K'];
+function m5InitGrid(){
+  m5grid=[];
+  for(let i=0;i<10;i++){const row=[];for(let j=0;j<10;j++){
+    const lenF=1-Math.max(0,(i-6))*0.12,depthMid=1-Math.abs(j-4.5)/4.5*0.4,edge=Math.min(j,9-j)/4.5*0.3;
+    row.push(Math.max(0.05,Math.min(0.98,0.5*lenF+0.3*depthMid+0.2*edge+Math.random()*0.1)));
+  }m5grid.push(row);}
+}
+function m5Color(r){if(r<0.5){const t=r/0.5;return `rgb(239,${68+100*t|0},${68+30*t|0})`;}const t=(r-0.5)/0.5;return `rgb(${245-130*t|0},${158+70*t|0},${11+130*t|0})`;}
+function drawM5Heat(reveal){
+  const svg=document.getElementById('m5heat');svg.innerHTML='';
+  const W=760,H=320,padL=70,padB=40,padT=20,gw=W-padL-20,gh=H-padT-padB,cw=gw/10,ch=gh/10;
+  for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+    const x=padL+j*cw,y=padT+i*ch,shown=!reveal||reveal[i][j],r=shown?m5grid[i][j]:-1;
+    svg.appendChild(el('rect',{x:x+1,y:y+1,width:cw-2,height:ch-2,rx:2,fill:r<0?'var(--bg-3)':m5Color(r),opacity:r<0?.4:1,stroke:'var(--border)','stroke-width':.5}));
+    if(r>=0){const t=mid(txt(Math.round(r*100),x+cw/2,y+ch/2+3,'9px'));t.setAttribute('fill',r>0.6?'#0a0b0f':'#e6e8ee');svg.appendChild(t);}
+  }
+  const d=+m5depth.value,l=+m5len.value,sx=padL+(d/100*9+0.5)*cw,sy=padT+(l/100*9+0.5)*ch;
+  svg.appendChild(el('rect',{x:sx-1,y:sy-1,width:cw,height:ch,fill:'none',stroke:'#fff','stroke-width':2.5,rx:2}));
+  for(let j=0;j<10;j+=2)svg.appendChild(mid(txt(m5lensLabel[j],padL+(j+0.5)*cw,padT-6,'9px')));
+  svg.appendChild(mid(txt('针深度 0%→100% →',padL+gw/2,H-padB+16,'10px')));
+  for(let i=0;i<10;i+=2)svg.appendChild(txt(m5lensLabel[i],8,padT+(i+0.5)*ch+3,'9px'));
+  const rt=el('text',{x:14,y:padT+gh/2,transform:'rotate(-90,14,'+(padT+gh/2)+')','class':'svg-text'});rt.textContent='文档长度';svg.appendChild(rt);
+}
+function updateM5(){
+  const d=+m5depth.value,l=+m5len.value;
+  document.getElementById('m5depthVal').textContent=d+'%';
+  document.getElementById('m5lenVal').textContent=m5lensLabel[Math.round(l/100*9)];
+  const li=Math.round(l/100*9),di=Math.round(d/100*9),rate=m5grid[li][di];
+  const re=document.getElementById('m5rate');re.textContent=Math.round(rate*100)+'%';
+  re.style.color=rate>0.7?'#10b981':rate>0.4?'#f59e0b':'#ef4444';
+  document.getElementById('m5rateSub').textContent=rate>0.7?'优秀':rate>0.4?'一般':'失败';
+  document.getElementById('m5depthM').textContent=d<20?'开头':d<40?'前段':d<60?'中段':d<80?'后段':'结尾';
+  document.getElementById('m5depthSub').textContent=d+'%';
+  document.getElementById('m5lenM').textContent=m5lensLabel[li];
+  drawM5Heat(null);
+}
+m5depth.addEventListener('input',updateM5);m5len.addEventListener('input',updateM5);
+document.getElementById('m5test').addEventListener('click',function(){
+  this.textContent='测试中...';this.disabled=true;
+  const li=Math.round(+m5len.value/100*9),di=Math.round(+m5depth.value/100*9);
+  const reveal=[];for(let i=0;i<10;i++){reveal.push([]);for(let j=0;j<10;j++)reveal[i].push(false);}
+  reveal[li][di]=true;drawM5Heat(reveal);let step=0;
+  (function anim(){if(step>=100){drawM5Heat(reveal);const b=document.getElementById('m5test');b.textContent='投针测试';b.disabled=false;return;}
+    reveal[Math.floor(step/10)][step%10]=true;drawM5Heat(reveal);step++;requestAnimationFrame(anim);})();
+});
+document.getElementById('m5full').addEventListener('click',()=>{
+  const reveal=[];for(let i=0;i<10;i++){reveal.push([]);for(let j=0;j<10;j++)reveal[i].push(true);}drawM5Heat(reveal);});
+m5InitGrid();updateM5();
+
+/* ===== 模块 6：KV-Cache 优化 ===== */
+const m6ctx=document.getElementById('m6ctx');let m6strat='fp16';
+const m6ctxs=[4,8,32,128,512,2048],m6labels=['4K','8K','32K','128K','512K','2M'];
+const m6strats={fp16:{ratio:1,loss:0,lossSub:'无损',desc:'FP16 / 128K'},int8:{ratio:2,loss:1,lossSub:'<1% 困惑度升',desc:'INT8 / 128K'},
+  int4:{ratio:4,loss:3,lossSub:'~3% 精度降',desc:'INT4 / 128K'},evict:{ratio:6.7,loss:8,lossSub:'丢失早期上下文',desc:'窗口 / 128K'}};
+function m6BaseMem(ctxK){return 2*80*64*(ctxK*1024)*128*2/1e9;}
+function drawM6Bars(){
+  const svg=document.getElementById('m6bars');svg.innerHTML='';
+  const W=760,H=240,padL=50,padB=34,padT=16,baseY=H-padB,ctxK=m6ctxs[+m6ctx.value],base=m6BaseMem(ctxK);
+  const strats=['fp16','int8','int4','evict'],colors=['#f59e0b','#38bdf8','#a78bfa','#10b981'],names=['FP16','INT8','INT4','滑动窗口'];
+  const gap=(W-padL-20)/4,bw=gap*0.7;
+  for(let i=0;i<=3;i++){const y=padT+(baseY-padT)*i/3;svg.appendChild(el('line',{x1:padL,y1:y,x2:W-12,y2:y,'class':'svg-grid'}));}
+  strats.forEach((s,i)=>{const mem=base/m6strats[s].ratio,h=(baseY-padT)*(mem/base)*0.92,x=padL+gap*i+gap*0.15,act=s===m6strat;
+    svg.appendChild(el('rect',{x,y:baseY-h,width:bw,height:h,rx:3,fill:act?colors[i]:'var(--border-2)',opacity:act?1:.5}));
+    svg.appendChild(mid(txt(names[i],x+bw/2,baseY+16,'11px')));
+    const ml=mid(txt(mem.toFixed(1)+'GB',x+bw/2,baseY-h-6,'10px'));if(act)ml.setAttribute('fill',colors[i]);svg.appendChild(ml);});
+  ['100%','66%','33%','0'].forEach((l,i)=>svg.appendChild(txt(l,20,padT+(baseY-padT)*i/3+4,'9px')));
+  svg.appendChild(txt('GB',8,padT,'10px'));
+}
+function drawM6Curve(){
+  const svg=document.getElementById('m6curve');svg.innerHTML='';
+  const W=760,H=220,padL=50,padB=30,padT=14,baseY=H-padB,maxLog=Math.log10(2048);
+  for(let i=0;i<=3;i++){const y=padT+(baseY-padT)*i/3;svg.appendChild(el('line',{x1:padL,y1:y,x2:W-12,y2:y,'class':'svg-grid'}));}
+  const colors=['#f59e0b','#38bdf8','#a78bfa','#10b981'],strats=['fp16','int8','int4','evict'],maxM=Math.log10(m6BaseMem(2048)+1);
+  strats.forEach((s,si)=>{let path='';for(let c=4;c<=2048;c*=1.4){const mem=m6BaseMem(c)/m6strats[s].ratio,x=padL+(W-padL-12)*(Math.log10(c)/maxLog),y=padT+(baseY-padT)*(1-Math.min(1,Math.log10(mem+1)/maxM));path+=(path?'L':'M')+x.toFixed(1)+','+y.toFixed(1)+' ';}svg.appendChild(el('path',{d:path,fill:'none',stroke:colors[si],'stroke-width':s===m6strat?3:1.5,opacity:s===m6strat?1:.4}));});
+  const c=m6ctxs[+m6ctx.value],x=padL+(W-padL-12)*(Math.log10(c)/maxLog);
+  svg.appendChild(el('line',{x1:x,y1:padT,x2:x,y2:baseY,stroke:'var(--accent)','stroke-width':1,'stroke-dasharray':'3,3',opacity:.6}));
+  ['2M','256K','32K','4K'].forEach((l,i)=>svg.appendChild(txt(l,padL+(W-padL-12)*i/3,baseY+16,'9px')));
+  svg.appendChild(mid(txt('上下文长度 (log) →',W/2,H-4,'10px')));
+}
+function updateM6(){
+  const ctxIdx=+m6ctx.value,ctxK=m6ctxs[ctxIdx],base=m6BaseMem(ctxK),mem=base/m6strats[m6strat].ratio,s=m6strats[m6strat];
+  document.getElementById('m6ctxVal').textContent=m6labels[ctxIdx];
+  document.getElementById('m6mem').innerHTML=mem.toFixed(1)+'<small> GB</small>';
+  document.getElementById('m6memSub').textContent=s.desc;
+  document.getElementById('m6ratio').textContent=s.ratio.toFixed(1)+'×';
+  const le=document.getElementById('m6loss');le.textContent=s.loss+'%';le.style.color=s.loss===0?'#10b981':s.loss<5?'#f59e0b':'#ef4444';
+  document.getElementById('m6lossSub').textContent=s.lossSub;
+  drawM6Bars();drawM6Curve();
+}
+m6ctx.addEventListener('input',updateM6);
+document.querySelectorAll('[data-m6]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-m6]').forEach(x=>x.classList.remove('active'));b.classList.add('active');m6strat=b.dataset.m6;updateM6();}));
+updateM6();
+
+/* ===== 模块 7：评估基准雷达图 ===== */
+const m7data={
+  gpt4:{name:'GPT-4 Turbo',ctx:'128K 上下文',scores:{RULER:78,LongBench:82,NIAH:95,InfBench:74,HELM:88,Effective:72}},
+  claude:{name:'Claude 3 Opus',ctx:'200K 上下文',scores:{RULER:84,LongBench:86,NIAH:98,InfBench:80,HELM:91,Effective:81}},
+  gemini:{name:'Gemini 1.5 Pro',ctx:'2M 上下文',scores:{RULER:89,LongBench:88,NIAH:96,InfBench:85,HELM:90,Effective:87}},
+  llama:{name:'Llama 3.1 405B',ctx:'128K 上下文',scores:{RULER:82,LongBench:80,NIAH:90,InfBench:71,HELM:85,Effective:75}}};
+const m7axes=['RULER','LongBench','NIAH','∞Bench','HELM','有效长度'];
+const m7keys=['RULER','LongBench','NIAH','InfBench','HELM','Effective'];
+const m7colors={gpt4:'#10b981',claude:'#a78bfa',gemini:'#f59e0b',llama:'#38bdf8'};
+let m7cur='gemini',m7showAll=false;
+function drawM7Radar(){
+  const svg=document.getElementById('m7radar');svg.innerHTML='';
+  const W=760,H=420,cx=W/2,cy=H/2,R=140,n=6;
+  for(let r=1;r<=4;r++){let p='';for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n,rr=R*r/4;p+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(1)+','+(cy+rr*Math.sin(a)).toFixed(1)+' ';}svg.appendChild(el('path',{d:p+'Z',fill:'none',stroke:'var(--border)','stroke-width':1,opacity:.6}));}
+  for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n;svg.appendChild(el('line',{x1:cx,y1:cy,x2:cx+R*Math.cos(a),y2:cy+R*Math.sin(a),'class':'svg-grid'}));svg.appendChild(mid(txt(m7axes[i],cx+(R+22)*Math.cos(a),cy+(R+22)*Math.sin(a)+3,'11px')));}
+  ['100','75','50','25'].forEach((l,i)=>{const t=txt(l,cx+4,cy-R*(4-i)/4+3,'8px');t.setAttribute('fill','var(--text-3)');svg.appendChild(t);});
+  const drawPoly=(model,active)=>{const d=m7data[model];let p='';const pts=[];for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n,v=d.scores[m7keys[i]]/100,x=cx+R*v*Math.cos(a),y=cy+R*v*Math.sin(a);pts.push([x,y]);p+=(i?'L':'M')+x.toFixed(1)+','+y.toFixed(1)+' ';}const c=m7colors[model];svg.appendChild(el('path',{d:p+'Z',fill:c,opacity:active?.16:.06,stroke:c,'stroke-width':active?2.5:1.5}));if(active)pts.forEach(pt=>svg.appendChild(el('circle',{cx:pt[0],cy:pt[1],r:4,fill:c})));};
+  if(m7showAll)Object.keys(m7data).forEach(m=>drawPoly(m,m===m7cur));else drawPoly(m7cur,true);
+  svg.appendChild(el('circle',{cx,cy,r:2,fill:'var(--text-3)'}));
+}
+function updateM7(){
+  const d=m7data[m7cur];
+  document.getElementById('m7name').textContent=d.name;
+  document.getElementById('m7ctx').textContent=d.ctx;
+  const scores=Object.values(d.scores);
+  document.getElementById('m7score').textContent=(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  let bestK='',bestV=0;for(const k in d.scores)if(d.scores[k]>bestV){bestV=d.scores[k];bestK=k;}
+  const bm={RULER:'RULER',LongBench:'LongBench',NIAH:'Needle',InfBench:'∞Bench',HELM:'HELM',Effective:'有效长度'};
+  const bs={RULER:'综合长上下文',LongBench:'中英双语',NIAH:'检索能力',InfBench:'超长任务',HELM:'整体评估',Effective:'有效利用'};
+  document.getElementById('m7best').textContent=bm[bestK];
+  document.getElementById('m7bestSub').textContent=bs[bestK];
+  drawM7Radar();
+  const lg=document.getElementById('m7legend');lg.innerHTML='';
+  Object.keys(m7data).forEach(m=>{const it=document.createElement('div');it.className='item';it.innerHTML='<div class="swatch" style="background:'+m7colors[m]+'"></div>'+m7data[m].name;if(m===m7cur)it.style.color='var(--accent)';lg.appendChild(it);});
+}
+document.getElementById('m7model').addEventListener('change',e=>{m7cur=e.target.value;updateM7();});
+document.getElementById('m7compare').addEventListener('click',function(){m7showAll=!m7showAll;this.textContent=m7showAll?'仅当前':'对比全部';this.classList.toggle('active');updateM7();});
+updateM7();
+
+/* ===== 模块 8：应用场景 ===== */
+const m8scenes=[
+  {key:'book',icon:'📖',title:'整本书理解',desc:'整本书一次性输入，跨章节分析',ctx:'~130K token'},
+  {key:'code',icon:'💻',title:'代码库分析',desc:'整个仓库代码理解与问答',ctx:'~200K token'},
+  {key:'dialog',icon:'💬',title:'多轮长对话',desc:'超长历史对话保持上下文',ctx:'~100K token'},
+  {key:'doc',icon:'📄',title:'文档问答',desc:'多文档混合检索与问答',ctx:'~500K token'}];
+const m8details={
+  book:{title:'场景示意图 — 整本书理解',note:'整本书（~10万词 ≈ 130K token）一次性输入，实现跨章节人物关系、伏笔、主题的<b>全局一致性理解</b>。挑战：长程依赖衰减、中段信息丢失。应用：文学分析、法律整卷审查。'},
+  code:{title:'场景示意图 — 代码库分析',note:'整个代码仓库（源码+依赖 ≈ 200K token）输入，实现<b>跨文件调用追踪、架构理解、Bug 定位</b>。挑战：token 爆炸需选择性包含、结构信息丢失。应用：Cursor、Copilot Workspace。'},
+  dialog:{title:'场景示意图 — 多轮长对话',note:'数百轮对话历史（~100K token）保持完整上下文，<b>无需摘要压缩</b>即可引用早期话题。挑战：对话冗余、KV-Cache 持续增长。应用：ChatGPT、Claude 长对话。'},
+  doc:{title:'场景示意图 — 文档问答',note:'多份大型文档（合同/论文/财报 ≈ 500K token）混合输入，<b>跨文档推理</b>与精确引用。挑战：相关片段定位、幻觉控制。应用：NotebookLM、企业知识库。'}};
+let m8cur='book';
+function buildM8Scenes(){
+  const c=document.getElementById('m8scenes');c.innerHTML='';
+  m8scenes.forEach(s=>{const d=document.createElement('div');d.className='scene-card'+(s.key===m8cur?' active':'');
+    d.innerHTML='<div class="ic">'+s.icon+'</div><h4>'+s.title+'</h4><p>'+s.desc+'</p><div class="ctx">'+s.ctx+'</div>';
+    d.addEventListener('click',()=>{m8cur=s.key;buildM8Scenes();drawM8();});c.appendChild(d);});
+}
+function R(x,y,w,h,fill,stroke,sw){return el('rect',{x,y,width:w,height:h,rx:4,fill,stroke,'stroke-width':sw||1});}
+function drawM8(){
+  const svg=document.getElementById('m8svg');svg.innerHTML='';const W=760,H=300;
+  document.getElementById('m8vizTitle').textContent=m8details[m8cur].title;
+  document.getElementById('m8note').innerHTML=m8details[m8cur].note;
+  if(m8cur==='book'){
+    ['第1章','第5章','第12章','第20章','第30章','第40章'].forEach((c,i)=>{
+      const x=80+i*110,y=80,hl=i===2;
+      svg.appendChild(R(x,y,80,60,hl?'var(--accent-soft)':'var(--bg-3)',hl?'var(--accent)':'var(--border-2)',hl?2:1));
+      svg.appendChild(mid(txt(c,x+40,y+34,'10px')));});
+    svg.appendChild(el('path',{d:'M160,110 Q380,40 600,110',fill:'none',stroke:'var(--accent)','stroke-width':2,'stroke-dasharray':'5,3'}));
+    const t=mid(txt('跨章节引用（伏笔→回收）',380,40,'11px'));t.setAttribute('fill','var(--accent)');svg.appendChild(t);
+    svg.appendChild(el('rect',{x:300,y:180,width:160,height:50,rx:8,fill:'var(--accent-dim)',stroke:'var(--accent)'}));
+    svg.appendChild(mid(txt('LLM 长上下文模型',380,210,'12px')));
+    svg.appendChild(mid(txt('130K token 全局输入',380,250,'10px'))).setAttribute('fill','var(--text-2)');
+  }else if(m8cur==='code'){
+    const files=['main.py','utils.py','model.py','train.py','config.yaml','README.md'],sizes=['2.1KB','4.5KB','12KB','8.3KB','1.2KB','5.6KB'];
+    files.forEach((f,i)=>{const x=60+(i%3)*200,y=50+Math.floor(i/3)*80;
+      svg.appendChild(R(x,y,160,50,'var(--bg-3)','var(--border-2)'));
+      svg.appendChild(txt('📄 '+f,x+10,y+22,'11px'));
+      const st=txt(sizes[i],x+10,y+38,'9px');st.setAttribute('fill','var(--text-3)');svg.appendChild(st);});
+    svg.appendChild(el('path',{d:'M140,100 L260,100',stroke:'#38bdf8','stroke-width':1.5,opacity:.5}));
+    svg.appendChild(el('path',{d:'M340,100 L460,180',stroke:'#38bdf8','stroke-width':1.5,opacity:.5}));
+    const dt=txt('import 依赖关系',560,90,'10px');dt.setAttribute('fill','#38bdf8');svg.appendChild(dt);
+    svg.appendChild(el('rect',{x:280,y:220,width:200,height:50,rx:8,fill:'var(--accent-dim)',stroke:'var(--accent)'}));
+    svg.appendChild(mid(txt('代码库问答 LLM',380,250,'12px')));
+    svg.appendChild(mid(txt('200K token · 跨文件追踪',380,285,'10px'))).setAttribute('fill','var(--text-2)');
+  }else if(m8cur==='dialog'){
+    const msgs=[['今天天气怎样？',1],['北京晴，25°C。',0],['推荐穿搭？',1],['建议薄外套。',0],['（100轮后）刚才的天气？',1],['引用第1轮：北京25°C晴。',0]];
+    msgs.forEach((m,i)=>{const y=30+i*38,w=180,h=28,x=m[1]?40:W-40-w;
+      svg.appendChild(el('rect',{x,y,width:w,height:h,rx:8,fill:m[1]?'var(--bg-3)':'var(--accent-soft)',stroke:m[1]?'var(--border-2)':'var(--accent)'}));
+      svg.appendChild(txt(m[0],x+10,y+18,'10px'));
+      if(i===4){const t=txt('↓ 引用早期上下文',x-86,y+18,'9px');t.setAttribute('fill','var(--accent)');svg.appendChild(t);}
+      if(i===5)svg.appendChild(el('path',{d:'M'+(x-30)+','+(y+14)+' Q'+(x-80)+','+(y-40)+' '+(x-150)+','+(y-80),fill:'none',stroke:'var(--accent)','stroke-width':1.5,'stroke-dasharray':'3,3',opacity:.6}));});
+    svg.appendChild(mid(txt('100K token 对话历史 · 完整保留',380,285,'10px'))).setAttribute('fill','var(--text-2)');
+  }else if(m8cur==='doc'){
+    const docs=[['合同A.pdf','80K'],['论文B.pdf','45K'],['财报C.pdf','120K'],['手册D.pdf','90K'],['报告E.pdf','85K']];
+    docs.forEach((d,i)=>{const x=40+i*140,y=40;
+      svg.appendChild(R(x,y,110,70,'var(--bg-3)','var(--border-2)'));
+      svg.appendChild(mid(txt('📄',x+55,y+24,'18px')));
+      svg.appendChild(mid(txt(d[0],x+55,y+46,'9px')));
+      const st=mid(txt(d[1]+' tok',x+55,y+60,'9px'));st.setAttribute('fill','var(--text-3)');svg.appendChild(st);});
+    docs.forEach((d,i)=>svg.appendChild(el('path',{d:'M'+(95+i*140)+',110 L380,170',stroke:'var(--accent)','stroke-width':1,opacity:.4,'stroke-dasharray':'3,3'})));
+    svg.appendChild(el('rect',{x:280,y:170,width:200,height:50,rx:8,fill:'var(--accent-dim)',stroke:'var(--accent)'}));
+    svg.appendChild(mid(txt('跨文档推理 LLM',380,200,'12px')));
+    svg.appendChild(mid(txt('500K token · 多文档混合',380,245,'10px'))).setAttribute('fill','var(--text-2)');
+    const rt=mid(txt('精确引用 [合同A §3.2]',380,275,'10px'));rt.setAttribute('fill','#38bdf8');svg.appendChild(rt);
+  }
+}
+buildM8Scenes();drawM8();
+</script>
+</body>
+</html>
