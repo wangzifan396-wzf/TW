@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 176 个零依赖交互式可视化项目 + 30 个配套工具，1408+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 185 个零依赖交互式可视化项目 + 30 个配套工具，1472+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-176-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1408+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-185-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1472+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,17 +74,17 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 176 |
-| 可视化模块 | 1408+ |
+| 项目总数 | 185 |
+| 可视化模块 | 1472+ |
 | 外部依赖 | 0 |
-| 代码总大小 | ~13.5 MB |
+| 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
 
 ## 分类导航
 
 | 分类 | 数量 | 范围 | 代表项目 |
 |------|------|------|----------|
-| AI / 机器学习 | 75 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF... |
+| AI / 机器学习 | 87 | #01–#52, #131–#134, #141–#144, #151–#154, #161–#165, #168, #170, #174–#185 | LLM、Transformer、Diffusion、MoE、Agent、RAG、RLHF、多智能体、推理时计算、世界模型... |
 | CS 系统 | 39 | #36–#48, #74–#90, #135–#136, #145–#146, #155–#157, #166–#167 | 分布式、数据库、编译器、操作系统、网络、区块链... |
 | CS 理论 | 22 | #53–#57, #72–#73, #85–#96, #137, #147, #158 | 复杂性、类型论、Lambda演算、范畴论、形式化方法... |
 | 交叉学科 | 37 | #51–#52, #58–#71, #91–#97, #138–#140, #148–#150, #159–#160, #169 | 图形学、信息论、博弈论、机器人、信号处理、量子... |
@@ -270,6 +270,15 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 174 | 多智能体系统可视化实验室 | 多智能体编排模式、MCP/A2A通信协议、群体拓扑、任务分解、博弈共识、框架对比、共享记忆、评估指标等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multi-agent-systems-viz-lab/) |
 | 175 | AI对齐与安全2.0可视化实验室 | 对齐范式演进、Constitutional AI、可扩展监督、机械可解释性、欺骗检测、奖励黑客、可纠正性、对齐税收等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-alignment-viz-lab/) |
 | 176 | 智能体评估基准可视化实验室 | SWE-bench排行、GAIA分层、WebArena交互、Arena Elo、过程级评估、轨迹分析、基准对比、能力雷达图等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agentic-eval-viz-lab/) |
+| 177 | AI工作流编排可视化实验室 | DAG编排、节点类型体系、条件路由引擎、并行执行扇出扇入、RAG管线编排、人工审批节点、平台对比(Dify/LangFlow/n8n)、可观测性等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-workflow-orchestration-viz-lab/) |
+| 178 | WebGPU与浏览器AI推理可视化实验室 | WebGPU渲染管线、计算着色器WGSL、浏览器内LLM推理(Transformer.js)、显存管理、WebGPU vs WebGL对比、端侧推理优化、浏览器AI应用矩阵、性能基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/webgpu-browser-ai-viz-lab/) |
+| 179 | 推理时计算可视化实验室 | 训练时vs推理时计算、思维链CoT、思维树ToT、思维图GoT、自洽性与多数投票、推理Scaling Laws、o1/o3推理架构、推理预算控制等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/test-time-compute-viz-lab/) |
+| 180 | 视觉推理链可视化实验室 | VLM架构全景、视觉思维链(Visual CoT)、空间推理、VQA推理路径、视觉定位与分割推理、多图比较推理、视频时序推理、视觉推理基准(VQA/GQA/SEED)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/visual-reasoning-viz-lab/) |
+| 181 | 世界模型与视频生成可视化实验室 | 世界模型四类分类(表征/生成/交互/一体化)、DiT架构、时空注意力、物理一致性建模、长视频一致性、条件视频生成、世界模型评估(PhysBench)、应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/world-model-video-gen-viz-lab/) |
+| 182 | 端侧大模型可视化实验室 | 端侧部署架构(设备金字塔)、模型蒸馏管线(Teacher-Student)、量化策略(INT4/INT8/FP16)、移动端推理引擎(MLC/llama.cpp/ExecuTorch)、NPU加速架构、功耗与延迟分析、隐私与安全优势、端云协同推理等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/on-device-llm-viz-lab/) |
+| 183 | AI搜索与信息检索可视化实验室 | AI原生搜索架构(Perplexity模式)、查询理解与改写、多跳推理搜索、RAG增强搜索、实时索引与增量更新、多模态搜索、AI重排序策略、搜索评估体系等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-search-viz-lab/) |
+| 184 | AI产品架构可视化实验室 | AI产品系统架构(五层分层)、用户交互设计(对话/表单/嵌入式)、数据管线架构、模型服务架构、评估反馈闭环、成本与性能优化、安全与合规体系、产品成熟度模型(Demo→Scale)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-product-arch-viz-lab/) |
+| 185 | AI Agent记忆架构可视化实验室 | 记忆类型分类(工作/短期/长期/情景/语义)、工作记忆管理(Token预算)、长期记忆存储(向量库/知识图谱/文档)、记忆编码与检索、记忆压缩与遗忘、情景记忆回放、记忆一致性管理、记忆架构对比(MemGPT/Letta/Mem0/Zep)等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agent-memory-viz-lab/) |
 
 ## 技术栈
 

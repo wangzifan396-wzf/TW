@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 推理时计算可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">推理时计算可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 179</span>
+    <h1>推理时计算可视化实验室</h1>
+    <p>从Chain-of-Thought到o1的隐式推理——把2026年大模型推理时计算(Test-Time Compute)如何提升推理能力的核心机制以可交互SVG呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">训练vs推理</button>
+    <button class="tab" data-m="m2">思维链 CoT</button>
+    <button class="tab" data-m="m3">思维树 ToT</button>
+    <button class="tab" data-m="m4">思维图 GGoT</button>
+    <button class="tab" data-m="m5">自洽性投票</button>
+    <button class="tab" data-m="m6">Scaling Laws</button>
+    <button class="tab" data-m="m7">o1/o3 架构</button>
+    <button class="tab" data-m="m8">推理预算</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>训练时 vs 推理时计算</h2></div>
+    <p class="m-desc">传统模型在训练时投入大量计算，推理时直接输出；推理模型通过RL训练推理策略，在推理时进行多步搜索。对比图展示计算分配的范式转移。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="trainSwitch()">切换视角 ▸</button>
+    </div>
+    <div class="viz"><svg id="train-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">传统模型</div><div class="v">训练 >> 推理</div><div class="d">System-1 快思考</div></div>
+      <div class="info-card"><div class="k">推理模型</div><div class="v">训练 + 推理均重</div><div class="d">System-2 慢思考</div></div>
+      <div class="info-card"><div class="k">范式转移</div><div class="v">推理时 Scaling</div><div class="d">计算从训练侧移至推理侧</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>思维链 (Chain-of-Thought)</h2></div>
+    <p class="m-desc">CoT推理过程：问题→分解步骤1→步骤2→...→答案。动画逐步展示推理链的生成过程，每个步骤用气泡框显示。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="cotRun()">执行推理 ▸</button>
+      <button class="btn" onclick="cotReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="cot-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="cot-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px;white-space:pre-wrap"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Zero-Shot CoT</div><div class="v">"让我们一步步思考"</div><div class="d">单次提示触发推理链</div></div>
+      <div class="info-card"><div class="k">Few-Shot CoT</div><div class="v">示例引导推理</div><div class="d">提供推理链范例</div></div>
+      <div class="info-card"><div class="k">Auto-CoT</div><div class="v">自动构建示例</div><div class="d">零人工标注</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>思维树 (Tree-of-Thought)</h2></div>
+    <p class="m-desc">树形搜索推理：从问题出发，分支生成多个思路，评估每个分支的价值，剪枝低分分支，进行深度优先/广度优先搜索。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="totSearch()">搜索 ▸</button>
+      <button class="btn" onclick="totReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="tot-svg" viewBox="0 0 880 360"></svg></div>
+    <div id="tot-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">分支策略</div><div class="v">BFS / DFS</div><div class="d">广度或深度优先搜索</div></div>
+      <div class="info-card"><div class="k">评估函数</div><div class="v">LLM 打分 0-1</div><div class="d">评估每个节点价值</div></div>
+      <div class="info-card"><div class="k">剪枝阈值</div><div class="v">score < 0.3</div><div class="d">低分分支直接剪除</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>思维图 (Graph-of-Thought)</h2></div>
+    <p class="m-desc">图结构推理：节点是推理步骤，边是逻辑关系，支持合并、回溯、循环。网络图布局展示推理图的生成过程。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="gotGenerate()">生成图 ▸</button>
+    </div>
+    <div class="viz"><svg id="got-svg" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">合并节点</div><div class="v">多路径汇聚</div><div class="d">融合不同推理链的结论</div></div>
+      <div class="info-card"><div class="k">回溯边</div><div class="v">放弃→重来</div><div class="d">发现死路时返回上一节点</div></div>
+      <div class="info-card"><div class="k">循环边</div><div class="v">迭代优化</div><div class="d">反复验证同一推理步骤</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>自洽性与多数投票</h2></div>
+    <p class="m-desc">Self-Consistency：同一问题生成N条推理路径，对最终答案进行多数投票。多条并行路径动画展示，最后汇聚到投票统计。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="scRun()">运行 ▸</button>
+    </div>
+    <div class="viz"><svg id="sc-svg" viewBox="0 0 880 360"></svg></div>
+    <div id="sc-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">路径数 N</div><div class="v">5-40 条</div><div class="d">温度采样生成多样性</div></div>
+      <div class="info-card"><div class="k">投票策略</div><div class="v">多数投票</div><div class="d">选择出现频次最高的答案</div></div>
+      <div class="info-card"><div class="k">准确率提升</div><div class="v">+5-18%</div><div class="d">相比单路径 CoT</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>推理 Scaling Laws</h2></div>
+    <p class="m-desc">推理计算量(FLOPs)与准确率的关系曲线。X轴推理计算量，Y轴准确率。不同任务(AIME/MATH/GPQA)的scaling曲线展示。</p>
+    <div class="ctrl">
+      <button class="btn primary" data-task="aime" onclick="scaleSwitch(this,'aime')">AIME</button>
+      <button class="btn" data-task="math" onclick="scaleSwitch(this,'math')">MATH</button>
+      <button class="btn" data-task="gpqa" onclick="scaleSwitch(this,'gpqa')">GPQA</button>
+      <button class="btn" data-task="all" onclick="scaleSwitch(this,'all')">全部对比</button>
+    </div>
+    <div class="viz"><svg id="scale-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="scale-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">AIME</div><div class="v">数学竞赛</div><div class="d">推理收益最大，+76%</div></div>
+      <div class="info-card"><div class="k">MATH</div><div class="v">数学推理</div><div class="d">起点高，提升平缓</div></div>
+      <div class="info-card"><div class="k">GPQA</div><div class="v">研究生级QA</div><div class="d">知识密集，推理收益有限</div></div>
+      <div class="info-card"><div class="k">关键发现</div><div class="v">对数线性增长</div><div class="d">准确率随log(计算量)线性提升</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>o1 / o3 推理架构</h2></div>
+    <p class="m-desc">o1模型的隐式CoT架构：输入→隐藏推理Token→输出。流程图展示训练阶段(SFT+RL)和推理阶段。推理token消耗的动态变化。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="o1Run()">模拟o1推理 ▸</button>
+    </div>
+    <div class="viz"><svg id="o1-svg" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">训练阶段</div><div class="v">SFT + RL (策略梯度)</div><div class="d">学习何时该深入推理</div></div>
+      <div class="info-card"><div class="k">推理阶段</div><div class="v">隐式 CoT</div><div class="d">推理token不暴露给用户</div></div>
+      <div class="info-card"><div class="k">推理深度</div><div class="v">动态自适应</div><div class="d">简单问题少算，复杂问题多算</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>推理预算控制</h2></div>
+    <p class="m-desc">动态分配推理计算预算：简单问题少算、复杂问题多算。仪表盘展示推理预算分配策略，包括early stopping、置信度阈值、最大深度限制。</p>
+    <div class="ctrl">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)">预算上限: <input type="range" id="budget-slider" min="100" max="2000" value="800" step="50" oninput="budgetDraw()" style="width:160px"><span id="budget-label" style="font-family:var(--mono);color:var(--accent)">800 tokens</span></label>
+    </div>
+    <div class="viz"><svg id="budget-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">简单问题</div><div class="v" id="bd-easy">120 tokens</div><div class="d">Early stop @ 95% 置信度</div></div>
+      <div class="info-card"><div class="k">中等问题</div><div class="v" id="bd-medium">450 tokens</div><div class="d">深度限制 8 步</div></div>
+      <div class="info-card"><div class="k">复杂问题</div><div class="v" id="bd-hard">800 tokens</div><div class="d">用满预算上限</div></div>
+      <div class="info-card"><div class="k">平均消耗</div><div class="v" id="bd-avg">456 tokens</div><div class="d">动态分配效率 2.3x</div></div>
+    </div>
+  </section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: Training vs Inference Compute
+var trainView=0;
+function trainSwitch(){
+  trainView=(trainView+1)%2;
+  trainDraw();
+}
+function trainDraw(){
+  var svg=document.getElementById('train-svg');clear(svg);
+  // Title
+  el('text',{x:220,y:30,'text-anchor':'middle',fill:DIM,'font-size':11,'font-weight':600},svg).textContent='传统模型 (System-1)';
+  el('text',{x:660,y:30,'text-anchor':'middle',fill:DIM,'font-size':11,'font-weight':600},svg).textContent='推理模型 (System-2)';
+
+  if(trainView===0){
+    // Compute allocation bars
+    // Traditional: training huge, inference tiny
+    el('text',{x:80,y:70,fill:AC,'font-size':10},svg).textContent='训练计算';
+    el('rect',{x:80,y:80,w:280,h:40,rx:4,fill:'rgba(0,212,170,.15)',stroke:AC},svg);
+    el('rect',{x:80,y:80,w:280,h:40,rx:4,fill:AC,'fill-opacity':0.4},svg);
+    el('text',{x:220,y:105,'text-anchor':'middle',fill:AC,'font-size':12,'font-weight':600,'font-family':'monospace'},svg).textContent='10^25 FLOPs';
+
+    el('text',{x:80,y:140,fill:WARN,'font-size':10},svg).textContent='推理计算';
+    el('rect',{x:80,y:150,w:280,h:40,rx:4,fill:'rgba(245,158,11,.15)',stroke:WARN},svg);
+    el('rect',{x:80,y:150,w:30,h:40,rx:4,fill:WARN,'fill-opacity':0.4},svg);
+    el('text',{x:220,y:175,'text-anchor':'middle',fill:WARN,'font-size':12,'font-weight':600,'font-family':'monospace'},svg).textContent='10^15 FLOPs';
+
+    // Reasoning model: training large, inference also large
+    el('text',{x:520,y:70,fill:INFO,'font-size':10},svg).textContent='训练计算 (SFT+RL)';
+    el('rect',{x:520,y:80,w:280,h:40,rx:4,fill:'rgba(56,189,248,.15)',stroke:INFO},svg);
+    el('rect',{x:520,y:80,w:200,h:40,rx:4,fill:INFO,'fill-opacity':0.4},svg);
+    el('text',{x:660,y:105,'text-anchor':'middle',fill:INFO,'font-size':12,'font-weight':600,'font-family':'monospace'},svg).textContent='10^24 FLOPs';
+
+    el('text',{x:520,y:140,fill:ROSE,'font-size':10},svg).textContent='推理计算 (多步搜索)';
+    el('rect',{x:520,y:150,w:280,h:40,rx:4,fill:'rgba(251,113,133,.15)',stroke:ROSE},svg);
+    el('rect',{x:520,y:150,w:140,h:40,rx:4,fill:ROSE,'fill-opacity':0.4},svg);
+    el('text',{x:660,y:175,'text-anchor':'middle',fill:ROSE,'font-size':12,'font-weight':600,'font-family':'monospace'},svg).textContent='10^19 FLOPs';
+
+    // Flow diagrams
+    el('text',{x:220,y:230,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='问题 → [直接输出]';
+    el('rect',{x:140,y:240,w:60,h:30,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+    el('text',{x:170,y:259,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='输入';
+    el('text',{x:215,y:259,fill:DIM,'font-size':12},svg).textContent='→';
+    el('rect',{x:240,y:240,w:90,h:30,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+    el('text',{x:285,y:259,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='直接输出';
+    el('text',{x:220,y:295,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='延迟 ~200ms · 无中间推理';
+
+    el('text',{x:660,y:230,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='问题 → [搜索] → [验证] → [输出]';
+    el('rect',{x:520,y:240,w:60,h:30,rx:6,fill:'rgba(56,189,248,.06)',stroke:INFO},svg);
+    el('text',{x:550,y:259,'text-anchor':'middle',fill:INFO,'font-size':10},svg).textContent='输入';
+    el('text',{x:595,y:259,fill:DIM,'font-size':12},svg).textContent='→';
+    el('rect',{x:615,y:240,w:70,h:30,rx:6,fill:'rgba(167,139,250,.06)',stroke:PUR},svg);
+    el('text',{x:650,y:259,'text-anchor':'middle',fill:PUR,'font-size':10},svg).textContent='搜索';
+    el('text',{x:700,y:259,fill:DIM,'font-size':12},svg).textContent='→';
+    el('rect',{x:720,y:240,w:70,h:30,rx:6,fill:'rgba(251,113,133,.06)',stroke:ROSE},svg);
+    el('text',{x:755,y:259,'text-anchor':'middle',fill:ROSE,'font-size':10},svg).textContent='输出';
+    el('text',{x:660,y:295,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='延迟 ~10-30s · 隐式多步推理';
+    // Comparison metrics
+    var metrics=[
+      {t:'训练成本',trad:'$10M',reas:'$5M',c:AC},
+      {t:'推理成本/请求',trad:'$0.001',reas:'$0.05',c:WARN},
+      {t:'准确率(GSM8K)',trad:'75%',reas:'95%',c:INFO},
+      {t:'延迟',trad:'200ms',reas:'15s',c:ROSE}
+    ];
+    el('text',{x:440,y:318,'text-anchor':'middle',fill:DIM,'font-size':9,'font-weight':600},svg).textContent='关键指标对比';
+    metrics.forEach(function(m,i){
+      var mx=80+i*200;
+      el('text',{x:mx,y:332,fill:DIM,'font-size':8},svg).textContent=m.t;
+      el('text',{x:mx+60,y:332,fill:m.c,'font-size':8,'font-family':'monospace'},svg).textContent=m.trad+' → '+m.reas;
+    });
+  } else {
+    // Balance scale view
+    // Left pan: traditional
+    el('line',{x1:440,y1:60,x2:440,y2:280,stroke:BD,'stroke-width':2},svg);
+    el('circle',{cx:440,cy:280,r:6,fill:DIM},svg);
+    // Beam
+    var tilt=15;
+    el('line',{x1:200,y1:100+tilt,x2:680,y2:100-tilt,stroke:WARN,'stroke-width':2.5},svg);
+    // Left pan (traditional: training heavy)
+    el('line',{x1:200,y1:100+tilt,x2:200,y2:140+tilt,stroke:BD,'stroke-width':1},svg);
+    el('rect',{x:140,y:140+tilt,w:120,h:50,rx:6,fill:'rgba(0,212,170,.1)',stroke:AC},svg);
+    el('text',{x:200,y:160+tilt,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='传统模型';
+    el('text',{x:200,y:176+tilt,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='训练>>>推理';
+    // Right pan (reasoning: more balanced)
+    el('line',{x1:680,y1:100-tilt,x2:680,y2:140-tilt,stroke:BD,'stroke-width':1},svg);
+    el('rect',{x:620,y:140-tilt,w:120,h:50,rx:6,fill:'rgba(56,189,248,.1)',stroke:INFO},svg);
+    el('text',{x:680,y:160-tilt,'text-anchor':'middle',fill:INFO,'font-size':10,'font-weight':600},svg).textContent='推理模型';
+    el('text',{x:680,y:176-tilt,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='训练+推理均衡';
+    // Weights
+    el('circle',{cx:200,cy:130+tilt,r:18,fill:AC,'fill-opacity':0.3,stroke:AC},svg);
+    el('text',{x:200,y:135+tilt,'text-anchor':'middle',fill:AC,'font-size':9},svg).textContent='T';
+    el('circle',{cx:680,cy:130-tilt,r:14,fill:INFO,'fill-opacity':0.3,stroke:INFO},svg);
+    el('text',{x:680,y:135-tilt,'text-anchor':'middle',fill:INFO,'font-size':9},svg).textContent='R';
+    el('circle',{cx:660,cy:130-tilt,r:12,fill:ROSE,'fill-opacity':0.3,stroke:ROSE},svg);
+    el('text',{x:660,y:135-tilt,'text-anchor':'middle',fill:ROSE,'font-size':8},svg).textContent='I';
+    // Labels
+    el('text',{x:200,y:215,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='T=训练计算·重';
+    el('text',{x:680,y:215,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='R=训练 + I=推理·均衡';
+    el('text',{x:440,y:310,'text-anchor':'middle',fill:WARN,'font-size':10,'font-weight':600},svg).textContent='范式转移: 计算重心从训练侧移向推理侧';
+  }
+}
+trainDraw();
+
+// M2: Chain-of-Thought
+var cotTimer=null;
+var cotSteps=[
+  {t:'问题',d:'一个水池有进水管A和B，A单独3小时注满，B单独6小时注满。同时开多久注满？',c:AC},
+  {t:'步骤1',d:'设水池容量为1。A管每小时注入 1/3',c:INFO},
+  {t:'步骤2',d:'B管每小时注入 1/6',c:INFO},
+  {t:'步骤3',d:'两管同时每小时注入 1/3 + 1/6 = 1/2',c:PUR},
+  {t:'步骤4',d:'注满时间 = 1 ÷ (1/2) = 2 小时',c:WARN},
+  {t:'答案',d:'2 小时',c:AC}
+];
+function cotRun(){
+  if(cotTimer)clearInterval(cotTimer);
+  var svg=document.getElementById('cot-svg');clear(svg);
+  var log=document.getElementById('cot-log');log.textContent='';
+  var bubbles=[];
+  var shown=0;
+  cotTimer=setInterval(function(){
+    if(shown>=cotSteps.length){clearInterval(cotTimer);return;}
+    var s=cotSteps[shown];
+    var by=50+shown*48;
+    var bw=600,bh=38;
+    el('rect',{x:140,y:by,w:bw,h:bh,rx:10,fill:'rgba(0,0,0,.2)',stroke:s.c,'stroke-width':1.5,class:'cot-bubble'},svg);
+    el('rect',{x:140,y:by,w:60,h:bh,rx:10,fill:s.c,'fill-opacity':0.12},svg);
+    el('text',{x:170,y:by+24,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:215,y:by+24,fill:'#e6e8ee','font-size':10.5},svg).textContent=s.d;
+    // Arrow
+    if(shown<cotSteps.length-1){
+      el('path',{d:'M 440 '+(by+bh)+' L 440 '+(by+bh+10),stroke:s.c,'stroke-width':1.5,fill:'none'},svg);
+      el('path',{d:'M 435 '+(by+bh+6)+' L 440 '+(by+bh+10)+' L 445 '+(by+bh+6),stroke:s.c,'stroke-width':1.5,fill:'none'},svg);
+    }
+    log.textContent+='['+s.t+'] '+s.d+'\n';
+    shown++;
+  },500);
+}
+function cotReset(){if(cotTimer)clearInterval(cotTimer);var svg=document.getElementById('cot-svg');clear(svg);document.getElementById('cot-log').textContent='点击"执行推理"开始...';}
+cotReset();
+
+// M3: Tree-of-Thought
+var totTimer=null;
+function totSearch(){
+  if(totTimer)clearInterval(totTimer);
+  var svg=document.getElementById('tot-svg');clear(svg);
+  var log=document.getElementById('tot-log');
+  var nodes=[
+    {x:440,y:40,t:'问题',c:AC,score:0,lvl:0},
+    {x:200,y:110,t:'思路A: 代数法',c:INFO,score:0.7,lvl:1},
+    {x:440,y:110,t:'思路B: 几何法',c:INFO,score:0.4,lvl:1},
+    {x:680,y:110,t:'思路C: 枚举法',c:INFO,score:0.3,lvl:1},
+    {x:120,y:200,t:'A1: 设方程',c:PUR,score:0.8,lvl:2},
+    {x:280,y:200,t:'A2: 换元法',c:PUR,score:0.5,lvl:2},
+    {x:440,y:200,t:'B1: 画图',c:PUR,score:0.3,lvl:2},
+    {x:680,y:200,t:'C1: 列表',c:PUR,score:0.2,lvl:2},
+    {x:120,y:290,t:'解: x=42',c:WARN,score:0.95,lvl:3},
+    {x:280,y:290,t:'A2: 复杂',c:ERR,score:0.2,lvl:3}
+  ];
+  var edges=[[0,1],[0,2],[0,3],[1,4],[1,5],[2,6],[3,7],[4,8],[5,9]];
+  // Draw edges first
+  edges.forEach(function(e){
+    var s=nodes[e[0]],d=nodes[e[1]];
+    el('path',{d:'M '+s.x+' '+(s.y+18)+' L '+d.x+' '+(d.y-18),stroke:BD,'stroke-width':1,fill:'none','stroke-dasharray':'3 2',class:'tot-edge','data-e':e.join('-')},svg);
+  });
+  // Draw nodes
+  nodes.forEach(function(n){
+    el('circle',{cx:n.x,cy:n.y,r:18,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':1.5,class:'tot-node','data-score':n.score},svg);
+    el('text',{x:n.x,y:n.y+4,'text-anchor':'middle',fill:n.c,'font-size':9,'font-weight':600},svg).textContent=n.t.length>5?n.t.slice(0,4)+'..':n.t;
+    el('text',{x:n.x,y:n.y+34,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=n.score>0?n.score.toFixed(2):'';
+  });
+  // Search animation: DFS through best path
+  var searchPath=[0,1,4,8]; // question -> 思路A -> A1 -> 解
+  var step=0;
+  var logLines=[];
+  totTimer=setInterval(function(){
+    if(step>=searchPath.length){
+      clearInterval(totTimer);
+      log.textContent=logLines.join('\n')+'\n[完成] 最优路径找到答案: x=42 (置信度 0.95)';
+      return;
+    }
+    var idx=searchPath[step];
+    var node=nodes[idx];
+    var ns=svg.querySelectorAll('.tot-node');
+    ns[idx].setAttribute('stroke-width',3);
+    ns[idx].setAttribute('fill','rgba(245,158,11,.15)');
+    // Highlight edge
+    if(step>0){
+      var prev=searchPath[step-1];
+      var es=svg.querySelectorAll('.tot-edge');
+      es.forEach(function(e){
+        if(e.getAttribute('data-e')===prev+'-'+idx){
+          e.setAttribute('stroke',WARN);
+          e.setAttribute('stroke-width',2);
+          e.setAttribute('stroke-dasharray','none');
+        }
+      });
+    }
+    // Prune low score nodes at same level
+    if(step===1){
+      [2,3].forEach(function(p){
+        ns[p].setAttribute('stroke',ERR);
+        ns[p].setAttribute('stroke-dasharray','2 2');
+        ns[p].setAttribute('fill','rgba(239,68,68,.05)');
+      });
+      logLines.push('[剪枝] 思路B(0.40) 思路C(0.30) 分数过低，剪枝');
+    }
+    if(step===2){
+      ns[5].setAttribute('stroke',ERR);
+      ns[5].setAttribute('stroke-dasharray','2 2');
+      logLines.push('[剪枝] A2换元法(0.50) 分数不足，剪枝');
+    }
+    logLines.push('[扩展] '+node.t+' (分数: '+node.score.toFixed(2)+')');
+    log.textContent=logLines.join('\n');
+    step++;
+  },700);
+}
+function totReset(){
+  if(totTimer)clearInterval(totTimer);
+  var svg=document.getElementById('tot-svg');clear(svg);
+  document.getElementById('tot-log').textContent='点击"搜索"开始树形搜索...';
+  // Draw static tree
+  var nodes=[
+    {x:440,y:40,t:'问题',c:AC},
+    {x:200,y:110,t:'思路A',c:INFO},
+    {x:440,y:110,t:'思路B',c:INFO},
+    {x:680,y:110,t:'思路C',c:INFO},
+    {x:120,y:200,t:'A1',c:PUR},
+    {x:280,y:200,t:'A2',c:PUR},
+    {x:440,y:200,t:'B1',c:PUR},
+    {x:680,y:200,t:'C1',c:PUR},
+    {x:120,y:290,t:'解',c:WARN},
+    {x:280,y:290,t:'A2',c:ERR}
+  ];
+  var edges=[[0,1],[0,2],[0,3],[1,4],[1,5],[2,6],[3,7],[4,8],[5,9]];
+  edges.forEach(function(e){
+    var s=nodes[e[0]],d=nodes[e[1]];
+    el('path',{d:'M '+s.x+' '+(s.y+18)+' L '+d.x+' '+(d.y-18),stroke:BD,'stroke-width':1,fill:'none','stroke-dasharray':'3 2'},svg);
+  });
+  nodes.forEach(function(n){
+    el('circle',{cx:n.x,cy:n.y,r:18,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':1.5},svg);
+    el('text',{x:n.x,y:n.y+4,'text-anchor':'middle',fill:n.c,'font-size':9,'font-weight':600},svg).textContent=n.t;
+  });
+}
+totReset();
+
+// M4: Graph-of-Thought
+var gotTimer=null;
+function gotGenerate(){
+  if(gotTimer)clearInterval(gotTimer);
+  var svg=document.getElementById('got-svg');clear(svg);
+  // Nodes in a network layout
+  var nodes=[
+    {x:100,y:170,t:'Q',c:AC,type:'question'},
+    {x:240,y:80,t:'思路1',c:INFO,type:'thought'},
+    {x:240,y:260,t:'思路2',c:INFO,type:'thought'},
+    {x:400,y:170,t:'推理A',c:PUR,type:'reason'},
+    {x:400,y:80,t:'推理B',c:PUR,type:'reason'},
+    {x:560,y:120,t:'合并',c:WARN,type:'merge'},
+    {x:560,y:260,t:'回溯',c:ROSE,type:'backtrack'},
+    {x:720,y:170,t:'验证',c:AC,type:'verify'},
+    {x:720,y:80,t:'循环↺',c:ERR,type:'loop'},
+    {x:820,y:170,t:'答案',c:AC,type:'answer'}
+  ];
+  var edges=[[0,1],[0,2],[1,3],[1,4],[2,3],[3,5],[4,5],[5,7],[2,6],[6,2],[7,8],[8,7],[7,9]];
+  // Draw edges progressively
+  edges.forEach(function(e,i){
+    setTimeout(function(){
+      var s=nodes[e[0]],d=nodes[e[1]];
+      var edgeType=e[0]===6&&e[1]===2?'back':(e[0]===7&&e[1]===8?'loop':'forward');
+      var ec=edgeType==='back'?ROSE:(edgeType==='loop'?ERR:DIM);
+      el('path',{d:'M '+s.x+' '+s.y+' L '+d.x+' '+d.y,stroke:ec,'stroke-width':1.2,fill:'none','stroke-dasharray':edgeType!=='forward'?'4 2':'none','marker-end':'url(#arr)'},svg);
+    },i*150);
+  });
+  // Draw nodes progressively
+  nodes.forEach(function(n,i){
+    setTimeout(function(){
+      el('circle',{cx:n.x,cy:n.y,r:22,fill:'rgba(0,0,0,.3)',stroke:n.c,'stroke-width':2},svg);
+      el('text',{x:n.x,y:n.y+4,'text-anchor':'middle',fill:n.c,'font-size':10,'font-weight':600},svg).textContent=n.t;
+    },i*150+75);
+  });
+  // Type legend
+  setTimeout(function(){
+    var legend=[
+      {t:'问题/答案',c:AC},{t:'思路',c:INFO},{t:'推理',c:PUR},
+      {t:'合并节点',c:WARN},{t:'回溯边',c:ROSE},{t:'循环边',c:ERR}
+    ];
+    legend.forEach(function(l,i){
+      var lx=60+i*130,ly=330;
+      el('circle',{cx:lx,cy:ly,r:6,fill:l.c,'fill-opacity':0.3,stroke:l.c},svg);
+      el('text',{x:lx+12,y:ly+4,fill:DIM,'font-size':9},svg).textContent=l.t;
+    });
+    el('text',{x:440,y:20,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='GoT: 支持合并、回溯、循环的图结构推理';
+  },edges.length*150+100);
+}
+gotGenerate();
+
+// M5: Self-Consistency
+var scTimer=null;
+function scRun(){
+  if(scTimer)clearInterval(scTimer);
+  var svg=document.getElementById('sc-svg');clear(svg);
+  var log=document.getElementById('sc-log');
+  // Question node
+  el('rect',{x:380,y:20,w:120,h:36,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:440,y:43,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':600},svg).textContent='问题: 17×24=?';
+  // N parallel paths
+  var paths=[
+    {x:120,answer:408,steps:['17×20=340','17×4=68','340+68=408'],c:INFO},
+    {x:280,answer:408,steps:['17×24','=(17×25)-17','=425-17=408'],c:PUR},
+    {x:440,answer:408,steps:['17×24','=17×(20+4)','=408'],c:WARN},
+    {x:600,answer:412,steps:['17×24','≈17×25-17','=408...412?'],c:ERR},
+    {x:760,answer:408,steps:['20×24=480','3×24=72','480-72=408'],c:ROSE}
+  ];
+  // Draw paths progressively
+  var step=0;
+  var answers=[];
+  scTimer=setInterval(function(){
+    if(step>=3){
+      clearInterval(scTimer);
+      // Voting
+      var voteBox={408:4,412:1};
+      var bestAnswer=408;
+      // Draw voting box
+      el('rect',{x:340,y:290,w:200,h:50,rx:8,fill:'rgba(0,212,170,.1)',stroke:AC,'stroke-width':2},svg);
+      el('text',{x:440,y:310,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':600},svg).textContent='多数投票结果';
+      el('text',{x:440,y:330,'text-anchor':'middle',fill:AC,'font-size':14,'font-weight':700,'font-family':'monospace'},svg).textContent='408 (4/5 票)';
+      log.textContent='[投票] 408: 4票 | 412: 1票\n[结果] 最终答案: 408 (置信度 80%)';
+      // Voting statistics
+      el('text',{x:580,y:305,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='路径1→408 ✓';
+      el('text',{x:580,y:318,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='路径2→408 ✓';
+      el('text',{x:580,y:331,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='路径3→408 ✓ · 路径4→412 ✗';
+      el('text',{x:580,y:344,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='路径5→408 ✓ · 准确率+12%';
+      return;
+    }
+    paths.forEach(function(p,i){
+      if(step<3){
+        var sy=80+i*0;
+        // Path line from question to path
+        if(step===0){
+          el('path',{d:'M 440 56 Q 440 70, '+p.x+' 80',stroke:p.c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2','opacity':0.5},svg);
+        }
+        // Step bubble
+        var by=80+step*65;
+        el('rect',{x:p.x-60,y:by,w:120,h:28,rx:6,fill:'rgba(0,0,0,.2)',stroke:p.c,'stroke-width':1,class:'sc-step'},svg);
+        el('text',{x:p.x,y:by+18,'text-anchor':'middle',fill:p.c,'font-size':9},svg).textContent=p.steps[step];
+        if(step===2){
+          // Answer
+          el('rect',{x:p.x-50,y:by+34,w:100,h:26,rx:6,fill:p.c,'fill-opacity':0.12,stroke:p.c},svg);
+          el('text',{x:p.x,y:by+51,'text-anchor':'middle',fill:p.c,'font-size':11,'font-weight':600},svg).textContent='='+p.answer;
+          // Line to vote
+          el('path',{d:'M '+p.x+' '+(by+60)+' Q '+p.x+' 280, 440 290',stroke:p.c,'stroke-width':0.8,fill:'none','stroke-dasharray':'2 2','opacity':0.4},svg);
+          answers.push(p.answer);
+        }
+      }
+    });
+    step++;
+  },600);
+}
+scRun();
+
+// M6: Inference Scaling Laws
+var scaleTask='aime';
+function scaleSwitch(btn,task){
+  scaleTask=task;
+  document.querySelectorAll('#m6 .btn').forEach(function(b){b.classList.remove('primary');});
+  btn.classList.add('primary');
+  scaleDraw();
+}
+function scaleDraw(){
+  var svg=document.getElementById('scale-svg');clear(svg);
+  var tasks={
+    aime:{name:'AIME',c:AC,data:[[0.1,0.12],[0.5,0.35],[1,0.55],[2,0.72],[4,0.83],[8,0.87],[16,0.88]],baseline:0.12},
+    math:{name:'MATH',c:INFO,data:[[0.1,0.35],[0.5,0.55],[1,0.68],[2,0.78],[4,0.84],[8,0.87],[16,0.88]],baseline:0.35},
+    gpqa:{name:'GPQA',c:PUR,data:[[0.1,0.28],[0.5,0.40],[1,0.50],[2,0.58],[4,0.65],[8,0.70],[16,0.72]],baseline:0.28},
+    all:{name:'全部',c:WARN}
+  };
+  // Axes
+  var ax=80,ay=280,aw=720,ah=220;
+  el('line',{x1:ax,y1:ay,x2:ax+aw,y2:ay,stroke:BD,'stroke-width':1.5},svg);
+  el('line',{x1:ax,y1:ay,x2:ax,y2:ay-ah,stroke:BD,'stroke-width':1.5},svg);
+  el('text',{x:ax+aw/2,y:ay+32,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='推理计算量 (×10^15 FLOPs, 对数轴)';
+  el('text',{x:30,y:ay-ah/2,'text-anchor':'middle',fill:DIM,'font-size':10,transform:'rotate(-90 30 '+(ay-ah/2)+')'},svg).textContent='准确率 (%)';
+  // X ticks
+  var xLabels=[0.1,1,10];
+  xLabels.forEach(function(v){
+    var xp=ax+aw*(Math.log(v*10)/Math.log(100));
+    el('line',{x1:xp,y1:ay,x2:xp,y2:ay+4,stroke:BD},svg);
+    el('text',{x:xp,y:ay+16,'text-anchor':'middle',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=v;
+  });
+  // Y ticks
+  for(var i=0;i<=10;i+=2){
+    var yp=ay-ah*i/10;
+    el('line',{x1:ax-4,y1:yp,x2:ax,y2:yp,stroke:BD},svg);
+    el('text',{x:ax-8,y:yp+4,'text-anchor':'end',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=i*10+'%';
+  }
+  // Grid
+  for(var i=2;i<=8;i+=2){
+    var yp=ay-ah*i/10;
+    el('line',{x1:ax,y1:yp,x2:ax+aw,y2:yp,stroke:BD,'stroke-width':0.3,'stroke-dasharray':'2 4'},svg);
+  }
+  function plotData(data,color,name){
+    var pts=[];
+    data.forEach(function(d){
+      var xp=ax+aw*(Math.log(d[0]*10)/Math.log(100));
+      var yp=ay-ah*d[1];
+      pts.push(xp+','+yp);
+      el('circle',{cx:xp,cy:yp,r:3.5,fill:color,stroke:'#0a0b0f','stroke-width':1},svg);
+    });
+    el('polyline',{points:pts.join(' '),fill:'none',stroke:color,'stroke-width':2},svg);
+    // Label
+    var last=data[data.length-1];
+    var lxp=ax+aw*(Math.log(last[0]*10)/Math.log(100));
+    var lyp=ay-ah*last[1];
+    el('text',{x:lxp+8,y:lyp+4,fill:color,'font-size':10,'font-weight':600},svg).textContent=name;
+  }
+  var logText='';
+  if(scaleTask==='all'){
+    plotData(tasks.aime.data,AC,'AIME');
+    plotData(tasks.math.data,INFO,'MATH');
+    plotData(tasks.gpqa.data,PUR,'GPQA');
+    logText='[对比] 三个任务的推理Scaling曲线 | AIME提升最大(+76%) | MATH起点最高 | GPQA提升平缓';
+  } else {
+    var t=tasks[scaleTask];
+    plotData(t.data,t.c,t.name);
+    // Baseline
+    el('line',{x1:ax,y1:ay-ah*t.baseline,x2:ax+aw,y2:ay-ah*t.baseline,stroke:t.c,'stroke-width':1,'stroke-dasharray':'4 3','opacity':0.5},svg);
+    el('text',{x:ax+aw-10,y:ay-ah*t.baseline-4,'text-anchor':'end',fill:DIM,'font-size':9},svg).textContent='基线 '+(t.baseline*100|0)+'%';
+    var improve=((t.data[t.data.length-1][1]-t.data[0][1])/t.data[0][1]*100).toFixed(0);
+    logText='['+t.name+'] 推理计算量增加 '+t.data[t.data.length-1][0]/t.data[0][0]+'x → 准确率提升 '+improve+'% ('+(t.data[0][1]*100|0)+'% → '+(t.data[t.data.length-1][1]*100|0)+'%)';
+  }
+  document.getElementById('scale-log').textContent=logText;
+  // Sweet spot annotation
+  var sweetSpot=scaleTask==='all'?tasks.aime.data[3]:tasks[scaleTask].data[3];
+  var spx=ax+aw*(Math.log(sweetSpot[0]*10)/Math.log(100));
+  var spy=ay-ah*sweetSpot[1];
+  el('circle',{cx:spx,cy:spy,r:8,fill:'none',stroke:WARN,'stroke-width':1.5,'stroke-dasharray':'2 2'},svg);
+  el('text',{x:spx+12,y:spy-8,fill:WARN,'font-size':9,'font-weight':600},svg).textContent='收益递减点';
+  el('line',{x1:spx,y1:spy,x2:spx,y2:ay,stroke:WARN,'stroke-width':0.5,'stroke-dasharray':'2 3'},svg);
+  // Chart title
+  el('text',{x:ax+aw/2,y:18,'text-anchor':'middle',fill:DIM,'font-size':11,'font-weight':600},svg).textContent='推理 Scaling Law: 准确率 vs 推理计算量';
+}
+scaleDraw();
+
+// M7: o1/o3 Architecture
+var o1Timer=null;
+function o1Run(){
+  if(o1Timer)clearInterval(o1Timer);
+  var svg=document.getElementById('o1-svg');clear(svg);
+  // Training phase (top)
+  el('text',{x:220,y:25,'text-anchor':'middle',fill:DIM,'font-size':10,'font-weight':600},svg).textContent='训练阶段';
+  el('rect',{x:80,y:35,w:100,h:30,rx:6,fill:'rgba(56,189,248,.06)',stroke:INFO},svg);
+  el('text',{x:130,y:54,'text-anchor':'middle',fill:INFO,'font-size':10},svg).textContent='SFT 监督微调';
+  el('text',{x:195,y:54,fill:DIM,'font-size':12},svg).textContent='→';
+  el('rect',{x:220,y:35,w:100,h:30,rx:6,fill:'rgba(167,139,250,.06)',stroke:PUR},svg);
+  el('text',{x:270,y:54,'text-anchor':'middle',fill:PUR,'font-size':10},svg).textContent='RL 策略优化';
+  el('text',{x:335,y:54,fill:DIM,'font-size':12},svg).textContent='→';
+  el('rect',{x:360,y:35,w:80,h:30,rx:6,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:400,y:54,'text-anchor':'middle',fill:AC,'font-size':10},svg).textContent='推理策略';
+  el('line',{x1:220,y1:75,x2:220,y2:95,stroke:BD,'stroke-width':1,'stroke-dasharray':'3 2'},svg);
+
+  // Inference phase (bottom)
+  el('text',{x:440,y:110,'text-anchor':'middle',fill:DIM,'font-size':10,'font-weight':600},svg).textContent='推理阶段 (隐式 CoT)';
+  // Input
+  el('rect',{x:60,y:130,w:90,h:40,rx:8,fill:'rgba(0,212,170,.06)',stroke:AC},svg);
+  el('text',{x:105,y:155,'text-anchor':'middle',fill:AC,'font-size':11,'font-weight':600},svg).textContent='输入';
+  el('text',{x:105,y:185,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='"证明√2是无理数"';
+  // Hidden reasoning tokens (animated)
+  el('rect',{x:180,y:130,w:480,h:40,rx:8,fill:'rgba(245,158,11,.06)',stroke:WARN,'stroke-width':1.5},svg);
+  el('text',{x:420,y:150,'text-anchor':'middle',fill:WARN,'font-size':10,'font-weight':600},svg).textContent='隐藏推理 Token';
+  el('text',{x:420,y:164,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='(用户不可见)';
+  // Output
+  el('rect',{x:690,y:130,w:120,h:40,rx:8,fill:'rgba(251,113,133,.06)',stroke:ROSE},svg);
+  el('text',{x:750,y:155,'text-anchor':'middle',fill:ROSE,'font-size':11,'font-weight':600},svg).textContent='输出';
+  // Arrows
+  el('path',{d:'M 150 150 L 180 150',stroke:WARN,'stroke-width':2,fill:'none'},svg);
+  el('path',{d:'M 660 150 L 690 150',stroke:WARN,'stroke-width':2,fill:'none'},svg);
+  // Token counter
+  var counter=el('text',{x:420,y:210,'text-anchor':'middle',fill:WARN,'font-size':12,'font-weight':600,'font-family':'monospace'},svg);
+  counter.textContent='推理中... 0 tokens';
+  // Token bar
+  el('rect',{x:180,y:225,w:480,h:8,rx:4,fill:'rgba(255,255,255,.03)'},svg);
+  var barFill=el('rect',{x:182,y:227,w:0,h:4,rx:2,fill:WARN},svg);
+  // Reasoning steps display
+  var stepsArea=el('text',{x:180,y:255,fill:DIM,'font-size':9,'font-family':'monospace'},svg);
+  stepsArea.textContent='';
+  var steps=[
+    'step 1: 假设√2是有理数 = p/q (最简分数)',
+    'step 2: 则 2 = p²/q² → p² = 2q²',
+    'step 3: p²是偶数 → p是偶数 → p=2k',
+    'step 4: (2k)² = 2q² → q² = 2k² → q也是偶数',
+    'step 5: p,q都是偶数 → 与最简分数矛盾',
+    'step 6: 假设不成立 → √2是无理数 ✓'
+  ];
+  var t=0;
+  o1Timer=setInterval(function(){
+    t++;
+    var tokens=t*80;
+    var progress=Math.min(t/steps.length,1);
+    counter.textContent='推理中... '+tokens+' tokens';
+    barFill.setAttribute('w',476*progress);
+    var shown=steps.slice(0,Math.min(t,steps.length));
+    stepsArea.textContent=shown.join('  |  ');
+    if(t>=steps.length){
+      clearInterval(o1Timer);
+      counter.textContent='推理完成: '+(t*80)+' tokens · 用时 ~12s';
+      barFill.setAttribute('fill',AC);
+      // Show output
+      el('text',{x:750,y:195,'text-anchor':'middle',fill:ROSE,'font-size':9},svg).textContent='√2是无理数';
+      // Architecture annotations
+      el('text',{x:105,y:105,fill:AC,'font-size':8,'font-family':'monospace'},svg).textContent='~50 tokens';
+      el('text',{x:420,y:105,fill:WARN,'font-size':8,'font-family':'monospace'},svg).textContent='~500-5000 tokens (隐式)';
+      el('text',{x:750,y:105,fill:ROSE,'font-size':8,'font-family':'monospace'},svg).textContent='~100 tokens';
+      // Cost comparison
+      el('text',{x:440,y:280,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='o1 推理成本: ~10x 传统模型 | 准确率提升: +20-40% (数学推理任务)';
+    }
+  },600);
+}
+o1Run();
+
+// M8: Budget Control
+function budgetDraw(){
+  var budget=+document.getElementById('budget-slider').value;
+  document.getElementById('budget-label').textContent=budget+' tokens';
+  var svg=document.getElementById('budget-svg');clear(svg);
+  // Problems of different complexity
+  var problems=[
+    {t:'简单',c:AC,base:60,difficulty:0.15,x:120},
+    {t:'中等',c:INFO,base:250,difficulty:0.5,x:340},
+    {t:'复杂',c:WARN,base:600,difficulty:0.85,x:560},
+    {t:'极难',c:ERR,base:1200,difficulty:1.0,x:780}
+  ];
+  // Dashboard gauges
+  var by=200,bh=100;
+  problems.forEach(function(p){
+    var actual=Math.min(p.base,budget);
+    var ratio=actual/Math.max(p.base,budget);
+    // Background
+    el('rect',{x:p.x-60,y:by-100,w:120,h:160,rx:10,fill:'rgba(0,0,0,.2)',stroke:p.c,'stroke-width':1},svg);
+    el('rect',{x:p.x-60,y:by-100,w:120,h:28,rx:10,fill:p.c,'fill-opacity':0.1},svg);
+    el('text',{x:p.x,y:by-82,'text-anchor':'middle',fill:p.c,'font-size':11,'font-weight':600},svg).textContent=p.t;
+    // Gauge arc
+    var cx=p.x,cy=by,r=40;
+    el('circle',{cx:cx,cy:cy,r:r,fill:'none',stroke:BD,'stroke-width':6},svg);
+    var angle=ratio*2*Math.PI;
+    var ex=cx+r*Math.sin(angle),ey=cy-r*Math.cos(angle);
+    var large=ratio>0.5?1:0;
+    el('path',{d:'M '+cx+' '+(cy-r)+' A '+r+' '+r+' 0 '+large+' 1 '+ex+' '+ey,fill:'none',stroke:p.c,'stroke-width':6},svg);
+    // Value
+    el('text',{x:cx,y:cy-2,'text-anchor':'middle',fill:p.c,'font-size':12,'font-weight':700,'font-family':'monospace'},svg).textContent=actual;
+    el('text',{x:cx,y:cy+14,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='tokens';
+    // Status
+    var status=ratio<0.3?'Early Stop':(ratio<0.7?'深度限制':(ratio<1.0?'正常执行':'用满预算'));
+    var sc=ratio<0.3?AC:(ratio<0.7?INFO:(ratio<1.0?WARN:ERR));
+    el('text',{x:cx,y:cy+34,'text-anchor':'middle',fill:sc,'font-size':8},svg).textContent=status;
+    // Strategy label
+    el('text',{x:cx,y:by+55,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='置信度@'+(95-ratio*15|0)+'%';
+  });
+  // Budget cap line
+  el('text',{x:440,y:20,'text-anchor':'middle',fill:WARN,'font-size':11,'font-weight':600},svg).textContent='推理预算上限: '+budget+' tokens';
+  // Strategy legend
+  var strategies=[
+    {t:'Early Stopping',c:AC,d:'置信度≥95%时提前终止'},
+    {t:'深度限制',c:INFO,d:'限制最大推理步数'},
+    {t:'置信度阈值',c:WARN,d:'低于阈值继续推理'},
+    {t:'预算上限',c:ERR,d:'达到上限强制输出'}
+  ];
+  strategies.forEach(function(s,i){
+    var lx=80+i*200,ly=300;
+    el('rect',{x:lx,y:ly-8,w:10,h:10,rx:2,fill:s.c,'fill-opacity':0.3,stroke:s.c},svg);
+    el('text',{x:lx+16,y:ly,fill:s.c,'font-size':9,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:lx+16,y:ly+12,fill:DIM,'font-size':8},svg).textContent=s.d;
+  });
+  // Update info cards
+  document.getElementById('bd-easy').textContent=Math.min(60,budget)+' tokens';
+  document.getElementById('bd-medium').textContent=Math.min(250,budget)+' tokens';
+  document.getElementById('bd-hard').textContent=Math.min(600,budget)+' tokens';
+  var avg=Math.round((Math.min(60,budget)+Math.min(250,budget)+Math.min(600,budget)+Math.min(1200,budget))/4);
+  document.getElementById('bd-avg').textContent=avg+' tokens';
+  // Efficiency comparison
+  var fixedBudget=budget*4; // fixed: all problems get max budget
+  var dynamicBudget=Math.min(60,budget)+Math.min(250,budget)+Math.min(600,budget)+Math.min(1200,budget);
+  var efficiency=(fixedBudget/dynamicBudget).toFixed(1);
+  el('text',{x:440,y:330,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='动态预算效率: '+efficiency+'x (vs 固定预算 '+fixedBudget+' tokens)';
+  // Mini bar chart: fixed vs dynamic
+  el('rect',{x:300,y:335,w:120,h:6,rx:3,fill:'rgba(239,68,68,.15)'},svg);
+  el('text',{x:290,y:340,'text-anchor':'end',fill:ERR,'font-size':8},svg).textContent='固定:';
+  el('rect',{x:460,y:335,w:Math.min(120,dynamicBudget/fixedBudget*120),h:6,rx:3,fill:'rgba(0,212,170,.3)'},svg);
+  el('text',{x:450,y:340,'text-anchor':'end',fill:AC,'font-size':8},svg).textContent='动态:';
+}
+budgetDraw();
+</script>
+</body>
+</html>

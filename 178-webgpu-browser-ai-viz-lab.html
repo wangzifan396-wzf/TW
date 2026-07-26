@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · WebGPU与浏览器AI推理可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:720px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:110px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:760px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+.code-block{background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:11.5px;color:var(--text-2);line-height:1.7;white-space:pre;overflow-x:auto;margin-top:12px}
+.code-block .kw{color:var(--pur)}
+.code-block .fn{color:var(--info)}
+.code-block .ty{color:var(--accent)}
+.code-block .cm{color:var(--text-3)}
+.code-block .st{color:var(--warn)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">WebGPU与浏览器AI推理可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 178</span>
+    <h1>WebGPU与浏览器AI推理可视化实验室</h1>
+    <p>从计算着色器到浏览器内LLM推理——把2026年WebGPU如何让浏览器成为AI推理平台的核心机制以可交互SVG呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">渲染管线</button>
+    <button class="tab" data-m="m2">计算着色器</button>
+    <button class="tab" data-m="m3">浏览器LLM</button>
+    <button class="tab" data-m="m4">显存管理</button>
+    <button class="tab" data-m="m5">WebGPU vs WebGL</button>
+    <button class="tab" data-m="m6">端侧优化</button>
+    <button class="tab" data-m="m7">应用矩阵</button>
+    <button class="tab" data-m="m8">性能基准</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>WebGPU 渲染管线</h2></div>
+    <p class="m-desc">GPU管线从顶点输入→顶点着色器→图元装配→光栅化→片元着色器→输出合并的完整流程，动画展示数据在各阶段的流动。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="pipelineRun()">执行管线 ▸</button>
+      <button class="btn" onclick="pipelineReset()">重置</button>
+    </div>
+    <div class="viz"><svg id="pipe-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">顶点着色器</div><div class="v">每顶点变换</div><div class="d">模型→视图→投影坐标</div></div>
+      <div class="info-card"><div class="k">光栅化</div><div class="v">图元→片元</div><div class="d">生成待着色像素</div></div>
+      <div class="info-card"><div class="k">片元着色器</div><div class="v">每片元颜色</div><div class="d">纹理采样+光照计算</div></div>
+      <div class="info-card"><div class="k">吞吐量</div><div class="v">~10 GPixel/s</div><div class="d">现代桌面GPU</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>计算着色器与 WGSL</h2></div>
+    <p class="m-desc">计算着色器的workgroup网格布局，颜色矩阵表示不同workgroup的并行计算。点击运行观察workgroup的调度与执行。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="computeRun()">运行计算 ▸</button>
+    </div>
+    <div class="viz"><svg id="cs-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="code-block"><span class="cm">// WGSL 矩阵乘法计算着色器</span>
+<span class="kw">@group</span>(0) <span class="kw">@binding</span>(0) <span class="kw">var</span><span class="ty">&lt;storage&gt;</span> a: <span class="ty">array</span>&lt;<span class="ty">f32</span>&gt;;
+<span class="kw">@group</span>(0) <span class="kw">@binding</span>(1) <span class="kw">var</span><span class="ty">&lt;storage&gt;</span> b: <span class="ty">array</span>&lt;<span class="ty">f32</span>&gt;;
+<span class="kw">@group</span>(0) <span class="kw">@binding</span>(2) <span class="kw">var</span><span class="ty">&lt;storage, read_write&gt;</span> c: <span class="ty">array</span>&lt;<span class="ty">f32</span>&gt;;
+
+<span class="kw">@compute</span> <span class="kw">@workgroup_size</span>(8, 8)
+<span class="kw">fn</span> <span class="fn">main</span>(<span class="kw">@builtin</span>(global_invocation_id) gid: <span class="ty">vec3</span>&lt;<span class="ty">u32</span>&gt;) {
+  <span class="kw">let</span> row = gid.x; <span class="kw">let</span> col = gid.y; <span class="kw">let</span> N = 64u;
+  <span class="kw">var</span> sum: <span class="ty">f32</span> = 0.0;
+  <span class="kw">for</span> (<span class="kw">var</span> k = 0u; k &lt; N; k++) {
+    sum += a[row * N + k] * b[k * N + col];
+  }
+  c[row * N + col] = sum;
+}</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Workgroup</div><div class="v">8×8 = 64 线程</div><div class="d">共享内存+屏障同步</div></div>
+      <div class="info-card"><div class="k">Dispatch</div><div class="v">16×8×1 = 128 组</div><div class="d">总 8192 并行线程</div></div>
+      <div class="info-card"><div class="k">WGSL</div><div class="v">WebGPU 着色语言</div><div class="d">类 Rust 语法，类型安全</div></div>
+      <div class="info-card"><div class="k">性能</div><div class="v">~8 TFLOPS</div><div class="d">FP32 桌面 GPU</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>浏览器内 LLM 推理</h2></div>
+    <p class="m-desc">Transformer.js / ONNX Runtime Web 的架构：模型文件(ONNX)→WebGPU后端→推理管线。流程图展示从模型下载到推理输出的完整路径。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="llmInferRun()">模拟推理 ▸</button>
+    </div>
+    <div class="viz"><svg id="llm-svg" viewBox="0 0 880 360"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">模型格式</div><div class="v">ONNX / GGUF / SafeTensors</div><div class="d">跨框架统一中间表示</div></div>
+      <div class="info-card"><div class="k">后端</div><div class="v">WebGPU / WASM</div><div class="d">GPU优先，CPU回退</div></div>
+      <div class="info-card"><div class="k">典型模型</div><div class="v">Phi-3 / Gemma-2B / Whisper</div><div class="d">本地化推理</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>显存管理</h2></div>
+    <p class="m-desc">GPU缓冲区(Buffer)、纹理(Texture)、绑定组(BindGroup)的分配和管理。内存映射图展示不同资源的显存占用与生命周期。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="memRun()">分配显存 ▸</button>
+      <button class="btn" onclick="memGC()">触发回收</button>
+    </div>
+    <div class="viz"><svg id="mem-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="mem-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">Buffer</div><div class="v">顶点/索引/Uniform</div><div class="d">GPU显存中的线性数据</div></div>
+      <div class="info-card"><div class="k">Texture</div><div class="v">2D/3D 纹理</div><div class="d">图像+采样器绑定</div></div>
+      <div class="info-card"><div class="k">BindGroup</div><div class="v">资源绑定集合</div><div class="d">着色器资源映射</div></div>
+      <div class="info-card"><div class="k">显存预算</div><div class="v">~2 GB</div><div class="d">浏览器默认限制</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>WebGPU vs WebGL 对比</h2></div>
+    <p class="m-desc">多维度雷达图对比：计算能力、着色器灵活性、性能、通用计算(GPGPU)、生态成熟度。右侧展示两个API的架构差异。点击切换雷达图/柱状图视图。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="cmpToggle()">切换视图 ▸</button>
+    </div>
+    <div class="viz"><svg id="cmp-svg" viewBox="0 0 880 380"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">WebGPU 优势</div><div class="v">原生计算着色器</div><div class="d">GPGPU无需 hack</div></div>
+      <div class="info-card"><div class="k">WebGL 局限</div><div class="v">仅光栅化渲染</div><div class="d">计算需纹理编码</div></div>
+      <div class="info-card"><div class="k">性能差距</div><div class="v">2-5x</div><div class="d">AI推理场景</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>端侧推理优化</h2></div>
+    <p class="m-desc">量化(INT4/INT8)、分块加载、流式推理三种优化策略。柱状图对比优化前后的显存占用和推理速度。</p>
+    <div class="ctrl">
+      <button class="btn primary" data-strat="quant" onclick="optSwitch(this,'quant')">INT8 量化</button>
+      <button class="btn" data-strat="int4" onclick="optSwitch(this,'int4')">INT4 量化</button>
+      <button class="btn" data-strat="chunk" onclick="optSwitch(this,'chunk')">分块加载</button>
+      <button class="btn" data-strat="stream" onclick="optSwitch(this,'stream')">流式推理</button>
+    </div>
+    <div class="viz"><svg id="opt-svg" viewBox="0 0 880 340"></svg></div>
+    <div id="opt-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">INT8 量化</div><div class="v">显存 -50% · 速度 +50%</div><div class="d">精度损失 <1%</div></div>
+      <div class="info-card"><div class="k">INT4 量化</div><div class="v">显存 -75% · 速度 +100%</div><div class="d">精度损失 2-3%</div></div>
+      <div class="info-card"><div class="k">分块加载</div><div class="v">峰值显存 -60%</div><div class="d">按需加载模型层</div></div>
+      <div class="info-card"><div class="k">流式推理</div><div class="v">首Token -70%</div><div class="d">逐Token输出结果</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>浏览器 AI 应用矩阵</h2></div>
+    <p class="m-desc">浏览器内可运行的AI应用：本地LLM聊天、图像生成、语音识别、物体检测、姿态估计等。每个应用卡片显示模型大小和推理速度。点击类别按钮高亮对应应用。</p>
+    <div class="ctrl">
+      <button class="btn primary" data-cat="all" onclick="appFilter(this,'all')">全部</button>
+      <button class="btn" data-cat="llm" onclick="appFilter(this,'llm')">LLM类</button>
+      <button class="btn" data-cat="vision" onclick="appFilter(this,'vision')">视觉类</button>
+      <button class="btn" data-cat="audio" onclick="appFilter(this,'audio')">语音类</button>
+    </div>
+    <div class="viz"><svg id="app-svg" viewBox="0 0 880 400"></svg></div>
+    <div id="app-log" style="font-family:var(--mono);font-size:12px;color:var(--text-2);margin-top:6px"></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">LLM 类应用</div><div class="v">Phi-3 / Gemma-2B</div><div class="d">本地聊天、文本摘要、翻译</div></div>
+      <div class="info-card"><div class="k">视觉类应用</div><div class="v">YOLO / SD-Turbo</div><div class="d">实时检测、图像生成、姿态估计</div></div>
+      <div class="info-card"><div class="k">语音类应用</div><div class="v">Whisper / VITS</div><div class="d">语音识别、文本转语音、实时翻译</div></div>
+      <div class="info-card"><div class="k">隐私优势</div><div class="v">100% 本地处理</div><div class="d">数据不离开设备，零服务器成本</div></div>
+    </div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>性能基准</h2></div>
+    <p class="m-desc">不同模型(1.5B/3B/7B/13B)在不同设备(桌面GPU/集成显卡/手机GPU)上的推理速度对比。拖动滑块调整模型参数量。</p>
+    <div class="ctrl">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)">模型参数: <input type="range" id="bench-size" min="1" max="13" value="3" step="0.5" oninput="benchDraw()" style="width:160px"><span id="bench-label" style="font-family:var(--mono);color:var(--accent)">3B</span></label>
+    </div>
+    <div class="viz"><svg id="bench-svg" viewBox="0 0 880 340"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">桌面GPU</div><div class="v" id="b-desktop">42 tok/s</div><div class="d">RTX 4070 / M2 Pro</div></div>
+      <div class="info-card"><div class="k">集成显卡</div><div class="v" id="b-igpu">18 tok/s</div><div class="d">Intel Arc iGPU</div></div>
+      <div class="info-card"><div class="k">手机GPU</div><div class="v" id="b-mobile">7 tok/s</div><div class="d">Adreno / Mali</div></div>
+      <div class="info-card"><div class="k">显存占用</div><div class="v" id="b-vram">1.8 GB</div><div class="d">INT4 量化</div></div>
+    </div>
+  </section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: Render Pipeline
+var pipeTimer=null;
+function pipelineRun(){
+  if(pipeTimer)clearInterval(pipeTimer);
+  var svg=document.getElementById('pipe-svg');clear(svg);
+  var stages=[
+    {x:80,t:'顶点输入',c:AC,d:'Vertex Input'},
+    {x:220,t:'顶点着色器',c:INFO,d:'Vertex Shader'},
+    {x:360,t:'图元装配',c:PUR,d:'Primitive Assembly'},
+    {x:500,t:'光栅化',c:WARN,d:'Rasterization'},
+    {x:640,t:'片元着色器',c:INFO,d:'Fragment Shader'},
+    {x:780,t:'输出合并',c:AC,d:'Output Merger'}
+  ];
+  // Connecting lines
+  for(var i=0;i<stages.length-1;i++){
+    el('line',{x1:stages[i].x+55,y1:170,x2:stages[i+1].x-55,y2:170,stroke:BD,'stroke-width':1.5,'stroke-dasharray':'4 3'},svg);
+  }
+  stages.forEach(function(s){
+    el('rect',{x:s.x-55,y:140,w:110,h:60,rx:8,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'pipe-stage'},svg);
+    el('text',{x:s.x,y:165,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:s.x,y:182,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=s.d;
+  });
+  // Stage data type labels (bottom)
+  var dataTypes=['顶点数组','变换坐标','图元流','片元','颜色','帧缓冲'];
+  stages.forEach(function(s,i){
+    el('text',{x:s.x,y:250,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=dataTypes[i];
+    el('rect',{x:s.x-40,y:260,w:80,h:16,rx:3,fill:'rgba(255,255,255,.02)',stroke:BD,'stroke-width':0.5},svg);
+    el('text',{x:s.x,y:271,'text-anchor':'middle',fill:DIM,'font-size':7},svg).textContent=['~256B/vert','~64B/vert','~128B/tri','~48B/frag','~16B/frag','~4B/px'][i];
+  });
+  // GPU utilization bar
+  el('text',{x:80,y:300,fill:DIM,'font-size':9},svg).textContent='GPU利用率:';
+  el('rect',{x:160,y:292,w:600,h:10,rx:5,fill:'rgba(255,255,255,.03)'},svg);
+  var utilBar=el('rect',{x:162,y:294,w:0,h:6,rx:3,fill:WARN,class:'util-bar'},svg);
+  el('text',{x:780,y:300,fill:WARN,'font-size':9,'font-family':'monospace',id:'util-text'},svg).textContent='0%';
+  // Moving data packet
+  var dot=el('circle',{cx:stages[0].x,cy:170,r:6,fill:WARN,stroke:'#fff','stroke-width':1},svg);
+  el('text',{x:stages[0].x,y:130,'text-anchor':'middle',fill:WARN,'font-size':9,'font-family':'monospace'},svg).textContent='VertexBuffer';
+  var t=0;
+  pipeTimer=setInterval(function(){
+    t++;
+    var phase=Math.floor(t/15)%stages.length;
+    var prog=(t%15)/15;
+    var idx=phase;
+    var x=stages[idx].x+(idx<stages.length-1?(stages[idx+1].x-stages[idx].x)*prog:0);
+    dot.setAttribute('cx',x);
+    // Highlight active stage
+    var ns=svg.querySelectorAll('.pipe-stage');
+    ns.forEach(function(n,i){n.setAttribute('stroke-width',i===phase?3:1.5);n.setAttribute('fill',i===phase?'rgba(245,158,11,.1)':'rgba(0,0,0,.3)');});
+    // Update GPU utilization
+    var util=Math.min(95,30+phase*12+Math.random()*10);
+    utilBar.setAttribute('w',596*util/100);
+    var ut=document.getElementById('util-text');
+    if(ut)ut.textContent=Math.round(util)+'%';
+    if(t>120){clearInterval(pipeTimer);ns.forEach(function(n){n.setAttribute('stroke-width',1.5);n.setAttribute('fill','rgba(0,0,0,.3)');});dot.setAttribute('cx',stages[0].x);}
+  },60);
+  // Stage throughput metrics (top)
+  var throughputs=['~256 vert/call','~1M vert/s','~200K tri/s','~400M frag/s','~200M frag/s','~60 FPS'];
+  stages.forEach(function(s,i){
+    el('text',{x:s.x,y:100,'text-anchor':'middle',fill:DIM,'font-size':7,'font-family':'monospace'},svg).textContent=throughputs[i];
+  });
+  // Title
+  el('text',{x:440,y:25,'text-anchor':'middle',fill:DIM,'font-size':11,'font-weight':600},svg).textContent='WebGPU 可编程渲染管线';
+  // Pipeline stage descriptions
+  var descs=['VBO/IBO','MVP变换','视口裁剪','扫描线转换','纹理+光照','Blend+Depth'];
+  stages.forEach(function(s,i){
+    el('text',{x:s.x,y:115,'text-anchor':'middle',fill:DIM,'font-size':7},svg).textContent=descs[i];
+  });
+}
+function pipelineReset(){if(pipeTimer)clearInterval(pipeTimer);pipelineRun();}
+pipelineRun();
+
+// M2: Compute Shader Workgroup
+var csTimer=null;
+function computeRun(){
+  if(csTimer)clearInterval(csTimer);
+  var svg=document.getElementById('cs-svg');clear(svg);
+  var cols=16,rows=8,cw=40,ch=28,ox=80,oy=70;
+  // Grid background
+  el('text',{x:80,y:40,fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent='dispatch(16, 8, 1)  // workgroup_size(8,8)';
+  el('text',{x:80,y:56,fill:AC,'font-size':9},svg).textContent='↓ 128 workgroups × 64 threads = 8192 并行线程';
+  var cells=[];
+  for(var r=0;r<rows;r++){
+    for(var c=0;c<cols;c++){
+      var x=ox+c*cw,y=oy+r*ch;
+      var rect=el('rect',{x:x+2,y:y+2,w:cw-4,h:ch-4,rx:3,fill:'rgba(0,0,0,.2)',stroke:BD,'stroke-width':0.5},svg);
+      cells.push({rect:rect,r:r,c:c,x:x,y:y});
+    }
+  }
+  // Axis labels
+  el('text',{x:ox+cols*cw/2,y:oy+rows*ch+30,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='X: workgroup_id.x';
+  el('text',{x:30,y:oy+rows*ch/2,'text-anchor':'middle',fill:DIM,'font-size':10,transform:'rotate(-90 30 '+(oy+rows*ch/2)+')'},svg).textContent='Y: workgroup_id.y';
+  // Status
+  var statusText=el('text',{x:760,y:40,'text-anchor':'end',fill:AC,'font-size':11,'font-family':'monospace'},svg);
+  statusText.textContent='就绪';
+  var t=0,done=0;
+  csTimer=setInterval(function(){
+    t++;
+    // Wave execution
+    var wave=Math.floor(t/3);
+    for(var i=0;i<cells.length;i++){
+      var cell=cells[i];
+      var dist=cell.r+cell.c;
+      if(dist<wave&&cell.rect.getAttribute('data-done')!=='1'){
+        cell.rect.setAttribute('fill','rgba(0,212,170,'+(0.2+Math.random()*0.4)+')');
+        cell.rect.setAttribute('stroke',AC);
+        if(Math.random()>0.5)cell.rect.setAttribute('data-done','1');
+        done++;
+      } else if(dist===wave){
+        cell.rect.setAttribute('fill','rgba(245,158,11,.3)');
+        cell.rect.setAttribute('stroke',WARN);
+      }
+    }
+    statusText.textContent='已执行: '+Math.min(done,cells.length)+'/'+cells.length;
+    if(done>=cells.length||t>120){clearInterval(csTimer);statusText.textContent='完成: '+done+'/'+cells.length+' workgroups';
+      // Performance summary
+      var tflops=(8.2).toFixed(1);
+      el('text',{x:80,y:310,fill:AC,'font-size':10,'font-weight':600},svg).textContent='执行摘要:';
+      el('text',{x:180,y:310,fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='FP32 '+tflops+' TFLOPS · 8192线程 · 耗时 '+(t*80)+'ms';
+      el('text',{x:180,y:325,fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='带宽 320 GB/s · 占用率 87% · 效率 92%';
+    }
+  },80);
+}
+computeRun();
+
+// M3: Browser LLM Inference
+function llmInferRun(){
+  var svg=document.getElementById('llm-svg');clear(svg);
+  var steps=[
+    {x:80,y:180,t:'ONNX模型',c:AC,d:'下载/缓存',sub:'~500MB'},
+    {x:240,y:180,t:'反序列化',c:INFO,d:'解析算子图',sub:'ORT Session'},
+    {x:400,y:100,t:'WebGPU后端',c:PUR,d:'算子编译',sub:'Kernel Gen'},
+    {x:400,y:260,t:'WASM回退',c:WARN,d:'不支持的算子',sub:'CPU计算'},
+    {x:560,y:180,t:'绑定资源',c:INFO,d:'Buffer/Texture',sub:'显存分配'},
+    {x:720,y:180,t:'推理执行',c:AC,d:'前向传播',sub:'Forward Pass'},
+    {x:820,y:180,t:'输出',c:ROSE,d:'Token输出',sub:'流式返回'}
+  ];
+  var edges=[[0,1],[1,2],[1,3],[2,4],[3,4],[4,5],[5,6]];
+  edges.forEach(function(e){
+    var s=steps[e[0]],d=steps[e[1]];
+    el('path',{d:'M '+s.x+' '+s.y+' L '+d.x+' '+d.y,stroke:BD,'stroke-width':1.5,fill:'none','stroke-dasharray':'4 3'},svg);
+  });
+  steps.forEach(function(s){
+    el('rect',{x:s.x-55,y:s.y-25,w:110,h:50,rx:8,fill:'rgba(0,0,0,.3)',stroke:s.c,'stroke-width':1.5,class:'llm-step'},svg);
+    el('text',{x:s.x,y:s.y-6,'text-anchor':'middle',fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.t;
+    el('text',{x:s.x,y:s.y+8,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=s.d;
+    el('text',{x:s.x,y:s.y+20,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=s.sub;
+  });
+  // Animated packet
+  var dot=el('circle',{cx:steps[0].x,cy:steps[0].y,r:5,fill:WARN},svg);
+  var path=[0,1,2,4,5,6];
+  var pi=0,t=0;
+  var timer=setInterval(function(){
+    t++;
+    var seg=Math.floor(t/20);
+    if(seg>=path.length-1){clearInterval(timer);return;}
+    var prog=(t%20)/20;
+    var s=steps[path[seg]],d=steps[path[seg+1]];
+    var x=s.x+(d.x-s.x)*prog,y=s.y+(d.y-s.y)*prog;
+    dot.setAttribute('cx',x);dot.setAttribute('cy',y);
+    var ns=svg.querySelectorAll('.llm-step');
+    ns.forEach(function(n,i){n.setAttribute('stroke-width',i===path[seg]?3:1.5);});
+  },50);
+  // Labels
+  el('text',{x:80,y:50,fill:AC,'font-size':10},svg).textContent='Input: "翻译这段话"';
+  el('text',{x:820,y:50,'text-anchor':'end',fill:ROSE,'font-size':10},svg).textContent='Output: "Translate this"';
+  // Timing annotations
+  var timings=['~200ms','~150ms','~300ms','~100ms','~50ms','~800ms','stream'];
+  steps.forEach(function(s,i){
+    el('text',{x:s.x,y:s.y+38,'text-anchor':'middle',fill:DIM,'font-size':7,'font-family':'monospace'},svg).textContent=timings[i];
+  });
+  // Timeline bar
+  el('text',{x:80,y:320,fill:DIM,'font-size':9},svg).textContent='时间线:';
+  el('rect',{x:140,y:312,w:680,h:8,rx:4,fill:'rgba(255,255,255,.03)'},svg);
+  var segs=[[140,80,AC],[220,60,INFO],[280,120,PUR],[400,40,WARN],[440,20,INFO],[460,320,AC]];
+  var tx=140;
+  segs.forEach(function(sg){
+    el('rect',{x:tx,y:314,w:sg[1],h:4,rx:2,fill:sg[2],'fill-opacity':0.4},svg);
+    tx+=sg[1]+2;
+  });
+  el('text',{x:440,y:340,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='首Token延迟 ~800ms · 续Token ~30ms · 纯本地推理，零网络请求';
+  // Latency breakdown legend
+  var latLabels=[['下载/缓存',80,AC],['反序列化',60,INFO],['Kernel编译',120,PUR],['WASM回退',40,WARN],['显存分配',20,INFO],['前向传播',320,AC]];
+  latLabels.forEach(function(l,i){
+    var lx=80+i*130,ly=330;
+    el('rect',{x:lx,y:ly-7,w:8,h:8,rx:2,fill:l[2],'fill-opacity':0.4},svg);
+    el('text',{x:lx+12,y:ly,fill:DIM,'font-size':8},svg).textContent=l[0]+' '+l[1]+'ms';
+  });
+}
+llmInferRun();
+
+// M4: Memory Management
+var memBlocks=[
+  {name:'VertexBuffer-A',size:128,type:'buffer',color:AC},
+  {name:'IndexBuffer',size:64,type:'buffer',color:INFO},
+  {name:'UniformBuffer',size:16,type:'buffer',color:PUR},
+  {name:'StorageBuffer-W',size:512,type:'buffer',color:WARN},
+  {name:'Texture-RGBA',size:1024,type:'texture',color:ROSE},
+  {name:'Texture-Depth',size:256,type:'texture',color:ERR},
+  {name:'BindGroup-0',size:32,type:'bind',color:AC},
+  {name:'BindGroup-1',size:32,type:'bind',color:AC}
+];
+var memAllocated=[];
+function memRun(){
+  var svg=document.getElementById('mem-svg');clear(svg);
+  memAllocated=[];
+  // Memory map frame
+  el('rect',{x:60,y:60,w:600,h:240,rx:8,fill:'rgba(0,0,0,.2)',stroke:BD,'stroke-width':1.5},svg);
+  el('text',{x:60,y:50,fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent='GPU 显存堆 (2048 MB)';
+  // Vertical scale
+  for(var i=0;i<=4;i++){
+    var y=60+i*60;
+    el('line',{x1:55,y1:y,x2:60,y2:y,stroke:BD},svg);
+    el('text',{x:50,y:y+4,'text-anchor':'end',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=(2048-i*512)+'M';
+  }
+  // Allocate blocks progressively
+  var x=70,y=70,maxW=580;
+  var totalUsed=0;
+  var log=document.getElementById('mem-log');
+  var logLines=[];
+  memBlocks.forEach(function(b,i){
+    setTimeout(function(){
+      var w=Math.max(8,Math.min(maxW-(x-70),b.size*0.45));
+      if(x-70+w>maxW){x=70;y+=50;}
+      if(y>280){return;}
+      var rect=el('rect',{x:x,y:y,w:w,h:40,rx:4,fill:b.color,'fill-opacity':0.15,stroke:b.color,'stroke-width':1.5,class:'mem-block'},svg);
+      el('text',{x:x+4,y:y+16,fill:b.color,'font-size':8,'font-weight':600},svg).textContent=b.name;
+      el('text',{x:x+4,y:y+30,fill:DIM,'font-size':7,'font-family':'monospace'},svg).textContent=b.size+'MB';
+      memAllocated.push({block:b,rect:rect,x:x,y:y});
+      totalUsed+=b.size;
+      logLines.push('['+b.type+'] '+b.name+' 分配 '+b.size+'MB');
+      log.textContent=logLines.join('\n');
+      x+=w+4;
+    },i*180);
+  });
+  // Legend
+  var legend=[{t:'Buffer',c:AC},{t:'Texture',c:ROSE},{t:'BindGroup',c:PUR}];
+  legend.forEach(function(l,i){
+    el('rect',{x:700,y:70+i*30,w:14,h:14,rx:3,fill:l.c,'fill-opacity':0.3,stroke:l.c},svg);
+    el('text',{x:720,y:82+i*30,fill:DIM,'font-size':11},svg).textContent=l.t;
+  });
+  // Total
+  el('text',{x:700,y:200,fill:WARN,'font-size':11,'font-weight':600},svg).textContent='已用: '+memBlocks.reduce(function(a,b){return a+b.size;},0)+'MB';
+  el('text',{x:700,y:218,fill:DIM,'font-size':10},svg).textContent='峰值: 2064MB';
+  // Usage percentage bar
+  var totalMem=memBlocks.reduce(function(a,b){return a+b.size;},0);
+  var pct=Math.round(totalMem/2048*100);
+  el('text',{x:700,y:240,fill:DIM,'font-size':9},svg).textContent='显存使用率:';
+  el('rect',{x:700,y:246,w:150,h:10,rx:5,fill:'rgba(255,255,255,.03)'},svg);
+  el('rect',{x:702,y:248,w:(146*pct/100),h:6,rx:3,fill:pct>80?ERR:WARN},svg);
+  el('text',{x:860,y:254,'text-anchor':'end',fill:pct>80?ERR:WARN,'font-size':9,'font-family':'monospace'},svg).textContent=pct+'%';
+  // Type breakdown
+  var typeSizes={buffer:0,texture:0,bind:0};
+  memBlocks.forEach(function(b){typeSizes[b.type]+=b.size;});
+  var types=[{t:'Buffer',s:typeSizes.buffer,c:AC},{t:'Texture',s:typeSizes.texture,c:ROSE},{t:'BindGroup',s:typeSizes.bind,c:PUR}];
+  types.forEach(function(tp,i){
+    el('rect',{x:700,y:270+i*16,w:10,h:10,rx:2,fill:tp.c,'fill-opacity':0.3,stroke:tp.c},svg);
+    el('text',{x:716,y:280+i*16,fill:DIM,'font-size':9},svg).textContent=tp.t+': '+tp.s+'MB';
+  });
+  // Fragmentation indicator
+  var fragPct=Math.round((1-totalMem/2048)*100);
+  el('text',{x:700,y:320,fill:DIM,'font-size':9},svg).textContent='碎片率: '+fragPct+'%';
+  el('rect',{x:700,y:326,w:80,h:6,rx:3,fill:'rgba(255,255,255,.03)'},svg);
+  el('rect',{x:702,y:328,w:Math.max(2,76*fragPct/100),h:2,rx:1,fill:fragPct>20?WARN:AC},svg);
+  // Lifecycle hint
+  el('text',{x:60,y:320,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='生命周期: create → map → use → unmap → destroy';
+}
+function memGC(){
+  var svg=document.getElementById('mem-svg');
+  var blocks=svg.querySelectorAll('.mem-block');
+  blocks.forEach(function(b,i){
+    setTimeout(function(){b.setAttribute('fill-opacity',0.03);b.setAttribute('stroke',BD);},i*60);
+  });
+  document.getElementById('mem-log').textContent='[GC] 显存回收完成，释放 '+memBlocks.reduce(function(a,b){return a+b.size;},0)+'MB';
+}
+memRun();
+
+// M5: WebGPU vs WebGL Comparison
+var cmpView=0;
+function cmpToggle(){cmpView=(cmpView+1)%2;cmpDraw();}
+function cmpDraw(){
+  var svg=document.getElementById('cmp-svg');clear(svg);
+  var apis=[
+    {name:'WebGPU',vals:[0.95,0.9,0.92,0.95,0.6],c:AC},
+    {name:'WebGL 2.0',vals:[0.3,0.5,0.65,0.2,0.95],c:WARN}
+  ];
+  var dims=['计算能力','着色器灵活性','推理性能','通用计算','生态成熟度'];
+  if(cmpView===0){
+    // Radar chart view
+    var cx=200,cy=180,R=130;
+    for(var i=0;i<5;i++){
+      var a=-Math.PI/2+i*2*Math.PI/5;
+      el('line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*R,y2:cy+Math.sin(a)*R,stroke:BD,'stroke-width':1},svg);
+      el('text',{x:cx+Math.cos(a)*(R+25),y:cy+Math.sin(a)*(R+25)+4,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent=dims[i];
+    }
+    for(var r=1;r<=4;r++){var pts=[];for(var i=0;i<5;i++){var a=-Math.PI/2+i*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*r/4)+','+(cy+Math.sin(a)*R*r/4));}el('polygon',{points:pts.join(' '),fill:'none',stroke:BD,'stroke-width':.5,'stroke-dasharray':'2 2'},svg);}
+    apis.forEach(function(p){
+      var pts=[];for(var i=0;i<5;i++){var a=-Math.PI/2+i*2*Math.PI/5;pts.push((cx+Math.cos(a)*R*p.vals[i])+','+(cy+Math.sin(a)*R*p.vals[i]));}
+      el('polygon',{points:pts.join(' '),fill:p.c,'fill-opacity':0.08,stroke:p.c,'stroke-width':2},svg);
+    });
+    // Legend
+    apis.forEach(function(p,i){
+      var lx=400,ly=80+i*30;
+      el('rect',{x:lx,y:ly-10,w:12,h:12,rx:2,fill:p.c,'fill-opacity':0.3,stroke:p.c},svg);
+      el('text',{x:lx+20,y:ly,fill:p.c,'font-size':12,'font-weight':600},svg).textContent=p.name;
+    });
+  } else {
+    // Bar chart view
+    var bx=400,by=80,bw=30,gap=8,bh=200;
+    el('text',{x:560,y:60,'text-anchor':'middle',fill:DIM,'font-size':10,'font-weight':600},svg).textContent='维度对比 (0-100)';
+    dims.forEach(function(d,i){
+      var x=bx+i*(bw*2+gap+22);
+      el('text',{x:x+bw,y:by-8,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent=d.slice(0,4);
+      apis.forEach(function(p,j){
+        var xp=x+j*(bw+gap);
+        var h=bh*p.vals[i];
+        el('rect',{x:xp,y:by+bh-h,width:bw,height:h,rx:3,fill:p.c,'fill-opacity':0.15+0.2*j},svg);
+        el('rect',{x:xp,y:by+bh-h,width:bw,height:2,rx:1,fill:p.c},svg);
+        el('text',{x:xp+bw/2,y:by+bh-h-4,'text-anchor':'middle',fill:p.c,'font-size':8,'font-family':'monospace'},svg).textContent=Math.round(p.vals[i]*100);
+      });
+    });
+    // Legend
+    apis.forEach(function(p,i){
+      var lx=600,ly=300+i*20;
+      el('rect',{x:lx,y:ly-8,w:10,h:10,rx:2,fill:p.c,'fill-opacity':0.3,stroke:p.c},svg);
+      el('text',{x:lx+16,y:ly,fill:p.c,'font-size':11,'font-weight':600},svg).textContent=p.name;
+    });
+  }
+  // Architecture diagrams (shared)
+  el('text',{x:60,y:140,fill:AC,'font-size':11,'font-weight':600},svg).textContent='WebGPU 架构';
+  var wgLayers=['应用层 (JS)','WebGPU API','Dawn / wgpu','Vulkan/Metal/D3D12','GPU 驱动'];
+  wgLayers.forEach(function(l,i){
+    el('rect',{x:40,y:155+i*24,w:160,h:20,rx:4,fill:'rgba(0,212,170,'+(0.04+i*0.02)+')',stroke:AC,'stroke-width':0.8},svg);
+    el('text',{x:120,y:169+i*24,'text-anchor':'middle',fill:i===3?AC:DIM,'font-size':8},svg).textContent=l;
+  });
+  el('text',{x:250,y:140,fill:WARN,'font-size':11,'font-weight':600},svg).textContent='WebGL 架构';
+  var glLayers=['应用层 (JS)','WebGL API','ANGLE','OpenGL ES','GPU 驱动'];
+  glLayers.forEach(function(l,i){
+    el('rect',{x:230,y:155+i*24,w:150,h:20,rx:4,fill:'rgba(245,158,11,'+(0.04+i*0.02)+')',stroke:WARN,'stroke-width':0.8},svg);
+    el('text',{x:305,y:169+i*24,'text-anchor':'middle',fill:i===3?WARN:DIM,'font-size':8},svg).textContent=l;
+  });
+  // Key difference
+  el('text',{x:40,y:325,fill:DIM,'font-size':9},svg).textContent='计算着色器: WebGPU原生支持 → WebGL需纹理编码hack';
+  el('text',{x:40,y:340,fill:DIM,'font-size':9},svg).textContent='显存控制: WebGPU显式管理 → WebGL隐式驱动';
+  el('text',{x:40,y:355,fill:DIM,'font-size':9},svg).textContent='视图: '+(cmpView===0?'雷达图 (按切换切换)':'柱状图 (按切换切换)');
+  // Feature comparison table
+  var features=[
+    {f:'计算着色器',wg:'原生支持',gl:'不支持'},
+    {f:'显存管理',wg:'显式Buffer',gl:'隐式驱动'},
+    {f:'多线程录制',wg:'支持',gl:'不支持'},
+    {f:'时间戳查询',wg:'GPU timestamp',gl:'扩展查询'},
+    {f:' indirect绘制',wg:'支持',gl:'有限支持'}
+  ];
+  el('text',{x:700,y:60,fill:AC,'font-size':10,'font-weight':600},svg).textContent='特性对比';
+  features.forEach(function(ft,i){
+    var fy=80+i*22;
+    el('text',{x:700,y:fy,fill:DIM,'font-size':8},svg).textContent=ft.f;
+    el('text',{x:790,y:fy,fill:AC,'font-size':8,'font-family':'monospace'},svg).textContent=ft.wg;
+    el('text',{x:850,y:fy,fill:WARN,'font-size':8,'font-family':'monospace'},svg).textContent=ft.gl;
+  });
+}
+cmpDraw();
+
+// M6: On-device Optimization
+var optStrat='quant';
+function optSwitch(btn,strat){
+  optStrat=strat;
+  document.querySelectorAll('#m6 .btn').forEach(function(b){b.classList.remove('primary');});
+  btn.classList.add('primary');
+  optDraw();
+}
+function optDraw(){
+  var svg=document.getElementById('opt-svg');clear(svg);
+  var strategies={
+    quant:{name:'INT8 量化',mem:0.5,speed:1.5,c:AC,desc:'FP32→INT8，显存降50%，速度+50%'},
+    int4:{name:'INT4 量化',mem:0.25,speed:2.0,c:INFO,desc:'FP32→INT4，显存降75%，速度+100%'},
+    chunk:{name:'分块加载',mem:0.4,speed:1.2,c:PUR,desc:'按需加载层，峰值显存降60%'},
+    stream:{name:'流式推理',mem:0.35,speed:1.8,c:WARN,desc:'逐Token输出，首Token延迟降70%'}
+  };
+  var s=strategies[optStrat];
+  // Bar chart: before vs after
+  var metrics=[
+    {t:'显存占用',before:1.0,after:s.mem,c:ROSE,unit:'GB'},
+    {t:'推理速度',before:1.0,after:s.speed,c:AC,unit:'x'},
+    {t:'首Token延迟',before:1.0,after:optStrat==='stream'?0.3:0.9,c:WARN,unit:'s'},
+    {t:'能耗',before:1.0,after:1/Math.sqrt(s.speed),c:INFO,unit:'W'}
+  ];
+  var bx=100,by=60,bw=140,gap=40,bh=220;
+  metrics.forEach(function(m,i){
+    var x=bx+i*(bw+gap);
+    el('text',{x:x+bw/2,y:by-10,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent=m.t;
+    el('rect',{x:x,y:by,width:bw,height:bh,rx:6,fill:'rgba(255,255,255,.02)',stroke:BD},svg);
+    // Before bar
+    var hb=bh*0.7;
+    el('rect',{x:x+15,y:by+bh-hb,width:45,height:hb,rx:3,fill:m.c,'fill-opacity':0.15},svg);
+    el('text',{x:x+37,y:by+bh-hb-6,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='基线';
+    // After bar
+    var ha=Math.max(20,bh*0.7*m.after);
+    el('rect',{x:x+70,y:by+bh-ha,width:55,height:ha,rx:3,fill:m.c,'fill-opacity':0.4},svg);
+    el('rect',{x:x+70,y:by+bh-ha,width:55,height:3,rx:1,fill:m.c},svg);
+    el('text',{x:x+97,y:by+bh-ha-6,'text-anchor':'middle',fill:m.c,'font-size':10,'font-weight':600,'font-family':'monospace'},svg).textContent=m.after.toFixed(2)+m.unit;
+    el('text',{x:x+97,y:by+bh-ha+14,'text-anchor':'middle',fill:m.c,'font-size':8},svg).textContent='优化后';
+  });
+  // Strategy name
+  el('rect',{x:60,y:300,w:760,h:28,rx:6,fill:s.c,'fill-opacity':0.08,stroke:s.c},svg);
+  el('text',{x:80,y:318,fill:s.c,'font-size':11,'font-weight':600},svg).textContent=s.name+': '+s.desc;
+  // Precision comparison
+  var precisions=[
+    {t:'FP32',mem:1.0,speed:1.0,c:ERR},
+    {t:'FP16',mem:0.5,speed:1.8,c:WARN},
+    {t:'INT8',mem:0.25,speed:2.5,c:INFO},
+    {t:'INT4',mem:0.125,speed:4.0,c:AC}
+  ];
+  el('text',{x:60,y:48,fill:DIM,'font-size':9,'font-weight':600},svg).textContent='精度对比:';
+  precisions.forEach(function(p,i){
+    var px=130+i*80;
+    el('rect',{x:px,y:38,w:60,h:14,rx:3,fill:p.c,'fill-opacity':0.12,stroke:p.c},svg);
+    el('text',{x:px+30,y:49,'text-anchor':'middle',fill:p.c,'font-size':8,'font-weight':600,'font-family':'monospace'},svg).textContent=p.t;
+    el('text',{x:px+30,y:62,'text-anchor':'middle',fill:DIM,'font-size':7},svg).textContent='×'+p.mem+' mem';
+    el('text',{x:px+30,y:72,'text-anchor':'middle',fill:DIM,'font-size':7},svg).textContent='×'+p.speed+' spd';
+  });
+  document.getElementById('opt-log').textContent='[策略] '+s.name+' | 显存×'+s.mem.toFixed(2)+' | 速度×'+s.speed.toFixed(1)+' | '+s.desc;
+}
+optDraw();
+
+// M7: Application Matrix
+var appFilterCat='all';
+function appFilter(btn,cat){
+  appFilterCat=cat;
+  document.querySelectorAll('#m7 .btn').forEach(function(b){b.classList.remove('primary');});
+  btn.classList.add('primary');
+  appDraw();
+}
+function appDraw(){
+  var svg=document.getElementById('app-svg');clear(svg);
+  var apps=[
+    {t:'本地LLM聊天',m:'Phi-3-mini',size:'2.1GB',speed:'35 tok/s',c:AC,x:80,y:60,cat:'llm'},
+    {t:'图像生成',m:'SD-Turbo',size:'1.5GB',speed:'8 s/img',c:PUR,x:340,y:60,cat:'vision'},
+    {t:'语音识别',m:'Whisper-base',size:'140MB',speed:'1.2x RT',c:INFO,x:600,y:60,cat:'audio'},
+    {t:'物体检测',m:'YOLO-v8-nano',size:'12MB',speed:'45 FPS',c:WARN,x:80,y:210,cat:'vision'},
+    {t:'姿态估计',m:'MoveNet',size:'8MB',speed:'30 FPS',c:ROSE,x:340,y:210,cat:'vision'},
+    {t:'文本转语音',m:'VITS-base',size:'220MB',speed:'1.5x RT',c:AC,x:600,y:210,cat:'audio'}
+  ];
+  var catNames={llm:'LLM类',vision:'视觉类',audio:'语音类',all:'全部'};
+  var activeCount=0;
+  apps.forEach(function(a){
+    var active=appFilterCat==='all'||a.cat===appFilterCat;
+    var opacity=active?1:0.25;
+    var sw=active?2:1;
+    // Card
+    el('rect',{x:a.x,y:a.y,w:200,h:120,rx:10,fill:'rgba(0,0,0,.2)',stroke:a.c,'stroke-width':sw,'fill-opacity':opacity,class:'app-card'},svg);
+    el('rect',{x:a.x,y:a.y,w:200,h:30,rx:10,fill:a.c,'fill-opacity':active?0.1:0.03},svg);
+    el('text',{x:a.x+100,y:a.y+20,'text-anchor':'middle',fill:a.c,'font-size':12,'font-weight':600,'opacity':opacity},svg).textContent=a.t;
+    el('text',{x:a.x+14,y:a.y+50,fill:DIM,'font-size':10,'opacity':opacity},svg).textContent='模型:';
+    el('text',{x:a.x+50,y:a.y+50,fill:'#e6e8ee','font-size':10,'font-family':'monospace','opacity':opacity},svg).textContent=a.m;
+    el('text',{x:a.x+14,y:a.y+72,fill:DIM,'font-size':10,'opacity':opacity},svg).textContent='大小:';
+    el('text',{x:a.x+50,y:a.y+72,fill:a.c,'font-size':10,'font-family':'monospace','opacity':opacity},svg).textContent=a.size;
+    el('text',{x:a.x+14,y:a.y+94,fill:DIM,'font-size':10,'opacity':opacity},svg).textContent='速度:';
+    el('text',{x:a.x+50,y:a.y+94,fill:a.c,'font-size':10,'font-family':'monospace','opacity':opacity},svg).textContent=a.speed;
+    // Category badge
+    el('rect',{x:a.x+145,y:a.y+44,w:45,h:16,rx:8,fill:a.c,'fill-opacity':active?0.15:0.05,stroke:a.c,'stroke-width':0.5},svg);
+    el('text',{x:a.x+167,y:a.y+55,'text-anchor':'middle',fill:a.c,'font-size':8,'opacity':opacity},svg).textContent=a.cat.toUpperCase();
+    // Icon circle
+    el('circle',{cx:a.x+170,cy:a.y+100,r:12,fill:a.c,'fill-opacity':active?0.15:0.04,stroke:a.c,'stroke-width':0.5},svg);
+    el('text',{x:a.x+170,y:a.y+104,'text-anchor':'middle',fill:a.c,'font-size':8,'opacity':opacity},svg).textContent='●';
+    if(active)activeCount++;
+  });
+  // Footer
+  el('text',{x:440,y:360,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='所有应用 100% 浏览器内运行 · 零服务器成本 · 数据不离设备';
+  el('text',{x:440,y:380,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='当前筛选: '+catNames[appFilterCat]+' ('+activeCount+'/'+apps.length+')';
+  // Total stats
+  var totalSize=apps.reduce(function(a,b){return a+parseFloat(b.size);},0);
+  var llmCount=apps.filter(function(a){return a.cat==='llm';}).length;
+  var visionCount=apps.filter(function(a){return a.cat==='vision';}).length;
+  var audioCount=apps.filter(function(a){return a.cat==='audio';}).length;
+  el('text',{x:80,y:360,fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='总模型体积: '+totalSize.toFixed(1)+'MB';
+  el('text',{x:80,y:375,fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='LLM:'+llmCount+' 视觉:'+visionCount+' 语音:'+audioCount;
+  document.getElementById('app-log').textContent='[筛选] '+catNames[appFilterCat]+' | 显示 '+activeCount+'/'+apps.length+' 个应用 | LLM:本地推理 视觉:实时处理 语音:流式识别';
+}
+appDraw();
+
+// M8: Performance Benchmark
+function benchDraw(){
+  var size=+document.getElementById('bench-size').value;
+  document.getElementById('bench-label').textContent=size+'B';
+  var svg=document.getElementById('bench-svg');clear(svg);
+  var devices=[
+    {t:'桌面GPU',c:AC,factor:1.0},
+    {t:'集成显卡',c:INFO,factor:0.42},
+    {t:'手机GPU',c:WARN,factor:0.17}
+  ];
+  // Speed decreases with model size
+  var baseSpeed=120/size; // tok/s at desktop for size B
+  var bx=70,by=60,bw=90,gap=20,bh=220;
+  // Y axis
+  el('text',{x:60,y:50,fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent='tok/s';
+  for(var i=0;i<=5;i++){
+    var y=by+i*bh/5;
+    el('line',{x1:75,y1:y,x2:80,y2:y,stroke:BD},svg);
+    el('text',{x:72,y:y+4,'text-anchor':'end',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=Math.round(baseSpeed*(1-i/5));
+  }
+  devices.forEach(function(d,i){
+    var x=bx+i*(bw*2+gap*2);
+    el('text',{x:x+bw,y:by-10,'text-anchor':'middle',fill:d.c,'font-size':11,'font-weight':600},svg).textContent=d.t;
+    // FP16 bar
+    var hfp=bh*(baseSpeed*d.factor)/baseSpeed;
+    el('rect',{x:x,y:by+bh-hb(fp16Speed(baseSpeed,d.factor)),width:bw,height:hb(fp16Speed(baseSpeed,d.factor)),rx:4,fill:d.c,'fill-opacity':0.15},svg);
+    el('text',{x:x+bw/2,y:by+bh-hb(fp16Speed(baseSpeed,d.factor))-6,'text-anchor':'middle',fill:d.c,'font-size':10,'font-family':'monospace'},svg).textContent=Math.round(fp16Speed(baseSpeed,d.factor));
+    el('text',{x:x+bw/2,y:by+bh+14,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='FP16';
+    // INT4 bar
+    var x2=x+bw+gap;
+    el('rect',{x:x2,y:by+bh-hb(int4Speed(baseSpeed,d.factor)),width:bw,height:hb(int4Speed(baseSpeed,d.factor)),rx:4,fill:d.c,'fill-opacity':0.35},svg);
+    el('rect',{x:x2,y:by+bh-hb(int4Speed(baseSpeed,d.factor)),width:bw,height:3,rx:1,fill:d.c},svg);
+    el('text',{x:x2+bw/2,y:by+bh-hb(int4Speed(baseSpeed,d.factor))-6,'text-anchor':'middle',fill:d.c,'font-size':10,'font-weight':600,'font-family':'monospace'},svg).textContent=Math.round(int4Speed(baseSpeed,d.factor));
+    el('text',{x:x2+bw/2,y:by+bh+14,'text-anchor':'middle',fill:d.c,'font-size':9},svg).textContent='INT4';
+  });
+  function hb(v){return Math.min(bh,bh*v/baseSpeed);}
+  function fp16Speed(b,f){return b*f;}
+  function int4Speed(b,f){return b*f*2.3;}
+  // Update info cards
+  document.getElementById('b-desktop').textContent=Math.round(fp16Speed(baseSpeed,1.0))+' tok/s';
+  document.getElementById('b-igpu').textContent=Math.round(fp16Speed(baseSpeed,0.42))+' tok/s';
+  document.getElementById('b-mobile').textContent=Math.round(fp16Speed(baseSpeed,0.17))+' tok/s';
+  document.getElementById('b-vram').textContent=(size*0.6).toFixed(1)+' GB';
+  // Legend
+  el('rect',{x:550,y:280,w:14,h:10,rx:2,fill:AC,'fill-opacity':0.15,stroke:AC},svg);
+  el('text',{x:570,y:289,fill:DIM,'font-size':10},svg).textContent='FP16 (半精度)';
+  el('rect',{x:650,y:280,w:14,h:10,rx:2,fill:AC,'fill-opacity':0.35,stroke:AC},svg);
+  el('text',{x:670,y:289,fill:DIM,'font-size':10},svg).textContent='INT4 (4位量化)';
+  // Model info
+  el('text',{x:760,y:289,fill:WARN,'font-size':10,'font-weight':600},svg).textContent='模型: '+size+'B 参数';
+  // Device specs
+  var specs=[
+    {x:70,t:'RTX 4070 / M2 Pro',gpu:'12GB VRAM'},
+    {x:290,t:'Intel Arc iGPU',gpu:'共享内存'},
+    {x:510,t:'Adreno 750 / Mali-G715',gpu:'8GB 统一内存'}
+  ];
+  specs.forEach(function(s,i){
+    el('text',{x:s.x,y:310,fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=s.t;
+    el('text',{x:s.x,y:322,fill:DIM,'font-size':7},svg).textContent=s.gpu;
+  });
+  // Speed reference line
+  el('line',{x1:70,y1:by+bh,x2:760,y2:by+bh,stroke:BD,'stroke-width':0.5},svg);
+  el('text',{x:760,y:by+bh-4,'text-anchor':'end',fill:DIM,'font-size':8},svg).textContent='↑ tok/s (越高越好)';
+  // Throughput efficiency annotation
+  var effFP16=Math.round(fp16Speed(baseSpeed,1.0));
+  var effINT4=Math.round(int4Speed(baseSpeed,1.0));
+  el('text',{x:70,y:50,fill:AC,'font-size':9,'font-weight':600},svg).textContent='桌面GPU: FP16='+effFP16+' tok/s, INT4='+effINT4+' tok/s';
+  // Real-time indicator
+  var realtime=effINT4>=20;
+  el('rect',{x:550,y:40,w:90,h:18,rx:9,fill:realtime?'rgba(0,212,170,.1)':'rgba(239,68,68,.1)',stroke:realtime?AC:ERR},svg);
+  el('text',{x:595,y:52,'text-anchor':'middle',fill:realtime?AC:ERR,'font-size':9,'font-weight':600},svg).textContent=realtime?'实时对话 ✓':'低于实时 ✗';
+  // Model size annotation
+  el('text',{x:760,y:50,'text-anchor':'end',fill:WARN,'font-size':9},svg).textContent='模型体积: '+(size<2?'1.2GB':size<4?'2.4GB':size<8?'4.8GB':size<13?'9.2GB':'16GB')+' (INT4)';
+  // Architecture note
+  el('text',{x:760,y:64,'text-anchor':'end',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='batch=1 · seq=512 · 量化=INT4';
+  // Reference lines for real-time threshold
+  el('line',{x1:75,y1:by+bh-hb(20),x2:760,y2:by+bh-hb(20),stroke:AC,'stroke-width':0.5,'stroke-dasharray':'3 3','opacity':0.4},svg);
+  el('text',{x:760,y:by+bh-hb(20)-2,'text-anchor':'end',fill:AC,'font-size':7},svg).textContent='实时阈值 20 tok/s';
+}
+benchDraw();
+</script>
+</body>
+</html>
