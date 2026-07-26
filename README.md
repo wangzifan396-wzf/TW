@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 173 个零依赖交互式可视化项目 + 30 个配套工具，1384+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 176 个零依赖交互式可视化项目 + 30 个配套工具，1408+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-173-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-1384+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-176-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-1408+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 173 |
-| 可视化模块 | 1384+ |
+| 项目总数 | 176 |
+| 可视化模块 | 1408+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~13.5 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -267,6 +267,9 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 171 | 推理大模型可视化实验室 | 思维链CoT、测试时计算、过程奖励模型PRM、MCTS思维树搜索、自洽性投票、推理蒸馏、o1/o3/DeepSeek-R1架构、推理评估基准等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/reasoning-llm-viz-lab/) |
 | 172 | AI编程智能体可视化实验室 | 智能体编程循环、代码库理解、任务分解规划、工具编排、多文件编辑协同、自主调试、多智能体协作、Cursor/Devin/Claude Code对比等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-coding-agent-viz-lab/) |
 | 173 | 长上下文大模型可视化实验室 | 上下文窗口与位置编码、RoPE与位置插值、Ring Attention分布式、注意力复杂度、大海捞针测试、KV-Cache优化、长上下文基准、应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/long-context-viz-lab/) |
+| 174 | 多智能体系统可视化实验室 | 多智能体编排模式、MCP/A2A通信协议、群体拓扑、任务分解、博弈共识、框架对比、共享记忆、评估指标等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multi-agent-systems-viz-lab/) |
+| 175 | AI对齐与安全2.0可视化实验室 | 对齐范式演进、Constitutional AI、可扩展监督、机械可解释性、欺骗检测、奖励黑客、可纠正性、对齐税收等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-alignment-viz-lab/) |
+| 176 | 智能体评估基准可视化实验室 | SWE-bench排行、GAIA分层、WebArena交互、Arena Elo、过程级评估、轨迹分析、基准对比、能力雷达图等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agentic-eval-viz-lab/) |
 
 ## 技术栈
 
