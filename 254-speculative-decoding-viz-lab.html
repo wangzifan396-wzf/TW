@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 推测解码与推理加速可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:color .2s,border-color .2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:760px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:108px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:color .18s,background-color .18s,border-color .18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:800px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:color .18s,border-color .18s,background-color .18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+.info-bar{margin-top:14px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:7px;font-size:13px;color:var(--text);min-height:42px}
+.info-bar .label{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-right:8px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-2)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:12px;height:12px;border-radius:2px}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:80px;font-size:11px;padding:8px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="../TW-main/index.html" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">推测解码与推理加速可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 254</span>
+    <h1>推测解码与推理加速可视化实验室</h1>
+    <p>把大模型推理加速的核心机制——草稿-验证范式、Medusa 多头、EAGLE 隐状态外推、Lookahead 解码、KV 缓存与 PagedAttention、连续批处理——以 8 个可交互 SVG 模块直观呈现。</p>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">M1 全景</button>
+    <button class="tab" data-m="m2">M2 推测解码</button>
+    <button class="tab" data-m="m3">M3 草稿模型</button>
+    <button class="tab" data-m="m4">M4 Medusa头</button>
+    <button class="tab" data-m="m5">M5 EAGLE</button>
+    <button class="tab" data-m="m6">M6 KV缓存</button>
+    <button class="tab" data-m="m7">M7 连续批处理</button>
+    <button class="tab" data-m="m8">M8 性能对比</button>
+  </nav>
+
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>推理加速技术全景</h2></div>
+    <p class="m-desc">大模型推理加速分三层：算法层（推测解码/投机采样）、模型层（草稿模型/Medusa/EAGLE/Lookahead）、系统层（KV 缓存/PagedAttention/连续批处理/前缀缓存）。点击按钮分层高亮。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="m1Show('algo')">算法层</button>
+      <button class="btn" onclick="m1Show('model')">模型层</button>
+      <button class="btn" onclick="m1Show('sys')">系统层</button>
+      <button class="btn" onclick="m1Show('all')">全部</button>
+    </div>
+    <div class="viz"><svg id="m1-svg" viewBox="0 0 920 440"></svg></div>
+    <div class="info-bar" id="m1-info"><span class="label">说明</span>点击上方按钮，分层查看推理加速 12 项核心技术。</div>
+  </section>
+
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>推测解码原理：草稿-验证范式</h2></div>
+    <p class="m-desc">小草稿模型串行生成 γ 个候选 token，大目标模型用一次并行前向把它们与第 γ+1 位一起验证；按概率接受/拒绝，被拒处由目标模型重采样。单次验证得到 1~γ+1 个 token，无质量损失。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="m2Step(0)">重置</button>
+      <button class="btn" onclick="m2Step(1)">① 草稿生成</button>
+      <button class="btn" onclick="m2Step(2)">② 并行验证</button>
+      <button class="btn" onclick="m2Step(3)">③ 接受/拒绝</button>
+      <button class="btn" onclick="m2Auto()">自动播放</button>
+    </div>
+    <div class="viz"><svg id="m2-svg" viewBox="0 0 920 460"></svg></div>
+    <div class="info-bar" id="m2-info"><span class="label">提示</span>逐步执行查看草稿生成 → 并行验证 → 接受拒绝三阶段。</div>
+  </section>
+
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>草稿模型架构与权衡</h2></div>
+    <p class="m-desc">草稿模型是推测解码的"猜测器"：参数小、速度快、但精度有限。点击切换不同规模的草稿模型，观察其与 7B 目标模型的协同加速比与接受率权衡。</p>
+    <div class="ctrl">
+      <button class="btn" onclick="m3Set(0)">草稿 0.3B</button>
+      <button class="btn primary" onclick="m3Set(1)">草稿 0.5B</button>
+      <button class="btn" onclick="m3Set(2)">草稿 1B</button>
+      <button class="btn" onclick="m3Set(3)">草稿 2B</button>
+    </div>
+    <div class="viz"><svg id="m3-svg" viewBox="0 0 920 440"></svg></div>
+    <div class="info-bar" id="m3-info"><span class="label">当前</span>0.5B 草稿模型 · 6 层 · 接受率 55% · 与 7B 协同加速约 1.7×</div>
+  </section>
+
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>Medusa 头：多头并行预测</h2></div>
+    <p class="m-desc">Medusa 在 LLM 末层隐藏状态上挂多个轻量预测头，每个头预测 t+1..t+k 位置的 token，无需独立草稿模型。结合 tree attention 单次前向验证整棵候选树。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="m4AddHead()">添加 Medusa 头</button>
+      <button class="btn" onclick="m4GenTree()">生成候选树</button>
+      <button class="btn" onclick="m4ResetHeads()">重置</button>
+    </div>
+    <div class="viz"><svg id="m4-svg" viewBox="0 0 920 440"></svg></div>
+    <div class="info-bar" id="m4-info"><span class="label">Medusa 头数</span>当前 1 个头，预测 t+1 位置。点击"添加"可扩展到最多 4 个头。</div>
+  </section>
+
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>EAGLE：特征空间自回归外推</h2></div>
+    <p class="m-desc">EAGLE 用 1 层 decoder 在隐藏状态 (feature) 空间自回归外推，共享目标模型的 LM head 与 embedding，相比 Medusa 捕获位置间依赖，接受率更高；配合动态草稿树进一步提速。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="m5Run()">运行 EAGLE</button>
+      <button class="btn" onclick="m5CompareMedusa()">对比 Medusa</button>
+      <button class="btn" onclick="m5ShowTree()">显示动态树</button>
+    </div>
+    <div class="viz"><svg id="m5-svg" viewBox="0 0 920 460"></svg></div>
+    <div class="info-bar" id="m5-info"><span class="label">说明</span>点击"运行 EAGLE"观察 1 层 decoder 在特征空间的外推流程。</div>
+  </section>
+
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>KV 缓存优化与 PagedAttention</h2></div>
+    <p class="m-desc">KV 缓存避免重复计算历史 token 的 K/V，但标准连续分配导致显存碎片化。PagedAttention 借鉴 OS 虚拟内存，按固定大小分页，消除碎片，显存利用率从 ~60% 提升至 ~96%。</p>
+    <div class="ctrl">
+      <button class="btn" onclick="m6Set('standard')">标准 KV 缓存</button>
+      <button class="btn primary" onclick="m6Set('paged')">PagedAttention</button>
+    </div>
+    <div class="viz"><svg id="m6-svg" viewBox="0 0 920 440"></svg></div>
+    <div class="info-bar" id="m6-info"><span class="label">PagedAttention</span>分页式管理，消除碎片化，显存利用率从 ~60% 提升至 ~96%。</div>
+  </section>
+
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>连续批处理 (Continuous Batching)</h2></div>
+    <p class="m-desc">静态批处理必须等所有请求完成才能开下一批，GPU 利用率低。连续批处理在每次解码步动态加入/移除请求，lane 即时复用，GPU 持续饱和，吞吐提升 4-8×。</p>
+    <div class="ctrl">
+      <button class="btn" onclick="m7Set('static')">静态批处理</button>
+      <button class="btn primary" onclick="m7Set('continuous')">连续批处理</button>
+      <button class="btn" onclick="m7AddReq()">添加新请求</button>
+    </div>
+    <div class="viz"><svg id="m7-svg" viewBox="0 0 920 460"></svg></div>
+    <div class="info-bar" id="m7-info"><span class="label">连续批处理</span>GPU 持续饱和，吞吐量提升 4-8×，P99 延迟显著降低。</div>
+  </section>
+
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>性能对比</h2></div>
+    <p class="m-desc">算法层 (推测/Medusa/EAGLE) 加速 2-3.4×；系统层 (连续批处理) 额外叠加 2-3×。二者正交组合，端到端可达 8× 以上加速，且无质量损失。切换指标查看不同维度。</p>
+    <div class="ctrl">
+      <button class="btn primary" onclick="m8Set('throughput')">吞吐量</button>
+      <button class="btn" onclick="m8Set('latency')">单 token 延迟</button>
+      <button class="btn" onclick="m8Set('speedup')">端到端加速比</button>
+    </div>
+    <div class="viz"><svg id="m8-svg" viewBox="0 0 920 480"></svg></div>
+    <div class="info-bar" id="m8-info"><span class="label">吞吐量</span>切换指标查看不同方法的相对表现（基线=1.0）。</div>
+  </section>
+</main>
+<script>
+window.addEventListener('error',function(e){if(e.error){console.warn('Caught:',e.message);e.preventDefault()}},true);
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+/* ===== M1: 全景 ===== */
+var m1Data=[
+  {cat:'algo',color:AC,label:'算法层 Algorithm',x:60,items:[
+    {t:'推测解码',en:'Speculative Decoding',s:'小模型猜测+大模型验证'},
+    {t:'投机采样',en:'Speculative Sampling',s:'无失真概率接受'},
+    {t:'拒绝采样',en:'Rejection Sampling',s:'按概率接受/拒绝'},
+    {t:'草稿-验证',en:'Draft-Verify',s:'核心加速范式'}
+  ]},
+  {cat:'model',color:INFO,label:'模型层 Model',x:340,items:[
+    {t:'草稿模型',en:'Draft Model',s:'独立小模型并行'},
+    {t:'Medusa头',en:'Medusa Heads',s:'多头并行预测'},
+    {t:'EAGLE',en:'EAGLE',s:'隐状态自回归外推'},
+    {t:'Lookahead',en:'Lookahead Decoding',s:'n-gram 并行 Jacobi'}
+  ]},
+  {cat:'sys',color:WARN,label:'系统层 System',x:620,items:[
+    {t:'KV缓存',en:'KV Cache',s:'缓存历史键值对'},
+    {t:'PagedAttention',en:'PagedAttention',s:'分页式显存管理'},
+    {t:'连续批处理',en:'Continuous Batching',s:'动态请求调度'},
+    {t:'前缀缓存',en:'Prefix Caching',s:'共享系统提示'}
+  ]}
+];
+function m1Draw(hi){
+  var svg=document.getElementById('m1-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='推理加速三层架构全景';
+  el('line',{x1:60,y1:48,x2:860,y2:48,stroke:BD,'stroke-width':1},svg);
+  m1Data.forEach(function(col){
+    var active=(hi==='all'||hi===col.cat);
+    el('rect',{x:col.x,y:62,w:240,h:34,rx:7,fill:col.color+'22',stroke:col.color,'stroke-width':active?2:1},svg);
+    el('text',{x:col.x+120,y:84,'text-anchor':'middle',fill:col.color,'font-size':13,'font-weight':700},svg).textContent=col.label;
+    col.items.forEach(function(it,i){
+      var y=108+i*70;
+      el('rect',{x:col.x,y:y,w:240,h:60,rx:7,fill:active?col.color+'1a':'#161922',stroke:active?col.color:BD,'stroke-width':active?1.5:1},svg);
+      el('text',{x:col.x+14,y:y+22,fill:active?col.color:'#e6e8ee','font-size':13,'font-weight':600},svg).textContent=it.t;
+      el('text',{x:col.x+14,y:y+38,fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent=it.en;
+      el('text',{x:col.x+14,y:y+52,fill:'#9aa0b0','font-size':10},svg).textContent=it.s;
+    });
+  });
+  el('rect',{x:60,y:402,w:800,h:16,rx:5,fill:AC+'12',stroke:AC,'stroke-dasharray':'3 3'},svg);
+  el('text',{x:460,y:413,'text-anchor':'middle',fill:AC,'font-size':10.5,'font-weight':600},svg).textContent='共同目标：降低单 token 延迟 · 提升 tokens/s 吞吐 · 保证输出质量无损';
+}
+function m1Show(cat){
+  m1Draw(cat);
+  var labels={algo:'算法层 4 项——以概率对等为核心，实现无损加速',model:'模型层 4 项——围绕草稿生成结构创新',sys:'系统层 4 项——聚焦显存/调度工程优化',all:'三层共 12 项技术，分别作用于算法/模型/系统三个层面'};
+  var names={algo:'算法层',model:'模型层',sys:'系统层',all:'全部'};
+  document.getElementById('m1-info').innerHTML='<span class="label">'+names[cat]+'</span>'+labels[cat];
+}
+m1Draw('all');
+
+/* ===== M2: 推测解码原理 ===== */
+var m2Timer=null;
+function m2Draw(step){
+  var svg=document.getElementById('m2-svg');clear(svg);
+  if(m2Timer){clearInterval(m2Timer);m2Timer=null;}
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent='草稿-验证范式 · γ=4 候选，1 次并行前向验证 5 位';
+  var prompt=['机器','学习'];
+  var draft=['模型','能够','快速','理解'];
+  var verifyLabels=['P(d1)','P(d2)','P(d3)','P(d4)','P(bonus)'];
+  var finalTokens=['模型','能够','训练','—','—'];
+  var decisions=['accept','accept','reject→重采样','discard','discard'];
+  var dColors=[AC,AC,ERR,DIM,DIM];
+  var tw=66,gap=14,startX=70;
+  var rows=[
+    {y:70,label:'已生成 prompt',color:DIM},
+    {y:175,label:'① 草稿模型生成 γ=4 候选 (串行 4 步)',color:WARN},
+    {y:290,label:'② 目标模型并行验证 γ+1=5 位 (1 次前向)',color:INFO},
+    {y:395,label:'③ 接受/拒绝 + 重采样',color:AC}
+  ];
+  rows.forEach(function(r){el('text',{x:18,y:r.y-10,fill:r.color,'font-size':10.5,'font-weight':600},svg).textContent=r.label});
+  prompt.forEach(function(t,i){
+    var x=startX+i*(tw+gap);
+    el('rect',{x:x,y:70,w:tw,h:34,rx:6,fill:'#1a1f2e',stroke:BD},svg);
+    el('text',{x:x+tw/2,y:92,'text-anchor':'middle',fill:'#e6e8ee','font-size':12},svg).textContent=t;
+  });
+  var dbx=startX+prompt.length*(tw+gap)+16;
+  el('rect',{x:dbx,y:60,w:140,h:54,rx:8,fill:WARN+'1a',stroke:WARN,'stroke-width':1.5},svg);
+  el('text',{x:dbx+70,y:80,'text-anchor':'middle',fill:WARN,'font-size':12,'font-weight':700},svg).textContent='草稿模型 0.5B';
+  el('text',{x:dbx+70,y:96,'text-anchor':'middle',fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='autoregressive · 串行';
+  el('text',{x:dbx+70,y:108,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='成本 ≈ 4× 草稿步';
+  draft.forEach(function(t,i){
+    var x=startX+i*(tw+gap);
+    var on=(step>=1);
+    el('rect',{x:x,y:175,w:tw,h:34,rx:6,fill:on?WARN+'22':'#161922',stroke:on?WARN:BD,'stroke-width':on?1.5:1,'stroke-dasharray':on?'none':'4 3'},svg);
+    el('text',{x:x+tw/2,y:197,'text-anchor':'middle',fill:on?WARN:DIM,'font-size':12,'font-weight':on?600:400},svg).textContent=on?t:'?';
+    if(on){el('text',{x:x+tw/2,y:167,'text-anchor':'middle',fill:WARN,'font-size':9,'font-family':'monospace'},svg).textContent='d'+(i+1);}
+  });
+  var tbx=startX+draft.length*(tw+gap)+16;
+  el('rect',{x:tbx,y:165,w:150,h:54,rx:8,fill:INFO+'1a',stroke:INFO,'stroke-width':1.5},svg);
+  el('text',{x:tbx+75,y:185,'text-anchor':'middle',fill:INFO,'font-size':12,'font-weight':700},svg).textContent='目标模型 7B';
+  el('text',{x:tbx+75,y:201,'text-anchor':'middle',fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='parallel verify · 1 前向';
+  el('text',{x:tbx+75,y:213,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='成本 ≈ 1× 目标步';
+  if(step>=2){
+    el('rect',{x:startX-8,y:280,w:5*(tw+gap)-gap+16,h:54,rx:8,fill:'none',stroke:INFO,'stroke-width':1.2,'stroke-dasharray':'4 3'},svg);
+    el('text',{x:startX+(5*(tw+gap)-gap)/2,y:274,'text-anchor':'middle',fill:INFO,'font-size':10.5,'font-weight':600},svg).textContent='单次并行前向 (parallel forward pass)';
+  }
+  for(var i=0;i<5;i++){
+    var x=startX+i*(tw+gap);
+    var on=(step>=2);
+    el('rect',{x:x,y:290,w:tw,h:34,rx:6,fill:on?'#16243a':'#161922',stroke:on?INFO:BD},svg);
+    el('text',{x:x+tw/2,y:312,'text-anchor':'middle',fill:on?'#9aa0b0':DIM,'font-size':10.5,'font-family':'monospace'},svg).textContent=on?verifyLabels[i]:'?';
+  }
+  for(var i=0;i<5;i++){
+    var x=startX+i*(tw+gap);
+    var on=(step>=3);
+    var c=dColors[i];
+    el('rect',{x:x,y:395,w:tw,h:34,rx:6,fill:on?c+'22':'#161922',stroke:on?c:BD,'stroke-width':on?(i<3?2:1):1,'stroke-dasharray':(on&&i>=3)?'4 3':'none'},svg);
+    el('text',{x:x+tw/2,y:417,'text-anchor':'middle',fill:on?c:DIM,'font-size':12,'font-weight':on?600:400},svg).textContent=on?finalTokens[i]:'?';
+    if(on){el('text',{x:x+tw/2,y:389,'text-anchor':'middle',fill:c,'font-size':8.5,'font-family':'monospace'},svg).textContent=decisions[i];}
+  }
+  if(step>=1){el('path',{d:'M '+(startX+tw/2)+' 104 L '+(startX+tw/2)+' 173',stroke:WARN,'stroke-width':1.5,fill:'none'},svg);}
+  if(step>=2){for(var i=0;i<4;i++){var x=startX+i*(tw+gap)+tw/2;el('path',{d:'M '+x+' 209 L '+x+' 288',stroke:INFO,'stroke-width':1,fill:'none','stroke-dasharray':'2 2'},svg);}}
+  if(step>=3){for(var i=0;i<5;i++){var x=startX+i*(tw+gap)+tw/2;var c=dColors[i];el('path',{d:'M '+x+' 324 L '+x+' 393',stroke:c,'stroke-width':1,fill:'none','stroke-dasharray':i>=3?'2 2':'none'},svg);}}
+  var summary=step===0?'准备开始：草稿-验证范式将用 1 次目标模型前向，验证 5 个候选位置':
+    step===1?'草稿模型串行生成 4 个候选 (成本 ≈ 4× 草稿步)，远快于直接用目标模型':
+    step===2?'目标模型用 1 次前向并行验证 5 个位置 (成本 ≈ 1× 目标步)，远低于 5 次串行':
+    '接受 2 个 + 重采样 1 个 = 共 3 个新 token (vs 串行 1 步 1 个)；总成本 ≈ 1× 目标 + 4× 草稿';
+  document.getElementById('m2-info').innerHTML='<span class="label">阶段 '+step+'</span>'+summary;
+}
+function m2Step(s){m2Draw(s);}
+function m2Auto(){
+  if(m2Timer)clearInterval(m2Timer);
+  var s=0;m2Draw(0);
+  m2Timer=setInterval(function(){s++;if(s>3){clearInterval(m2Timer);m2Timer=null;return;}m2Draw(s);},1400);
+}
+m2Draw(0);
+
+/* ===== M3: 草稿模型 ===== */
+var m3Sizes=[
+  {key:'0.3B',layers:4,params:0.3,speed:18,acc:0.45,color:AC},
+  {key:'0.5B',layers:6,params:0.5,speed:14,acc:0.55,color:AC},
+  {key:'1B',layers:8,params:1.0,speed:9,acc:0.68,color:INFO},
+  {key:'2B',layers:12,params:2.0,speed:5,acc:0.78,color:PUR}
+];
+var m3Cur=1;
+function m3Draw(){
+  var svg=document.getElementById('m3-svg');clear(svg);
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent='草稿模型 vs 目标模型 · 架构与权衡';
+  var d=m3Sizes[m3Cur];
+  var dx=80,dw=240;
+  el('rect',{x:dx,y:60,w:dw,h:54,rx:8,fill:d.color+'1a',stroke:d.color,'stroke-width':1.5},svg);
+  el('text',{x:dx+dw/2,y:82,'text-anchor':'middle',fill:d.color,'font-size':13,'font-weight':700},svg).textContent='草稿模型 '+d.key;
+  el('text',{x:dx+dw/2,y:100,'text-anchor':'middle',fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent=d.layers+' layers · '+d.params+'B params';
+  for(var i=0;i<d.layers;i++){
+    var y=130+i*16;
+    el('rect',{x:dx+30,y:y,w:dw-60,h:12,rx:3,fill:d.color+'30',stroke:d.color,'stroke-width':0.5},svg);
+    el('text',{x:dx+20,y:y+9,'text-anchor':'end',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='L'+(i+1);
+  }
+  var by=130+d.layers*16+24;
+  el('text',{x:dx+14,y:by,fill:'#9aa0b0','font-size':10},svg).textContent='解码速度';
+  el('rect',{x:dx+14,y:by+6,w:dw-28,h:6,rx:2,fill:'#1a1f2e'},svg);
+  el('rect',{x:dx+14,y:by+6,w:(dw-28)*(d.speed/20),h:6,rx:2,fill:d.color},svg);
+  el('text',{x:dx+dw-14,y:by,'text-anchor':'end',fill:d.color,'font-size':10,'font-family':'monospace'},svg).textContent=d.speed+' tok/s';
+  el('text',{x:dx+14,y:by+26,fill:'#9aa0b0','font-size':10},svg).textContent='接受率';
+  el('rect',{x:dx+14,y:by+32,w:dw-28,h:6,rx:2,fill:'#1a1f2e'},svg);
+  el('rect',{x:dx+14,y:by+32,w:(dw-28)*d.acc,h:6,rx:2,fill:AC},svg);
+  el('text',{x:dx+dw-14,y:by+26,'text-anchor':'end',fill:AC,'font-size':10,'font-family':'monospace'},svg).textContent=(d.acc*100|0)+'%';
+  var tx=560,tw=240;
+  el('rect',{x:tx,y:60,w:tw,h:54,rx:8,fill:INFO+'1a',stroke:INFO,'stroke-width':1.5},svg);
+  el('text',{x:tx+tw/2,y:82,'text-anchor':'middle',fill:INFO,'font-size':13,'font-weight':700},svg).textContent='目标模型 7B';
+  el('text',{x:tx+tw/2,y:100,'text-anchor':'middle',fill:DIM,'font-size':10,'font-family':'monospace'},svg).textContent='32 layers · 7B params';
+  for(var i=0;i<12;i++){
+    var y=130+i*16;
+    el('rect',{x:tx+30,y:y,w:tw-60,h:12,rx:3,fill:INFO+'30',stroke:INFO,'stroke-width':0.5},svg);
+    el('text',{x:tx+20,y:y+9,'text-anchor':'end',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='L'+(i+1);
+  }
+  el('text',{x:tx+14,y:by,fill:'#9aa0b0','font-size':10},svg).textContent='解码速度';
+  el('rect',{x:tx+14,y:by+6,w:tw-28,h:6,rx:2,fill:'#1a1f2e'},svg);
+  el('rect',{x:tx+14,y:by+6,w:(tw-28)*(3/20),h:6,rx:2,fill:INFO},svg);
+  el('text',{x:tx+tw-14,y:by,'text-anchor':'end',fill:INFO,'font-size':10,'font-family':'monospace'},svg).textContent='3 tok/s';
+  el('text',{x:tx+14,y:by+26,fill:'#9aa0b0','font-size':10},svg).textContent='接受率';
+  el('rect',{x:tx+14,y:by+32,w:tw-28,h:6,rx:2,fill:'#1a1f2e'},svg);
+  el('rect',{x:tx+14,y:by+32,w:(tw-28)*1.0,h:6,rx:2,fill:INFO},svg);
+  el('text',{x:tx+tw-14,y:by+26,'text-anchor':'end',fill:INFO,'font-size':10,'font-family':'monospace'},svg).textContent='100% (真值)';
+  var speedup=(1+d.acc*(d.speed/3)*(1-d.params/8)).toFixed(1);
+  el('text',{x:360,y:140,fill:WARN,'font-size':11,'font-weight':600},svg).textContent='草稿';
+  el('text',{x:360,y:158,fill:WARN,'font-size':9,'font-family':'monospace'},svg).textContent='串行 γ 步';
+  el('path',{d:'M 360 178 L 360 220 M 350 210 L 360 222 L 370 210',stroke:WARN,'stroke-width':1.5,fill:'none'},svg);
+  el('text',{x:360,y:240,fill:INFO,'font-size':11,'font-weight':600},svg).textContent='验证';
+  el('text',{x:360,y:258,fill:INFO,'font-size':9,'font-family':'monospace'},svg).textContent='1 次前向';
+  el('path',{d:'M 360 278 L 360 320 M 350 310 L 360 322 L 370 310',stroke:INFO,'stroke-width':1.5,fill:'none'},svg);
+  el('text',{x:360,y:340,fill:AC,'font-size':11,'font-weight':600},svg).textContent='加速';
+  el('text',{x:360,y:358,fill:AC,'font-size':9,'font-family':'monospace'},svg).textContent='≈ '+speedup+'× ↑';
+  el('rect',{x:60,y:400,w:800,h:18,rx:5,fill:AC+'12',stroke:AC,'stroke-dasharray':'3 3'},svg);
+  el('text',{x:460,y:413,'text-anchor':'middle',fill:AC,'font-size':10.5,'font-weight':600},svg).textContent='权衡：草稿越大→接受率↑但速度↓；最优解取决于任务难度与硬件带宽';
+  return speedup;
+}
+function m3Set(idx){
+  m3Cur=idx;
+  var sp=m3Draw();
+  var d=m3Sizes[idx];
+  document.getElementById('m3-info').innerHTML='<span class="label">'+d.key+' 草稿</span>层数 '+d.layers+' · 解码速度 '+d.speed+' tok/s · 接受率 '+(d.acc*100|0)+'% · 与 7B 目标协同加速比约 '+sp+'×';
+}
+m3Draw();
+
+/* ===== M4: Medusa 头 ===== */
+var m4Heads=1,m4Tree=false;
+function m4Draw(){
+  var svg=document.getElementById('m4-svg');clear(svg);
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent='Medusa：在隐藏状态上挂多个预测头';
+  var bx=80,by=140,bw=140,bh=210;
+  el('rect',{x:bx,y:by,w:bw,h:bh,rx:10,fill:'#161922',stroke:BD,'stroke-width':1},svg);
+  el('text',{x:bx+bw/2,y:by+22,'text-anchor':'middle',fill:'#e6e8ee','font-size':12,'font-weight':700},svg).textContent='LLM 主干';
+  el('text',{x:bx+bw/2,y:by+38,'text-anchor':'middle',fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='frozen backbone';
+  for(var i=0;i<6;i++){
+    var yy=by+52+i*22;
+    el('rect',{x:bx+18,y:yy,w:bw-36,h:14,rx:3,fill:'#1a2030',stroke:'#2a3040'},svg);
+    el('text',{x:bx+bw/2,y:yy+10,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent='layer '+(i+1);
+  }
+  el('rect',{x:bx+30,y:by+bh-14,w:bw-60,h:10,rx:3,fill:AC+'40',stroke:AC},svg);
+  el('text',{x:bx+bw/2,y:by+bh-16,'text-anchor':'middle',fill:AC,'font-size':9,'font-weight':600},svg).textContent='LM head t+1 (原)';
+  el('rect',{x:bx+bw/2-55,y:by-32,w:110,h:22,rx:4,fill:PUR+'22',stroke:PUR},svg);
+  el('text',{x:bx+bw/2,y:by-18,'text-anchor':'middle',fill:PUR,'font-size':10,'font-weight':600},svg).textContent='hidden state h';
+  el('path',{d:'M '+(bx+bw/2)+' '+(by-10)+' L '+(bx+bw/2)+' '+(by-2),stroke:PUR,'stroke-width':1.5,fill:'none'},svg);
+  var hx=300;
+  el('text',{x:hx,y:78,fill:AC,'font-size':12,'font-weight':700},svg).textContent='Medusa Heads (新增)';
+  el('text',{x:hx,y:94,fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='每个头预测 t+1..t+k 的 token';
+  var colors=[AC,INFO,WARN,PUR];
+  for(var i=0;i<m4Heads;i++){
+    var yy=110+i*52;
+    var c=colors[i];
+    el('rect',{x:hx,y:yy,w:150,h:40,rx:6,fill:c+'1a',stroke:c,'stroke-width':1.5},svg);
+    el('text',{x:hx+75,y:yy+18,'text-anchor':'middle',fill:c,'font-size':11,'font-weight':700},svg).textContent='Medusa Head '+(i+1);
+    el('text',{x:hx+75,y:yy+32,'text-anchor':'middle',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='predicts t+'+(i+1);
+    el('path',{d:'M '+(bx+bw)+' '+(by-20)+' Q '+(hx-30)+' '+(yy+20)+' '+(hx-2)+' '+(yy+20),stroke:c,'stroke-width':1,fill:'none','stroke-dasharray':'3 2','stroke-opacity':0.5},svg);
+  }
+  var trx=560;
+  el('text',{x:trx,y:78,fill:WARN,'font-size':12,'font-weight':700},svg).textContent='候选树 (Tree)';
+  el('text',{x:trx,y:94,fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='top-k 组合 · tree attention 验证';
+  if(m4Tree){
+    var rootX=trx+140,rootY=140;
+    el('circle',{cx:rootX,cy:rootY,r:15,fill:WARN+'30',stroke:WARN,'stroke-width':1.5},svg);
+    el('text',{x:rootX,y:rootY+4,'text-anchor':'middle',fill:WARN,'font-size':9},svg).textContent='t';
+    var c1=[['A',AC],['B',INFO],['C',PUR]];
+    c1.forEach(function(item,i){
+      var cx=rootX-70+i*70,cy=rootY+60;
+      el('line',{x1:rootX,y1:rootY+15,x2:cx,y2:cy-14,stroke:item[1],'stroke-width':1,'stroke-opacity':0.6},svg);
+      el('circle',{cx:cx,cy:cy,r:14,fill:item[1]+'30',stroke:item[1],'stroke-width':1.5},svg);
+      el('text',{x:cx,y:cy+4,'text-anchor':'middle',fill:item[1],'font-size':9},svg).textContent=item[0];
+      var c2=[['X'],['Y']];
+      c2.forEach(function(item2,j){
+        var cx2=cx-22+j*44,cy2=cy+52;
+        el('line',{x1:cx,y1:cy+14,x2:cx2,y2:cy2-11,stroke:item[1],'stroke-width':0.8,'stroke-opacity':0.4},svg);
+        el('circle',{cx:cx2,cy:cy2,r:11,fill:item[1]+'20',stroke:item[1],'stroke-width':1},svg);
+        el('text',{x:cx2,y:cy2+3,'text-anchor':'middle',fill:item[1],'font-size':8},svg).textContent=item2[0];
+      });
+    });
+    el('text',{x:trx,y:280,fill:AC,'font-size':10.5,'font-weight':600},svg).textContent='tree attention 单次前向验证整棵树';
+    el('text',{x:trx,y:296,fill:DIM,'font-size':9.5},svg).textContent='相比 Medusa-1 序列采样，验证成本显著降低';
+  } else {
+    el('text',{x:trx+80,y:170,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='点击"生成候选树"';
+    el('text',{x:trx+80,y:190,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='查看 tree attention 结构';
+  }
+  el('rect',{x:60,y:340,w:800,h:80,rx:8,fill:'#12141c',stroke:BD},svg);
+  el('text',{x:80,y:362,fill:AC,'font-size':11,'font-weight':600},svg).textContent='核心思想：1 次主干前向 → 多头并行预测多个未来位置 → 树形验证';
+  el('text',{x:80,y:380,fill:'#9aa0b0','font-size':10.5},svg).textContent='无需独立草稿模型，仅在末层隐藏状态加 K 个 MLP 头，训练成本低';
+  el('text',{x:80,y:396,fill:DIM,'font-size':10},svg).textContent='代价：每个头独立预测，精度随深度递减；接受率随 k 下降';
+}
+function m4AddHead(){
+  if(m4Heads<4)m4Heads++;m4Tree=false;m4Draw();
+  document.getElementById('m4-info').innerHTML='<span class="label">Medusa 头数</span>当前 '+m4Heads+' 个头，分别预测 t+1 ~ t+'+m4Heads+' 的 token；头越多候选越广但精度递减';
+}
+function m4GenTree(){
+  m4Tree=true;m4Draw();
+  document.getElementById('m4-info').innerHTML='<span class="label">候选树</span>已生成 tree attention 候选树：3×2 = 6 条路径，1 次并行前向全部验证';
+}
+function m4ResetHeads(){
+  m4Heads=1;m4Tree=false;m4Draw();
+  document.getElementById('m4-info').innerHTML='<span class="label">重置</span>Medusa 头数重置为 1，仅预测 t+1 位置';
+}
+m4Draw();
+
+/* ===== M5: EAGLE ===== */
+var m5Timer=null;
+function m5Draw(){
+  var svg=document.getElementById('m5-svg');clear(svg);
+  if(m5Timer){clearInterval(m5Timer);m5Timer=null;}
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent='EAGLE：在特征空间自回归外推';
+  var tx=60,ty=80,tw=160,th=260;
+  el('rect',{x:tx,y:ty,w:tw,h:th,rx:10,fill:'#161922',stroke:BD},svg);
+  el('text',{x:tx+tw/2,y:ty+22,'text-anchor':'middle',fill:INFO,'font-size':12,'font-weight':700},svg).textContent='目标模型 7B';
+  el('text',{x:tx+tw/2,y:ty+38,'text-anchor':'middle',fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='frozen · 提供隐藏状态';
+  for(var i=0;i<8;i++){
+    var yy=ty+54+i*22;
+    el('rect',{x:tx+20,y:yy,w:tw-40,h:14,rx:3,fill:'#1a2030',stroke:'#2a3040'},svg);
+  }
+  el('rect',{x:tx+tw+4,y:ty+100,w:34,h:80,rx:4,fill:PUR+'22',stroke:PUR},svg);
+  el('text',{x:tx+tw+21,y:ty+144,'text-anchor':'middle',fill:PUR,'font-size':8,'font-weight':600,transform:'rotate(90 '+(tx+tw+21)+' '+(ty+144)+')'},svg).textContent='hidden h_t';
+  var ex=300,ey=80,ew=200,eh=210;
+  el('rect',{x:ex,y:ey,w:ew,h:eh,rx:10,fill:AC+'14',stroke:AC,'stroke-width':1.5},svg);
+  el('text',{x:ex+ew/2,y:ey+22,'text-anchor':'middle',fill:AC,'font-size':12,'font-weight':700},svg).textContent='EAGLE 草稿器';
+  el('text',{x:ex+ew/2,y:ey+38,'text-anchor':'middle',fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='1 层 decoder + embedding';
+  el('rect',{x:ex+20,y:ey+56,w:ew-40,h:24,rx:4,fill:PUR+'22',stroke:PUR},svg);
+  el('text',{x:ex+ew/2,y:ey+72,'text-anchor':'middle',fill:PUR,'font-size':9.5},svg).textContent='concat(token_emb, h_t)';
+  el('rect',{x:ex+20,y:ey+90,w:ew-40,h:34,rx:4,fill:AC+'30',stroke:AC},svg);
+  el('text',{x:ex+ew/2,y:ey+108,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='decoder layer';
+  el('text',{x:ex+ew/2,y:ey+120,'text-anchor':'middle',fill:DIM,'font-size':8.5,'font-family':'monospace'},svg).textContent='self-attn + FFN';
+  el('rect',{x:ex+20,y:ey+138,w:ew-40,h:24,rx:4,fill:PUR+'22',stroke:PUR},svg);
+  el('text',{x:ex+ew/2,y:ey+154,'text-anchor':'middle',fill:PUR,'font-size':9.5},svg).textContent='next h_{t+1} (predicted)';
+  el('rect',{x:ex+20,y:ey+172,w:ew-40,h:20,rx:4,fill:INFO+'30',stroke:INFO},svg);
+  el('text',{x:ex+ew/2,y:ey+186,'text-anchor':'middle',fill:INFO,'font-size':9.5},svg).textContent='shared LM head → token';
+  el('path',{d:'M '+(tx+tw+38)+' '+(ty+140)+' L '+(ex-2)+' '+(ey+68),stroke:PUR,'stroke-width':1.5,fill:'none','stroke-dasharray':'3 2'},svg);
+  el('text',{x:(tx+tw+ex)/2,y:ty+128,fill:PUR,'font-size':9},svg).textContent='hidden state';
+  el('path',{d:'M '+(ex+ew)+' '+(ey+150)+' Q '+(ex+ew+50)+' '+(ey+150)+' '+(ex+ew+50)+' '+(ey+108)+' Q '+(ex+ew+50)+' '+(ey+68)+' '+(ex+ew)+' '+(ey+68),stroke:AC,'stroke-width':1.2,fill:'none','stroke-dasharray':'3 2','id':'m5loop'},svg);
+  el('text',{x:ex+ew+30,y:ey+108,fill:AC,'font-size':9,'font-weight':600},svg).textContent='自回归';
+  el('text',{x:ex+ew+22,y:ey+120,fill:AC,'font-size':8,'font-family':'monospace'},svg).textContent='in feature space';
+  var dx=580;
+  el('text',{x:dx,y:78,fill:WARN,'font-size':12,'font-weight':700},svg).textContent='动态草稿树';
+  el('text',{x:dx,y:94,fill:DIM,'font-size':9.5,'font-family':'monospace'},svg).textContent='依据接受概率动态扩展';
+  var nodes=[
+    {x:dx+90,y:130,l:'h1',p:0.92,c:AC},
+    {x:dx+40,y:185,l:'h2a',p:0.78,c:AC},
+    {x:dx+140,y:185,l:'h2b',p:0.71,c:AC},
+    {x:dx+20,y:240,l:'h3a',p:0.55,c:WARN},
+    {x:dx+80,y:240,l:'h3b',p:0.62,c:AC},
+    {x:dx+140,y:240,l:'h3c',p:0.48,c:ERR},
+    {x:dx+200,y:240,l:'h3d',p:0.40,c:ERR}
+  ];
+  var edges=[[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]];
+  edges.forEach(function(e){var a=nodes[e[0]],b=nodes[e[1]];el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:b.c,'stroke-width':1,'stroke-opacity':0.5},svg);});
+  nodes.forEach(function(n){
+    el('circle',{cx:n.x,cy:n.y,r:13,fill:n.c+'25',stroke:n.c,'stroke-width':1.2},svg);
+    el('text',{x:n.x,y:n.y+3,'text-anchor':'middle',fill:n.c,'font-size':8,'font-weight':600},svg).textContent=n.l;
+    el('text',{x:n.x,y:n.y+24,'text-anchor':'middle',fill:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=n.p.toFixed(2);
+  });
+  var cmp=[{x:80,t:'Medusa',d:'多头独立预测',c:PUR,pros:'无需草稿模型',cons:'各头独立，精度递减'},
+    {x:330,t:'EAGLE',d:'特征空间自回归',c:AC,pros:'共享 LM head，精度高',cons:'需训练 1 层 decoder'},
+    {x:580,t:'Lookahead',d:'n-gram Jacobi',c:WARN,pros:'无需训练',cons:'加速有限'}];
+  cmp.forEach(function(c){
+    el('rect',{x:c.x,y:340,w:220,h:90,rx:8,fill:c.c+'14',stroke:c.c,'stroke-width':1},svg);
+    el('text',{x:c.x+12,y:362,fill:c.c,'font-size':12,'font-weight':700},svg).textContent=c.t;
+    el('text',{x:c.x+12,y:380,fill:'#9aa0b0','font-size':10},svg).textContent=c.d;
+    el('text',{x:c.x+12,y:398,fill:AC,'font-size':9.5},svg).textContent='+ '+c.pros;
+    el('text',{x:c.x+12,y:414,fill:ERR,'font-size':9.5},svg).textContent='- '+c.cons;
+  });
+}
+function m5Run(){
+  if(m5Timer)clearInterval(m5Timer);
+  m5Draw();
+  var svg=document.getElementById('m5-svg');
+  var t=0;
+  m5Timer=setInterval(function(){
+    t++;
+    if(t>40){clearInterval(m5Timer);m5Timer=null;return;}
+    var loop=svg.querySelector('#m5loop');
+    if(loop)loop.setAttribute('stroke-width',(1+0.8*Math.abs(Math.sin(t*0.3))).toFixed(2));
+  },80);
+  document.getElementById('m5-info').innerHTML='<span class="label">EAGLE 运行</span>1 层 decoder 在特征空间自回归外推 γ 步，配合动态树 + tree attention 单次验证';
+}
+function m5CompareMedusa(){
+  m5Draw();
+  document.getElementById('m5-info').innerHTML='<span class="label">vs Medusa</span>Medusa 各头独立预测 t+k (无 t+1..t+k-1 依赖)；EAGLE 在特征空间逐步外推，捕获位置间依赖，接受率更高';
+}
+function m5ShowTree(){
+  m5Draw();
+  document.getElementById('m5-info').innerHTML='<span class="label">动态树</span>依据上下文自适应选择树深度/宽度，高概率分支继续扩展，低概率剪枝';
+}
+m5Draw();
+
+/* ===== M6: KV 缓存优化 ===== */
+var m6Mode='paged';
+function m6Draw(){
+  var svg=document.getElementById('m6-svg');clear(svg);
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent=m6Mode==='standard'?'标准 KV 缓存 · 连续显存分配 (碎片化)':'PagedAttention · 分页式显存管理 (类 OS 虚拟内存)';
+  if(m6Mode==='standard'){
+    el('text',{x:60,y:60,fill:'#9aa0b0','font-size':11},svg).textContent='请求 1: 按 max_len 预分配连续显存';
+    el('rect',{x:60,y:70,w:560,h:34,rx:4,fill:AC+'18',stroke:AC},svg);
+    el('rect',{x:60,y:70,w:170,h:34,rx:4,fill:AC+'40'},svg);
+    el('text',{x:145,y:91,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='已用 30%';
+    el('text',{x:375,y:91,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='预分配但未用 (浪费)';
+    el('text',{x:60,y:130,fill:'#9aa0b0','font-size':11},svg).textContent='请求 2: 按 max_len 预分配连续显存';
+    el('rect',{x:60,y:140,w:560,h:34,rx:4,fill:INFO+'18',stroke:INFO},svg);
+    el('rect',{x:60,y:140,w:410,h:34,rx:4,fill:INFO+'40'},svg);
+    el('text',{x:265,y:161,'text-anchor':'middle',fill:INFO,'font-size':10,'font-weight':600},svg).textContent='已用 73%';
+    el('text',{x:495,y:161,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='浪费';
+    el('text',{x:60,y:200,fill:'#9aa0b0','font-size':11},svg).textContent='请求 3: 显存碎片化 → 无法分配 → OOM';
+    el('rect',{x:60,y:210,w:560,h:34,rx:4,fill:'none',stroke:ERR,'stroke-width':1.5,'stroke-dasharray':'6 3'},svg);
+    el('text',{x:340,y:231,'text-anchor':'middle',fill:ERR,'font-size':11,'font-weight':600},svg).textContent='× Out of Memory (碎片化)';
+    el('rect',{x:60,y:270,w:720,h:150,rx:8,fill:'#12141c',stroke:BD},svg);
+    el('text',{x:80,y:294,fill:ERR,'font-size':12,'font-weight':700},svg).textContent='问题：连续分配导致显存碎片化与浪费';
+    el('text',{x:80,y:314,fill:'#9aa0b0','font-size':11},svg).textContent='• 每请求按 max_len 预分配，实际生成常远短于 max_len';
+    el('text',{x:80,y:332,fill:'#9aa0b0','font-size':11},svg).textContent='• 长短请求混合时显存碎片化，无法装下新请求';
+    el('text',{x:80,y:350,fill:'#9aa0b0','font-size':11},svg).textContent='• 批处理大小受限于显存峰值，吞吐低';
+    el('text',{x:80,y:368,fill:'#9aa0b0','font-size':11},svg).textContent='• KV 缓存随上下文长度线性增长，长上下文尤为严重';
+    el('text',{x:80,y:392,fill:WARN,'font-size':10.5,'font-weight':600},svg).textContent='→ vLLM PagedAttention 用分页式管理解决此问题';
+  } else {
+    el('text',{x:60,y:60,fill:'#9aa0b0','font-size':11},svg).textContent='物理块池 (block pool · 每块固定大小如 16 tokens)';
+    var bx=60,by=70,bw=32,bh=24,gap=4;
+    var used=[1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1];
+    for(var i=0;i<40;i++){
+      var r=Math.floor(i/8),c=i%8;
+      var x=bx+c*(bw+gap),y=by+r*(bh+gap);
+      var isUsed=used[i]===1;
+      el('rect',{x:x,y:y,w:bw,h:bh,rx:3,fill:isUsed?AC+'40':'#1a1f2e',stroke:isUsed?AC:BD,'stroke-width':0.8},svg);
+      el('text',{x:x+bw/2,y:y+bh/2+3,'text-anchor':'middle',fill:isUsed?AC:DIM,'font-size':8,'font-family':'monospace'},svg).textContent=isUsed?'B'+i:'·';
+    }
+    el('text',{x:400,y:60,fill:'#9aa0b0','font-size':11},svg).textContent='请求 1 块表 (逻辑 → 物理)';
+    var r1=[0,1,2,4,5,7];
+    el('rect',{x:400,y:70,w:280,h:30,rx:4,fill:AC+'14',stroke:AC},svg);
+    el('text',{x:410,y:89,fill:AC,'font-size':10,'font-family':'monospace'},svg).textContent=r1.map(function(b){return 'B'+b;}).join(' → ');
+    el('text',{x:400,y:118,fill:'#9aa0b0','font-size':11},svg).textContent='请求 2 块表';
+    var r2=[3,6,8,11,12];
+    el('rect',{x:400,y:128,w:280,h:30,rx:4,fill:INFO+'14',stroke:INFO},svg);
+    el('text',{x:410,y:147,fill:INFO,'font-size':10,'font-family':'monospace'},svg).textContent=r2.map(function(b){return 'B'+b;}).join(' → ');
+    el('text',{x:400,y:176,fill:'#9aa0b0','font-size':11},svg).textContent='请求 3 (新加入，按需分配)';
+    var r3=[13,14,16,19,20,22];
+    el('rect',{x:400,y:186,w:280,h:30,rx:4,fill:WARN+'14',stroke:WARN},svg);
+    el('text',{x:410,y:205,fill:WARN,'font-size':10,'font-family':'monospace'},svg).textContent=r3.map(function(b){return 'B'+b;}).join(' → ');
+    el('text',{x:710,y:80,fill:DIM,'font-size':9},svg).textContent='↔ 映射';
+    el('text',{x:710,y:138,fill:DIM,'font-size':9},svg).textContent='↔ 映射';
+    el('text',{x:710,y:196,fill:DIM,'font-size':9},svg).textContent='↔ 映射';
+    el('rect',{x:60,y:270,w:720,h:150,rx:8,fill:'#12141c',stroke:BD},svg);
+    el('text',{x:80,y:294,fill:AC,'font-size':12,'font-weight':700},svg).textContent='PagedAttention 优势：消除碎片化，显存利用率 ~100%';
+    el('text',{x:80,y:314,fill:'#9aa0b0','font-size':11},svg).textContent='• 类似 OS 虚拟内存：逻辑序列映射到离散物理块';
+    el('text',{x:80,y:332,fill:'#9aa0b0','font-size':11},svg).textContent='• 按需分配，无 max_len 预留 → 显存利用率 60% → 96%';
+    el('text',{x:80,y:350,fill:'#9aa0b0','font-size':11},svg).textContent='• 支持 copy-on-write 前缀共享 (beam search/共享 system prompt)';
+    el('text',{x:80,y:368,fill:'#9aa0b0','font-size':11},svg).textContent='• 批处理大小可显著增大 → 吞吐量提升 2-4×';
+    el('text',{x:80,y:392,fill:AC,'font-size':10.5,'font-weight':600},svg).textContent='→ vLLM/SGLang/TGI 等主流推理引擎的核心技术';
+  }
+}
+function m6Set(mode){
+  m6Mode=mode;m6Draw();
+  document.getElementById('m6-info').innerHTML='<span class="label">'+(mode==='standard'?'标准模式':'PagedAttention')+'</span>'+(mode==='standard'?'连续显存分配，存在碎片化与预分配浪费问题':'分页式管理，消除碎片化，显存利用率从 ~60% 提升至 ~96%');
+}
+m6Draw();
+
+/* ===== M7: 连续批处理 ===== */
+var m7Mode='continuous';
+function m7Draw(){
+  var svg=document.getElementById('m7-svg');clear(svg);
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent=m7Mode==='static'?'静态批处理：等所有请求完成才能加入新请求':'连续批处理：请求随时加入/离开，GPU 持续饱和';
+  var x0=170,y0=70,laneH=34,laneGap=8,lanes=4;
+  for(var t=0;t<=10;t++){
+    var x=x0+t*68;
+    el('line',{x1:x,y1:y0-10,x2:x,y2:y0+lanes*(laneH+laneGap)+10,stroke:'#1a1f2e','stroke-width':0.5},svg);
+    el('text',{x:x,y:y0-16,'text-anchor':'middle',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent='t'+t;
+  }
+  el('text',{x:30,y:y0-12,fill:DIM,'font-size':10},svg).textContent='请求 lane →';
+  el('text',{x:30,y:y0+50,fill:DIM,'font-size':9,transform:'rotate(-90 30 '+(y0+50)+')'},svg).textContent='时间 ↓';
+  var laneLabels=['Req A (短)','Req B (长)','Req C (中)','Req D (新)'];
+  laneLabels.forEach(function(lbl,i){el('text',{x:160,y:y0+i*(laneH+laneGap)+laneH/2+4,'text-anchor':'end',fill:'#9aa0b0','font-size':11},svg).textContent=lbl});
+  var reqs=[{arrive:0,end:3,color:AC},{arrive:0,end:8,color:INFO},{arrive:0,end:5,color:PUR},{arrive:4,end:9,color:WARN}];
+  if(m7Mode==='static'){
+    el('rect',{x:x0,y:y0-6,w:8*68,h:3*(laneH+laneGap)+6,rx:6,fill:'none',stroke:ERR,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+    el('text',{x:x0+8*68/2,y:y0-14,'text-anchor':'middle',fill:ERR,'font-size':10,'font-weight':600},svg).textContent='Batch 1 (必须等 B 完成才能开下一批)';
+    for(var i=0;i<3;i++){
+      var r=reqs[i];var y=y0+i*(laneH+laneGap);
+      el('rect',{x:x0+r.arrive*68,y:y,w:(r.end-r.arrive)*68,h:laneH,rx:4,fill:r.color+'30',stroke:r.color},svg);
+      el('text',{x:x0+r.arrive*68+(r.end-r.arrive)*34,y:y+laneH/2+4,'text-anchor':'middle',fill:r.color,'font-size':10,'font-weight':600},svg).textContent='gen '+r.end+' steps';
+    }
+    var y4=y0+3*(laneH+laneGap);
+    el('rect',{x:x0+4*68,y:y4,w:4*68,h:laneH,rx:4,fill:'none',stroke:ERR,'stroke-width':1,'stroke-dasharray':'4 3'},svg);
+    el('text',{x:x0+4*68+2*68,y:y4+laneH/2+4,'text-anchor':'middle',fill:ERR,'font-size':10,'font-weight':600},svg).textContent='D 等待 (无法加入)';
+    el('rect',{x:x0+8*68,y:y0-6,w:2*68,h:3*(laneH+laneGap)+6,rx:6,fill:'none',stroke:DIM,'stroke-dasharray':'2 2'},svg);
+    el('text',{x:x0+9*68,y:y0+3*(laneH+laneGap)/2,'text-anchor':'middle',fill:DIM,'font-size':10,transform:'rotate(-90 '+(x0+9*68)+' '+(y0+3*(laneH+laneGap)/2)+')'},svg).textContent='GPU 空闲';
+  } else {
+    for(var i=0;i<4;i++){
+      var r=reqs[i];var y=y0+i*(laneH+laneGap);
+      el('rect',{x:x0+r.arrive*68,y:y,w:(r.end-r.arrive)*68,h:laneH,rx:4,fill:r.color+'30',stroke:r.color},svg);
+      el('text',{x:x0+r.arrive*68+(r.end-r.arrive)*34,y:y+laneH/2+4,'text-anchor':'middle',fill:r.color,'font-size':10,'font-weight':600},svg).textContent='gen ('+r.arrive+'→'+r.end+')';
+    }
+    el('rect',{x:x0,y:y0-6,w:9*68,h:4*(laneH+laneGap)+6,rx:6,fill:'none',stroke:AC,'stroke-width':1.5},svg);
+    el('text',{x:x0+9*68/2,y:y0-14,'text-anchor':'middle',fill:AC,'font-size':10,'font-weight':600},svg).textContent='Continuous Batch · GPU 持续饱和';
+    el('text',{x:x0+3*68,y:y0-2,'text-anchor':'middle',fill:AC,'font-size':9,'font-weight':600},svg).textContent='A 完成 ✓';
+    el('text',{x:x0+4*68,y:y0+3*(laneH+laneGap)-8,'text-anchor':'middle',fill:WARN,'font-size':9,'font-weight':600},svg).textContent='D 在 t=4 加入 ↑';
+  }
+  var by=y0+4*(laneH+laneGap)+24;
+  el('rect',{x:60,y:by,w:820,h:90,rx:8,fill:'#12141c',stroke:BD},svg);
+  if(m7Mode==='static'){
+    el('text',{x:80,y:by+22,fill:ERR,'font-size':12,'font-weight':700},svg).textContent='静态批处理问题：批大小固定，等最长请求完成才能开下一批';
+    el('text',{x:80,y:by+42,fill:'#9aa0b0','font-size':11},svg).textContent='• 短请求完成后 lane 空闲，GPU 利用率低';
+    el('text',{x:80,y:by+60,fill:'#9aa0b0','font-size':11},svg).textContent='• 新到达请求必须排队等待整批完成，延迟高';
+    el('text',{x:80,y:by+78,fill:WARN,'font-size':10.5,'font-weight':600},svg).textContent='→ 显著的 GPU 空闲与尾延迟问题';
+  } else {
+    el('text',{x:80,y:by+22,fill:AC,'font-size':12,'font-weight':700},svg).textContent='连续批处理 (Continuous Batching)：iteration 级别动态调度';
+    el('text',{x:80,y:by+42,fill:'#9aa0b0','font-size':11},svg).textContent='• 每次解码步可加入新请求/移除完成请求，lane 即时复用';
+    el('text',{x:80,y:by+60,fill:'#9aa0b0','font-size':11},svg).textContent='• GPU 始终饱和，吞吐量提升 4-8×，P99 延迟显著降低';
+    el('text',{x:80,y:by+78,fill:AC,'font-size':10.5,'font-weight':600},svg).textContent='→ vLLM/TGI 等主流推理引擎默认采用';
+  }
+}
+function m7Set(mode){
+  m7Mode=mode;m7Draw();
+  document.getElementById('m7-info').innerHTML='<span class="label">'+(mode==='static'?'静态批处理':'连续批处理')+'</span>'+(mode==='static'?'GPU 利用率低，新请求需排队等待整批完成':'GPU 持续饱和，吞吐量提升 4-8×，P99 延迟降低');
+}
+function m7AddReq(){
+  m7Mode='continuous';m7Draw();
+  document.getElementById('m7-info').innerHTML='<span class="label">添加请求</span>新请求 D 在 t=4 加入第 4 lane，无需等待上一批完成。这正是连续批处理的核心优势';
+}
+m7Draw();
+
+/* ===== M8: 性能对比 ===== */
+var m8Metric='throughput';
+var m8Data={
+  throughput:[
+    {m:'基线自回归',v:1.0,c:DIM},
+    {m:'推测解码',v:2.1,c:WARN},
+    {m:'Medusa-2',v:2.6,c:PUR},
+    {m:'EAGLE',v:3.4,c:AC},
+    {m:'+连续批处理',v:8.5,c:INFO}
+  ],
+  latency:[
+    {m:'基线自回归',v:1.0,c:DIM},
+    {m:'推测解码',v:0.62,c:WARN},
+    {m:'Medusa-2',v:0.55,c:PUR},
+    {m:'EAGLE',v:0.42,c:AC},
+    {m:'+连续批处理',v:0.85,c:INFO}
+  ],
+  speedup:[
+    {m:'基线自回归',v:1.0,c:DIM},
+    {m:'推测解码',v:2.1,c:WARN},
+    {m:'Medusa-2',v:2.6,c:PUR},
+    {m:'EAGLE',v:3.4,c:AC},
+    {m:'+连续批处理',v:8.5,c:INFO}
+  ]
+};
+var m8Labels={throughput:'吞吐量 (相对 tokens/s)',latency:'单 token 延迟 (相对, 越低越好)',speedup:'端到端加速比 (×)'};
+function m8Draw(){
+  var svg=document.getElementById('m8-svg');clear(svg);
+  var data=m8Data[m8Metric];
+  var maxV=0;data.forEach(function(d){if(d.v>maxV)maxV=d.v;});
+  el('text',{x:460,y:24,'text-anchor':'middle',fill:AC,'font-size':15,'font-weight':700},svg).textContent=m8Labels[m8Metric];
+  var cx=120,cy=60,cw=720,ch=280;
+  el('line',{x1:cx,y1:cy,x2:cx,y2:cy+ch,stroke:BD,'stroke-width':1},svg);
+  el('line',{x1:cx,y1:cy+ch,x2:cx+cw,y2:cy+ch,stroke:BD,'stroke-width':1},svg);
+  for(var i=0;i<=5;i++){
+    var v=(maxV/5)*i;
+    var y=cy+ch-(v/maxV)*ch;
+    el('line',{x1:cx-4,y1:y,x2:cx,y2:y,stroke:BD},svg);
+    el('text',{x:cx-8,y:y+3,'text-anchor':'end',fill:DIM,'font-size':9,'font-family':'monospace'},svg).textContent=v.toFixed(1);
+  }
+  el('text',{x:cx-50,y:cy+ch/2,fill:DIM,'font-size':10,transform:'rotate(-90 '+(cx-50)+' '+(cy+ch/2)+')'},svg).textContent=m8Metric==='latency'?'相对延迟':'相对值';
+  var barW=80,gap=(cw-data.length*barW)/(data.length+1);
+  data.forEach(function(d,i){
+    var x=cx+gap+i*(barW+gap);
+    var bh=(d.v/maxV)*ch;
+    var y=cy+ch-bh;
+    el('rect',{x:x,y:y,w:barW,h:bh,rx:4,fill:d.c+'30',stroke:d.c,'stroke-width':1.5},svg);
+    el('text',{x:x+barW/2,y:y-8,'text-anchor':'middle',fill:d.c,'font-size':13,'font-weight':700,'font-family':'monospace'},svg).textContent=(m8Metric==='latency'?d.v.toFixed(2):d.v.toFixed(1))+(m8Metric==='speedup'?'×':'');
+    el('text',{x:x+barW/2,y:cy+ch+18,'text-anchor':'middle',fill:'#e6e8ee','font-size':10.5,'font-weight':600},svg).textContent=d.m;
+    if(i===0){
+      el('line',{x1:cx,y1:y,x2:cx+cw,y2:y,stroke:DIM,'stroke-width':0.5,'stroke-dasharray':'3 3'},svg);
+      el('text',{x:cx+cw-4,y:y-4,'text-anchor':'end',fill:DIM,'font-size':9},svg).textContent='基线 1.0';
+    }
+  });
+  el('text',{x:cx+cw/2,y:cy+ch+48,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='方法 (相对基线归一化，基线=1.0)';
+  var legY=cy+ch+70;
+  el('rect',{x:60,y:legY,w:820,h:60,rx:8,fill:'#12141c',stroke:BD},svg);
+  el('text',{x:80,y:legY+22,fill:AC,'font-size':11,'font-weight':700},svg).textContent='解读：';
+  if(m8Metric==='throughput'){
+    el('text',{x:80,y:legY+40,fill:'#9aa0b0','font-size':10.5},svg).textContent='• 推测解码 ~2× 吞吐；Medusa/EAGLE 通过多头/特征外推提升至 2.6-3.4×';
+    el('text',{x:80,y:legY+56,fill:'#9aa0b0','font-size':10.5},svg).textContent='• 叠加连续批处理后吞吐可达 8× 以上 (系统层与算法层正交可叠加)';
+  } else if(m8Metric==='latency'){
+    el('text',{x:80,y:legY+40,fill:'#9aa0b0','font-size':10.5},svg).textContent='• EAGLE 把单 token 延迟降至 0.42× (节省 58% 等待)，交互体验显著改善';
+    el('text',{x:80,y:legY+56,fill:'#9aa0b0','font-size':10.5},svg).textContent='• 连续批处理因 GPU 饱和对单请求延迟影响小，主要提升吞吐';
+  } else {
+    el('text',{x:80,y:legY+40,fill:'#9aa0b0','font-size':10.5},svg).textContent='• 算法层 (推测/Medusa/EAGLE) 加速 2-3.4×；系统层 (连续批处理) 额外叠加 2-3×';
+    el('text',{x:80,y:legY+56,fill:'#9aa0b0','font-size':10.5},svg).textContent='• 二者正交组合，端到端可达 8× 以上加速，且无质量损失';
+  }
+}
+function m8Set(metric){
+  m8Metric=metric;m8Draw();
+  document.getElementById('m8-info').innerHTML='<span class="label">'+m8Labels[metric]+'</span>切换指标查看不同方法的相对表现（基线=1.0）。';
+}
+m8Draw();
+
+window.addEventListener('beforeunload',function(){for(var i=1;i<100000;i++){try{clearInterval(i)}catch(e){}}});
+</script>
+</body>
+</html>

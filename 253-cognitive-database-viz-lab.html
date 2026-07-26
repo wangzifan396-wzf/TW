@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>认知数据库与GPU原生数据库 · 可视化实验室 253</title>
+<style>
+:root{
+  --bg:#0a0b0f;
+  --bg-2:#12141c;
+  --bg-3:#1a1d28;
+  --panel:#14161f;
+  --panel-2:#1b1e29;
+  --accent:#00d4aa;
+  --accent-2:#00a3ff;
+  --accent-3:#ff6b9d;
+  --accent-4:#ffb84d;
+  --accent-5:#a78bfa;
+  --text:#e8ecf4;
+  --text-dim:#8b94a8;
+  --text-faint:#5b6377;
+  --border:#262b3a;
+  --border-2:#333a4d;
+  --grid:#1c2030;
+  --ok:#00d4aa;
+  --warn:#ffb84d;
+  --bad:#ff6b9d;
+  --mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',Consolas,monospace;
+  --sans:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+  min-height:100vh;
+}
+/* subtle static grid backdrop */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:46px 46px;
+  opacity:.35;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 80%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 80%);
+}
+svg{display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+
+/* ===== HEADER ===== */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  background:rgba(10,11,15,.82);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 26px;
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .logo{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  color:#0a0b0f;font-weight:800;font-size:15px;
+  box-shadow:0 0 18px rgba(0,212,170,.35);
+}
+.brand .bt{font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand .bs{color:var(--text-faint);font-size:12px;font-family:var(--mono)}
+.topbar .meta{display:flex;gap:18px;align-items:center;font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+.topbar .meta .pill{padding:4px 10px;border:1px solid var(--border-2);border-radius:20px;color:var(--accent)}
+
+/* ===== HERO ===== */
+.hero{padding:46px 26px 18px;max-width:1180px;margin:0 auto}
+.hero .eye{display:inline-flex;align-items:center;gap:10px;font-size:12px;color:var(--accent);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px}
+.hero .eye::before{content:'';width:28px;height:1px;background:var(--accent)}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:-.025em;line-height:1.12;margin-bottom:16px}
+.hero h1 .ac{color:var(--accent)}
+.hero p{font-size:15.5px;color:var(--text-dim);max-width:780px}
+.hero .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.hero .tag{font-size:11px;font-family:var(--mono);color:var(--text-dim);padding:4px 10px;border:1px solid var(--border-2);border-radius:6px}
+.hero .tag b{color:var(--accent);font-weight:600}
+
+/* ===== TABS ===== */
+.tabwrap{max-width:1180px;margin:14px auto 0;padding:0 26px}
+.tabbar{
+  display:flex;gap:4px;overflow-x:auto;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:6px;
+  scrollbar-width:thin;scrollbar-color:var(--border-2) transparent;
+}
+.tabbar::-webkit-scrollbar{height:6px}
+.tabbar::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:3px}
+.tab{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  padding:9px 14px;border-radius:8px;cursor:pointer;
+  font-size:13px;color:var(--text-dim);white-space:nowrap;
+  border:1px solid transparent;background:transparent;
+  transition:color .18s,background .18s,border-color .18s;
+}
+.tab .tn{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+.tab:hover{color:var(--text);background:var(--bg-2)}
+.tab.active{color:var(--bg);background:var(--accent);border-color:var(--accent);font-weight:600}
+.tab.active .tn{color:rgba(10,11,15,.7)}
+
+/* ===== MODULE ===== */
+.lab{max-width:1180px;margin:18px auto 60px;padding:0 26px}
+.module{display:none}
+.module.active{display:block}
+.mhead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;flex-wrap:wrap}
+.mhead .ml{display:flex;align-items:center;gap:14px}
+.mhead .num{
+  font-family:var(--mono);font-size:13px;color:var(--accent);
+  background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);
+  padding:4px 10px;border-radius:6px;
+}
+.mhead h2{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.mhead h2 small{color:var(--text-faint);font-weight:400;font-size:13px;font-family:var(--mono);margin-left:8px}
+.mhead .mdesc{font-size:13px;color:var(--text-dim);max-width:560px;margin-top:4px}
+
+.stage{
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:18px;position:relative;overflow:hidden;
+}
+.stage::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2),transparent 60%);
+}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12.5px;font-family:var(--mono);
+  color:var(--accent);background:rgba(0,212,170,.08);
+  border:1px solid rgba(0,212,170,.28);padding:7px 13px;border-radius:8px;cursor:pointer;
+  transition:color .18s,background .18s,border-color .18s,transform .12s;
+}
+.btn:hover{background:rgba(0,212,170,.16);border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.alt{color:var(--accent-2);background:rgba(0,163,255,.08);border-color:rgba(0,163,255,.28)}
+.btn.alt:hover{background:rgba(0,163,255,.16);border-color:var(--accent-2)}
+.btn.warn{color:var(--accent-4);background:rgba(255,184,77,.08);border-color:rgba(255,184,77,.28)}
+.btn.warn:hover{background:rgba(255,184,77,.16);border-color:var(--accent-4)}
+.btn.ghost{color:var(--text-dim);background:transparent;border-color:var(--border-2)}
+.btn.ghost:hover{color:var(--text);border-color:var(--border-2);background:var(--bg-2)}
+.spacer{flex:1}
+.stat{font-family:var(--mono);font-size:12px;color:var(--text-dim);padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2)}
+.stat b{color:var(--accent);font-weight:600}
+
+.viz{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:10px;
+  padding:8px;overflow:hidden;
+}
+.viz svg{display:block;width:100%;height:auto}
+
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-dim);font-family:var(--mono)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.info{
+  margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;
+}
+.kbox{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;
+}
+.kbox .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-family:var(--mono);margin-bottom:6px}
+.kbox .v{font-size:15px;font-weight:600;color:var(--text)}
+.kbox .v.ac{color:var(--accent)}
+.kbox .x{font-size:12px;color:var(--text-dim);margin-top:5px}
+
+.flownote{
+  margin-top:14px;padding:13px 16px;border-radius:10px;
+  background:rgba(0,212,170,.05);border:1px solid rgba(0,212,170,.18);
+  font-size:13px;color:var(--text-dim);font-family:var(--mono);
+}
+.flownote b{color:var(--accent)}
+
+.foot{border-top:1px solid var(--border);padding:26px;text-align:center;color:var(--text-faint);font-size:12px;font-family:var(--mono)}
+.foot b{color:var(--accent)}
+
+/* svg text helpers */
+.t-h1{font-size:16px;font-weight:700;fill:var(--text)}
+.t-h2{font-size:13px;font-weight:600;fill:var(--text)}
+.t-lbl{font-size:11px;fill:var(--text-dim)}
+.t-mono{font-size:11px;fill:var(--text-dim);font-family:var(--mono)}
+.t-val{font-size:12px;font-weight:600;fill:var(--accent);font-family:var(--mono)}
+.t-acc{font-size:11px;font-weight:600;fill:var(--accent);font-family:var(--mono)}
+
+@media(max-width:760px){
+  .hero h1{font-size:28px}
+  .mhead h2{font-size:18px}
+  .topbar .meta{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">CD</div>
+    <div>
+      <div class="bt">认知数据库与GPU原生数据库</div>
+      <div class="bs">Cognitive Database · GPU-Native DB · Visualization Lab #253</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span class="pill">GPU-NATIVE</span>
+    <span>8 MODULES</span>
+    <span>ZERO DEPS</span>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="eye">Cognitive Database Visualization Lab</div>
+  <h1>认知数据库 / <span class="ac">GPU原生数据库</span> 交互可视化</h1>
+  <p>认知数据库将 AI 推理、向量检索与关系查询融合进同一引擎，并直接在 GPU 上执行。本实验室以 8 个可交互 SVG 模块展示 GPU 原生查询执行、向量+关系融合、认知索引、AI 查询优化、实时分析、GPU 数据压缩等核心机制，并与传统数据库逐项对比。</p>
+  <div class="tags">
+    <span class="tag"><b>GPU</b> Native Query</span>
+    <span class="tag"><b>AI</b> Native Architecture</span>
+    <span class="tag"><b>Vector</b> + Relational</span>
+    <span class="tag"><b>Cognitive</b> Optimization</span>
+    <span class="tag"><b>Zero</b> External Deps</span>
+  </div>
+</div>
+
+<div class="tabwrap">
+  <div class="tabbar" id="tabbar">
+    <div class="tab active" onclick="switchTab(1)"><span class="tn">M1</span> 全景</div>
+    <div class="tab" onclick="switchTab(2)"><span class="tn">M2</span> GPU原生查询</div>
+    <div class="tab" onclick="switchTab(3)"><span class="tn">M3</span> 向量+关系融合</div>
+    <div class="tab" onclick="switchTab(4)"><span class="tn">M4</span> 认知索引</div>
+    <div class="tab" onclick="switchTab(5)"><span class="tn">M5</span> 查询优化器</div>
+    <div class="tab" onclick="switchTab(6)"><span class="tn">M6</span> 实时分析</div>
+    <div class="tab" onclick="switchTab(7)"><span class="tn">M7</span> 数据压缩</div>
+    <div class="tab" onclick="switchTab(8)"><span class="tn">M8</span> 对比</div>
+  </div>
+</div>
+
+<div class="lab">
+
+<!-- ===================== M1 全景 ===================== -->
+<section class="module active" id="m1">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M1</span>
+      <div><h2>认知数据库全景 <small>Cognitive Database Overview</small></h2>
+      <div class="mdesc">从应用层到 GPU 存储层，认知数据库的五层架构。数据流自上而下编译，结果流自下而上返回。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m1Flow()">▶ 运行数据流</button>
+      <button class="btn alt" onclick="m1Highlight()">切换高亮层</button>
+      <button class="btn ghost" onclick="m1Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m1stat">阶段: <b>就绪</b></div>
+    </div>
+    <div class="viz"><svg id="svg1" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i> 认知/服务层</span>
+      <span><i style="background:#00a3ff"></i> 优化/执行层</span>
+      <span><i style="background:#a78bfa"></i> 存储/加速层</span>
+      <span><i style="background:#ffb84d"></i> 数据流</span>
+    </div>
+  </div>
+  <div class="info">
+    <div class="kbox"><div class="k">架构核心理念</div><div class="v ac">AI 原生</div><div class="x">推理与查询在同一引擎，无需数据搬运</div></div>
+    <div class="kbox"><div class="k">执行底座</div><div class="v ac">GPU 并行</div><div class="x">数千核同时处理大规模数据</div></div>
+    <div class="kbox"><div class="k">数据模型</div><div class="v ac">向量 + 关系</div><div class="x">统一抽象，原生支持语义检索</div></div>
+    <div class="kbox"><div class="k">智能层</div><div class="v ac">认知索引</div><div class="x">学习索引 / 代价模型 / 自调优</div></div>
+  </div>
+</section>
+
+<!-- ===================== M2 GPU原生查询 ===================== -->
+<section class="module" id="m2">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M2</span>
+      <div><h2>GPU 原生查询执行 <small>GPU-Native Query Execution</small></h2>
+      <div class="mdesc">查询被编译为 GPU kernel，按 SIMT 模型分发到流多处理器(SM)与线程束(warp)，数万线程并行扫描列存数据。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m2Run()">▶ 执行查询</button>
+      <button class="btn alt" onclick="m2ToggleSize()">切换数据量</button>
+      <button class="btn ghost" onclick="m2Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m2stat">吞吐: <b>—</b></div>
+    </div>
+    <div class="viz"><svg id="svg2" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i> 活跃线程束</span>
+      <span><i style="background:#00a3ff"></i> SM(流多处理器)</span>
+      <span><i style="background:#ff6b9d"></i> 结果聚合</span>
+      <span><i style="background:#2a2f3e"></i> 空闲核</span>
+    </div>
+  </div>
+  <div class="info">
+    <div class="kbox"><div class="k">并行模型</div><div class="v ac">SIMT</div><div class="x">单指令多线程，warp 32 线程同步</div></div>
+    <div class="kbox"><div class="k">数据布局</div><div class="v ac">列式内存</div><div class="x">合并访存，最大化显存带宽</div></div>
+    <div class="kbox"><div class="k">算子</div><div class="v ac">Kernel 化</div><div class="x">Scan/Filter/Join/Agg 全 GPU 实现</div></div>
+    <div class="kbox"><div class="k">吞吐量级</div><div class="v ac">10⁹ 行/秒</div><div class="x">单卡扫描吞吐 vs CPU 提升 50–100×</div></div>
+  </div>
+</section>
+
+<!-- ===================== M3 向量+关系融合 ===================== -->
+<section class="module" id="m3">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M3</span>
+      <div><h2>向量 + 关系融合 <small>Vector-Relational Fusion</small></h2>
+      <div class="mdesc">一条查询同时表达语义相似度(向量 ANN)与结构化过滤(关系)。引擎可先过滤再检索，或先检索再过滤。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m3Run()">▶ 执行融合查询</button>
+      <button class="btn alt" onclick="m3ToggleStrategy()">切换策略</button>
+      <button class="btn ghost" onclick="m3Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m3stat">策略: <b>预过滤</b></div>
+    </div>
+    <div class="viz"><svg id="svg3" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i> 关系索引(B-Tree)</span>
+      <span><i style="background:#00a3ff"></i> 向量索引(HNSW/IVF)</span>
+      <span><i style="background:#ff6b9d"></i> 融合/Top-K</span>
+      <span><i style="background:#ffb84d"></i> 候选数据点</span>
+    </div>
+  </div>
+  <div class="flownote">SELECT id, embedding &lt;=&gt; $q FROM products <b>WHERE category='电子' AND price&lt;5000</b> ORDER BY embedding &lt;=&gt; $q LIMIT 10</div>
+</section>
+
+<!-- ===================== M4 认知索引 ===================== -->
+<section class="module" id="m4">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M4</span>
+      <div><h2>认知索引 <small>Cognitive / Learned Indexing</small></h2>
+      <div class="mdesc">用机器学习模型学习键分布的累积分布函数(CDF)，预测键的位置，替代或增强传统 B-Tree。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m4Train()">▶ 训练学习索引</button>
+      <button class="btn alt" onclick="m4Query()">查询随机键</button>
+      <button class="btn warn" onclick="m4ToggleIndex()">切换索引类型</button>
+      <button class="btn ghost" onclick="m4Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m4stat">索引: <b>B-Tree</b></div>
+    </div>
+    <div class="viz"><svg id="svg4" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i> 真实 CDF(数据分布)</span>
+      <span><i style="background:#00a3ff"></i> 学习模型预测</span>
+      <span><i style="background:#ff6b9d"></i> 查询探针</span>
+      <span><i style="background:#ffb84d"></i> 局部搜索区</span>
+    </div>
+  </div>
+  <div class="info">
+    <div class="kbox"><div class="k">学习索引</div><div class="v ac">CDF 建模</div><div class="x">f(key) → 位置，常数级预测</div></div>
+    <div class="kbox"><div class="k">误差边界</div><div class="v ac">局部修正</div><div class="x">模型预测 + 小范围二分</div></div>
+    <div class="kbox"><div class="k">内存占用</div><div class="v ac">↓ 数量级</div><div class="x">小模型替代巨大指针树</div></div>
+    <div class="kbox"><div class="k">GPU 友好</div><div class="v ac">批量推理</div><div class="x">数千键一次并行定位</div></div>
+  </div>
+</section>
+
+<!-- ===================== M5 查询优化器 ===================== -->
+<section class="module" id="m5">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M5</span>
+      <div><h2>AI 查询优化器 <small>Cognitive Query Optimizer</small></h2>
+      <div class="mdesc">传统优化器基于代价模型枚举计划；认知优化器用学习模型预测算子代价并搜索更优连接顺序。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m5Optimize()">▶ 优化执行计划</button>
+      <button class="btn alt" onclick="m5ToggleQuery()">切换查询</button>
+      <button class="btn warn" onclick="m5ShowCost()">显示代价对比</button>
+      <button class="btn ghost" onclick="m5Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m5stat">查询: <b>Q1</b></div>
+    </div>
+    <div class="viz"><svg id="svg5" viewBox="0 0 940 540"></svg></div>
+    <div class="legend">
+      <span><i style="background:#ff6b9d"></i> 高代价计划(次优)</span>
+      <span><i style="background:#00d4aa"></i> AI 优化后计划</span>
+      <span><i style="background:#ffb84d"></i> 中间结果大小</span>
+      <span><i style="background:#00a3ff"></i> 学习代价预测</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== M6 实时分析 ===================== -->
+<section class="module" id="m6">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M6</span>
+      <div><h2>GPU 实时分析 <small>Real-Time Analytics</small></h2>
+      <div class="mdesc">数据流持续注入，GPU 在滑动/翻滚窗口内做增量聚合，毫秒级产出实时指标。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m6Start()">▶ 启动流</button>
+      <button class="btn alt" onclick="m6ToggleWindow()">切换窗口类型</button>
+      <button class="btn warn" onclick="m6Pause()">暂停/继续</button>
+      <button class="btn ghost" onclick="m6Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m6stat">窗口: <b>翻滚</b> · 状态: <b>停止</b></div>
+    </div>
+    <div class="viz"><svg id="svg6" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00a3ff"></i> 事件流</span>
+      <span><i style="background:#00d4aa"></i> 窗口聚合(GPU)</span>
+      <span><i style="background:#ffb84d"></i> 指标输出</span>
+      <span><i style="background:#a78bfa"></i> 窗口边界</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== M7 数据压缩 ===================== -->
+<section class="module" id="m7">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M7</span>
+      <div><h2>GPU 数据压缩 <small>GPU Data Compression</small></h2>
+      <div class="mdesc">列存配合轻量编码(RLE / 字典 / Delta / Bit-Packing)，压缩数据直接驻留显存并参与计算。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m7Compress()">▶ 压缩当前列</button>
+      <button class="btn alt" onclick="m7ToggleAlgo()">切换算法</button>
+      <button class="btn ghost" onclick="m7Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m7stat">算法: <b>字典编码</b> · 压缩比: <b>—</b></div>
+    </div>
+    <div class="viz"><svg id="svg7" viewBox="0 0 940 520"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i> 原始数据</span>
+      <span><i style="background:#00a3ff"></i> 编码后</span>
+      <span><i style="background:#ffb84d"></i> 字典/元数据</span>
+      <span><i style="background:#ff6b9d"></i> 节省空间</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== M8 对比 ===================== -->
+<section class="module" id="m8">
+  <div class="mhead">
+    <div class="ml">
+      <span class="num">M8</span>
+      <div><h2>传统数据库 vs 认知数据库 <small>Traditional vs Cognitive DB</small></h2>
+      <div class="mdesc">在延迟、吞吐、向量搜索、AI 推理、压缩率、并行度等维度逐项对比，动画呈现差距。</div></div>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="controls">
+      <button class="btn" onclick="m8RunBenchmark()">▶ 运行基准对比</button>
+      <button class="btn alt" onclick="m8ToggleMetric()">切换指标组</button>
+      <button class="btn ghost" onclick="m8Reset()">重置</button>
+      <div class="spacer"></div>
+      <div class="stat" id="m8stat">指标组: <b>性能</b></div>
+    </div>
+    <div class="viz"><svg id="svg8" viewBox="0 0 940 540"></svg></div>
+    <div class="legend">
+      <span><i style="background:#ff6b9d"></i> 传统数据库(CPU)</span>
+      <span><i style="background:#00d4aa"></i> 认知数据库(GPU)</span>
+      <span><i style="background:#ffb84d"></i> 倍率提升</span>
+    </div>
+  </div>
+  <div class="flownote">认知数据库在 <b>向量检索</b>、<b>AI 推理融合</b>、<b>大规模扫描吞吐</b> 上对传统数据库形成数十至数百倍优势；在事务一致性等 OLTP 场景仍以传统架构为补充。</div>
+</section>
+
+</div>
+
+<div class="foot">认知数据库与GPU原生数据库 · 可视化实验室 <b>#253</b> · 单文件零外部依赖 · 全内联 SVG/CSS/JS</div>
+
+<script>
+window.addEventListener('error',function(e){if(e.error){console.warn('Caught:',e.message);e.preventDefault()}},true);
+
+/* ============ GLOBAL HELPERS ============ */
+var SVGNS='http://www.w3.org/2000/svg';
+function el(t,a,p){
+  var n=document.createElementNS(SVGNS,t);
+  if(a)for(var k in a)n.setAttribute(k,a[k]);
+  if(p)p.appendChild(n);
+  return n;
+}
+function clear(s){
+  while(s&&s.firstChild)s.removeChild(s.firstChild);
+}
+/* animation manager (rAF based, fully stoppable) */
+var AF={};
+function startAnim(id,fn){
+  stopAnim(id);
+  function loop(){fn();AF[id]=requestAnimationFrame(loop);}
+  AF[id]=requestAnimationFrame(loop);
+}
+function stopAnim(id){
+  if(AF[id]){cancelAnimationFrame(AF[id]);delete AF[id];}
+}
+function stopAllAnim(){for(var k in AF){cancelAnimationFrame(AF[k]);delete AF[k];}}
+
+/* per-module state */
+var S={};
+
+/* ============ TAB SWITCHING ============ */
+var inited={};
+function switchTab(n){
+  var tabs=document.querySelectorAll('.tab');
+  var mods=document.querySelectorAll('.module');
+  for(var i=0;i<tabs.length;i++)tabs[i].classList.remove('active');
+  for(var j=0;j<mods.length;j++)mods[j].classList.remove('active');
+  tabs[n-1].classList.add('active');
+  document.getElementById('m'+n).classList.add('active');
+  if(!inited['m'+n]){
+    inited['m'+n]=true;
+    try{window['initM'+n]();}catch(e){console.warn('init m'+n,e);}
+  }
+}
+
+/* small util: rounded rect via path */
+function rr(x,y,w,h,r){return 'M'+(x+r)+','+y+'h'+(w-2*r)+'a'+r+','+r+' 0 0 1 '+r+','+r+'v'+(h-2*r)+'a'+r+','+r+' 0 0 1 -'+r+','+r+'h'+(w-2*r)+'a'+r+','+r+' 0 0 1 -'+r+','+(-r)+'v'+(h-2*r)+'a'+r+','+r+' 0 0 1 '+r+','+(-r)+'z';}
+
+/* ============================================================
+   M1 — 全景 Cognitive Database Overview
+   ============================================================ */
+function initM1(){
+  var s=document.getElementById('svg1');
+  S.m1={layer:0,flow:false,t:0};
+  drawM1();
+}
+function drawM1(){
+  var s=document.getElementById('svg1');clear(s);
+  var W=940,H=520;
+  var layers=[
+    {n:'应用层',e:'Application',d:'自然语言查询 · NL2SQL · 认知应用',c:'#00d4aa',y:70},
+    {n:'认知服务层',e:'Cognitive Services',d:'向量检索 · 语义推理 · ML 模型服务',c:'#00d4aa',y:150},
+    {n:'优化层',e:'Optimization',d:'AI 查询优化器 · 学习代价模型 · 认知索引',c:'#00a3ff',y:230},
+    {n:'执行层',e:'Execution',d:'GPU 原生算子 · SIMT 并行 · Kernel 编译',c:'#00a3ff',y:310},
+    {n:'存储层',e:'Storage',d:'列式压缩 · GPU 显存驻留 · 学习索引',c:'#a78bfa',y:390}
+  ];
+  // title
+  el('text',{x:30,y:38,'class':'t-h1'},s).textContent='认知数据库五层架构';
+  el('text',{x:30,y:55,'class':'t-lbl'},s).textContent='Cognitive Database — 5-Layer Architecture';
+  // down arrow label
+  el('text',{x:W/2-110,y:478,'class':'t-mono'},s).textContent='▼ 查询编译自上而下   ▲ 结果回传自下而上';
+  var lw=760,lx=90;
+  for(var i=0;i<layers.length;i++){
+    var L=layers[i];
+    var hi=(S.m1.layer-1===i);
+    el('rect',{x:lx,y:L.y,width:lw,height:64,rx:10,fill:hi?'rgba(0,212,170,.12)':'rgba(255,255,255,.02)',stroke:hi?L.c:'var(--border)','stroke-width':hi?2:1},s);
+    el('circle',{cx:lx+22,cy:L.y+32,r:6,fill:L.c},s);
+    el('text',{x:lx+40,y:L.y+27,'class':'t-h2',fill:hi?L.c:'var(--text)'},s).textContent=L.n;
+    el('text',{x:lx+40,y:L.y+45,'class':'t-mono'},s).textContent=L.e;
+    el('text',{x:lx+200,y:L.y+36,'class':'t-lbl'},s).textContent=L.d;
+    el('text',{x:lx+lw-22,y:L.y+27,'text-anchor':'end','class':'t-acc'},s).textContent='L'+(5-i);
+    // connector between layers
+    if(i<layers.length-1){
+      el('line',{x1:lx+lw/2,y1:L.y+64,x2:lx+lw/2,y2:layers[i+1].y,stroke:'var(--border-2)','stroke-width':1,'stroke-dasharray':'3 3'},s);
+    }
+  }
+  // GPU chip on the right
+  el('rect',{x:lx+lw+18,y:150,width:60,height:240,rx:8,fill:'rgba(167,139,250,.06)',stroke:'rgba(167,139,250,.4)'},s);
+  el('text',{x:lx+lw+48,y:140,'text-anchor':'middle','class':'t-acc'},s).textContent='GPU';
+  for(var gy=0;gy<6;gy++)for(var gx=0;gx<2;gx++){
+    el('rect',{x:lx+lw+26+gx*24,y:162+gy*36,width:18,height:28,rx:3,fill:'rgba(167,139,250,.1)',stroke:'rgba(167,139,250,.3)'},s);
+  }
+  el('text',{x:lx+lw+48,y:410,'text-anchor':'middle','class':'t-mono'},s).textContent='5000+';
+  el('text',{x:lx+lw+48,y:424,'text-anchor':'middle','class':'t-mono'},s).textContent='cores';
+  // data flow particles
+  if(S.m1.flow){
+    var phase=S.m1.t;
+    for(var k=0;k<5;k++){
+      var p=((phase*0.012)+k*0.2)%1;
+      var y=70+p*(320);
+      var x=lx+lw/2+Math.sin(p*6)*0;
+      el('circle',{cx:x,cy:y,r:4,fill:'#ffb84d',opacity:0.9-0.1*k},s);
+    }
+    // upward result
+    for(var k2=0;k2<3;k2++){
+      var p2=((phase*0.012)+k2*0.33)%1;
+      var y2=390-p2*(320);
+      el('circle',{cx:lx+lw/2+30,cy:y2,r:3,fill:'#00d4aa',opacity:0.85-0.1*k2},s);
+    }
+  }
+}
+function m1Flow(){
+  S.m1.flow=!S.m1.flow;
+  if(S.m1.flow){
+    document.getElementById('m1stat').innerHTML='阶段: <b>数据流运行中</b>';
+    startAnim('m1',function(){S.m1.t++;drawM1();});
+  }else{
+    stopAnim('m1');document.getElementById('m1stat').innerHTML='阶段: <b>已暂停</b>';drawM1();
+  }
+}
+function m1Highlight(){
+  S.m1.layer=(S.m1.layer+1)%6;
+  var names=['无','应用层','认知服务层','优化层','执行层','存储层'];
+  document.getElementById('m1stat').innerHTML='高亮: <b>'+names[S.m1.layer]+'</b>';
+  drawM1();
+}
+function m1Reset(){
+  stopAnim('m1');S.m1={layer:0,flow:false,t:0};
+  document.getElementById('m1stat').innerHTML='阶段: <b>就绪</b>';
+  drawM1();
+}
+
+/* ============================================================
+   M2 — GPU 原生查询执行
+   ============================================================ */
+function initM2(){
+  var s=document.getElementById('svg2');
+  S.m2={running:false,sizeIdx:0,t:0,active:[]};
+  drawM2();
+}
+function drawM2(){
+  var s=document.getElementById('svg2');clear(s);
+  var W=940,H=520;
+  var sizes=[['1M 行',16],['100M 行',20],['1B 行',24]];
+  var cur=sizes[S.m2.sizeIdx];
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='GPU Kernel 并行扫描';
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='SIMT · '+cur[0]+' · scan + filter kernel';
+  // grid of SMs (8 SMs x warp lanes)
+  var smCols=8,smRows=5,cellW=84,cellH=58,startX=70,startY=80;
+  for(var r=0;r<smRows;r++){
+    for(var c=0;c<smCols;c++){
+      var x=startX+c*cellW,y=startY+r*cellH;
+      // SM block
+      el('rect',{x:x,y:y,width:cellW-8,height:cellH-8,rx:6,fill:'rgba(0,163,255,.05)',stroke:'rgba(0,163,255,.25)'},s);
+      // 4 warps inside
+      for(var w=0;w<4;w++){
+        var wx=x+8+(w%2)*32,wy=y+8+Math.floor(w/2)*20;
+        var idx=r*smCols+c;
+        var on=S.m2.running && (S.m2.active[idx]||0)>0.3 && ((Math.floor(S.m2.t*0.05+w+idx))%2===0);
+        el('rect',{x:wx,y:wy,width:24,height:14,rx:3,fill:on?'#00d4aa':'#1c2030',opacity:on?0.95:0.5},s);
+      }
+      if(r===0&&c===0){el('text',{x:x+cellW/2-4,y:y+cellH-12,'text-anchor':'middle','class':'t-mono',fill:'#00a3ff'},s).textContent='SM';}
+    }
+  }
+  el('text',{x:startX,y:startY-8,'class':'t-mono'},s).textContent='8 × 5 流多处理器 (SM) · 每块 4 个 warp';
+  // progress bar for scan
+  var prog=S.m2.running?(S.m2.t%100)/100:0;
+  el('text',{x:30,y:430,'class':'t-lbl'},s).textContent='扫描进度';
+  el('rect',{x:30,y:440,width:680,height:18,rx:9,fill:'#1c2030',stroke:'var(--border)'},s);
+  el('rect',{x:30,y:440,width:680*prog,height:18,rx:9,fill:'url(#g2)'},s);
+  // gradient
+  var defs=el('defs',{},s);
+  var lg=el('linearGradient',{id:'g2',x1:'0',x2:'1'},defs);
+  el('stop',{offset:'0%','stop-color':'#00d4aa'},lg);
+  el('stop',{offset:'100%','stop-color':'#00a3ff'},lg);
+  el('text',{x:716,y:454,'class':'t-val'},s).textContent=(prog*100).toFixed(0)+'%';
+  // metrics column
+  el('rect',{x:740,y:80,width:170,height:340,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:754,y:104,'class':'t-h2'},s).textContent='实时指标';
+  var metrics=[
+    ['活动线程',S.m2.running?(cur[1]*40).toString():'0'],
+    ['吞吐',S.m2.running?(cur[1]*18)+'M 行/s':'—'],
+    ['显存带宽',S.m2.running?(cur[1]*6)+' GB/s':'—'],
+    ['占用率',S.m2.running?(70+cur[1])+'%':'—'],
+    ['延迟',S.m2.running?(40-cur[1])+' ms':'—']
+  ];
+  for(var mi=0;mi<metrics.length;mi++){
+    el('text',{x:754,y:138+mi*52,'class':'t-lbl'},s).textContent=metrics[mi][0];
+    el('text',{x:754,y:158+mi*52,'class':'t-val'},s).textContent=metrics[mi][1];
+  }
+}
+function m2Run(){
+  S.m2.running=!S.m2.running;
+  if(S.m2.running){
+    var sizes=[['1M 行',16],['100M 行',20],['1B 行',24]];
+    var cur=sizes[S.m2.sizeIdx];
+    // build activation pattern
+    S.m2.active=[];
+    for(var i=0;i<40;i++)S.m2.active[i]=Math.random()*0.6+0.4;
+    document.getElementById('m2stat').innerHTML='吞吐: <b>'+(cur[1]*18)+'M 行/s</b>';
+    startAnim('m2',function(){S.m2.t++;drawM2();});
+  }else{
+    stopAnim('m2');document.getElementById('m2stat').innerHTML='吞吐: <b>—</b>';drawM2();
+  }
+}
+function m2ToggleSize(){
+  S.m2.sizeIdx=(S.m2.sizeIdx+1)%3;
+  var sizes=[['1M 行'],['100M 行'],['1B 行']];
+  document.getElementById('m2stat').innerHTML='数据量: <b>'+sizes[S.m2.sizeIdx][0]+'</b>';
+  drawM2();
+}
+function m2Reset(){
+  stopAnim('m2');S.m2={running:false,sizeIdx:0,t:0,active:[]};
+  document.getElementById('m2stat').innerHTML='吞吐: <b>—</b>';
+  drawM2();
+}
+
+/* ============================================================
+   M3 — 向量 + 关系融合
+   ============================================================ */
+function initM3(){
+  var s=document.getElementById('svg3');
+  S.m3={strategy:0,phase:0,running:false};
+  drawM3();
+}
+function drawM3(){
+  var s=document.getElementById('svg3');clear(s);
+  var W=940,H=520;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='向量 × 关系 融合查询';
+  var stratName=S.m3.strategy===0?'预过滤 (Pre-Filter)':'后过滤 (Post-Filter)';
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='策略: '+stratName;
+  // left: relational index (B-Tree)
+  el('rect',{x:40,y:80,width:230,height:300,rx:10,fill:'rgba(0,212,170,.04)',stroke:'rgba(0,212,170,.3)'},s);
+  el('text',{x:155,y:104,'text-anchor':'middle','class':'t-h2',fill:'#00d4aa'},s).textContent='关系索引';
+  el('text',{x:155,y:120,'text-anchor':'middle','class':'t-mono'},s).textContent='B-Tree · category/price';
+  // b-tree nodes
+  for(var b=0;b<5;b++){
+    el('rect',{x:70,y:138+b*44,width:170,height:34,rx:5,fill:'#1c2030',stroke:'rgba(0,212,170,.3)'},s);
+    for(var k=0;k<3;k++){
+      el('line',{x1:70+57*(k+1),y1:138+b*44,x2:70+57*(k+1),y2:138+b*44+34,stroke:'var(--border)'},s);
+    }
+    el('text',{x:80,y:159+b*44,'class':'t-mono',fill:'#8b94a8'},s).textContent=['电子','图书','服饰','电子','家居'][b];
+    el('text',{x:220,y:159+b*44,'text-anchor':'end','class':'t-mono'},s).textContent=(1200-b*200)+'';
+  }
+  // right: vector index (HNSW graph)
+  el('rect',{x:670,y:80,width:230,height:300,rx:10,fill:'rgba(0,163,255,.04)',stroke:'rgba(0,163,255,.3)'},s);
+  el('text',{x:785,y:104,'text-anchor':'middle','class':'t-h2',fill:'#00a3ff'},s).textContent='向量索引';
+  el('text',{x:785,y:120,'text-anchor':'middle','class':'t-mono'},s).textContent='HNSW · ANN';
+  // graph nodes
+  var nodes=[];
+  for(var i=0;i<14;i++){
+    var nx=700+Math.sin(i*1.7)*80+90;
+    var ny=150+Math.cos(i*2.1)*90+60;
+    nodes.push([nx,ny]);
+  }
+  for(var e1=0;e1<nodes.length;e1++){
+    for(var e2=e1+1;e2<nodes.length;e2++){
+      var dx=nodes[e1][0]-nodes[e2][0],dy=nodes[e1][1]-nodes[e2][1];
+      if(dx*dx+dy*dy<7000)el('line',{x1:nodes[e1][0],y1:nodes[e1][1],x2:nodes[e2][0],y2:nodes[e2][1],stroke:'rgba(0,163,255,.2)','stroke-width':1},s);
+    }
+  }
+  for(var ni=0;ni<nodes.length;ni++){
+    el('circle',{cx:nodes[ni][0],cy:nodes[ni][1],r:6,fill:'#00a3ff',opacity:0.7},s);
+  }
+  // query point
+  el('circle',{cx:785,cy:210,r:8,fill:'#ff6b9d'},s);
+  el('text',{x:785,y:200,'text-anchor':'middle','class':'t-acc',fill:'#ff6b9d'},s).textContent='q';
+  // center: fusion
+  el('rect',{x:340,y:170,width:260,height:120,rx:10,fill:'rgba(255,107,157,.06)',stroke:'rgba(255,107,157,.4)'},s);
+  el('text',{x:470,y:200,'text-anchor':'middle','class':'t-h2',fill:'#ff6b9d'},s).textContent='融合引擎';
+  el('text',{x:470,y:222,'text-anchor':'middle','class':'t-mono'},s).textContent='Intersection · Top-K';
+  el('text',{x:470,y:246,'text-anchor':'middle','class':'t-lbl'},s).textContent='关系候选 ∩ 向量近邻';
+  el('text',{x:470,y:270,'text-anchor':'middle','class':'t-val'},s).textContent='K = 10';
+  // arrows
+  var phase=S.m3.phase;
+  function arrow(x1,y1,x2,y2,col,p){
+    el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,'stroke-width':1.6,'marker-end':'url(#ar)',opacity:0.4+p*0.6},s);
+  }
+  var defs=el('defs',{},s);
+  var m=el('marker',{id:'ar',viewBox:'0 0 10 10',refX:'8',refY:'5',markerWidth:'6',markerHeight:'6',orient:'auto'},defs);
+  el('path',{d:'M0,0 L10,5 L0,10 z',fill:'#8b94a8'},m);
+  if(S.m3.strategy===0){
+    // pre-filter: relation -> fusion -> vector
+    arrow(270,230,340,210,'#00d4aa',(Math.sin(phase*0.1)+1)/2);
+    arrow(600,230,670,210,'#ffb84d',(Math.sin(phase*0.1+1)+1)/2);
+  }else{
+    // post-filter: vector -> fusion -> relation
+    arrow(670,210,600,230,'#00a3ff',(Math.sin(phase*0.1)+1)/2);
+    arrow(340,210,270,230,'#ffb84d',(Math.sin(phase*0.1+1)/2)+0.3);
+  }
+  // result list
+  el('rect',{x:340,y:330,width:260,height:150,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:354,y:354,'class':'t-h2'},s).textContent='Top-K 结果';
+  var rows=S.m3.running?Math.min(10,Math.floor(phase*0.3)%6+4):3;
+  for(var ri=0;ri<rows;ri++){
+    el('rect',{x:354,y:364+ri*18,width:232,height:14,rx:3,fill:'rgba(0,212,170,.08)'},s);
+    el('text',{x:362,y:375+ri*18,'class':'t-mono'},s).textContent='id='+ (1000+ri) +'  dist='+ (0.12+ri*0.08).toFixed(2);
+  }
+  // bottom note
+  el('text',{x:40,y:470,'class':'t-mono'},s).textContent=S.m3.strategy===0?'预过滤: 先用关系条件缩小范围，再在小集合上做精确向量检索 → 召回高、计算少':'后过滤: 先做向量 ANN 检索 Top-N，再用关系条件过滤 → 适合选择率高的场景';
+}
+function m3Run(){
+  S.m3.running=!S.m3.running;
+  if(S.m3.running){
+    document.getElementById('m3stat').innerHTML='策略: <b>'+(S.m3.strategy===0?'预过滤':'后过滤')+'</b> · 运行中';
+    startAnim('m3',function(){S.m3.phase++;drawM3();});
+  }else{
+    stopAnim('m3');document.getElementById('m3stat').innerHTML='策略: <b>'+(S.m3.strategy===0?'预过滤':'后过滤')+'</b>';
+    drawM3();
+  }
+}
+function m3ToggleStrategy(){
+  S.m3.strategy=(S.m3.strategy+1)%2;
+  document.getElementById('m3stat').innerHTML='策略: <b>'+(S.m3.strategy===0?'预过滤':'后过滤')+'</b>';
+  drawM3();
+}
+function m3Reset(){
+  stopAnim('m3');S.m3={strategy:0,phase:0,running:false};
+  document.getElementById('m3stat').innerHTML='策略: <b>预过滤</b>';
+  drawM3();
+}
+
+/* ============================================================
+   M4 — 认知索引 / Learned Index
+   ============================================================ */
+function initM4(){
+  var s=document.getElementById('svg4');
+  S.m4={mode:0,trained:false,t:0,probe:0.5};
+  // build data: keys with skewed distribution
+  S.m4.keys=[];S.m4.cdf=[];
+  var N=80;
+  for(var i=0;i<N;i++){
+    var x=i/(N-1);
+    // CDF with a curve (not linear) -> learned model approximates
+    var cdf=0.15*x+0.85*x*x;
+    S.m4.keys.push(x);
+    S.m4.cdf.push(cdf);
+  }
+  drawM4();
+}
+function drawM4(){
+  var s=document.getElementById('svg4');clear(s);
+  var W=940,H=520;
+  var px=70,py=70,pw=560,ph=380;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='认知/学习索引: CDF 建模';
+  var modeName=S.m4.mode===0?'B-Tree (传统)':(S.m4.mode===1?'Learned Index (线性)':(S.m4.mode===2?'Learned Index (ML)':'RMI 多级'));
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='当前: '+modeName+(S.m4.trained?'  ·  已训练':'  ·  未训练');
+  // axes
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:8,fill:'rgba(255,255,255,.015)',stroke:'var(--border)'},s);
+  el('line',{x1:px,y1:py+ph,x2:px+pw,y2:py+ph,stroke:'var(--border-2)'},s);
+  el('line',{x1:px,y1:py,x2:px,y2:py+ph,stroke:'var(--border-2)'},s);
+  el('text',{x:px+pw/2,y:py+ph+30,'text-anchor':'middle','class':'t-mono'},s).textContent='键 (key)';
+  el('text',{x:px-44,y:py+ph/2,'text-anchor':'middle','class':'t-mono',transform:'rotate(-90 '+(px-44)+' '+(py+ph/2)+')'},s).textContent='位置 (position ≈ CDF)';
+  el('text',{x:px-14,y:py+10,'class':'t-mono'},s).textContent='1.0';
+  el('text',{x:px-14,y:py+ph-4,'class':'t-mono'},s).textContent='0';
+  el('text',{x:px-8,y:py+ph+16,'class':'t-mono'},s).textContent='min';
+  el('text',{x:px+pw-8,y:py+ph+16,'text-anchor':'end','class':'t-mono'},s).textContent='max';
+  // true CDF points
+  for(var i=0;i<S.m4.keys.length;i++){
+    var x=px+S.m4.keys[i]*pw;
+    var y=py+ph-S.m4.cdf[i]*ph;
+    el('circle',{cx:x,cy:y,r:2.5,fill:'#00d4aa',opacity:0.85},s);
+  }
+  // learned model prediction
+  if(S.m4.trained){
+    var prog=Math.min(1,S.m4.t/60);
+    var segs=S.m4.mode===3?16:1;
+    el('polyline',{points:(function(){
+      var pts='';
+      for(var i=0;i<=100;i++){
+        var k=i/100;
+        var pred;
+        if(S.m4.mode===1){pred=0.15*k+0.85*k*k;} // learned linear-quadratic approx (good)
+        else if(S.m4.mode===2){pred=0.14*k+0.86*k*k+0.001*Math.sin(k*9);} // ML slight wobble
+        else if(S.m4.mode===3){ // RMI piecewise
+          pred=0.15*k+0.85*k*k;pred=k<prog?pred:pred;
+          // piecewise better fit
+          pred=0.13*k+0.87*k*k;
+        }else{pred=k;}
+        var xx=px+k*pw,yy=py+ph-pred*ph;
+        pts+=xx.toFixed(1)+','+yy.toFixed(1)+' ';
+      }
+      return pts;
+    })(),fill:'none',stroke:'#00a3ff','stroke-width':2,opacity:0.9},s);
+  }
+  // probe
+  var pk=S.m4.probe;
+  var pxv=px+pk*pw;
+  el('line',{x1:pxv,y1:py,x2:pxv,y2:py+ph,stroke:'#ff6b9d','stroke-dasharray':'4 3','stroke-width':1.2},s);
+  var trueCdf=0.15*pk+0.85*pk*pk;
+  var ty=py+ph-trueCdf*ph;
+  el('circle',{cx:pxv,cy:ty,r:6,fill:'#ff6b9d'},s);
+  el('text',{x:pxv+10,y:ty-6,'class':'t-acc',fill:'#ff6b9d'},s).textContent='查询键';
+  // local search band (learned)
+  if(S.m4.trained&&S.m4.mode>=1){
+    var band=ph*(S.m4.mode===3?0.03:(S.m4.mode===2?0.07:0.12));
+    el('rect',{x:pxv-3,y:ty-band,width:6,height:band*2,fill:'rgba(255,184,77,.15)',stroke:'rgba(255,184,77,.4)'},s);
+    el('text',{x:pxv+10,y:ty+16,'class':'t-mono',fill:'#ffb84d'},s).textContent='局部搜索 ±'+(S.m4.mode===3?'1%':(S.m4.mode===2?'3%':'6%'));
+  }
+  // right panel stats
+  el('rect',{x:670,y:70,width:240,height:380,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:684,y:96,'class':'t-h2'},s).textContent='索引对比';
+  var data=[
+    ['类型',modeName],
+    ['查找复杂度',S.m4.mode===0?'O(log n)':'O(1)+δ'],
+    ['内存',S.m4.mode===0?'高 (指针树)':(S.m4.mode===1?'极低':'低')],
+    ['GPU 批量',S.m4.mode===0?'差':(S.m4.mode>=1?'优':'优')],
+    ['误差',S.m4.trained?(S.m4.mode===3?'<1%':(S.m4.mode===2?'~3%':'~6%')):'—'],
+    ['状态',S.m4.trained?'已训练':'待训练']
+  ];
+  for(var d=0;d<data.length;d++){
+    el('text',{x:684,y:128+d*50,'class':'t-lbl'},s).textContent=data[d][0];
+    el('text',{x:684,y:148+d*50,'class':'t-val'},s).textContent=data[d][1];
+  }
+}
+function m4Train(){
+  if(S.m4.trained){return;}
+  S.m4.trained=true;S.m4.t=0;
+  document.getElementById('m4stat').innerHTML='索引: <b>'+(S.m4.mode===0?'B-Tree':(S.m4.mode===1?'学习-线性':(S.m4.mode===2?'学习-ML':'RMI')))+' · 训练中</b>';
+  startAnim('m4t',function(){
+    S.m4.t++;
+    if(S.m4.t>=60){stopAnim('m4t');document.getElementById('m4stat').innerHTML='索引: <b>'+(S.m4.mode===0?'B-Tree':(S.m4.mode===1?'学习-线性':(S.m4.mode===2?'学习-ML':'RMI')))+' · 已训练</b>';}
+    drawM4();
+  });
+}
+function m4Query(){
+  S.m4.probe=Math.random()*0.9+0.05;
+  drawM4();
+}
+function m4ToggleIndex(){
+  S.m4.mode=(S.m4.mode+1)%4;
+  var names=['B-Tree','学习-线性','学习-ML','RMI 多级'];
+  document.getElementById('m4stat').innerHTML='索引: <b>'+names[S.m4.mode]+'</b>';
+  drawM4();
+}
+function m4Reset(){
+  stopAnim('m4t');S.m4.trained=false;S.m4.t=0;S.m4.probe=0.5;S.m4.mode=0;
+  document.getElementById('m4stat').innerHTML='索引: <b>B-Tree</b>';
+  drawM4();
+}
+
+/* ============================================================
+   M5 — AI 查询优化器
+   ============================================================ */
+function initM5(){
+  var s=document.getElementById('svg5');
+  S.m5={query:0,optimized:false,showCost:false,t:0};
+  drawM5();
+}
+function drawM5(){
+  var s=document.getElementById('svg5');clear(s);
+  var W=940,H=540;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='AI 查询优化器: 计划对比';
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='查询 '+(S.m5.query+1)+' · '+(S.m5.optimized?'AI 已优化':'传统计划(次优)');
+  // left plan (before / traditional)
+  el('text',{x:180,y:80,'text-anchor':'middle','class':'t-h2',fill:'#ff6b9d'},s).textContent='传统优化器计划';
+  drawPlan(s,60,95,420, S.m5.query, false);
+  // right plan (after / AI)
+  el('text',{x:740,y:80,'text-anchor':'middle','class':'t-h2',fill:S.m5.optimized?'#00d4aa':'#8b94a8'},s).textContent='AI 优化器计划';
+  if(S.m5.optimized){
+    drawPlan(s,520,95,420, S.m5.query, true);
+  }else{
+    el('text',{x:740,y:250,'text-anchor':'middle','class':'t-mono'},s).textContent='点击「优化执行计划」';
+    el('text',{x:740,y:270,'text-anchor':'middle','class':'t-mono'},s).textContent='由 AI 搜索更优连接顺序';
+  }
+  // divider
+  el('line',{x1:470,y1:90,x2:470,y2:430,stroke:'var(--border)','stroke-dasharray':'4 4'},s);
+  // cost comparison
+  el('rect',{x:30,y:450,width:880,height:80,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:46,y:474,'class':'t-h2'},s).textContent='代价对比 (相对执行时间)';
+  var tCost=[180,95][S.m5.query];
+  var aCost=[42,28][S.m5.query];
+  if(S.m5.showCost||S.m5.optimized){
+    var maxC=Math.max(tCost,aCost)*1.3;
+    // traditional bar
+    el('text',{x:46,y:500,'class':'t-mono'},s).textContent='传统';
+    el('rect',{x:100,y:490,width:300,height:14,rx:3,fill:'#1c2030'},s);
+    var tw=300*(tCost/maxC);
+    el('rect',{x:100,y:490,width:tw,height:14,rx:3,fill:'#ff6b9d'},s);
+    el('text',{x:100+tw+6,y:501,'class':'t-val',fill:'#ff6b9d'},s).textContent=tCost+' ms';
+    // AI bar
+    el('text',{x:46,y:522,'class':'t-mono'},s).textContent='AI';
+    el('rect',{x:100,y:512,width:300,height:14,rx:3,fill:'#1c2030'},s);
+    var aw=300*(aCost/maxC);
+    if(S.m5.optimized){el('rect',{x:100,y:512,width:aw,height:14,rx:3,fill:'#00d4aa'},s);}
+    el('text',{x:100+aw+6,y:523,'class':'t-val'},s).textContent=(S.m5.optimized?aCost:'—')+(S.m5.optimized?' ms':'');
+    // speedup
+    var su=(tCost/aCost).toFixed(1);
+    el('text',{x:560,y:500,'class':'t-h2'},s).textContent='加速比';
+    el('text',{x:560,y:524,'class':'t-val',fill:'#ffb84d'},s).textContent=S.m5.optimized?(su+'× (↑'):'—';
+    el('text',{x:620,y:524,'class':'t-mono'},s).textContent=S.m5.optimized?(''+(100-(aCost/tCost*100)).toFixed(0)+'% 更快)'):'';
+  }else{
+    el('text',{x:46,y:502,'class':'t-mono'},s).textContent='点击「显示代价对比」查看';
+  }
+}
+function drawPlan(s,ox,oy,ow,q,opt){
+  // nodes: [label, x, y, cost, type]
+  var nodes;
+  if(q===0){
+    if(opt){
+      // better join order: filter small table first
+      nodes=[
+        ['HashJoin',ow/2,40,42,'join'],
+        ['Filter A',ow*0.25,120,12,'scan'],
+        ['Filter B',ow*0.75,120,18,'scan'],
+        ['Scan A',ow*0.25,200,0,'leaf'],
+        ['Scan B',ow*0.75,200,0,'leaf']
+      ];
+    }else{
+      nodes=[
+        ['HashJoin',ow/2,40,180,'join'],
+        ['Scan A',ow*0.25,120,0,'leaf'],
+        ['HashJoin',ow*0.75,120,120,'join'],
+        ['',ow*0.25,200,0,'leaf'],
+        ['Scan B',ow*0.6,200,0,'leaf'],
+        ['Scan C',ow*0.9,200,0,'leaf']
+      ];
+    }
+  }else{
+    if(opt){
+      nodes=[
+        ['GPU Scan+Filter',ow/2,40,28,'scan'],
+        ['GPU Agg',ow/2,120,0,'join'],
+        ['ColStore',ow/2,200,0,'leaf']
+      ];
+    }else{
+      nodes=[
+        ['CPU Agg',ow/2,40,95,'join'],
+        ['CPU Filter',ow/2,120,40,'scan'],
+        ['RowStore Scan',ow/2,200,0,'leaf']
+      ];
+    }
+  }
+  var colors={join:'#00a3ff',scan:'#00d4aa',leaf:'#5b6377'};
+  var colFill={join:'rgba(0,163,255,.12)',scan:'rgba(0,212,170,.12)',leaf:'rgba(255,255,255,.03)'};
+  // draw edges first
+  var edges=[];
+  if(q===0&&!opt)edges=[[0,1],[0,2],[2,4],[2,5]];
+  else if(q===0&&opt)edges=[[0,1],[0,2],[1,3],[2,4]];
+  else edges=[[0,1],[1,2]];
+  for(var e=0;e<edges.length;e++){
+    var a=nodes[edges[e][0]],b=nodes[edges[e][1]];
+    el('line',{x1:ox+a[1],y1:oy+a[2]+16,x2:ox+b[1],y2:oy+b[2]-16,stroke:'var(--border-2)','stroke-width':1.2},s);
+  }
+  for(var i=0;i<nodes.length;i++){
+    var nd=nodes[i];
+    if(!nd[0])continue;
+    var x=ox+nd[1],y=oy+nd[2];
+    el('rect',{x:x-60,y:y-16,width:120,height:32,rx:6,fill:colFill[nd[4]],stroke:colors[nd[4]],'stroke-width':1.2},s);
+    el('text',{x:x,y:y+4,'text-anchor':'middle','class':'t-h2',fill:colors[nd[4]]},s).textContent=nd[0];
+    if(nd[3]>0){
+      el('rect',{x:x+44,y:y-26,width:34,height:16,rx:4,fill:'#1c2030',stroke:'var(--border)'},s);
+      el('text',{x:x+61,y:y-14,'text-anchor':'middle','class':'t-mono',fill:opt?'#00d4aa':'#ff6b9d'},s).textContent=nd[3]+'ms';
+    }
+  }
+  // intermediate result sizes
+  if(q===0){
+    el('text',{x:ox+ow/2,y:oy+250,'text-anchor':'middle','class':'t-mono'},s).textContent=opt?'中间结果: 8K 行 ↓':'中间结果: 1.2M 行 ↑';
+  }else{
+    el('text',{x:ox+ow/2,y:oy+150,'text-anchor':'middle','class':'t-mono'},s).textContent=opt?'GPU 增量聚合 · 0 交换':'CPU 全量物化 · 3 次交换';
+  }
+}
+function m5Optimize(){
+  S.m5.optimized=!S.m5.optimized;
+  if(S.m5.optimized){
+    document.getElementById('m5stat').innerHTML='查询: <b>Q'+(S.m5.query+1)+'</b> · 已优化';
+    S.m5.showCost=true;
+  }else{
+    document.getElementById('m5stat').innerHTML='查询: <b>Q'+(S.m5.query+1)+'</b>';
+  }
+  drawM5();
+}
+function m5ToggleQuery(){
+  S.m5.query=(S.m5.query+1)%2;
+  S.m5.optimized=false;
+  document.getElementById('m5stat').innerHTML='查询: <b>Q'+(S.m5.query+1)+'</b>';
+  drawM5();
+}
+function m5ShowCost(){
+  S.m5.showCost=!S.m5.showCost;
+  drawM5();
+}
+function m5Reset(){
+  S.m5={query:0,optimized:false,showCost:false,t:0};
+  document.getElementById('m5stat').innerHTML='查询: <b>Q1</b>';
+  drawM5();
+}
+
+/* ============================================================
+   M6 — 实时分析
+   ============================================================ */
+function initM6(){
+  var s=document.getElementById('svg6');
+  S.m6={windowType:0,running:false,paused:false,t:0,events:[],agg:[]};
+  for(var i=0;i<60;i++)S.m6.events.push(Math.random());
+  drawM6();
+}
+function drawM6(){
+  var s=document.getElementById('svg6');clear(s);
+  var W=940,H=520;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='GPU 实时流式分析';
+  var wn=S.m6.windowType===0?'翻滚窗口 (Tumbling)':(S.m6.windowType===1?'滑动窗口 (Sliding)':'会话窗口 (Session)');
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent=wn+' · '+(S.m6.running?(S.m6.paused?'已暂停':'运行中'):'已停止');
+  // stream area
+  var sx=60,sy=90,sw=560,sh=120;
+  el('rect',{x:sx,y:sy,width:sw,height:sh,rx:8,fill:'rgba(0,163,255,.03)',stroke:'rgba(0,163,255,.2)'},s);
+  el('text',{x:sx+10,y:sy+18,'class':'t-mono'},s).textContent='事件流 (events/sec)';
+  // draw events as bars
+  var offset=S.m6.running&&!S.m6.paused?S.m6.t*0.5:0;
+  for(var i=0;i<60;i++){
+    var idx=(Math.floor(offset)+i)%60;
+    var v=S.m6.events[idx];
+    var bx=sx+i*(sw/60);
+    var bh=v*sh*0.8;
+    el('rect',{x:bx+1,y:sy+sh-bh-4,width:sw/60-2,height:bh,fill:'rgba(0,163,255,.5)'},s);
+  }
+  // window boundaries
+  var winSize=S.m6.windowType===0?120:(S.m6.windowType===1?80:160);
+  for(var wx=0;wx<sw;wx+=winSize){
+    el('line',{x1:sx+wx,y1:sy,x2:sx+wx,y2:sy+sh,stroke:'#a78bfa','stroke-dasharray':'5 3','stroke-width':1.2},s);
+  }
+  el('line',{x1:sx+(S.m6.running?((S.m6.t*1)%sw):0)+sx-sx,y1:sy,x2:sx+(S.m6.running?((S.m6.t*1)%sw):0)+sx-sx,y2:sy+sh,stroke:'#00d4aa','stroke-width':2},s);
+  // GPU processing
+  el('rect',{x:60,y:240,width:560,height:70,rx:8,fill:'rgba(0,212,170,.04)',stroke:'rgba(0,212,170,.3)'},s);
+  el('text',{x:74,y:264,'class':'t-h2',fill:'#00d4aa'},s).textContent='GPU 增量聚合引擎';
+  el('text',{x:74,y:286,'class':'t-mono'},s).textContent='SUM / AVG / COUNT / P95 · 窗口内并行归约 · < 2ms';
+  // GPU cores
+  for(var g=0;g<16;g++){
+    var on=S.m6.running&&!S.m6.paused&&((Math.floor(S.m6.t*0.2)+g)%3!==0);
+    el('rect',{x:320+g*18,y:258,width:14,height:34,rx:2,fill:on?'#00d4aa':'#1c2030',opacity:on?0.9:0.5},s);
+  }
+  // output metrics
+  el('rect',{x:60,y:340,width:560,height:150,rx:8,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:74,y:364,'class':'t-h2'},s).textContent='实时指标输出';
+  // line chart
+  var cx=80,cy=380,cw=520,ch=90;
+  el('line',{x1:cx,y1:cy+ch,x2:cx+cw,y2:cy+ch,stroke:'var(--border-2)'},s);
+  el('line',{x1:cx,y1:cy,x2:cx,y2:cy+ch,stroke:'var(--border-2)'},s);
+  var pts='';
+  for(var p=0;p<40;p++){
+    var idx2=(Math.floor(S.m6.t*0.3)+p)%60;
+    var val=S.m6.events[idx2];
+    var pxx=cx+p*(cw/39);
+    var pyy=cy+ch-val*ch*0.9;
+    pts+=pxx.toFixed(1)+','+pyy.toFixed(1)+' ';
+  }
+  el('polyline',{points:pts,fill:'none',stroke:'#ffb84d','stroke-width':2},s);
+  el('text',{x:cx+cw,y:cy+ch+16,'text-anchor':'end','class':'t-mono'},s).textContent='time →';
+  // right stats
+  el('rect',{x:650,y:90,width:250,height:400,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:664,y:116,'class':'t-h2'},s).textContent='流处理指标';
+  var now=S.m6.running?(S.m6.t*0.1):0;
+  var stats=[
+    ['输入速率',(S.m6.running?(12000+Math.sin(now)*3000).toFixed(0):'—')+' ev/s'],
+    ['窗口长度',S.m6.windowType===0?'10s':(S.m6.windowType===1?'8s/2s滑动':'动态')],
+    ['聚合延迟',S.m6.running?'1.8 ms':'—'],
+    ['GPU 利用率',S.m6.running?(62+Math.floor(Math.sin(now)*8))+'%':'—'],
+    ['已处理',S.m6.running?(S.m6.t*120).toLocaleString():'0'],
+    ['P95 延迟',S.m6.running?(3.2+Math.sin(now)*0.5).toFixed(1)+' ms':'—']
+  ];
+  for(var st=0;st<stats.length;st++){
+    el('text',{x:664,y:152+st*56,'class':'t-lbl'},s).textContent=stats[st][0];
+    el('text',{x:664,y:172+st*56,'class':'t-val'},s).textContent=stats[st][1];
+  }
+}
+function m6Start(){
+  S.m6.running=true;S.m6.paused=false;
+  document.getElementById('m6stat').innerHTML='窗口: <b>'+(S.m6.windowType===0?'翻滚':(S.m6.windowType===1?'滑动':'会话'))+'</b> · 状态: <b>运行</b>';
+  startAnim('m6',function(){if(!S.m6.paused)S.m6.t++;drawM6();});
+}
+function m6ToggleWindow(){
+  S.m6.windowType=(S.m6.windowType+1)%3;
+  var n=S.m6.windowType===0?'翻滚':(S.m6.windowType===1?'滑动':'会话');
+  document.getElementById('m6stat').innerHTML='窗口: <b>'+n+'</b> · 状态: <b>'+(S.m6.running?(S.m6.paused?'暂停':'运行'):'停止')+'</b>';
+  drawM6();
+}
+function m6Pause(){
+  if(!S.m6.running)return;
+  S.m6.paused=!S.m6.paused;
+  document.getElementById('m6stat').innerHTML='窗口: <b>'+(S.m6.windowType===0?'翻滚':(S.m6.windowType===1?'滑动':'会话'))+'</b> · 状态: <b>'+(S.m6.paused?'暂停':'运行')+'</b>';
+  drawM6();
+}
+function m6Reset(){
+  stopAnim('m6');S.m6={windowType:0,running:false,paused:false,t:0,events:[],agg:[]};
+  for(var i=0;i<60;i++)S.m6.events.push(Math.random());
+  document.getElementById('m6stat').innerHTML='窗口: <b>翻滚</b> · 状态: <b>停止</b>';
+  drawM6();
+}
+
+/* ============================================================
+   M7 — GPU 数据压缩
+   ============================================================ */
+function initM7(){
+  var s=document.getElementById('svg7');
+  S.m7={algo:0,compressed:false,t:0};
+  // sample column data
+  S.m7.data=['北京','上海','北京','广州','北京','上海','深圳','北京','上海','广州','北京','深圳','上海','北京','广州','上海','北京','深圳','上海','北京'];
+  drawM7();
+}
+function drawM7(){
+  var s=document.getElementById('svg7');clear(s);
+  var W=940,H=520;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='GPU 列式数据压缩';
+  var algoName=S.m7.algo===0?'字典编码 (Dictionary)':(S.m7.algo===1?'游程编码 (RLE)':(S.m7.algo===2?'增量编码 (Delta)':'位打包 (Bit-Packing)'));
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='算法: '+algoName+(S.m7.compressed?'  ·  已压缩':'  ·  原始');
+  var D=S.m7.data;
+  var N=D.length;
+  // original column
+  el('text',{x:60,y:90,'class':'t-h2'},s).textContent='原始列 (city)';
+  var cellW=36,cellH=28,startY=100;
+  for(var i=0;i<N;i++){
+    var x=60+i*cellW;
+    el('rect',{x:x,y:startY,width:cellW-3,height:cellH,rx:4,fill:'rgba(0,212,170,.08)',stroke:'rgba(0,212,170,.25)'},s);
+    el('text',{x:x+cellW/2-1.5,y:startY+18,'text-anchor':'middle','class':'t-mono','font-size':'10'},s).textContent=D[i].substr(0,2);
+  }
+  el('text',{x:60,y:startY+cellH+18,'class':'t-mono'},s).textContent=N+' 行 · 每行 ~12 字节 · 共 '+(N*12)+' B';
+  // arrow
+  el('text',{x:60,y:startY+cellH+50,'class':'t-acc'},s).textContent='▼ 压缩 '+(S.m7.compressed?'(进行中...)':'');
+  // compressed representation
+  var cy=startY+cellH+70;
+  if(S.m7.compressed){
+    var prog=Math.min(1,S.m7.t/45);
+    if(S.m7.algo===0){
+      // dictionary
+      el('text',{x:60,y:cy,'class':'t-h2',fill:'#00a3ff'},s).textContent='字典表';
+      var dict=['北京','上海','广州','深圳'];
+      for(var d=0;d<dict.length;d++){
+        el('rect',{x:60+d*90,y:cy+10,width:80,height:30,rx:5,fill:'rgba(255,184,77,.1)',stroke:'rgba(255,184,77,.4)'},s);
+        el('text',{x:60+d*90+40,y:cy+30,'text-anchor':'middle','class':'t-mono'},s).textContent=dict[d]+' = '+d;
+      }
+      el('text',{x:60,y:cy+60,'class':'t-h2',fill:'#00a3ff'},s).textContent='编码列 (code)';
+      var shown=Math.floor(N*prog);
+      for(var i2=0;i2<shown;i2++){
+        var x2=60+i2*22;
+        var code=dict.indexOf(D[i2]);
+        el('rect',{x:x2,y:cy+70,width:18,height:24,rx:3,fill:'rgba(0,163,255,.15)',stroke:'rgba(0,163,255,.4)'},s);
+        el('text',{x:x2+9,y:cy+87,'text-anchor':'middle','class':'t-mono','font-size':'10',fill:'#00a3ff'},s).textContent=code;
+      }
+      el('text',{x:60,y:cy+120,'class':'t-mono'},s).textContent='字典 4×12B + 编码 '+N+'×2bit = '+(48+Math.ceil(N*2/8))+' B';
+    }else if(S.m7.algo===1){
+      // RLE: runs
+      el('text',{x:60,y:cy,'class':'t-h2',fill:'#00a3ff'},s).textContent='游程编码 (value, count)';
+      var runs=[];var cur=D[0];var cnt=1;
+      for(var r=1;r<N;r++){if(D[r]===cur)cnt++;else{runs.push([cur,cnt]);cur=D[r];cnt=1;}}
+      runs.push([cur,cnt]);
+      var shown=Math.min(runs.length,Math.ceil(runs.length*prog));
+      for(var r2=0;r2<shown;r2++){
+        var x3=60+r2*80;
+        el('rect',{x:x3,y:cy+10,width:70,height:40,rx:5,fill:'rgba(0,163,255,.12)',stroke:'rgba(0,163,255,.4)'},s);
+        el('text',{x:x3+35,y:cy+28,'text-anchor':'middle','class':'t-mono'},s).textContent=runs[r2][0];
+        el('text',{x:x3+35,y:cy+44,'text-anchor':'middle','class':'t-val'},s).textContent='×'+runs[r2][1];
+      }
+      el('text',{x:60,y:cy+70,'class':'t-mono'},s).textContent=runs.length+' 个游程 · '+(runs.length*6)+' B (原 '+(N*12)+' B)';
+    }else if(S.m7.algo===2){
+      // delta on numeric (use index as numeric proxy)
+      el('text',{x:60,y:cy,'class':'t-h2',fill:'#00a3ff'},s).textContent='增量编码 (Δ)';
+      var shown2=Math.floor(N*prog);
+      for(var i3=0;i3<shown2;i3++){
+        var x4=60+i3*30;
+        var delta=i3===0?i3:(D[i3]===D[i3-1]?0:1);
+        el('rect',{x:x4,y:cy+10,width:24,height:30,rx:3,fill:'rgba(0,163,255,.12)',stroke:'rgba(0,163,255,.4)'},s);
+        el('text',{x:x4+12,y:cy+30,'text-anchor':'middle','class':'t-mono','font-size':'10',fill:'#00a3ff'},s).textContent=delta;
+      }
+      el('text',{x:60,y:cy+60,'class':'t-mono'},s).textContent='基准值 + '+(N-1)+' 个 Δ(0/1) · 位宽 1bit · '+(8+Math.ceil((N-1)/8))+' B';
+    }else{
+      // bit-packing
+      el('text',{x:60,y:cy,'class':'t-h2',fill:'#00a3ff'},s).textContent='位打包 (2-bit codes)';
+      var dict2=['北京','上海','广州','深圳'];
+      var shown3=Math.floor(N*prog);
+      for(var i4=0;i4<shown3;i4++){
+        var x5=60+i4*14;
+        var code2=dict2.indexOf(D[i4]);
+        el('rect',{x:x5,y:cy+10,width:10,height:30,rx:2,fill:'rgba(0,163,255,.15)',stroke:'rgba(0,163,255,.4)'},s);
+      }
+      el('text',{x:60,y:cy+60,'class':'t-mono'},s).textContent=N+'×2bit 连续打包 = '+Math.ceil(N*2/8)+' B (原 '+(N*12)+' B)';
+    }
+    // savings bar
+    if(prog>=1){
+      var ratio=S.m7.algo===0?5.0:(S.m7.algo===1?3.8:(S.m7.algo===2?6.0:7.2));
+      el('text',{x:60,y:cy+170,'class':'t-h2'},s).textContent='空间节省';
+      el('rect',{x:60,y:cy+180,width:400,height:20,rx:5,fill:'#1c2030'},s);
+      el('rect',{x:60,y:cy+180,width:400*(1-1/ratio),height:20,rx:5,fill:'#ff6b9d'},s);
+      el('text',{x:470,y:cy+195,'class':'t-val',fill:'#ff6b9d'},s).textContent='压缩比 '+ratio.toFixed(1)+'×';
+    }
+  }else{
+    el('text',{x:60,y:cy+10,'class':'t-mono'},s).textContent='点击「压缩当前列」开始';
+  }
+  // right info
+  el('rect',{x:660,y:90,width:250,height:400,rx:10,fill:'rgba(255,255,255,.02)',stroke:'var(--border)'},s);
+  el('text',{x:674,y:116,'class':'t-h2'},s).textContent='算法特性';
+  var info=[
+    ['算法',algoName.split('(')[0].trim()],
+    ['适合数据',S.m7.algo===0?'低基数类别':(S.m7.algo===1?'重复序列':(S.m7.algo===2?'有序/缓变':'小整数域'))],
+    ['GPU 解码','向量化并行'],
+    ['随机访问',S.m7.algo===0?'优':(S.m7.algo===1?'需偏移表':(S.m7.algo===2?'中':'优'))],
+    ['压缩比',S.m7.algo===0?'~5×':(S.m7.algo===1?'~4×':(S.m7.algo===2?'~6×':'~7×'))],
+    ['延迟影响','< 0.1ms']
+  ];
+  for(var ii=0;ii<info.length;ii++){
+    el('text',{x:674,y:150+ii*56,'class':'t-lbl'},s).textContent=info[ii][0];
+    el('text',{x:674,y:170+ii*56,'class':'t-val'},s).textContent=info[ii][1];
+  }
+}
+function m7Compress(){
+  if(S.m7.compressed)return;
+  S.m7.compressed=true;S.m7.t=0;
+  var ratio=[5.0,3.8,6.0,7.2][S.m7.algo];
+  var names=['字典编码','游程编码','增量编码','位打包'];
+  document.getElementById('m7stat').innerHTML='算法: <b>'+names[S.m7.algo]+'</b> · 压缩比: <b>计算中</b>';
+  startAnim('m7c',function(){
+    S.m7.t++;
+    if(S.m7.t>=45){
+      stopAnim('m7c');
+      document.getElementById('m7stat').innerHTML='算法: <b>'+names[S.m7.algo]+'</b> · 压缩比: <b>'+ratio.toFixed(1)+'×</b>';
+    }
+    drawM7();
+  });
+}
+function m7ToggleAlgo(){
+  S.m7.algo=(S.m7.algo+1)%4;
+  S.m7.compressed=false;S.m7.t=0;
+  var names=['字典编码','游程编码','增量编码','位打包'];
+  document.getElementById('m7stat').innerHTML='算法: <b>'+names[S.m7.algo]+'</b> · 压缩比: <b>—</b>';
+  drawM7();
+}
+function m7Reset(){
+  stopAnim('m7c');S.m7={algo:0,compressed:false,t:0};
+  S.m7.data=['北京','上海','北京','广州','北京','上海','深圳','北京','上海','广州','北京','深圳','上海','北京','广州','上海','北京','深圳','上海','北京'];
+  document.getElementById('m7stat').innerHTML='算法: <b>字典编码</b> · 压缩比: <b>—</b>';
+  drawM7();
+}
+
+/* ============================================================
+   M8 — 对比 Traditional vs Cognitive
+   ============================================================ */
+function initM8(){
+  var s=document.getElementById('svg8');
+  S.m8={metric:0,run:false,t:0,prog:0};
+  S.m8.datasets=[
+    // [label, trad, cogn, unit, higherBetter]
+    [['查询延迟',100,8,'ms',false],['扫描吞吐',0.05,2.0,'B rows/s',true],['向量检索',200,5,'ms',false],['AI推理融合',500,12,'ms',false]],
+    [['压缩比',3,10,'×',true],['并行度',16,5000,'cores',true],['内存占用',100,22,'% (相对)',false],['索引大小',100,15,'% (相对)',false]]
+  ];
+  drawM8();
+}
+function drawM8(){
+  var s=document.getElementById('svg8');clear(s);
+  var W=940,H=540;
+  el('text',{x:30,y:34,'class':'t-h1'},s).textContent='传统数据库 vs 认知数据库';
+  var gn=S.m8.metric===0?'性能基准':'架构效率';
+  el('text',{x:30,y:51,'class':'t-lbl'},s).textContent='指标组: '+gn+(S.m8.run?'  ·  运行中':'');
+  var ds=S.m8.datasets[S.m8.metric];
+  var barX=200,barW=560,gap=110,startY=90;
+  var prog=S.m8.run?Math.min(1,S.m8.prog):0;
+  for(var i=0;i<ds.length;i++){
+    var d=ds[i];
+    var y=startY+i*gap;
+    // label
+    el('text',{x:30,y:y+18,'class':'t-h2'},s).textContent=d[0];
+    el('text',{x:30,y:y+36,'class':'t-mono'},s).textContent=(d[4]?'↑ 越高越好':'↓ 越低越好');
+    // traditional
+    el('text',{x:barX,y:y+16,'class':'t-mono',fill:'#ff6b9d'},s).textContent='传统';
+    var maxV=Math.max(d[1],d[2])*1.15;
+    var tw=barW*(d[1]/maxV)*prog;
+    el('rect',{x:barX,y:y+22,width:barW,height:18,rx:4,fill:'#1c2030'},s);
+    el('rect',{x:barX,y:y+22,width:tw,height:18,rx:4,fill:'#ff6b9d'},s);
+    el('text',{x:barX+tw+8,y:y+36,'class':'t-val',fill:'#ff6b9d'},s).textContent=prog>0.3?(d[1]+d[3]):'';
+    // cognitive
+    el('text',{x:barX,y:y+58,'class':'t-mono',fill:'#00d4aa'},s).textContent='认知';
+    var cw=barW*(d[2]/maxV)*prog;
+    el('rect',{x:barX,y:y+64,width:barW,height:18,rx:4,fill:'#1c2030'},s);
+    el('rect',{x:barX,y:y+64,width:cw,height:18,rx:4,fill:'#00d4aa'},s);
+    el('text',{x:barX+cw+8,y:y+78,'class':'t-val'},s).textContent=prog>0.3?(d[2]+d[3]):'';
+    // ratio
+    var ratio=d[4]?(d[2]/d[1]):(d[1]/d[2]);
+    el('rect',{x:barX+barW+20,y:y+38,width:64,height:24,rx:5,fill:'rgba(255,184,77,.1)',stroke:'rgba(255,184,77,.4)'},s);
+    el('text',{x:barX+barW+52,y:y+55,'text-anchor':'middle','class':'t-val',fill:'#ffb84d'},s).textContent=prog>0.9?(ratio.toFixed(1)+'×'):'';
+  }
+  // summary
+  el('rect',{x:30,y:startY+4*gap-10,width:880,height:70,rx:10,fill:'rgba(0,212,170,.04)',stroke:'rgba(0,212,170,.2)'},s);
+  el('text',{x:46,y:startY+4*gap+12,'class':'t-h2',fill:'#00d4aa'},s).textContent='综合结论';
+  if(S.m8.metric===0){
+    el('text',{x:46,y:startY+4*gap+34,'class':'t-mono'},s).textContent='认知数据库在延迟、吞吐、向量检索、AI 推理上实现 10×–100× 提升，尤其适合分析+AI 混合负载。';
+  }else{
+    el('text',{x:46,y:startY+4*gap+34,'class':'t-mono'},s).textContent='凭借列存压缩、学习索引与海量并行，认知数据库在空间效率与并行度上远超传统架构。';
+  }
+  el('text',{x:46,y:startY+4*gap+52,'class':'t-mono'},s).textContent='注: 数值为典型量级示意，实际取决于工作负载与硬件配置。';
+}
+function m8RunBenchmark(){
+  S.m8.run=true;S.m8.prog=0;
+  var gn=S.m8.metric===0?'性能':'架构';
+  document.getElementById('m8stat').innerHTML='指标组: <b>'+gn+'</b> · 运行中';
+  startAnim('m8',function(){
+    S.m8.prog+=0.025;
+    if(S.m8.prog>=1){S.m8.prog=1;stopAnim('m8');document.getElementById('m8stat').innerHTML='指标组: <b>'+gn+'</b> · 完成';}
+    drawM8();
+  });
+}
+function m8ToggleMetric(){
+  S.m8.metric=(S.m8.metric+1)%2;
+  S.m8.run=false;S.m8.prog=0;
+  var gn=S.m8.metric===0?'性能':'架构';
+  document.getElementById('m8stat').innerHTML='指标组: <b>'+gn+'</b>';
+  drawM8();
+}
+function m8Reset(){
+  stopAnim('m8');S.m8={metric:0,run:false,t:0,prog:0};
+  S.m8.datasets=[[['查询延迟',100,8,'ms',false],['扫描吞吐',0.05,2.0,'B rows/s',true],['向量检索',200,5,'ms',false],['AI推理融合',500,12,'ms',false]],[['压缩比',3,10,'×',true],['并行度',16,5000,'cores',true],['内存占用',100,22,'% (相对)',false],['索引大小',100,15,'% (相对)',false]]];
+  document.getElementById('m8stat').innerHTML='指标组: <b>性能</b>';
+  drawM8();
+}
+
+/* ============ BOOT ============ */
+window.addEventListener('load',function(){
+  try{initM1();}catch(e){console.warn('boot m1',e);}
+});
+
+window.addEventListener('beforeunload',function(){for(var i=1;i<100000;i++){try{clearInterval(i)}catch(e){}}});
+</script>
+</body>
+</html>
