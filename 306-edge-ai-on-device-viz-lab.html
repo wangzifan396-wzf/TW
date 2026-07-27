@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>端侧AI与边缘推理可视化实验室</title>
+<style>
+:root{--bg:#0a0c12;--bd:#1a1d27;--dim:#4a5568;--ac:#7c5cff;--info:#2dd4ff;--warn:#fbbf24;--err:#ef4444;--pur:#a78bfa;--rose:#f472b6;--fg:#e5e7eb;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--fg);font-family:'Consolas','SF Mono','Monaco',monospace;font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:linear-gradient(90deg,#0d1018,#141826);border-bottom:1px solid var(--bd);flex-shrink:0;}
+.topbar a{color:var(--info);text-decoration:none;font-size:12px;}
+.topbar a:hover{text-decoration:underline;}
+.topbar h1{font-size:14px;font-weight:600;letter-spacing:1px;}
+.topbar .ver{color:var(--dim);font-size:11px;}
+.tabs{display:flex;background:#0d1018;border-bottom:1px solid var(--bd);padding:0 10px;flex-shrink:0;overflow-x:auto;}
+.tabs::-webkit-scrollbar{height:0;}
+.tab{padding:7px 14px;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;font-size:12px;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--info);}
+.tab.active{color:var(--ac);border-bottom-color:var(--ac);}
+.main{display:flex;gap:8px;padding:8px;flex:1;min-height:0;}
+.canvas-wrap{flex:1;background:#0a0c12;border:1px solid var(--bd);border-radius:6px;overflow:hidden;position:relative;}
+.canvas-wrap svg{width:100%;height:100%;display:block;}
+.controls{width:190px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.ctrl-title{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:2px;padding:2px 0;}
+.btn{padding:7px 10px;background:#11141c;border:1px solid var(--bd);color:var(--fg);cursor:pointer;border-radius:4px;font-size:11px;text-align:left;transition:all .12s;font-family:inherit;line-height:1.3;}
+.btn:hover{border-color:var(--ac);background:#1a1f30;}
+.btn.active{border-color:var(--ac);background:rgba(124,92,255,.12);color:var(--ac);}
+.btn .idx{color:var(--dim);font-size:9px;margin-right:4px;}
+.btn.active .idx{color:var(--ac);}
+.log{height:130px;background:#06070b;border-top:1px solid var(--bd);padding:6px 14px;overflow-y:auto;font-size:11px;line-height:1.5;flex-shrink:0;}
+.log::-webkit-scrollbar{width:6px;}
+.log::-webkit-scrollbar-track{background:transparent;}
+.log::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+.log-line{color:#9ca3af;margin-bottom:1px;}
+.log-line .t{color:var(--info);}
+.log-line .k{color:var(--ac);}
+.log-line .w{color:var(--warn);}
+.log-line .e{color:var(--err);}
+.log-line .ok{color:#22c55e;}
+.log-line .i{color:var(--info);}
+.log-line .p{color:var(--pur);}
+.log-line .r{color:var(--rose);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="computer://d:\TW_Files\TW-main\index.html">&larr; 返回 TW Hub</a>
+  <h1>端侧AI与边缘推理可视化实验室</h1>
+  <span class="ver">v3.06 / On-Device AI &amp; Edge Inference Lab</span>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="main">
+  <div class="canvas-wrap"><svg id="svg" viewBox="0 0 920 460" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="controls" id="controls"></div>
+</div>
+<div class="log" id="log"></div>
+<script>
+var BD='#1a1d27',DIM='#4a5568',AC='#7c5cff',INFO='#2dd4ff',WARN='#fbbf24',ERR='#ef4444',PUR='#a78bfa',ROSE='#f472b6';
+var FG='#e5e7eb',BG2='#11141c',BG3='#0d1018';
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild);}
+var svg=document.getElementById('svg'),logEl=document.getElementById('log'),tabsEl=document.getElementById('tabs'),ctrlEl=document.getElementById('controls');
+var curM=0,curV=0;
+var MODS=[
+ {id:'M1',name:'端侧AI全景',views:['云端推理','边缘推理','端侧推理','混合对比']},
+ {id:'M2',name:'模型压缩',views:['网络剪枝','模型量化','知识蒸馏','压缩对比']},
+ {id:'M3',name:'推理引擎',views:['TFLite','CoreML','ONNX Runtime','引擎对比']},
+ {id:'M4',name:'NPU芯片',views:['NPU架构','内存架构','能效分析','芯片对比']},
+ {id:'M5',name:'隐私计算',views:['联邦学习','差分隐私','安全聚合','隐私对比']},
+ {id:'M6',name:'动态推理',views:['早退机制','动态路由','模型交换','动态对比']},
+ {id:'M7',name:'端云协同',views:['模型分发','增量更新','混合推理','协同对比']},
+ {id:'M8',name:'应用场景',views:['语音助手','增强现实','健康监测','智能相机']}
+];
+function logMsg(msg,cls){
+  var d=document.createElement('div');d.className='log-line';
+  var tm=new Date().toLocaleTimeString('en-US',{hour12:false});
+  var s=document.createElement('span');s.className='t';s.textContent='['+tm+'] ';d.appendChild(s);
+  if(cls){var s2=document.createElement('span');s2.className=cls;s2.textContent=msg;d.appendChild(s2);}
+  else{d.appendChild(document.createTextNode(msg));}
+  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
+}
+function box(x,y,w,h,o){o=o||{};el('rect',{x:x,y:y,width:w,height:h,rx:o.r||5,ry:o.r||5,fill:o.fill||BG2,stroke:o.stroke||BD,'stroke-width':o.sw||1.5},svg);if(o.dash)el('rect',{x:x,y:y,width:w,height:h,rx:o.r||5,ry:o.r||5,fill:'none',stroke:o.stroke||BD,'stroke-width':o.sw||1.5,'stroke-dasharray':o.dash},svg);if(o.label){var t=el('text',{x:x+w/2,y:y+h/2,fill:o.fc||FG,'font-size':o.fs||12,'text-anchor':'middle','dominant-baseline':'middle','font-weight':o.fw||'normal'},svg);t.textContent=o.label;}}
+function line(x1,y1,x2,y2,c,w,d){var a={'x1':x1,'y1':y1,'x2':x2,'y2':y2,'stroke':c||DIM,'stroke-width':w||1.5};if(d)a['stroke-dasharray']=d;el('line',a,svg);}
+function arrow(x1,y1,x2,y2,c,w){c=c||DIM;w=w||1.5;var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return;var ux=dx/len,uy=dy/len;el('line',{x1:x1,y1:y1,x2:x2-ux*7,y2:y2-uy*7,stroke:c,'stroke-width':w},svg);var ang=Math.atan2(dy,dx),s=7;el('polygon',{points:x2+','+y2+' '+(x2-Math.cos(ang-0.4)*s)+','+(y2-Math.sin(ang-0.4)*s)+' '+(x2-Math.cos(ang+0.4)*s)+','+(y2-Math.sin(ang+0.4)*s),fill:c},svg);}
+function darrow(x1,y1,x2,y2,c,w){c=c||DIM;w=w||1.5;var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return;el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:c,'stroke-width':w,'stroke-dasharray':'4,3'},svg);var ang=Math.atan2(dy,dx),s=7;el('polygon',{points:x2+','+y2+' '+(x2-Math.cos(ang-0.4)*s)+','+(y2-Math.sin(ang-0.4)*s)+' '+(x2-Math.cos(ang+0.4)*s)+','+(y2-Math.sin(ang+0.4)*s),fill:c},svg);}
+function txt(x,y,s,o){o=o||{};var t=el('text',{x:x,y:y,fill:o.fill||FG,'font-size':o.fs||12,'text-anchor':o.ta||'start','dominant-baseline':o.db||'middle','font-weight':o.fw||'normal'},svg);t.textContent=s;}
+function ttl(x,y,s,c){var t=el('text',{x:x,y:y,fill:c||AC,'font-size':15,'font-weight':'bold'},svg);t.textContent=s;}
+function sub(x,y,s,c){var t=el('text',{x:x,y:y,fill:c||DIM,'font-size':11},svg);t.textContent=s;}
+function circ(cx,cy,r,fill,stroke,sw){el('circle',{cx:cx,cy:cy,r:r,fill:fill||'none',stroke:stroke||BD,'stroke-width':sw||1.5},svg);}
+function gridbg(){for(var x=0;x<=920;x+=40)el('line',{x1:x,y1:0,x2:x,y2:460,stroke:'#0d0f16','stroke-width':0.5},svg);for(var y=0;y<=460;y+=40)el('line',{x1:0,y1:y,x2:920,y2:y,stroke:'#0d0f16','stroke-width':0.5},svg);}
+function bars(x,y,w,h,data,unit){var mv=1;for(var i=0;i<data.length;i++)if(data[i].v>mv)mv=data[i].v;var n=data.length,bw=w/n*0.6,gp=w/n*0.4;for(var g=0;g<=4;g++){var gy=y+h-g*h/4;line(x,gy,x+w,gy,'#15182a',0.5);var gt=el('text',{x:x-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=Math.round(g*mv/4)+(unit||'');}line(x,y+h,x+w,y+h,DIM,1.5);for(var i=0;i<data.length;i++){var bh=data[i].v/mv*h*0.9;var bx=x+i*(bw+gp)+gp/2;el('rect',{x:bx,y:y+h-bh,width:bw,height:bh,fill:data[i].c||AC,opacity:0.78,rx:2},svg);var t=el('text',{x:bx+bw/2,y:y+h-bh-8,fill:data[i].c||AC,'font-size':11,'text-anchor':'middle','font-weight':'bold'},svg);t.textContent=data[i].v;var t2=el('text',{x:bx+bw/2,y:y+h+16,fill:'#9ca3af','font-size':10,'text-anchor':'middle'},svg);t2.textContent=data[i].l;}}
+function panel(x,y,w,h,title){el('rect',{x:x,y:y,width:w,height:h,rx:6,fill:BG3,stroke:BD,'stroke-width':1},svg);var t=el('text',{x:x+12,y:y+20,fill:INFO,'font-size':11,'font-weight':'bold'},svg);t.textContent=title;}
+function metric(x,y,label,val,color){var t1=el('text',{x:x,y:y,fill:DIM,'font-size':11},svg);t1.textContent=label;var t2=el('text',{x:x+150,y:y,fill:color||FG,'font-size':11,'text-anchor':'end','font-weight':'bold'},svg);t2.textContent=val;}
+
+// ===== M1: 端侧AI全景 =====
+function m1View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M1-1 云端推理架构',AC);
+    sub(30,48,'数据上传至远程数据中心 · 高算力 · 高延迟 · 强依赖网络',DIM);
+    box(40,110,110,55,{label:'移动设备',stroke:DIM,fc:FG});
+    box(40,185,110,45,{label:'传感器数据采集',stroke:INFO,fc:INFO,fs:10});
+    box(200,140,130,55,{label:'网络传输层',stroke:WARN,fc:WARN});
+    txt(265,125,'上传/下载',{fill:WARN,fs:10,ta:'middle'});
+    box(410,90,230,280,{fill:BG3,stroke:AC,sw:2});
+    ttl(430,115,'云端数据中心',INFO);
+    box(430,135,190,35,{label:'API网关 / 负载均衡',stroke:BD,fs:10});
+    box(430,180,90,35,{label:'GPU集群',stroke:AC,fc:AC,fs:10});
+    box(530,180,90,35,{label:'TPU加速',stroke:AC,fc:AC,fs:10});
+    box(430,225,190,35,{label:'大模型推理引擎',stroke:PUR,fc:PUR,fs:10});
+    box(430,270,90,35,{label:'模型仓库',stroke:BD,fs:10});
+    box(530,270,90,35,{label:'数据湖',stroke:BD,fs:10});
+    box(430,315,190,35,{label:'结果聚合 / 响应',stroke:BD,fs:10});
+    arrow(150,137,200,167,WARN,2);
+    arrow(200,178,150,148,WARN,2);
+    arrow(330,167,410,152,AC,2);
+    panel(700,110,180,260,'性能指标');
+    var met=[['端到端延迟','200-500ms',WARN],['网络带宽','高 (MB级)',ERR],['隐私安全','低 (数据上传)',ERR],['可用算力','极高 (PetaFLOPS)',INFO],['运营成本','高 (服务器+带宽)',ERR],['离线能力','不可用',ERR],['模型规模','超大 (100B+参数)',INFO]];
+    for(var i=0;i<met.length;i++)metric(715,140+i*28,met[i][0],met[i][1],met[i][2]);
+    logMsg('[M1-1] 云端推理模式','k');
+    logMsg('  设备仅采集传感器数据，全部上传至云端数据中心完成AI推理。');
+    logMsg('  优势：算力充沛，可运行千亿参数大模型，支持复杂任务。','ok');
+    logMsg('  劣势：延迟200-500ms、强依赖网络、隐私数据外泄风险、带宽成本高。','e');
+  }else if(m===1){
+    ttl(30,30,'M1-2 边缘推理架构',AC);
+    sub(30,48,'推理下沉至边缘节点 · 中等延迟 · 局部自治 · 网络友好',DIM);
+    box(40,150,100,50,{label:'终端设备',stroke:DIM,fc:FG,fs:10});
+    box(40,220,100,40,{label:'数据采集',stroke:INFO,fc:INFO,fs:9});
+    box(180,140,130,90,{fill:BG3,stroke:INFO,sw:2});
+    ttl(195,165,'边缘节点',INFO);
+    box(195,180,100,30,{label:'边缘推理引擎',stroke:AC,fc:AC,fs:9});
+    box(195,215,100,30,{label:'模型缓存',stroke:BD,fs:9});
+    arrow(140,170,180,180,INFO,2);
+    arrow(180,200,140,190,INFO,2);
+    box(360,90,180,55,{label:'区域边缘服务器',stroke:PUR,fc:PUR,fs:10});
+    box(360,160,180,55,{label:'5G MEC 多接入边缘计算',stroke:PUR,fc:PUR,fs:10});
+    box(360,230,180,55,{label:'CDN边缘缓存节点',stroke:PUR,fc:PUR,fs:10});
+    arrow(310,185,360,117,PUR,2);
+    arrow(310,200,360,187,PUR,1.5);
+    arrow(310,215,360,257,PUR,1.5);
+    box(600,140,130,90,{fill:BG3,stroke:AC,sw:2});
+    ttl(615,165,'云端',AC);
+    box(615,180,100,30,{label:'模型训练',stroke:AC,fc:AC,fs:9});
+    box(615,215,100,30,{label:'全局聚合',stroke:BD,fs:9});
+    darrow(540,185,600,185,AC,2);
+    darrow(600,200,540,200,DIM,1.5);
+    panel(770,110,120,230,'关键指标');
+    var met=[['延迟','10-50ms',WARN],['带宽','中',WARN],['隐私','中',WARN],['算力','中高',INFO],['成本','中',WARN],['离线','部分',WARN]];
+    for(var i=0;i<met.length;i++)metric(785,140+i*30,met[i][0],met[i][1],met[i][2]);
+    logMsg('[M1-2] 边缘推理模式','k');
+    logMsg('  推理任务下沉到5G MEC、区域边缘服务器等边缘节点执行。');
+    logMsg('  优势：延迟降至10-50ms，减少回传带宽，支持局部离线自治。','ok');
+    logMsg('  劣势：算力受限（TOPS级），模型规模有上限，部署运维复杂度增加。','w');
+  }else if(m===2){
+    ttl(30,30,'M1-3 端侧推理架构',AC);
+    sub(30,48,'模型直接运行在设备本地 · 超低延迟 · 隐私保护 · 完全离线',DIM);
+    box(250,90,420,300,{fill:BG3,stroke:AC,sw:2});
+    ttl(270,115,'移动设备 / IoT终端',INFO);
+    box(270,135,180,40,{label:'传感器输入层',stroke:INFO,fc:INFO,fs:10});
+    box(470,135,180,40,{label:'NPU/GPU/DSP 加速',stroke:AC,fc:AC,fs:10});
+    box(270,195,180,40,{label:'本地模型推理',stroke:PUR,fc:PUR,fs:10});
+    box(470,195,180,40,{label:'量化模型 (INT8)',stroke:PUR,fc:PUR,fs:10});
+    box(270,255,180,40,{label:'后处理 / 解码',stroke:BD,fs:10});
+    box(470,255,180,40,{label:'结果输出',stroke:BD,fs:10});
+    box(270,315,380,40,{label:'端侧推理引擎 (TFLite / CoreML / ONNX)',stroke:ROSE,fc:ROSE,fs:10});
+    arrow(360,175,360,195,PUR,1.5);
+    arrow(560,175,560,195,PUR,1.5);
+    arrow(360,235,360,255,DIM,1.5);
+    arrow(560,235,560,255,DIM,1.5);
+    arrow(360,295,360,315,DIM,1.5);
+    arrow(560,295,560,315,DIM,1.5);
+    circ(680,235,35,BG2,ROSE,2);
+    var lt=el('text',{x:680,y:238,fill:ROSE,'font-size':11,'text-anchor':'middle','font-weight':'bold'},svg);lt.textContent='零网络';
+    var lt2=el('text',{x:680,y:253,fill:ROSE,'font-size':9,'text-anchor':'middle'},svg);lt2.textContent='零上传';
+    panel(700,110,180,260,'性能指标');
+    var met=[['端到端延迟','1-10ms','#22c55e'],['网络带宽','零 (无需上传)','#22c55e'],['隐私安全','极高 (数据不出端)','#22c55e'],['可用算力','低 (TOPS级)',WARN],['运营成本','低 (无服务器)','#22c55e'],['离线能力','完全可用','#22c55e'],['模型规模','小 (<100M参数)',WARN]];
+    for(var i=0;i<met.length;i++)metric(715,140+i*28,met[i][0],met[i][1],met[i][2]);
+    logMsg('[M1-3] 端侧推理模式','k');
+    logMsg('  AI模型直接部署在设备本地，通过NPU/GPU加速完成全部推理。');
+    logMsg('  优势：延迟1-10ms、零网络依赖、数据完全不出端、离线可用。','ok');
+    logMsg('  劣势：算力受限（仅TOPS级），模型须压缩至百兆以内，热功耗约束。','w');
+  }else{
+    ttl(30,30,'M1-4 云端 / 边缘 / 端侧 三维对比',AC);
+    sub(30,48,'延迟 · 隐私 · 带宽 · 算力 · 成本 · 离线能力 全方位评估',DIM);
+    var cats=[['延迟(ms)','越低越好'],['隐私等级','越高越好'],['带宽消耗','越低越好'],['算力(TOPS)','越高越好'],['运营成本','越低越好'],['离线能力','越高越好']];
+    var data=[['云端',200,ERR],['边缘',30,WARN],['端侧',5,'#22c55e']];
+    var by=95;
+    for(var c=0;c<cats.length;c++){
+      var cy=by+c*58;
+      var ct=el('text',{x:30,y:cy+20,fill:DIM,'font-size':10},svg);ct.textContent=cats[c][0];
+      var ct2=el('text',{x:30,y:cy+33,fill:'#3a3f4d','font-size':8},svg);ct2.textContent=cats[c][1];
+      var maxv=data[0][1];for(var i=1;i<3;i++)if(data[i][1]>maxv)maxv=data[i][1];
+      if(c===0)maxv=200;if(c===2)maxv=200;if(c===3)maxv=200;if(c===5)maxv=100;
+      for(var i=0;i<3;i++){
+        var v=data[i][1];
+        if(c===0)v=[200,30,5][i];
+        if(c===1)v=[20,60,100][i];
+        if(c===2)v=[100,40,0][i];
+        if(c===3)v=[1000,100,10][i];
+        if(c===4)v=[90,50,10][i];
+        if(c===5)v=[0,50,100][i];
+        var mv=[200,100,200,1000,100,100][c];
+        var bw=v/mv*180;
+        var bx=110+i*250;
+        el('rect',{x:bx,y:cy+5,width:bw,height:22,fill:data[i][2],opacity:0.75,rx:3},svg);
+        var vt=el('text',{x:bx+5,y:cy+20,fill:FG,'font-size':10,'font-weight':'bold'},svg);vt.textContent=v;
+        if(i===0||c<3){var lt=el('text',{x:bx,y:cy-2,fill:data[i][2],'font-size':10,'font-weight':'bold'},svg);lt.textContent=data[i][0];}
+      }
+    }
+    line(105,by-5,105,by+cats.length*58+5,DIM,1);
+    line(355,by-5,355,by+cats.length*58+5,DIM,0.5);
+    line(605,by-5,605,by+cats.length*58+5,DIM,0.5);
+    panel(810,90,80,330,'结论');
+    txt(820,115,'端侧',{fill:'#22c55e',fs:11,fw:'bold'});
+    txt(820,132,'隐私+延迟',{fill:'#22c55e',fs:9});
+    txt(820,152,'最优',{fill:'#22c55e',fs:9});
+    txt(820,180,'边缘',{fill:WARN,fs:11,fw:'bold'});
+    txt(820,197,'平衡型',{fill:WARN,fs:9});
+    txt(820,217,'折中方案',{fill:WARN,fs:9});
+    txt(820,245,'云端',{fill:ERR,fs:11,fw:'bold'});
+    txt(820,262,'算力+模型',{fill:ERR,fs:9});
+    txt(820,282,'规模最优',{fill:ERR,fs:9});
+    logMsg('[M1-4] 三维对比分析','k');
+    logMsg('  端侧：延迟/隐私/离线最优，但算力和模型规模受限。','ok');
+    logMsg('  边缘：各项指标居中，适合时延敏感+中等算力需求场景。','w');
+    logMsg('  云端：算力和模型规模最强，但延迟高、隐私差、依赖网络。','e');
+    logMsg('  实际系统常采用「端-边-云」混合协同架构，按任务动态调度。','i');
+  }
+}
+
+// ===== M2: 模型压缩 =====
+function m2View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M2-1 网络剪枝 (Network Pruning)',AC);
+    sub(30,48,'移除冗余权重/神经元/通道 · 降低参数量 · 保持精度',DIM);
+    ttl(30,85,'剪枝前 (密集网络)',WARN);
+    var lx=[60,180,300,420],ny=120;
+    for(var l=0;l<4;l++){
+      var nn=[5,8,8,3][l];
+      for(var i=0;i<nn;i++){
+        var ny2=ny+i*22;
+        circ(lx[l],ny2,7,BG2,DIM,1.5);
+        for(var j=0;j<[8,8,3][l];j++){
+          if(l<3)line(lx[l],ny2,lx[l+1],ny+j*22,'#2a2d3a',0.4);
+        }
+      }
+    }
+    ttl(30,270,'剪枝后 (稀疏网络)',AC);
+    var px=[60,180,300,420],py=310;
+    var keep=[[1,0,1,1,0],[1,0,0,1,1,0,1,0],[0,1,1,0,1,0,0,1],[1,0,1]];
+    for(var l=0;l<4;l++){
+      var nn=[5,8,8,3][l];
+      for(var i=0;i<nn;i++){
+        var py2=py+i*22;
+        var active=keep[l]&&keep[l][i];
+        circ(px[l],py2,7,active?BG2:'#0a0c12',active?AC:'#1a1d27',active?2:0.8);
+      }
+    }
+    for(var l=0;l<3;l++){
+      var nn=[5,8,8][l],nn2=[8,8,3][l];
+      for(var i=0;i<nn;i++){
+        if(!keep[l]||!keep[l][i])continue;
+        for(var j=0;j<nn2;j++){
+          if(!keep[l+1]||!keep[l+1][j])continue;
+          if(Math.random()>0.5)line(px[l],py+i*22,px[l+1],py+j*22,AC,0.6);
+        }
+      }
+    }
+    panel(540,110,320,140,'剪枝策略');
+    var sp=[['权重剪枝','移除单个权重 (细粒度)'],['通道剪枝','移除整个卷积通道'],['结构化剪枝','移除整层/整块结构'],['稀疏度','50%-90% 参数可移除']];
+    for(var i=0;i<sp.length;i++){txt(555,135+i*25,sp[i][0],{fill:PUR,fs:11,fw:'bold'});txt(680,135+i*25,sp[i][1],{fill:DIM,fs:10});}
+    panel(540,270,320,140,'效果');
+    var ef=[['参数减少','75%','#22c55e'],['推理加速','2-4x','#22c55e'],['精度损失','<2%','#22c55e'],['内存占用','降低 70%',INFO]];
+    for(var i=0;i<ef.length;i++){txt(555,295+i*25,ef[i][0],{fill:DIM,fs:11});txt(680,295+i*25,ef[i][1],{fill:ef[i][2],fs:11,fw:'bold'});}
+    logMsg('[M2-1] 网络剪枝','k');
+    logMsg('  识别并移除对输出贡献小的权重/通道/结构，生成稀疏网络。');
+    logMsg('  非结构化剪枝灵活但硬件加速难；结构化剪枝友好但压缩率略低。','w');
+    logMsg('  典型：Iterative Magnitude Pruning 迭代式幅度剪枝，稀疏度可达90%。','i');
+  }else if(m===1){
+    ttl(30,30,'M2-2 模型量化 (Quantization)',AC);
+    sub(30,48,'降低权重精度 · FP32→INT8/INT4 · 大幅缩减体积与内存',DIM);
+    box(60,100,140,60,{label:'FP32 原始模型',stroke:WARN,fc:WARN,fs:11});
+    txt(130,175,'100 MB',{fill:WARN,fs:13,ta:'middle',fw:'bold'});
+    txt(130,192,'32位浮点',{fill:DIM,fs:9,ta:'middle'});
+    box(60,220,140,50,{label:'FP16 半精度',stroke:INFO,fc:INFO,fs:11});
+    txt(130,285,'50 MB',{fill:INFO,fs:13,ta:'middle',fw:'bold'});
+    txt(130,302,'16位浮点',{fill:DIM,fs:9,ta:'middle'});
+    box(60,330,140,50,{label:'INT8 量化',stroke:AC,fc:AC,fs:11});
+    txt(130,395,'25 MB',{fill:AC,fs:13,ta:'middle',fw:'bold'});
+    txt(130,412,'8位整数',{fill:DIM,fs:9,ta:'middle'});
+    arrow(200,130,260,130,WARN,2);
+    arrow(200,245,260,245,INFO,2);
+    arrow(200,355,260,355,AC,2);
+    box(260,100,160,60,{label:'量化映射',stroke:PUR,fc:PUR,fs:11});
+    ttl(280,185,'量化原理',PUR);
+    var ax=260,ay=220,aw=300,ah=80;
+    line(ax,ay+ah,ax+aw,ay+ah,DIM,1);
+    for(var i=0;i<=8;i++){line(ax+i*aw/8,ay+ah-3,ax+i*aw/8,ay+ah+3,DIM,1);var t=el('text',{x:ax+i*aw/8,y:ay+ah+15,fill:DIM,'font-size':8,'text-anchor':'middle'},svg);t.textContent=(-1+i*0.25).toFixed(2);}
+    for(var i=0;i<20;i++){var px2=ax+Math.random()*aw,py2=ay+ah-Math.random()*ah;circ(px2,py2,2,AC,AC,0);}
+    txt(ax,ay-8,'FP32 连续值分布 →',{fill:DIM,fs:10});
+    line(ax,ay+ah,ax+aw,ay+ah,DIM,1);
+    for(var i=0;i<=8;i++){el('rect',{x:ax+i*aw/8-3,y:ay+ah-15,width:6,height:15,fill:PUR,opacity:0.7},svg);}
+    txt(ax,ay+ah+30,'INT8 离散量化级 (256级)',{fill:PUR,fs:10});
+    panel(600,100,260,140,'量化方法');
+    var qm=[['PTQ 训练后量化','无需重训练，快速部署'],['QAT 量化感知训练','训练中模拟量化，精度更高'],['混合精度','敏感层FP16+其余INT8'],['INT4 极限量化','4位，体积1/8，精度损失大']];
+    for(var i=0;i<qm.length;i++){txt(615,125+i*25,qm[i][0],{fill:INFO,fs:11,fw:'bold'});txt(615,138+i*25,qm[i][1],{fill:DIM,fs:9});}
+    panel(600,260,260,140,'量化效果');
+    var qe=[['体积压缩','4x (FP32→INT8)','#22c55e'],['推理加速','2-3x','#22c55e'],['内存带宽','降低 75%',INFO],['精度损失','0.5%-2% (INT8)',WARN]];
+    for(var i=0;i<qe.length;i++){txt(615,285+i*28,qe[i][0],{fill:DIM,fs:11});txt(840,285+i*28,qe[i][1],{fill:qe[i][2],fs:11,ta:'end',fw:'bold'});}
+    logMsg('[M2-2] 模型量化','k');
+    logMsg('  将FP32权重映射为INT8/INT4整数，用量化比例(scale)和零点(zero_point)还原。');
+    logMsg('  PTQ：零成本快速量化；QAT：训练中引入伪量化节点，精度损失最小。','i');
+    logMsg('  INT8量化：体积缩小4倍，推理加速2-3倍，精度损失通常<1%。','ok');
+  }else if(m===2){
+    ttl(30,30,'M2-3 知识蒸馏 (Knowledge Distillation)',AC);
+    sub(30,48,'教师网络→学生网络 · 软标签迁移 · 小模型逼近大模型性能',DIM);
+    box(60,100,160,70,{fill:BG3,stroke:WARN,sw:2});
+    ttl(80,125,'教师网络',WARN);
+    txt(140,148,'Teacher Model',{fill:WARN,fs:11,ta:'middle'});
+    box(80,165,120,30,{label:'100M+ 参数',stroke:WARN,fc:WARN,fs:10});
+    box(80,200,120,30,{label:'ResNet-152 / BERT-Large',stroke:BD,fs:9});
+    var layers=[60,90,120,150];
+    for(var i=0;i<4;i++){circ(240+layers[i],135,8,BG2,WARN,2);}
+    for(var i=0;i<3;i++)arrow(240+layers[i],135,240+layers[i+1],135,WARN,1.5);
+    box(320,165,120,30,{label:'软标签 (Soft Labels)',stroke:PUR,fc:PUR,fs:10});
+    box(320,200,120,30,{label:'温度缩放 T=4',stroke:PUR,fc:PUR,fs:10});
+    arrow(300,135,320,135,PUR,2);
+    arrow(320,180,380,220,PUR,1.5);
+    var sl=el('text',{x:380,y:250,fill:PUR,'font-size':10,'text-anchor':'middle'},svg);sl.textContent='暗知识 (Dark Knowledge)';
+    var sl2=el('text',{x:380,y:265,fill:DIM,'font-size':9,'text-anchor':'middle'},svg);sl2.textContent='类间相似度信息';
+    box(60,300,160,70,{fill:BG3,stroke:AC,sw:2});
+    ttl(80,325,'学生网络',AC);
+    txt(140,348,'Student Model',{fill:AC,fs:11,ta:'middle'});
+    box(80,365,120,30,{label:'5M 参数',stroke:AC,fc:AC,fs:10});
+    box(80,400,120,30,{label:'MobileNet / DistilBERT',stroke:BD,fs:9});
+    for(var i=0;i<3;i++){circ(280+i*35,335,7,BG2,AC,2);if(i<2)arrow(280+i*35,335,280+(i+1)*35,335,AC,1.5);}
+    box(380,365,120,30,{label:'硬标签 (Hard Labels)',stroke:INFO,fc:INFO,fs:10});
+    arrow(320,335,380,380,INFO,1.5);
+    box(540,250,140,60,{fill:BG3,stroke:'#22c55e',sw:2});
+    ttl(560,275,'蒸馏损失','#22c55e');
+    box(560,295,100,25,{label:'KL散度+CE',stroke:'#22c55e',fc:'#22c55e',fs:9});
+    arrow(440,135,540,270,PUR,1.5);
+    arrow(440,335,540,295,INFO,1.5);
+    panel(720,110,150,300,'蒸馏效果');
+    var de=[['参数压缩','20x','#22c55e'],['推理加速','5-10x','#22c55e'],['精度保留','95%+',INFO],['部署友好','极佳','#22c55e']];
+    for(var i=0;i<de.length;i++){txt(735,140+i*30,de[i][0],{fill:DIM,fs:11});txt(860,140+i*30,de[i][1],{fill:de[i][2],fs:11,ta:'end',fw:'bold'});}
+    logMsg('[M2-3] 知识蒸馏','k');
+    logMsg('  大型教师网络的软标签(含类间关系)迁移到小型学生网络。');
+    logMsg('  软标签经温度缩放(T)软化后携带更丰富的「暗知识」信息。','i');
+    logMsg('  DistilBERT：参数减少40%，推理快60%，保留97%性能。','ok');
+  }else{
+    ttl(30,30,'M2-4 压缩技术综合对比',AC);
+    sub(30,48,'参数量 · 压缩比 · 加速比 · 精度损失 · 部署难度',DIM);
+    var cd=[
+      {l:'原始模型',v:100,c:ERR,d:'100M参数 / 400MB'},
+      {l:'剪枝-50%',v:50,c:WARN,d:'50M参数 / 200MB'},
+      {l:'剪枝-90%',v:10,c:WARN,d:'10M参数 / 40MB'},
+      {l:'量化-INT8',v:25,c:AC,d:'25M参数 / 100MB'},
+      {l:'量化-INT4',v:12,c:AC,d:'12M参数 / 50MB'},
+      {l:'蒸馏',v:5,c:PUR,d:'5M参数 / 20MB'},
+      {l:'剪枝+量化',v:5,c:INFO,d:'5M参数 / 20MB'},
+      {l:'全栈压缩',v:2,c:'#22c55e',d:'2M参数 / 8MB'}
+    ];
+    bars(80,95,380,280,cd,'M');
+    panel(500,95,370,280,'技术对比矩阵');
+    var cm=[['技术','压缩比','加速比','精度损失','难度']];
+    var cm2=[
+      ['剪枝','5-10x','2-4x','1-2%','中'],
+      ['量化','4x','2-3x','0.5-2%','低'],
+      ['蒸馏','10-20x','5-10x','2-5%','高'],
+      ['组合','20-50x','8-15x','3-5%','高']
+    ];
+    for(var i=0;i<cm[0].length;i++){var t=el('text',{x:515+i*72,y:120,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=cm[0][i];}
+    for(var r=0;r<cm2.length;r++){
+      for(var c=0;c<cm2[r].length;c++){
+        var col=DIM;
+        if(c===1||c===2)col='#22c55e';
+        if(c===3)col=WARN;
+        if(c===4)col=c===0?FG:ROSE;
+        if(c===0)col=FG;
+        var t=el('text',{x:515+c*72,y:145+r*28,fill:col,'font-size':10},svg);t.textContent=cm2[r][c];
+      }
+    }
+    line(510,128,860,128,DIM,0.5);
+    panel(500,390,370,50,'最佳实践');
+    txt(515,415,'端侧部署黄金组合：结构化剪枝 + INT8量化 + 知识蒸馏微调',{fill:'#22c55e',fs:10});
+    logMsg('[M2-4] 压缩技术对比','k');
+    logMsg('  剪枝减参、量化降精度、蒸馏传知识，三者可级联组合。');
+    logMsg('  单一技术：压缩4-10x；组合使用：可达20-50x压缩比。','ok');
+    logMsg('  端侧部署黄金组合：结构化剪枝 + INT8量化 + 蒸馏微调。','i');
+  }
+}
+
+// ===== M3: 推理引擎 =====
+function m3View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M3-1 TensorFlow Lite 推理引擎',AC);
+    sub(30,48,'Google出品 · Android首选 · 跨平台 · NNAPI委托加速',DIM);
+    box(30,80,860,340,{fill:BG3,stroke:BD});
+    box(50,100,200,40,{label:'TF/Keras 训练模型',stroke:WARN,fc:WARN,fs:11});
+    arrow(250,120,300,120,AC,2);
+    box(300,100,160,40,{label:'TFLite Converter',stroke:AC,fc:AC,fs:11});
+    txt(380,155,'.tflite FlatBuffer',{fill:DIM,fs:10,ta:'middle'});
+    arrow(460,120,510,120,AC,2);
+    box(510,100,180,40,{label:'TFLite Interpreter',stroke:INFO,fc:INFO,fs:11});
+    box(510,160,85,35,{label:'算子图',stroke:BD,fs:10});
+    box(605,160,85,35,{label:'内存规划',stroke:BD,fs:10});
+    arrow(550,140,550,160,DIM,1);
+    arrow(640,140,640,160,DIM,1);
+    box(720,100,150,40,{label:'硬件加速委托',stroke:PUR,fc:PUR,fs:11});
+    box(720,155,70,30,{label:'NNAPI',stroke:PUR,fc:PUR,fs:9});
+    box(795,155,70,30,{label:'GPU',stroke:PUR,fc:PUR,fs:9});
+    box(720,195,70,30,{label:'Edge TPU',stroke:PUR,fc:PUR,fs:9});
+    box(795,195,70,30,{label:'CoreML',stroke:PUR,fc:PUR,fs:9});
+    arrow(600,120,720,120,PUR,2);
+    ttl(50,260,'核心特性',INFO);
+    var ft=[['FlatBuffer序列化','零拷贝反序列化，启动<10ms'],['算子融合','Conv+BN+ReLU自动融合'],['动态量化','推理时自动INT8量化'],['XNNPACK','高度优化的CPU算子库'],['模型元数据','支持标签/权限/输入输出描述'],['8位推理','权重+激活全INT8']];
+    for(var i=0;i<ft.length;i++){txt(60,285+i*22,ft[i][0],{fill:AC,fs:11,fw:'bold'});txt(220,285+i*22,ft[i][1],{fill:DIM,fs:10});}
+    panel(500,250,370,150,'平台支持');
+    var pf=[['Android','原生 + NNAPI','#22c55e'],['iOS','CoreML委托','#22c55e'],['Linux/ARM','XNNPACK','#22c55e'],['微控制器','TFLite Micro','#22c55e'],['Web','TF.js转换','#22c55e'],['Raspberry Pi','完整支持','#22c55e']];
+    for(var i=0;i<pf.length;i++){txt(515,275+i*20,pf[i][0],{fill:DIM,fs:10});txt(620,275+i*20,pf[i][1],{fill:pf[i][2],fs:10});}
+    logMsg('[M3-1] TensorFlow Lite','k');
+    logMsg('  Google主导的轻量推理框架，Android端事实标准。');
+    logMsg('  FlatBuffer格式零拷贝加载，XNNPACK优化CPU算子，NNAPI委托硬件加速。','ok');
+    logMsg('  生态完善：TFLite Micro支持MCU级设备(仅20KB RAM)。','i');
+  }else if(m===1){
+    ttl(30,30,'M3-2 CoreML 推理引擎',AC);
+    sub(30,48,'Apple原生 · iOS/macOS全生态 · ANE神经引擎深度集成',DIM);
+    box(30,80,860,340,{fill:BG3,stroke:BD});
+    box(50,100,180,40,{label:'PyTorch/TF 训练',stroke:WARN,fc:WARN,fs:11});
+    arrow(230,120,280,120,AC,2);
+    box(280,100,140,40,{label:'coremltools 转换',stroke:AC,fc:AC,fs:11});
+    txt(350,155,'.mlpackage',{fill:DIM,fs:10,ta:'middle'});
+    arrow(420,120,470,120,AC,2);
+    box(470,100,160,40,{label:'CoreML Runtime',stroke:INFO,fc:INFO,fs:11});
+    box(470,155,75,30,{label:'神经网络',stroke:BD,fs:9});
+    box(550,155,75,30,{label:'流水线',stroke:BD,fs:9});
+    box(470,195,75,30,{label:'特征器',stroke:BD,fs:9});
+    box(550,195,75,30,{label:'分类器',stroke:BD,fs:9});
+    arrow(505,140,505,155,DIM,1);
+    arrow(585,140,585,155,DIM,1);
+    box(660,100,200,40,{label:'硬件加速后端',stroke:PUR,fc:PUR,fs:11});
+    box(660,155,95,30,{label:'ANE 神经引擎',stroke:PUR,fc:PUR,fs:9});
+    box(760,155,95,30,{label:'GPU Metal',stroke:PUR,fc:PUR,fs:9});
+    box(660,195,95,30,{label:'CPU NEON',stroke:PUR,fc:PUR,fs:9});
+    box(760,195,95,30,{label:'自动调度',stroke:PUR,fc:PUR,fs:9});
+    arrow(630,120,660,120,PUR,2);
+    ttl(50,260,'核心特性',INFO);
+    var ft=[['ANE加速','Apple Neural Engine 15.8TOPS'],['统一API','Swift/Objective-C一行调用'],['隐私优先','所有推理在设备本地'],['自动后端选择','ANE>GPU>CPU智能调度'],['模型加密','模型文件AES加密保护'],['实时预测','视频帧级实时推理']];
+    for(var i=0;i<ft.length;i++){txt(60,285+i*22,ft[i][0],{fill:AC,fs:11,fw:'bold'});txt(220,285+i*22,ft[i][1],{fill:DIM,fs:10});}
+    panel(500,250,370,150,'生态优势');
+    var pf=[['系统级集成','iOS 14+ / macOS 11+ 深度集成'],['设备覆盖','iPhone/iPad/Mac/Watch/TV'],['能效比','ANE能效比GPU高10倍'],['隐私合规','GDPR/CCPA天然合规'],['App Store','模型随App分发'],['Core ML Tools','Python全流程转换']];
+    for(var i=0;i<pf.length;i++){txt(515,275+i*20,pf[i][0],{fill:DIM,fs:10});txt(650,275+i*20,pf[i][1],{fill:'#22c55e',fs:9});}
+    logMsg('[M3-2] CoreML','k');
+    logMsg('  Apple原生推理框架，深度集成ANE/GPU/CPU三层硬件后端。');
+    logMsg('  自动后端调度：ANE优先(能效最高)，GPU次之，CPU兜底。','ok');
+    logMsg('  隐私合规天然优势：推理完全在设备本地，数据零外传。','ok');
+  }else if(m===2){
+    ttl(30,30,'M3-3 ONNX Runtime 推理引擎',AC);
+    sub(30,48,'微软出品 · 跨框架 · 开放标准 · 全平台通用',DIM);
+    box(30,80,860,340,{fill:BG3,stroke:BD});
+    var fw=['PyTorch','TensorFlow','Keras','scikit-learn','MXNet','JAX'];
+    for(var i=0;i<fw.length;i++){
+      box(50+i*135,100,120,35,{label:fw[i],stroke:WARN,fc:WARN,fs:10});
+      arrow(110+i*135,135,110+i*135,165,AC,1.5);
+    }
+    box(50,165,740,35,{label:'ONNX 开放模型格式 (Protobuf)',stroke:AC,fc:AC,fs:11});
+    txt(420,218,'.onnx · 统一中间表示 · 跨框架互操作',{fill:DIM,fs:10,ta:'middle'});
+    arrow(420,200,420,235,AC,2);
+    box(120,235,600,50,{fill:BG2,stroke:INFO,sw:2});
+    ttl(140,260,'ONNX Runtime 执行引擎',INFO);
+    box(140,295,110,30,{label:'图优化器',stroke:BD,fs:10});
+    box(260,295,110,30,{label:'算子内核库',stroke:BD,fs:10});
+    box(380,295,110,30,{label:'内存Arena',stroke:BD,fs:10});
+    box(500,295,110,30,{label:'执行提供者',stroke:PUR,fc:PUR,fs:10});
+    box(620,295,80,30,{label:'线程池',stroke:BD,fs:10});
+    arrow(420,285,140,310,DIM,1);
+    arrow(420,285,315,310,DIM,1);
+    arrow(420,285,435,310,DIM,1);
+    arrow(420,285,555,310,PUR,1.5);
+    arrow(420,285,660,310,DIM,1);
+    panel(50,340,740,65,'执行提供者 (Execution Providers)');
+    var ep=[['CUDA','TensorRT','OpenVINO','DirectML','CoreML','NNAPI','Rockchip NPU','QNN']];
+    var epC=[INFO,INFO,PUR,PUR,AC,AC,ROSE,ROSE];
+    for(var i=0;i<8;i++){box(60+i*92,355,82,30,{label:ep[0][i],stroke:epC[i],fc:epC[i],fs:9});}
+    logMsg('[M3-3] ONNX Runtime','k');
+    logMsg('  微软主导的跨框架推理引擎，ONNX格式作为统一中间表示。');
+    logMsg('  支持8+训练框架导出，通过Execution Provider适配各硬件后端。','ok');
+    logMsg('  图优化：常量折叠、冗余消除、算子融合，平均加速1.5-3x。','i');
+    logMsg('  全平台覆盖：Windows/Linux/macOS/iOS/Android/Web。','ok');
+  }else{
+    ttl(30,30,'M3-4 推理引擎横向对比',AC);
+    sub(30,48,'TFLite vs CoreML vs ONNX Runtime · 平台/生态/性能/易用性',DIM);
+    panel(30,80,860,340,'对比矩阵');
+    var hd=['维度','TFLite','CoreML','ONNX Runtime'];
+    var hdC=[DIM,AC,PUR,INFO];
+    for(var i=0;i<4;i++){var t=el('text',{x:60+i*210,y:110,fill:hdC[i],'font-size':12,'font-weight':'bold'},svg);t.textContent=hd[i];}
+    line(40,120,880,120,DIM,1);
+    var rows=[
+      ['开发方','Google','Apple','Microsoft'],
+      ['模型格式','.tflite (FlatBuffer)','.mlpackage','.onnx (Protobuf)'],
+      ['源框架','TF/Keras','PyTorch/TF/SK','8+框架通用'],
+      ['平台-Android','原生最优','委托支持','良好'],
+      ['平台-iOS','委托支持','原生最优','良好'],
+      ['平台-桌面','有限','macOS原生','全平台'],
+      ['硬件加速','NNAPI/GPU/EdgeTPU','ANE/GPU/CPU','CUDA/TensorRT/OpenVINO'],
+      ['算子覆盖','200+','CoreML算子集','170+标准算子'],
+      ['模型加密','元数据','AES加密','自定义'],
+      ['生态规模','最大(Android)','Apple封闭生态','最通用'],
+      ['学习曲线','中','低(Swift)','中'],
+      ['微控制器','TFLite Micro','不支持','ONNX Runtime Micro']
+    ];
+    for(var r=0;r<rows.length;r++){
+      var ry=140+r*22;
+      for(var c=0;c<4;c++){
+        var col=DIM;
+        if(c===0)col=FG;
+        else if(c===1)col=AC;
+        else if(c===2)col=PUR;
+        else if(c===3)col=INFO;
+        if(r%2===1)el('rect',{x:40,y:ry-12,width:840,height:20,fill:'#0d1018',opacity:0.5},svg);
+        var t=el('text',{x:60+c*210,y:ry,fill:col,'font-size':10},svg);t.textContent=rows[r][c];
+      }
+    }
+    panel(30,430,860,25,'');
+    txt(40,445,'选型建议：Android首选TFLite · iOS首选CoreML · 跨平台/服务器选ONNX Runtime',{fill:'#22c55e',fs:10});
+    logMsg('[M3-4] 引擎横向对比','k');
+    logMsg('  TFLite：Android生态最完善，TFLite Micro覆盖MCU设备。');
+    logMsg('  CoreML：Apple生态深度集成，ANE加速+隐私合规优势明显。');
+    logMsg('  ONNX Runtime：跨框架通用性最强，硬件适配最广泛。');
+    logMsg('  选型原则：平台原生优先，跨平台需求选ONNX Runtime。','i');
+  }
+}
+
+// ===== M4: NPU芯片 =====
+function m4View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M4-1 NPU 神经网络处理器架构',AC);
+    sub(30,48,'MAC阵列 · 数据流调度 · 专用张量计算单元',DIM);
+    box(30,75,560,360,{fill:BG3,stroke:AC,sw:2});
+    ttl(50,100,'NPU 芯片内部架构',INFO);
+    box(50,120,150,35,{label:'指令解码器',stroke:BD,fs:10});
+    box(210,120,150,35,{label:'控制处理器',stroke:BD,fs:10});
+    box(370,120,150,35,{label:'DMA引擎',stroke:BD,fs:10});
+    ttl(50,175,'MAC 阵列 (Systolic Array)',AC);
+    for(var r=0;r<6;r++){
+      for(var c=0;c<8;c++){
+        var cx=65+c*28,cy=185+r*22;
+        el('rect',{x:cx,y:cy,width:22,height:16,rx:2,fill:r<3?'rgba(124,92,255,0.25)':'rgba(45,212,255,0.15)',stroke:r<3?AC:INFO,'stroke-width':0.8},svg);
+      }
+    }
+    txt(65,330,'权重流→',{fill:AC,fs:9});
+    txt(280,340,'↑ 输入特征图 ↓ 输出特征图',{fill:INFO,fs:9,ta:'middle'});
+    box(50,360,240,35,{label:'片上SRAM (权重缓冲)',stroke:PUR,fc:PUR,fs:10});
+    box(300,360,240,35,{label:'片上SRAM (激活缓冲)',stroke:PUR,fc:PUR,fs:10});
+    box(50,405,240,25,{label:'L2 Cache 2-8MB',stroke:BD,fs:9});
+    box(300,405,240,25,{label:'寄存器文件',stroke:BD,fs:9});
+    panel(610,80,270,160,'关键模块');
+    var md=[['MAC阵列','矩阵乘加核心'],['标量单元','逐元素运算'],['向量单元','激活/归一化'],['DMA','高效数据搬运'],['互连总线','AXI/NOC']];
+    for(var i=0;i<md.length;i++){txt(625,105+i*25,md[i][0],{fill:AC,fs:11,fw:'bold'});txt(730,105+i*25,md[i][1],{fill:DIM,fs:10});}
+    panel(610,255,270,180,'设计特点');
+    var ft=[['数据流架构','最小化数据搬运'],['脉动阵列','O(n)数据复用'],['低精度计算','INT8/INT4原生'],['稀疏加速','跳零值计算'],['模型缓存','片上SRAM暂存'],['能效比','5-15 TOPS/W']];
+    for(var i=0;i<ft.length;i++){txt(625,280+i*25,ft[i][0],{fill:PUR,fs:11,fw:'bold'});txt(730,280+i*25,ft[i][1],{fill:DIM,fs:9});}
+    logMsg('[M4-1] NPU架构','k');
+    logMsg('  NPU核心是MAC脉动阵列(Systolic Array)，数据流经阵列完成矩阵乘加。');
+    logMsg('  权重驻留式：权重固定在阵列中，输入数据流过，适合卷积运算。','i');
+    logMsg('  片上SRAM缓存权重和激活，减少对外部DRAM的访问，降低能耗。','ok');
+  }else if(m===1){
+    ttl(30,30,'M4-2 NPU 内存架构',AC);
+    sub(30,48,'层级存储 · 带宽优化 · 数据复用 · 能耗管理',DIM);
+    var layers=[
+      {y:90,h:50,l:'寄存器文件 (RF)',d:'<1KB · 0.5-cycle · 10TB/s',c:'#22c55e'},
+      {y:150,h:50,l:'L1 SRAM',d:'32-256KB · 2-cycle · 2TB/s',c:INFO},
+      {y:210,h:50,l:'L2 Cache / Scratchpad',d:'1-8MB · 10-cycle · 500GB/s',c:AC},
+      {y:270,h:50,l:'L3 / 共享SRAM',d:'8-32MB · 30-cycle · 200GB/s',c:PUR},
+      {y:330,h:50,l:'LPDDR DRAM',d:'4-16GB · 200-cycle · 50GB/s',c:WARN},
+      {y:390,h:40,l:'闪存 (模型存储)',d:'UFS/eMMC · ms级 · 1GB/s',c:ERR}
+    ];
+    for(var i=0;i<layers.length;i++){
+      var ly=layers[i];
+      el('rect',{x:80,y:ly.y,width:400,height:ly.h,rx:4,fill:BG2,stroke:ly.c,'stroke-width':1.5},svg);
+      var t=el('text',{x:100,y:ly.y+ly.h/2-5,fill:ly.c,'font-size':12,'font-weight':'bold'},svg);t.textContent=ly.l;
+      var t2=el('text',{x:100,y:ly.y+ly.h/2+12,fill:DIM,'font-size':10},svg);t2.textContent=ly.d;
+      if(i<layers.length-1)arrow(280,ly.y+ly.h,280,layers[i+1].y,ly.c,1.5);
+    }
+    txt(280,82,'↑ 低延迟 / 高带宽 / 高能耗',{fill:'#22c55e',fs:10,ta:'middle'});
+    txt(280,445,'↓ 高延迟 / 低带宽 / 低能耗',{fill:ERR,fs:10,ta:'middle'});
+    panel(520,90,340,150,'数据复用策略');
+    var dr=[['权重复用','同一权重参与多次计算'],['输入复用','同一输入与多权重计算'],['输出复用','部分和累加暂存'],['Tiling分块','将大张量切分至SRAM'],['双缓冲','计算与搬运重叠'],['数据布局','NHWC/NCHW优化']];
+    for(var i=0;i<dr.length;i++){txt(535,115+i*20,dr[i][0],{fill:AC,fs:10,fw:'bold'});txt(645,115+i*20,dr[i][1],{fill:DIM,fs:9});}
+    panel(520,255,340,175,'能耗分析');
+    var en=[['DRAM访问','200x (基准)',ERR],['L3 SRAM','20x',WARN],['L2 Cache','8x',AC],['L1 SRAM','3x',INFO],['寄存器','1x (最优)','#22c55e'],['MAC计算','2x','#22c55e']];
+    txt(535,278,'操作类型',{fill:DIM,fs:10});txt(840,278,'相对能耗',{fill:DIM,fs:10,ta:'end'});
+    line(525,285,855,285,DIM,0.5);
+    for(var i=0;i<en.length;i++){txt(535,305+i*20,en[i][0],{fill:en[i][2],fs:10});txt(840,305+i*20,en[i][1],{fill:en[i][2],fs:10,ta:'end',fw:'bold'});}
+    logMsg('[M4-2] NPU内存架构','k');
+    logMsg('  分层存储：RF→L1→L2→L3→DRAM，延迟和能耗逐级增加。');
+    logMsg('  DRAM访问能耗是寄存器操作的200倍，内存优化是NPU设计的核心。','w');
+    logMsg('  Tiling分块+双缓冲：将大张量切分至SRAM，计算与搬运重叠执行。','i');
+  }else if(m===2){
+    ttl(30,30,'M4-3 NPU 能效分析',AC);
+    sub(30,48,'TOPS/W · 算力密度 · 功耗墙 · 热设计约束',DIM);
+    ttl(30,85,'各计算单元能效对比 (TOPS/W)',INFO);
+    var ed=[
+      {l:'云端GPU',v:0.05,c:ERR},
+      {l:'CPU',v:0.1,c:ERR},
+      {l:'移动GPU',v:0.8,c:WARN},
+      {l:'DSP',v:2,c:WARN},
+      {l:'初代NPU',v:3,c:AC},
+      {l:'现代NPU',v:8,c:AC},
+      {l:'先进NPU',v:15,c:'#22c55e'},
+      {l:'类脑芯片',v:25,c:'#22c55e'}
+    ];
+    bars(80,110,500,260,ed,'');
+    panel(620,110,250,260,'能效关键因素');
+    var ef=[['INT8 vs FP32','4-8x能效提升'],['稀疏计算','跳零省能30-50%'],['数据流架构','减少数据搬运'],['SRAM缓存','避免DRAM高能耗'],['电压缩放','动态调压降耗'],['时钟门控','空闲模块断电'],['模型量化','INT4能效再2x'],['批处理','提高MAC利用率']];
+    for(var i=0;i<ef.length;i++){txt(635,135+i*28,ef[i][0],{fill:AC,fs:10,fw:'bold'});txt(635,148+i*28,ef[i][1],{fill:DIM,fs:9});}
+    ttl(30,390,'功耗-性能权衡',WARN);
+    box(50,405,120,35,{label:'1W (手机待机)',stroke:'#22c55e',fc:'#22c55e',fs:9});
+    box(190,405,120,35,{label:'3-5W (持续推理)',stroke:WARN,fc:WARN,fs:9});
+    box(330,405,120,35,{label:'8-12W (峰值性能)',stroke:ERR,fc:ERR,fs:9});
+    arrow(170,422,190,422,DIM,1.5);
+    arrow(310,422,330,422,DIM,1.5);
+    txt(470,420,'热设计功耗(TDP)限制持续推理时长',{fill:DIM,fs:10});
+    logMsg('[M4-3] NPU能效分析','k');
+    logMsg('  NPU能效可达CPU的80-150倍，是端侧AI可行的关键。');
+    logMsg('  现代移动NPU：8-15 TOPS/W，可在3-5W下持续推理。','ok');
+    logMsg('  功耗墙：持续推理受TDP限制，需热管理策略(降频/间歇)。','w');
+    logMsg('  INT4量化+稀疏计算可将能效再提升2-3倍。','i');
+  }else{
+    ttl(30,30,'M4-4 主流移动NPU芯片对比',AC);
+    sub(30,48,'Snapdragon · Apple · Dimensity · Exynos · Tensor',DIM);
+    var chips=[
+      {n:'骁龙8 Gen3',v:'Hexagon NPU',tops:45,c:AC,pwr:8},
+      {n:'A17 Pro',v:'Neural Engine',tops:35,c:PUR,pwr:6},
+      {n:'天玑9300',v:'APU 790',tops:48,c:INFO,pwr:7},
+      {n:'Exynos 2400',v:'Xclipse 940',tops:38,c:WARN,pwr:6},
+      {n:'Tensor G3',v:'TPU',tops:25,c:ROSE,pwr:5},
+      {n:'麒麟9000S',v:'达芬奇NPU',tops:30,c:'#22c55e',pwr:6}
+    ];
+    for(var i=0;i<chips.length;i++){
+      var cy=85+i*58;
+      el('rect',{x:30,y:cy,width:860,height:50,rx:5,fill:BG2,stroke:BD,'stroke-width':1},svg);
+      var t=el('text',{x:50,y:cy+22,fill:chips[i].c,'font-size':12,'font-weight':'bold'},svg);t.textContent=chips[i].n;
+      var t2=el('text',{x:50,y:cy+38,fill:DIM,'font-size':10},svg);t2.textContent=chips[i].v;
+      var bv=chips[i].tops;
+      el('rect',{x:200,y:cy+15,width:bv*6,height:20,rx:3,fill:chips[i].c,opacity:0.7},svg);
+      var t3=el('text',{x:200+bv*6+8,y:cy+28,fill:chips[i].c,'font-size':11,'font-weight':'bold'},svg);t3.textContent=chips[i].tops+' TOPS';
+      var pw=chips[i].pwr;
+      for(var s=0;s<5;s++){
+        circ(620+s*18,cy+25,6,s<pw?WARN:'#1a1d27',s<pw?WARN:'#2a2d3a',1);
+      }
+      var t4=el('text',{x:720,y:cy+28,fill:DIM,'font-size':10},svg);t4.textContent='能效'+chips[i].pwr+'/5';
+      var t5=el('text',{x:830,y:cy+22,fill:INFO,'font-size':10},svg);t5.textContent='INT8';
+      var t6=el('text',{x:830,y:cy+38,fill:DIM,'font-size':9},svg);t6.textContent='量化算力';
+    }
+    panel(30,430,860,25,'');
+    txt(40,445,'注：TOPS为INT8峰值算力，实际持续推理受功耗墙限制约为峰值的40-60%',{fill:DIM,fs:10});
+    logMsg('[M4-4] 芯片对比','k');
+    logMsg('  天玑9300 APU达48 TOPS，骁龙8 Gen3 Hexagon达45 TOPS。');
+    logMsg('  Apple A17 Pro ANE：35 TOPS，能效比最优(15 TOPS/W)。','ok');
+    logMsg('  峰值算力≠持续算力，受热设计功耗(TDP)限制通常折半。','w');
+  }
+}
+
+// ===== M5: 隐私计算 =====
+function m5View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M5-1 联邦学习 (Federated Learning)',AC);
+    sub(30,48,'数据不动模型动 · 本地训练 · 梯度聚合 · 隐私保护',DIM);
+    var devices=[
+      {x:50,y:120,label:'设备A',data:'用户画像'},
+      {x:50,y:200,label:'设备B',data:'浏览记录'},
+      {x:50,y:280,label:'设备C',data:'语音数据'},
+      {x:50,y:360,label:'设备D',data:'位置信息'}
+    ];
+    for(var i=0;i<devices.length;i++){
+      box(devices[i].x,devices[i].y,120,55,{label:devices[i].label,stroke:INFO,fc:INFO,fs:11});
+      box(devices[i].x,devices[i].y+35,120,20,{label:devices[i].data,stroke:BD,fs:8});
+      box(190,devices[i].y+5,90,45,{fill:BG2,stroke:AC});
+      var t=el('text',{x:235,y:devices[i].y+22,fill:AC,'font-size':9,'text-anchor':'middle'},svg);t.textContent='本地训练';
+      var t2=el('text',{x:235,y:devices[i].y+36,fill:DIM,'font-size':8,'text-anchor':'middle'},svg);t2.textContent='SGD更新';
+      arrow(170,devices[i].y+27,190,devices[i].y+27,AC,1.5);
+      darrow(280,devices[i].y+27,400,200,AC,1.5);
+      darrow(400,220,280,devices[i].y+32,PUR,1.5);
+    }
+    box(350,170,180,100,{fill:BG3,stroke:PUR,sw:2});
+    ttl(370,195,'中央服务器',PUR);
+    box(370,210,140,25,{label:'安全聚合',stroke:PUR,fc:PUR,fs:9});
+    box(370,238,140,25,{label:'全局模型更新',stroke:BD,fs:9});
+    arrow(440,270,440,300,AC,2);
+    box(350,300,180,55,{label:'全局模型 v(n+1)',stroke:'#22c55e',fc:'#22c55e',fs:11});
+    darrow(440,328,440,355,PUR,2);
+    box(350,355,180,35,{label:'分发新模型',stroke:INFO,fc:INFO,fs:10});
+    txt(235,100,'↑ 仅上传梯度 (不含原始数据)',{fill:'#22c55e',fs:10,ta:'middle'});
+    txt(235,420,'↓ 下发更新后的全局模型',{fill:INFO,fs:10,ta:'middle'});
+    panel(580,120,280,130,'联邦学习流程');
+    var fl=['1. 服务器分发全局模型','2. 设备本地数据训练','3. 上传模型梯度(非数据)','4. 服务器安全聚合','5. 更新全局模型','6. 循环迭代至收敛'];
+    for(var i=0;i<fl.length;i++)txt(595,145+i*20,fl[i],{fill:i%2===0?AC:PUR,fs:10});
+    panel(580,265,280,155,'隐私优势');
+    var pa=[['数据不出端','原始数据留在设备本地'],['梯度加密','上传前加密或加噪'],['安全聚合','服务器看不到个体梯度'],['差分隐私','梯度注入噪声'],['可信执行环境','TEE保护计算'],['合规性','GDPR/CCPA天然合规']];
+    for(var i=0;i<pa.length;i++){txt(595,290+i*20,pa[i][0],{fill:'#22c55e',fs:10,fw:'bold'});txt(595,303+i*20,pa[i][1],{fill:DIM,fs:8});}
+    logMsg('[M5-1] 联邦学习','k');
+    logMsg('  数据留在设备本地，仅上传模型梯度到中央服务器聚合。');
+    logMsg('  Google Gboard：千万设备联邦学习改进输入法，数据零上传。','ok');
+    logMsg('  挑战：设备异构性、数据非独立同分布、通信开销大。','w');
+  }else if(m===1){
+    ttl(30,30,'M5-2 差分隐私 (Differential Privacy)',AC);
+    sub(30,48,'梯度注入噪声 · 量化隐私保证 · ε-差分隐私',DIM);
+    box(50,100,130,50,{label:'原始数据',stroke:WARN,fc:WARN,fs:11});
+    txt(115,165,'真实分布',{fill:WARN,fs:10,ta:'middle'});
+    arrow(180,125,230,125,PUR,2);
+    box(230,100,130,50,{label:'隐私机制',stroke:PUR,fc:PUR,fs:11});
+    box(250,160,90,25,{label:'添加噪声',stroke:PUR,fc:PUR,fs:9});
+    arrow(300,150,300,160,PUR,1);
+    arrow(360,125,410,125,AC,2);
+    box(410,100,130,50,{label:'加噪数据',stroke:AC,fc:AC,fs:11});
+    txt(475,165,'保护分布',{fill:AC,fs:10,ta:'middle'});
+    ttl(50,210,'噪声添加可视化',INFO);
+    var cx=200,cy=300,r=70;
+    for(var i=0;i<60;i++){
+      var ang=i/60*Math.PI*2;
+      var rr=r+Math.random()*30-15;
+      var px2=cx+Math.cos(ang)*rr,py2=cy+Math.sin(ang)*rr;
+      circ(px2,py2,2,WARN,WARN,0);
+    }
+    circ(cx,cy,r,'none',WARN,1);
+    var t=el('text',{x:cx,y:cy-5,fill:WARN,'font-size':10,'text-anchor':'middle'},svg);t.textContent='原始数据点';
+    var t2=el('text',{x:cx,y:cy+10,fill:WARN,'font-size':9,'text-anchor':'middle'},svg);t2.textContent='精确分布';
+    var cx2=500;
+    for(var i=0;i<60;i++){
+      var ang=i/60*Math.PI*2;
+      var rr=r+Math.random()*50-25;
+      var px2=cx2+Math.cos(ang)*rr,py2=cy+Math.sin(ang)*rr;
+      circ(px2,py2,2,AC,AC,0);
+    }
+    circ(cx2,cy,r,'none',AC,1);
+    var t3=el('text',{x:cx2,y:cy-5,fill:AC,'font-size':10,'text-anchor':'middle'},svg);t3.textContent='加噪数据点';
+    var t4=el('text',{x:cx2,y:cy+10,fill:AC,'font-size':9,'text-anchor':'middle'},svg);t4.textContent='模糊分布';
+    arrow(300,300,430,300,PUR,2);
+    var t5=el('text',{x:365,y:290,fill:PUR,'font-size':10,'text-anchor':'middle'},svg);t5.textContent='+ Laplace噪声';
+    panel(620,100,250,180,'数学定义');
+    txt(635,125,'ε-差分隐私:',{fill:INFO,fs:11,fw:'bold'});
+    txt(635,145,'Pr[M(D)∈S]',{fill:FG,fs:10});
+    txt(635,160,'≤ e^ε · Pr[M(D\')∈S]',{fill:FG,fs:10});
+    txt(635,185,'ε越小 → 隐私越强',{fill:PUR,fs:10});
+    txt(635,205,'ε越大 → 实用性越高',{fill:WARN,fs:10});
+    txt(635,230,'ε=0: 完美隐私(无用)',{fill:DIM,fs:9});
+    txt(635,250,'ε=1: 实用平衡点',{fill:'#22c55e',fs:9});
+    panel(620,295,250,145,'噪声机制');
+    var nm=[['Laplace机制','连续数据, 灵敏度Δf'],['Gaussian机制','矢量查询, δ松弛'],['Exponential机制','离散输出选择'],['RAPPOR','谷歌Chrome统计'],['Local DP','数据端加噪(无需信任)']];
+    for(var i=0;i<nm.length;i++){txt(635,320+i*22,nm[i][0],{fill:AC,fs:10,fw:'bold'});txt(745,320+i*22,nm[i][1],{fill:DIM,fs:9});}
+    logMsg('[M5-2] 差分隐私','k');
+    logMsg('  在查询结果或梯度中注入校准噪声，使个体数据无法被推断。');
+    logMsg('  ε(epsilon)控制隐私-效用权衡：ε越小隐私越强但数据越不精确。','i');
+    logMsg('  Apple：差分隐私收集Emoji使用统计，ε=1/4/8分级保护。','ok');
+  }else if(m===2){
+    ttl(30,30,'M5-3 安全聚合 (Secure Aggregation)',AC);
+    sub(30,48,'密钥交换 · 掩码求和 · 服务器无法窥探个体梯度',DIM);
+    var nd=4,dvy=100;
+    for(var i=0;i<nd;i++){
+      var dx=50+i*50,dy=dvy+i*60;
+      box(dx,dy,100,45,{label:'设备'+String.fromCharCode(65+i),stroke:INFO,fc:INFO,fs:10});
+      box(dx,dy+50,100,25,{label:'梯度 g'+i,stroke:AC,fc:AC,fs:9});
+    }
+    ttl(30,85,'阶段1: 密钥协商',WARN);
+    for(var i=0;i<nd;i++){
+      for(var j=i+1;j<nd;j++){
+        var dxi=50+i*50,dyi=dvy+i*60+22;
+        var dxj=50+j*50,dyj=dvy+j*60+22;
+        darrow(dxi+100,dyi,dxj,dyj,PUR,0.8);
+      }
+    }
+    txt(430,90,'← 设备间DH密钥交换 →',{fill:PUR,fs:9});
+    ttl(30,240,'阶段2: 掩码加噪',AC);
+    for(var i=0;i<nd;i++){
+      var dx=50+i*50,dy=260+i*50;
+      box(dx,dy,100,40,{label:'g'+i+' + mask'+i,stroke:AC,fc:AC,fs:9});
+      darrow(dx+50,dy+40,500,320,AC,1);
+    }
+    box(480,280,160,80,{fill:BG3,stroke:PUR,sw:2});
+    ttl(500,305,'聚合服务器',PUR);
+    box(500,320,120,25,{label:'求和 Σ(gi+mi)',stroke:PUR,fc:PUR,fs:9});
+    box(500,345,120,25,{label:'掩码相互抵消',stroke:'#22c55e',fc:'#22c55e',fs:9});
+    ttl(30,390,'阶段3: 聚合结果',INFO);
+    box(50,405,160,35,{label:'Σgi (真实聚合)',stroke:'#22c55e',fc:'#22c55e',fs:10});
+    arrow(210,422,250,422,AC,2);
+    box(250,405,200,35,{label:'服务器仅见聚合结果',stroke:INFO,fc:INFO,fs:10});
+    txt(450,422,'个体梯度被掩码保护',{fill:DIM,fs:10});
+    panel(660,100,220,160,'安全聚合特性');
+    var sf=[['密钥交换','Diffie-Hellman协议'],['成对掩码','设备对生成随机掩码'],['掩码抵消','成对掩码求和为零'],['服务器盲化','仅见聚合和'],[' dropout容错','支持设备掉线'],['通信轮次','3轮通信完成']];
+    for(var i=0;i<sf.length;i++){txt(675,125+i*22,sf[i][0],{fill:AC,fs:10,fw:'bold'});txt(675,138+i*22,sf[i][1],{fill:DIM,fs:9});}
+    panel(660,275,220,165,'与联邦学习结合');
+    var cb=[['FL+SecAgg','梯度安全聚合'],['FL+DP','梯度差分隐私'],['FL+SecAgg+DP','双重保护'],['HE同态加密','密文上直接计算'],['SMPC安全多方','无可信第三方'],['TEE可信执行','硬件级隔离']];
+    for(var i=0;i<cb.length;i++){txt(675,300+i*22,cb[i][0],{fill:PUR,fs:10,fw:'bold'});txt(675,313+i*22,cb[i][1],{fill:DIM,fs:9});}
+    logMsg('[M5-3] 安全聚合','k');
+    logMsg('  设备间协商密钥并添加成对掩码，掩码求和为零故聚合后自动抵消。');
+    logMsg('  服务器仅能看到所有梯度的总和，无法窥探任何个体梯度。','ok');
+    logMsg('  Google：安全聚合用于Android键盘联邦学习，3轮通信完成。','i');
+  }else{
+    ttl(30,30,'M5-4 隐私计算技术对比',AC);
+    sub(30,48,'隐私强度 · 计算开销 · 通信成本 · 信任模型 · 精度影响',DIM);
+    var techs=[
+      {n:'联邦学习',p:60,c:20,comm:30,a:95,clr:AC},
+      {n:'差分隐私',p:80,c:15,comm:10,a:85,clr:PUR},
+      {n:'安全聚合',p:90,c:40,comm:50,a:98,clr:INFO},
+      {n:'同态加密',p:95,c:90,comm:20,a:99,clr:WARN},
+      {n:'安全多方',p:90,c:70,comm:60,a:97,clr:ROSE},
+      {n:'可信执行',p:85,c:30,comm:15,a:99,clr:'#22c55e'}
+    ];
+    var by=85;
+    for(var r=0;r<techs.length;r++){
+      var ry=by+r*55;
+      el('rect',{x:30,y:ry,width:860,height:48,rx:4,fill:BG2,stroke:BD,'stroke-width':1},svg);
+      var t=el('text',{x:45,y:ry+22,fill:techs[r].clr,'font-size':12,'font-weight':'bold'},svg);t.textContent=techs[r].n;
+      var vals=[['隐私',techs[r].p],['效率',100-techs[r].c],['通信',100-techs[r].comm],['精度',techs[r].a]];
+      for(var v=0;v<4;v++){
+        var vx=160+v*170;
+        var t2=el('text',{x:vx,y:ry+15,fill:DIM,'font-size':9},svg);t2.textContent=vals[v][0];
+        el('rect',{x:vx,y:ry+22,width:120,height:8,rx:3,fill:'#1a1d27'},svg);
+        el('rect',{x:vx,y:ry+22,width:120*vals[v][1]/100,height:8,rx:3,fill:techs[r].clr,opacity:0.8},svg);
+        var t3=el('text',{x:vx+125,y:ry+30,fill:techs[r].clr,'font-size':9,'font-weight':'bold'},svg);t3.textContent=vals[v][1]+'%';
+      }
+    }
+    panel(30,420,860,35,'');
+    var headers=['技术','隐私强度','计算效率','通信效率','模型精度'];
+    for(var i=0;i<5;i++){var t=el('text',{x:i===0?45:160+(i-1)*170,y:438,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=headers[i];}
+    logMsg('[M5-4] 隐私技术对比','k');
+    logMsg('  同态加密：隐私最强但计算开销达100-1000x，难以实时部署。','w');
+    logMsg('  联邦学习+安全聚合+差分隐私：端侧最佳实践组合方案。','ok');
+    logMsg('  可信执行环境(TEE)：硬件隔离，性能好但需信任硬件厂商。','i');
+  }
+}
+
+// ===== M6: 动态推理 =====
+function m6View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M6-1 早退机制 (Early Exit)',AC);
+    sub(30,48,'浅层即可预测的样本提前退出 · 降低平均延迟',DIM);
+    var layers=[60,160,260,360,460,560];
+    var ln=['Conv1','Block1','Block2','Block3','Block4','FC'];
+    for(var i=0;i<6;i++){
+      box(layers[i]-35,160,70,60,{label:ln[i],stroke:i<2?AC:i<4?INFO:PUR,fc:i<2?AC:i<4?INFO:PUR,fs:10});
+      if(i<5)arrow(layers[i]+35,190,layers[i+1]-35,190,DIM,1.5);
+    }
+    var exits=[
+      {x:160,y:100,conf:'70%',label:'Exit-1',c:AC},
+      {x:260,y:100,conf:'85%',label:'Exit-2',c:INFO},
+      {x:360,y:100,conf:'92%',label:'Exit-3',c:PUR},
+      {x:460,y:100,conf:'96%',label:'Exit-4',c:PUR},
+      {x:560,y:100,conf:'98%',label:'Exit-5',c:WARN}
+    ];
+    for(var i=0;i<exits.length;i++){
+      box(exits[i].x-35,75,70,30,{label:exits[i].label,stroke:exits[i].c,fc:exits[i].c,fs:9});
+      box(exits[i].x-35,105,70,20,{label:exits[i].conf,stroke:BD,fs:8});
+      arrow(exits[i].x,130,exits[i].x,160,exits[i].c,1.5);
+      var t=el('text',{x:exits[i].x+42,y:120,fill:exits[i].c,'font-size':9},svg);t.textContent='←退出';
+    }
+    txt(30,250,'置信度阈值 τ=0.85 → 简单样本在第2层即退出',{fill:AC,fs:11});
+    ttl(30,280,'延迟分布',INFO);
+    var dc=[
+      {l:'Exit-1 (15%)',v:15,c:AC},
+      {l:'Exit-2 (30%)',v:25,c:INFO},
+      {l:'Exit-3 (25%)',v:40,c:PUR},
+      {l:'Exit-4 (20%)',v:60,c:PUR},
+      {l:'Exit-5 (10%)',v:100,c:WARN}
+    ];
+    bars(80,300,500,120,dc,'ms');
+    panel(620,280,250,140,'效果分析');
+    var ef=[['平均延迟','降低 45%','#22c55e'],['精度保持','下降 <1%','#22c55e'],['简单样本','15ms完成','#22c55e'],['困难样本','100ms完成',WARN],['能耗节省','40%','#22c55e'],['自适应τ','动态调整阈值',INFO]];
+    for(var i=0;i<ef.length;i++){txt(635,305+i*18,ef[i][0],{fill:DIM,fs:10});txt(860,305+i*18,ef[i][1],{fill:ef[i][2],fs:10,ta:'end',fw:'bold'});}
+    logMsg('[M6-1] 早退机制','k');
+    logMsg('  在网络不同深度插入分类器出口，置信度超过阈值即提前输出。');
+    logMsg('  简单样本(70%置信度)在浅层退出，困难样本走完整网络。','ok');
+    logMsg('  BranchyNet：ImageNet上平均延迟降低45%，精度损失<1%。','i');
+  }else if(m===1){
+    ttl(30,30,'M6-2 动态路由 (Dynamic Routing)',AC);
+    sub(30,48,'输入自适应选择计算路径 · 条件执行 · 稀疏激活',DIM);
+    box(30,130,100,50,{label:'输入样本',stroke:INFO,fc:INFO,fs:11});
+    arrow(130,155,180,155,AC,2);
+    box(180,130,100,50,{label:'路由器/门控',stroke:AC,fc:AC,fs:11});
+    txt(230,195,'Router Network',{fill:AC,fs:9,ta:'middle'});
+    var experts=[
+      {x:360,y:80,label:'专家1\nCNN分支',c:AC,active:true},
+      {x:360,y:140,label:'专家2\nAttention',c:INFO,active:true},
+      {x:360,y:200,label:'专家3\n轻量分支',c:PUR,active:false},
+      {x:360,y:260,label:'专家4\n重计算',c:WARN,active:false},
+      {x:360,y:320,label:'专家5\n混合分支',c:ROSE,active:true}
+    ];
+    for(var i=0;i<experts.length;i++){
+      var e=experts[i];
+      el('rect',{x:e.x,y:e.y,width:120,height:45,rx:4,fill:e.active?BG2:'#080a10',stroke:e.active?e.c:'#1a1d27','stroke-width':e.active?2:1},svg);
+      var t=el('text',{x:e.x+60,y:e.y+20,fill:e.active?e.c:DIM,'font-size':10,'text-anchor':'middle'},svg);t.textContent=e.label.split('\n')[0];
+      var t2=el('text',{x:e.x+60,y:e.y+34,fill:e.active?DIM:'#2a2d3a','font-size':8,'text-anchor':'middle'},svg);t2.textContent=e.label.split('\n')[1];
+      if(e.active)arrow(280,155,e.x,e.y+22,e.c,1.5);
+      else darrow(280,155,e.x,e.y+22,DIM,0.8);
+    }
+    var active=[0,1,4];
+    for(var i=0;i<3;i++){
+      arrow(480,experts[active[i]].y+22,540,155,experts[active[i]].c,1.5);
+    }
+    box(540,130,100,50,{label:'加权融合',stroke:PUR,fc:PUR,fs:11});
+    arrow(640,155,690,155,AC,2);
+    box(690,130,100,50,{label:'输出预测',stroke:'#22c55e',fc:'#22c55e',fs:11});
+    txt(740,195,'Top-2 专家激活',{fill:PUR,fs:9,ta:'middle'});
+    panel(30,380,420,70,'路由策略');
+    var rs=[['Top-K路由','激活得分最高的K个专家'],['Token路由','每个Token独立选择路径'],['负载均衡','防止专家负载不均'],['容量因子','限制每个专家计算量']];
+    for(var i=0;i<rs.length;i++){txt(45,405+i*18,rs[i][0],{fill:AC,fs:10,fw:'bold'});txt(160,405+i*18,rs[i][1],{fill:DIM,fs:9});}
+    panel(470,380,400,70,'效果');
+    var ef=[['计算量','降低 60%','#22c55e'],['精度','提升 2-3%','#22c55e'],['参数量','增加 (多专家)',WARN],['灵活性','输入自适应','#22c55e']];
+    for(var i=0;i<ef.length;i++){txt(485,405+i*18,ef[i][0],{fill:DIM,fs:10});txt(860,405+i*18,ef[i][1],{fill:ef[i][2],fs:10,ta:'end',fw:'bold'});}
+    logMsg('[M6-2] 动态路由','k');
+    logMsg('  路由器网络根据输入选择激活部分专家，实现条件计算。');
+    logMsg('  Mixtral 8x7B：8个专家中Top-2激活，等效参数13B但计算量仅2B。','ok');
+    logMsg('  端侧适配：轻量路由器+异构专家，按设备状态动态选择。','i');
+  }else if(m===2){
+    ttl(30,30,'M6-3 模型交换 (Model Swapping)',AC);
+    sub(30,48,'运行时动态切换模型 · 场景自适应 · 精度-延迟动态平衡',DIM);
+    var models=[
+      {n:'模型A: 超轻量',s:'2MB',l:'5ms',a:'75%',y:110,c:'#22c55e'},
+      {n:'模型B: 轻量',s:'10MB',l:'15ms',a:'86%',y:180,c:INFO},
+      {n:'模型C: 标准',s:'25MB',l:'40ms',a:'92%',y:250,c:AC},
+      {n:'模型D: 高精度',s:'80MB',l:'100ms',a:'96%',y:320,c:WARN}
+    ];
+    for(var i=0;i<models.length;i++){
+      box(40,models[i].y,140,50,{label:models[i].n,stroke:models[i].c,fc:models[i].c,fs:10});
+      txt(185,models[i].y+15,models[i].s,{fill:DIM,fs:9});
+      txt(185,models[i].y+30,models[i].l+' | '+models[i].a,{fill:models[i].c,fs:9});
+    }
+    box(300,190,100,100,{fill:BG3,stroke:PUR,sw:2});
+    ttl(320,215,'模型',PUR);
+    ttl(320,235,'调度器',PUR);
+    box(315,250,70,25,{label:'场景感知',stroke:PUR,fc:PUR,fs:9});
+    for(var i=0;i<4;i++){
+      darrow(180,models[i].y+25,300,240,PUR,1);
+      darrow(300,250,180,models[i].y+25,DIM,0.8);
+    }
+    box(440,110,120,45,{label:'场景: 低电量',stroke:ERR,fc:ERR,fs:10});
+    arrow(440,133,400,200,ERR,1.5);
+    box(440,175,120,45,{label:'场景: 实时',stroke:WARN,fc:WARN,fs:10});
+    arrow(440,198,400,220,WARN,1.5);
+    box(440,240,120,45,{label:'场景: 标准模式',stroke:AC,fc:AC,fs:10});
+    arrow(440,263,400,240,AC,1.5);
+    box(440,305,120,45,{label:'场景: WiFi充电',stroke:'#22c55e',fc:'#22c55e',fs:10});
+    arrow(440,328,400,260,'#22c55e',1.5);
+    box(600,190,120,100,{fill:BG3,stroke:INFO,sw:2});
+    ttl(620,215,'当前',INFO);
+    ttl(620,235,'激活模型',INFO);
+    box(615,250,90,25,{label:'模型C 标准',stroke:AC,fc:AC,fs:9});
+    arrow(560,240,600,240,INFO,2);
+    panel(760,110,100,360,'切换日志');
+    var lg=[['08:01','→模型A','#22c55e'],['08:15','→模型B',INFO],['09:30','→模型C',AC],['12:00','→模型A','#22c55e'],['14:20','→模型D',WARN],['18:00','→模型B',INFO],['22:00','→模型A','#22c55e']];
+    for(var i=0;i<lg.length;i++){txt(770,130+i*22,lg[i][0],{fill:DIM,fs:8});txt(770,142+i*22,lg[i][1],{fill:lg[i][2],fs:9});}
+    panel(30,390,560,55,'');
+    txt(40,412,'调度策略：电量<20%→模型A | 实时要求→模型B | 默认→模型C | 充电+WiFi→模型D',{fill:AC,fs:10});
+    txt(40,430,'切换延迟：冷启动50-200ms · 热切换<10ms (模型预加载至内存)',{fill:DIM,fs:10});
+    logMsg('[M6-3] 模型交换','k');
+    logMsg('  根据场景(电量/网络/算力/精度需求)动态切换不同规模模型。');
+    logMsg('  热切换：预加载模型至内存，切换延迟<10ms。','ok');
+    logMsg('  冷启动：从闪存加载，延迟50-200ms，适合低频切换。','w');
+    logMsg('  效果：低电量场景延迟降75%，充电场景精度提升至96%。','ok');
+  }else{
+    ttl(30,30,'M6-4 动态推理技术对比',AC);
+    sub(30,48,'早退 · 路由 · 交换 · 静态 — 延迟/精度/灵活性/复杂度',DIM);
+    var dc=[
+      {l:'静态推理',d:100,p:96,f:10,cx:10,c:ERR},
+      {l:'早退机制',d:55,p:95,f:60,cx:30,c:AC},
+      {l:'动态路由',d:40,p:94,f:80,cx:50,c:INFO},
+      {l:'模型交换',d:30,p:90,f:90,cx:40,c:PUR},
+      {l:'混合策略',d:25,p:95,f:95,cx:70,c:'#22c55e'}
+    ];
+    bars(80,90,500,270,dc,'%');
+    panel(620,90,250,270,'多维评估');
+    var cols=['延迟↓','精度↑','灵活↑','复杂↓'];
+    txt(635,115,'技术',{fill:DIM,fs:9});
+    for(var c=0;c<4;c++)txt(720+c*38,115,cols[c],{fill:INFO,fs:9,ta:'middle'});
+    line(625,122,860,122,DIM,0.5);
+    for(var r=0;r<dc.length;r++){
+      txt(635,140+r*24,dc[r].l,{fill:dc[r].c,fs:10,fw:'bold'});
+      var vals=[100-dc[r].d,dc[r].p,dc[r].f,100-dc[r].cx];
+      for(var c=0;c<4;c++){
+        var col=vals[c]>80?'#22c55e':vals[c]>50?WARN:ERR;
+        txt(720+c*38,140+r*24,vals[c],{fill:col,fs:10,ta:'middle',fw:'bold'});
+      }
+    }
+    panel(30,380,840,70,'综合建议');
+    txt(45,405,'实时场景(AR/VR)：动态路由+早退 → 延迟最低(25ms)，精度保持95%',{fill:'#22c55e',fs:10});
+    txt(45,425,'通用场景：模型交换 → 按场景自适应，综合体验最优',{fill:AC,fs:10});
+    txt(45,445,'高精度场景：静态推理 → 稳定可靠，适合离线分析',{fill:WARN,fs:10});
+    logMsg('[M6-4] 动态推理对比','k');
+    logMsg('  混合策略(路由+早退+交换)综合最优：延迟25ms、精度95%。','ok');
+    logMsg('  静态推理：最稳定但延迟最高，适合离线/高精度场景。','w');
+    logMsg('  动态路由：灵活性最高，但实现复杂度和参数量增加。','i');
+  }
+}
+
+// ===== M7: 端云协同 =====
+function m7View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M7-1 模型分发 (Model Distribution)',AC);
+    sub(30,48,'云端训练 → 压缩 → 加密 → OTA分发 → 端侧部署',DIM);
+    box(30,110,140,60,{fill:BG3,stroke:AC,sw:2});
+    ttl(50,135,'云端训练',AC);
+    box(50,155,100,25,{label:'大模型训练',stroke:BD,fs:9});
+    arrow(170,140,220,140,AC,2);
+    box(220,110,120,60,{label:'模型压缩\n剪枝+量化',stroke:PUR,fc:PUR,fs:10});
+    arrow(340,140,390,140,PUR,2);
+    box(390,110,120,60,{label:'模型加密\nAES-256',stroke:WARN,fc:WARN,fs:10});
+    arrow(510,140,560,140,WARN,2);
+    box(560,110,120,60,{label:'版本管理\n语义化版本',stroke:INFO,fc:INFO,fs:10});
+    arrow(680,140,730,140,INFO,2);
+    box(730,110,150,60,{label:'CDN分发网络',stroke:'#22c55e',fc:'#22c55e',fs:10});
+    ttl(30,210,'OTA 下发至端侧设备',INFO);
+    var devices=[
+      {x:60,y:240,label:'手机',v:'v2.3'},
+      {x:200,y:240,label:'平板',v:'v2.3'},
+      {x:340,y:240,label:'手表',v:'v2.2'},
+      {x:480,y:240,label:'车载',v:'v2.3'},
+      {x:620,y:240,label:'IoT',v:'v2.1'},
+      {x:760,y:240,label:'智能音箱',v:'v2.3'}
+    ];
+    for(var i=0;i<devices.length;i++){
+      box(devices[i].x,devices[i].y,100,50,{label:devices[i].label,stroke:DIM,fc:FG,fs:10});
+      box(devices[i].x,devices[i].y+50,100,22,{label:devices[i].v,stroke:devices[i].v==='v2.3'?'#22c55e':WARN,fc:devices[i].v==='v2.3'?'#22c55e':WARN,fs:9});
+      darrow(805,170,devices[i].x+50,devices[i].y,'#22c55e',1);
+    }
+    panel(30,335,860,85,'分发策略');
+    var ds=[['全量OTA','完整模型包，简单可靠，适合小模型(<50MB)'],['增量OTA','仅传输差分包，节省90%带宽，适合大模型'],['灰度发布','5%→20%→100%渐进式，风险可控'],['A/B测试','双模型并行对比，数据驱动选优'],['强制更新','安全补丁即时推送，不可延迟'],['回滚机制','保留上一版本，异常时秒级回退']];
+    for(var i=0;i<ds.length;i++){txt(45,360+i*12,ds[i][0],{fill:AC,fs:10,fw:'bold'});txt(165,360+i*12,ds[i][1],{fill:DIM,fs:9});}
+    logMsg('[M7-1] 模型分发','k');
+    logMsg('  云端训练大模型 → 压缩 → 加密 → CDN分发 → OTA部署至端侧。');
+    logMsg('  增量OTA：bsdiff算法生成差分包，仅传输变化部分，节省90%带宽。','ok');
+    logMsg('  灰度发布+A/B测试+秒级回滚，保障分发安全。','i');
+  }else if(m===1){
+    ttl(30,30,'M7-2 增量更新 (Incremental Update)',AC);
+    sub(30,48,'差分编码 · 仅传输变化部分 · 带宽效率提升10x',DIM);
+    box(30,100,180,80,{fill:BG3,stroke:WARN,sw:2});
+    ttl(50,125,'v2.2 旧模型',WARN);
+    txt(120,155,'50.0 MB',{fill:WARN,fs:13,ta:'middle',fw:'bold'});
+    box(30,200,180,80,{fill:BG3,stroke:'#22c55e',sw:2});
+    ttl(50,225,'v2.3 新模型','#22c55e');
+    txt(120,255,'50.5 MB',{fill:'#22c55e',fs:13,ta:'middle',fw:'bold'});
+    box(300,150,140,80,{fill:BG3,stroke:AC,sw:2});
+    ttl(320,175,'差分引擎',AC);
+    box(320,195,100,25,{label:'bsdiff/xdelta',stroke:AC,fc:AC,fs:9});
+    arrow(210,180,300,190,WARN,2);
+    arrow(210,220,300,210,'#22c55e',2);
+    arrow(440,190,510,190,AC,2);
+    box(510,150,140,80,{fill:BG3,stroke:PUR,sw:2});
+    ttl(530,175,'差分包',PUR);
+    txt(580,205,'4.8 MB',{fill:PUR,fs:13,ta:'middle',fw:'bold'});
+    txt(580,222,'(仅9.5%)',{fill:DIM,fs:10,ta:'middle'});
+    arrow(650,190,700,190,PUR,2);
+    box(700,120,170,120,{fill:BG3,stroke:INFO,sw:2});
+    ttl(720,145,'端侧合并',INFO);
+    box(720,160,130,25,{label:'旧模型+差分',stroke:BD,fs:9});
+    box(720,190,130,25,{label:'bspatch合并',stroke:INFO,fc:INFO,fs:9});
+    box(720,220,130,25,{label:'校验SHA256',stroke:'#22c55e',fc:'#22c55e',fs:9});
+    panel(30,300,420,120,'增量更新流程');
+    var fl=['1. 云端计算新旧模型差分','2. 生成差分包(通常5-15%体积)','3. CDN分发差分包','4. 端侧下载并校验','5. bspatch合并生成新模型','6. 校验完整性后激活'];
+    for(var i=0;i<fl.length;i++)txt(45,325+i*18,fl[i],{fill:i%2===0?AC:PUR,fs:10});
+    panel(470,300,420,120,'效率对比');
+    var cmp=[['全量更新','50.0 MB',ERR],['增量更新','4.8 MB','#22c55e'],['节省带宽','90.4%','#22c55e'],['合并耗时','<2s','#22c55e'],['下载耗时','15s vs 160s','#22c55e'],['存储需求','临时+50MB',WARN]];
+    for(var i=0;i<cmp.length;i++){txt(485,325+i*18,cmp[i][0],{fill:DIM,fs:10});txt(870,325+i*18,cmp[i][1],{fill:cmp[i][2],fs:10,ta:'end',fw:'bold'});}
+    logMsg('[M7-2] 增量更新','k');
+    logMsg('  仅传输新旧模型差分部分，典型节省90%以上带宽。');
+    logMsg('  bsdiff/xdelta：基于二进制差分，差分包通常为全量的5-15%。','ok');
+    logMsg('  端侧bspatch合并 + SHA256校验，确保完整性后激活新模型。','i');
+  }else if(m===2){
+    ttl(30,30,'M7-3 混合推理 (Hybrid Inference)',AC);
+    sub(30,48,'端侧处理简单 · 云端处理复杂 · 动态调度最优执行',DIM);
+    box(30,100,120,50,{label:'输入请求',stroke:INFO,fc:INFO,fs:11});
+    arrow(150,125,200,125,AC,2);
+    box(200,100,130,60,{fill:BG3,stroke:AC,sw:2});
+    ttl(220,125,'调度器',AC);
+    box(220,140,90,18,{label:'复杂度评估',stroke:AC,fc:AC,fs:8});
+    box(200,180,130,25,{label:'置信度门控',stroke:PUR,fc:PUR,fs:9});
+    arrow(265,160,265,180,PUR,1);
+    box(400,80,160,55,{label:'端侧推理\n(快速路径)',stroke:'#22c55e',fc:'#22c55e',fs:10});
+    box(400,155,160,55,{label:'边缘推理\n(中速路径)',stroke:WARN,fc:WARN,fs:10});
+    box(400,230,160,55,{label:'云端推理\n(慢速高精度)',stroke:ERR,fc:ERR,fs:10});
+    arrow(330,110,400,107,'#22c55e',2);
+    txt(365,100,'简单',{fill:'#22c55e',fs:9,ta:'middle'});
+    arrow(330,125,400,182,WARN,2);
+    txt(365,150,'中等',{fill:WARN,fs:9,ta:'middle'});
+    arrow(330,140,400,257,ERR,2);
+    txt(365,215,'复杂',{fill:ERR,fs:9,ta:'middle'});
+    box(600,80,100,45,{label:'结果1\n8ms',stroke:'#22c55e',fc:'#22c55e',fs:9});
+    box(600,155,100,45,{label:'结果2\n35ms',stroke:WARN,fc:WARN,fs:9});
+    box(600,230,100,45,{label:'结果3\n250ms',stroke:ERR,fc:ERR,fs:9});
+    arrow(560,102,600,102,'#22c55e',1.5);
+    arrow(560,182,600,182,WARN,1.5);
+    arrow(560,257,600,257,ERR,1.5);
+    box(730,140,120,55,{label:'置信度检查',stroke:PUR,fc:PUR,fs:10});
+    arrow(700,102,730,160,PUR,1);
+    arrow(700,182,730,170,PUR,1.5);
+    arrow(700,257,730,180,PUR,1);
+    arrow(730,195,730,220,PUR,1.5);
+    txt(790,215,'低于阈值?',{fill:PUR,fs:9,ta:'middle'});
+    darrow(790,225,790,250,ERR,1.5);
+    txt(840,240,'→ 升级到云端',{fill:ERR,fs:9});
+    box(730,255,120,35,{label:'最终输出',stroke:AC,fc:AC,fs:11});
+    panel(30,310,860,110,'调度策略详解');
+    var st=[['简单输入 (60%)','端侧直接推理 → 8ms完成，置信度>0.9 → 输出'],['中等输入 (25%)','端侧推理 → 置信度0.6-0.9 → 边缘增强 → 35ms输出'],['复杂输入 (15%)','端侧置信度<0.6 → 升级云端大模型 → 250ms高精度输出'],['自适应阈值','根据网络状况/电量/时延要求动态调整置信度门控']];
+    for(var i=0;i<st.length;i++){txt(45,335+i*20,st[i][0],{fill:i===0?'#22c55e':i===1?WARN:i===2?ERR:PUR,fs:10,fw:'bold'});txt(230,335+i*20,st[i][1],{fill:DIM,fs:9});}
+    logMsg('[M7-3] 混合推理','k');
+    logMsg('  端侧先试，不确定时逐步升级到边缘/云端，动态调度。');
+    logMsg('  60%请求端侧8ms完成；25%边缘增强35ms；15%云端250ms。','ok');
+    logMsg('  置信度门控自适应：WiFi环境降低阈值(更多端侧)，蜂窝提高阈值。','i');
+  }else{
+    ttl(30,30,'M7-4 端云协同策略对比',AC);
+    sub(30,48,'分发 · 增量 · 混合 · 联邦 — 带宽/延迟/精度/隐私',DIM);
+    var st=[
+      {n:'纯云端',bw:100,lat:300,acc:98,pri:20,cost:90,c:ERR},
+      {n:'纯端侧',bw:0,lat:8,acc:88,pri:100,cost:10,c:'#22c55e'},
+      {n:'模型分发',bw:30,lat:8,acc:90,pri:100,cost:30,c:AC},
+      {n:'增量更新',bw:5,lat:8,acc:92,pri:100,cost:20,c:INFO},
+      {n:'混合推理',bw:25,lat:45,acc:96,pri:80,cost:50,c:PUR},
+      {n:'联邦学习',bw:40,lat:8,acc:93,pri:95,cost:40,c:ROSE}
+    ];
+    var by=85;
+    var dims=['带宽↓','延迟↓','精度↑','隐私↑','成本↓'];
+    for(var r=0;r<st.length;r++){
+      var ry=by+r*55;
+      el('rect',{x:30,y:ry,width:860,height:48,rx:4,fill:BG2,stroke:BD,'stroke-width':1},svg);
+      var t=el('text',{x:45,y:ry+28,fill:st[r].c,'font-size':12,'font-weight':'bold'},svg);t.textContent=st[r].n;
+      var vals=[100-st[r].bw,100-st[r].lat/3,st[r].acc,st[r].pri,100-st[r].cost];
+      for(var v=0;v<5;v++){
+        var vx=150+v*140;
+        el('rect',{x:vx,y:ry+10,width:110,height:8,rx:3,fill:'#1a1d27'},svg);
+        el('rect',{x:vx,y:ry+10,width:110*vals[v]/100,height:8,rx:3,fill:st[r].c,opacity:0.8},svg);
+        var t2=el('text',{x:vx+115,y:ry+18,fill:st[r].c,'font-size':9,'font-weight':'bold'},svg);t2.textContent=Math.round(vals[v]);
+        if(r===0){var t3=el('text',{x:vx+55,y:ry+35,fill:DIM,'font-size':9,'text-anchor':'middle'},svg);t3.textContent=dims[v];}
+      }
+    }
+    panel(30,425,860,30,'');
+    txt(40,442,'最佳实践：增量更新(低带宽) + 混合推理(高精度) + 联邦学习(隐私) 组合使用',{fill:'#22c55e',fs:10});
+    logMsg('[M7-4] 端云协同对比','k');
+    logMsg('  增量更新：带宽最优(5%)，适合模型版本迭代。');
+    logMsg('  混合推理：精度最优(96%)，兼顾延迟和算力。');
+    logMsg('  联邦学习：隐私最优(95%)，数据不出端持续优化。','ok');
+    logMsg('  组合方案：增量更新分发 + 混合推理调度 + 联邦学习优化。','i');
+  }
+}
+
+// ===== M8: 应用场景 =====
+function m8View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M8-1 端侧语音助手',AC);
+    sub(30,48,'唤醒词检测 → ASR → NLU → TTS 全链路端侧推理',DIM);
+    var pipeline=[
+      {n:'麦克风采集',x:30,w:100,c:INFO,d:'16kHz PCM'},
+      {n:'唤醒词检测',x:150,w:120,c:AC,d:'KWS 2ms'},
+      {n:'语音识别',x:290,w:120,c:PUR,d:'ASR 80ms'},
+      {n:'自然语言理解',x:430,w:130,c:WARN,d:'NLU 50ms'},
+      {n:'意图执行',x:580,w:110,c:ROSE,d:'本地技能'},
+      {n:'语音合成',x:710,w:120,c:'#22c55e',d:'TTS 100ms'}
+    ];
+    for(var i=0;i<pipeline.length;i++){
+      box(pipeline[i].x,110,pipeline[i].w,55,{label:pipeline[i].n,stroke:pipeline[i].c,fc:pipeline[i].c,fs:10});
+      txt(pipeline[i].x+pipeline[i].w/2,180,pipeline[i].d,{fill:DIM,fs:9,ta:'middle'});
+      if(i<pipeline.length-1)arrow(pipeline[i].x+pipeline[i].w,137,pipeline[i+1].x,137,pipeline[i].c,2);
+    }
+    ttl(30,215,'端侧模型详情',INFO);
+    var models=[
+      ['KWS唤醒词','DS-CNN','45KB','2ms','99.2%','#22c55e'],
+      ['ASR语音识别','Wav2Letter','8MB','80ms','93.5%',AC],
+      ['NLU意图理解','MiniBERT','15MB','50ms','91.0%',PUR],
+      ['TTS语音合成','FastSpeech2','25MB','100ms','MOS3.8',WARN],
+      ['VAD语音活动','TC-ResNet','80KB','1ms','97.5%','#22c55e'],
+      ['声纹识别','ECAPA-TDNN','12MB','30ms','EER2.1%',ROSE]
+    ];
+    var hd=['模型','架构','体积','延迟','指标',''];
+    for(var i=0;i<5;i++){var t=el('text',{x:45+i*165,y:240,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=hd[i];}
+    line(35,248,885,248,DIM,0.5);
+    for(var r=0;r<models.length;r++){
+      var ry=265+r*28;
+      for(var c=0;c<5;c++){
+        var col=DIM;
+        if(c===0)col=FG;if(c===5)col=models[r][5];
+        var t=el('text',{x:45+c*165,y:ry,fill:c===4?models[r][5]:c===0?FG:DIM,'font-size':10},svg);t.textContent=models[r][c];
+      }
+      el('rect',{x:35,y:ry-12,width:850,height:20,fill:'#0d1018',opacity:r%2===0?0.5:0},svg);
+    }
+    panel(30,395,860,40,'');
+    txt(45,418,'总延迟：262ms (含采集+VAD) · 总体积：60MB · 完全离线可用 · 隐私零外泄',{fill:'#22c55e',fs:10});
+    logMsg('[M8-1] 端侧语音助手','k');
+    logMsg('  全链路端侧推理：KWS→ASR→NLU→TTS，总延迟262ms。');
+    logMsg('  唤醒词检测仅45KB，2ms响应，24小时常驻监听功耗<1mA。','ok');
+    logMsg('  ASR+NLU共23MB，完全离线可用，语音数据零上传。','ok');
+    logMsg('  挑战：远场降噪、方言识别、多人对话分离。','w');
+  }else if(m===1){
+    ttl(30,30,'M8-2 端侧增强现实 (AR)',AC);
+    sub(30,48,'实时SLAM · 深度估计 · 物体检测 · 虚实融合 · 30FPS',DIM);
+    var pipeline=[
+      {n:'摄像头输入',x:30,w:110,c:INFO,d:'30FPS 1080p'},
+      {n:'IMU融合',x:160,w:100,c:INFO,d:'6DoF追踪'},
+      {n:'SLAM定位',x:280,w:110,c:AC,d:'VIO 15ms'},
+      {n:'深度估计',x:410,w:110,c:PUR,d:'8ms'},
+      {n:'物体检测',x:540,w:110,c:WARN,d:'YOLO 12ms'},
+      {n:'虚实渲染',x:670,w:120,c:'#22c55e',d:'Metal/Vulkan'}
+    ];
+    for(var i=0;i<pipeline.length;i++){
+      box(pipeline[i].x,100,pipeline[i].w,50,{label:pipeline[i].n,stroke:pipeline[i].c,fc:pipeline[i].c,fs:10});
+      txt(pipeline[i].x+pipeline[i].w/2,165,pipeline[i].d,{fill:DIM,fs:9,ta:'middle'});
+      if(i<pipeline.length-1)arrow(pipeline[i].x+pipeline[i].w,125,pipeline[i+1].x,125,pipeline[i].c,2);
+    }
+    ttl(30,195,'端侧AR模型详情',INFO);
+    var models=[
+      ['SLAM视觉定位','ORB-SLAM3','20MB','15ms','<2cm',AC],
+      ['深度估计','FastDepth','8MB','8ms','MAE0.15m',PUR],
+      ['物体检测','YOLOv8n','6MB','12ms','mAP52%',WARN],
+      ['平面检测','PlaneNet','5MB','6ms','IoU85%','#22c55e'],
+      ['手势识别','MediaPipe','3MB','5ms','92%准确','#22c55e'],
+      ['语义分割','ENet','4MB','10ms','mIoU65%',ROSE]
+    ];
+    for(var i=0;i<5;i++){var t=el('text',{x:45+i*165,y:220,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=['模型','架构','体积','延迟','指标'][i];}
+    line(35,228,885,228,DIM,0.5);
+    for(var r=0;r<models.length;r++){
+      var ry=245+r*28;
+      el('rect',{x:35,y:ry-12,width:850,height:20,fill:'#0d1018',opacity:r%2===0?0.5:0},svg);
+      for(var c=0;c<5;c++){
+        var t=el('text',{x:45+c*165,y:ry,fill:c===0?FG:c===4?models[r][5]:DIM,'font-size':10},svg);t.textContent=models[r][c];
+      }
+    }
+    panel(30,380,860,55,'性能预算 (30FPS = 33ms/帧)');
+    var pb=[['SLAM','15ms',45,AC],['深度+检测','20ms',60,PUR],['渲染','5ms',15,'#22c55e'],['余量','-7ms',0,'#22c55e']];
+    txt(45,405,'阶段',{fill:DIM,fs:10});txt(160,405,'耗时',{fill:DIM,fs:10});txt(270,405,'占比',{fill:DIM,fs:10});
+    line(35,412,885,412,DIM,0.5);
+    for(var i=0;i<pb.length;i++){txt(45,430+i*0,pb[i][0],{fill:pb[i][3],fs:10});txt(160,430,pb[i][1],{fill:pb[i][3],fs:10,fw:'bold'});}
+    txt(350,418,'15ms + 20ms + 5ms = 40ms → 需流水线并行优化至33ms内',{fill:WARN,fs:10});
+    txt(350,435,'流水线：帧N(SLAM) || 帧N-1(检测) || 帧N-2(渲染) → 33ms/帧',{fill:'#22c55e',fs:10});
+    logMsg('[M8-2] 端侧AR','k');
+    logMsg('  实时AR需30FPS(33ms/帧)，SLAM+深度+检测+渲染全链路端侧。');
+    logMsg('  流水线并行：不同帧的不同阶段重叠执行，等效33ms/帧。','ok');
+    logMsg('  关键挑战：功耗控制、热管理、运动模糊、光照变化。','w');
+  }else if(m===2){
+    ttl(30,30,'M8-3 端侧健康监测',AC);
+    sub(30,48,'心率 · 血氧 · 跌倒检测 · 睡眠分析 · 心律失常 · 24小时持续',DIM);
+    var sensors=[
+      {n:'PPG光学',x:30,y:100,w:120,d:'心率/血氧',c:ERR},
+      {n:'加速度计',x:170,y:100,w:120,d:'运动/跌倒',c:WARN},
+      {n:'陀螺仪',x:310,y:100,w:120,d:'姿态/步态',c:AC},
+      {n:'ECG心电',x:450,y:100,w:120,d:'心律/房颤',c:PUR},
+      {n:'SpO2传感',x:590,y:100,w:120,d:'血氧饱和度',c:INFO},
+      {n:'温度传感',x:730,y:100,w:120,d:'体温趋势',c:ROSE}
+    ];
+    for(var i=0;i<sensors.length;i++){
+      box(sensors[i].x,sensors[i].y,sensors[i].w,50,{label:sensors[i].n,stroke:sensors[i].c,fc:sensors[i].c,fs:10});
+      txt(sensors[i].x+sensors[i].w/2,165,sensors[i].d,{fill:DIM,fs:9,ta:'middle'});
+      arrow(sensors[i].x+sensors[i].w/2,150,460,200,sensors[i].c,1);
+    }
+    box(380,195,160,55,{fill:BG3,stroke:AC,sw:2});
+    ttl(400,220,'端侧AI推理',AC);
+    box(400,235,120,20,{label:'实时分析引擎',stroke:AC,fc:AC,fs:9});
+    var alerts=[
+      {n:'心率异常',x:30,y:280,c:ERR,v:'>120bpm'},
+      {n:'房颤检测',x:190,y:280,c:PUR,v:'AFib 92%'},
+      {n:'跌倒报警',x:350,y:280,c:ERR,v:'SOS发送'},
+      {n:'睡眠分期',x:510,y:280,c:INFO,v:'深睡/浅睡'},
+      {n:'血氧过低',x:670,y:280,c:WARN,v:'<90% SpO2'},
+      {n:'体温异常',x:30,y:350,c:ROSE,v:'>37.5°C'}
+    ];
+    for(var i=0;i<alerts.length;i++){
+      box(alerts[i].x,alerts[i].y,140,45,{label:alerts[i].n,stroke:alerts[i].c,fc:alerts[i].c,fs:10});
+      txt(alerts[i].x+70,alerts[i].y+58,alerts[i].v,{fill:alerts[i].c,fs:9,ta:'middle'});
+      arrow(460,250,alerts[i].x+70,alerts[i].y,alerts[i].c,1);
+    }
+    box(190,350,140,45,{label:'压力指数',stroke:AC,fc:AC,fs:10});
+    txt(260,413,'HRV分析',{fill:AC,fs:9,ta:'middle'});
+    arrow(460,250,260,350,AC,1);
+    box(350,350,140,45,{label:'运动识别',stroke:INFO,fc:INFO,fs:10});
+    txt(420,413,'步行/跑步',{fill:INFO,fs:9,ta:'middle'});
+    arrow(460,250,420,350,INFO,1);
+    box(510,350,140,45,{label:'健康评分',stroke:'#22c5eefa',fc:'#22c55e',fs:10});
+    txt(580,413,'综合85/100',{fill:'#22c55e',fs:9,ta:'middle'});
+    arrow(460,250,580,350,'#22c55e',1);
+    box(670,350,140,45,{label:'趋势预测',stroke:ROSE,fc:ROSE,fs:10});
+    txt(740,413,'7日趋势线',{fill:ROSE,fs:9,ta:'middle'});
+    arrow(460,250,740,350,ROSE,1);
+    panel(30,420,860,25,'');
+    txt(40,437,'功耗预算：<5mW持续监测 · 24小时全天候 · 数据本地加密 · 异常自动告警',{fill:'#22c55e',fs:10});
+    logMsg('[M8-3] 端侧健康监测','k');
+    logMsg('  6类传感器24小时持续监测，端侧AI实时分析健康指标。');
+    logMsg('  功耗<5mW：常驻运行不显著影响续航，数据本地加密存储。','ok');
+    logMsg('  房颤检测：ECG+AI实现92%准确率，已获FDA医疗器械认证。','ok');
+    logMsg('  跌倒检测：加速度+陀螺仪融合，误报率<2%，SOS自动发送。','i');
+  }else{
+    ttl(30,30,'M8-4 端侧智能相机',AC);
+    sub(30,48,'场景识别 · 人脸检测 · 计算摄影 · 实时美颜 · 4K@60FPS',DIM);
+    var pipeline=[
+      {n:'图像传感器',x:30,w:110,c:INFO,d:'4K RAW'},
+      {n:'ISP预处理',x:160,w:100,c:INFO,d:'HDR/降噪'},
+      {n:'场景识别',x:280,w:110,c:AC,d:'25类场景'},
+      {n:'人脸检测',x:410,w:110,c:PUR,d:'100+人脸'},
+      {n:'计算摄影',x:540,w:110,c:WARN,d:'多帧合成'},
+      {n:'编码输出',x:670,w:120,c:'#22c55e',d:'HEVC 4K60'}
+    ];
+    for(var i=0;i<pipeline.length;i++){
+      box(pipeline[i].x,100,pipeline[i].w,50,{label:pipeline[i].n,stroke:pipeline[i].c,fc:pipeline[i].c,fs:10});
+      txt(pipeline[i].x+pipeline[i].w/2,165,pipeline[i].d,{fill:DIM,fs:9,ta:'middle'});
+      if(i<pipeline.length-1)arrow(pipeline[i].x+pipeline[i].w,125,pipeline[i+1].x,125,pipeline[i].c,2);
+    }
+    ttl(30,195,'端侧相机AI模型详情',INFO);
+    var models=[
+      ['场景识别','MobileNetV3','4MB','8ms','98.2%',AC],
+      ['人脸检测','BlazeFace','2MB','5ms','AP92%',PUR],
+      ['人脸关键点','FaceMesh','3MB','6ms','468点','#22c55e'],
+      ['语义分割','DeepLabMini','8MB','12ms','mIoU72%',WARN],
+      ['超分辨率','ESRGAN-Lite','6MB','15ms','PSNR30dB',ROSE],
+      ['夜间模式','NightSight','10MB','20ms','+3EV提升',INFO]
+    ];
+    for(var i=0;i<5;i++){var t=el('text',{x:45+i*165,y:220,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=['模型','架构','体积','延迟','指标'][i];}
+    line(35,228,885,228,DIM,0.5);
+    for(var r=0;r<models.length;r++){
+      var ry=245+r*28;
+      el('rect',{x:35,y:ry-12,width:850,height:20,fill:'#0d1018',opacity:r%2===0?0.5:0},svg);
+      for(var c=0;c<5;c++){
+        var t=el('text',{x:45+c*165,y:ry,fill:c===0?FG:c===4?models[r][5]:DIM,'font-size':10},svg);t.textContent=models[r][c];
+      }
+    }
+    panel(30,380,420,75,'计算摄影功能');
+    var cp=[['夜景合成','6-15帧多曝光融合，AI对齐+去鬼影'],['人像虚化','深度估计+语义分割模拟大光圈'],['超分辨率','单帧AI超分，2x无损放大'],['HDR+','欠曝多帧合成，14bit动态范围']];
+    for(var i=0;i<cp.length;i++){txt(45,400+i*15,cp[i][0],{fill:AC,fs:9,fw:'bold'});txt(145,400+i*15,cp[i][1],{fill:DIM,fs:8});}
+    panel(470,380,420,75,'智能识别功能');
+    var si=[['场景识别','25类场景自动优化参数(美食/风景/夜景等)'],['人脸追踪','视频实时追踪100+人脸，自动对焦曝光'],['手势触发','手掌/拳头检测触发自拍倒计时'],['物体追踪','点击锁定目标，视频实时追踪']];
+    for(var i=0;i<si.length;i++){txt(485,400+i*15,si[i][0],{fill:PUR,fs:9,fw:'bold'});txt(585,400+i*15,si[i][1],{fill:DIM,fs:8});}
+    logMsg('[M8-4] 端侧智能相机','k');
+    logMsg('  场景识别+人脸检测+计算摄影全链路端侧，4K@60FPS实时处理。');
+    logMsg('  场景识别25类，8ms内完成，自动优化白平衡/曝光/色彩。','ok');
+    logMsg('  计算摄影：多帧合成(夜景/HRD/超分)，端侧AI实时处理。','ok');
+    logMsg('  功耗：相机全开约2-3W，AI推理仅占其中0.3-0.5W。','i');
+  }
+}
+
+// ===== Tab/Control building & init =====
+var viewFns=[m1View,m2View,m3View,m4View,m5View,m6View,m7View,m8View];
+function buildTabs(){
+  clear(tabsEl);
+  for(var i=0;i<MODS.length;i++){
+    var d=document.createElement('div');
+    d.className='tab'+(i===curM?' active':'');
+    var s1=document.createElement('span');
+    s1.style.color=i===curM?AC:DIM;
+    s1.textContent=MODS[i].id+' ';
+    d.appendChild(s1);
+    var s2=document.createElement('span');
+    s2.textContent=MODS[i].name;
+    d.appendChild(s2);
+    d.onclick=(function(idx){return function(){switchModule(idx);};})(i);
+    tabsEl.appendChild(d);
+  }
+}
+function buildControls(){
+  clear(ctrlEl);
+  var t=document.createElement('div');t.className='ctrl-title';t.textContent='视图切换';ctrlEl.appendChild(t);
+  for(var i=0;i<MODS[curM].views.length;i++){
+    var b=document.createElement('div');
+    b.className='btn'+(i===curV?' active':'');
+    var s1=document.createElement('span');s1.className='idx';s1.textContent='V'+(i+1);b.appendChild(s1);
+    var s2=document.createElement('span');s2.textContent=MODS[curM].views[i];b.appendChild(s2);
+    b.onclick=(function(idx){return function(){switchView(idx);};})(i);
+    ctrlEl.appendChild(b);
+  }
+  var sp=document.createElement('div');sp.style.flex='1';ctrlEl.appendChild(sp);
+  var info=document.createElement('div');info.className='ctrl-title';info.textContent='当前模块';ctrlEl.appendChild(info);
+  var cur=document.createElement('div');cur.style.color=AC;cur.style.fontSize='13px';cur.style.fontWeight='bold';cur.textContent=MODS[curM].id+' '+MODS[curM].name;ctrlEl.appendChild(cur);
+  var sub=document.createElement('div');sub.style.color=DIM;sub.style.fontSize='10px';sub.style.marginTop='4px';sub.textContent='视图 '+(curV+1)+'/'+MODS[curM].views.length+': '+MODS[curM].views[curV];ctrlEl.appendChild(sub);
+}
+function switchModule(i){
+  curM=i;curV=0;
+  buildTabs();buildControls();
+  clear(logEl);
+  logMsg('===== '+MODS[i].id+' '+MODS[i].name+' =====','k');
+  viewFns[i](0);
+}
+function switchView(i){
+  curV=i;
+  buildControls();
+  viewFns[curM](i);
+}
+buildTabs();buildControls();
+logMsg('端侧AI与边缘推理可视化实验室 v3.06 启动','k');
+logMsg('共8个模块 · 32个视图 · 覆盖端侧AI全栈技术','i');
+logMsg('===== M1 端侧AI全景 =====','k');
+m1View(0);
+</script>
+</body>
+</html>�

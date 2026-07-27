@@ -1,0 +1,1267 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 多智能体协议与标准可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0c12;color:#e2e8f0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6}
+#app{max-width:1280px;margin:0 auto;padding:14px 16px 30px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1a1d27;margin-bottom:14px}
+nav .left{display:flex;align-items:center;gap:14px}
+nav a{color:#2dd4ff;text-decoration:none;font-size:13px;padding:5px 12px;border:1px solid #1a1d27;border-radius:5px;transition:.2s}
+nav a:hover{border-color:#2dd4ff;background:rgba(45,212,255,.08)}
+nav .title{font-size:18px;font-weight:600;color:#7c5cff;letter-spacing:.5px}
+nav .ver{color:#4a5568;font-size:12px;font-family:Consolas,monospace}
+#tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:7px 16px;border:1px solid #1a1d27;border-radius:5px;background:#0d1017;color:#8b95a7;cursor:pointer;font-size:12.5px;transition:all .18s;white-space:nowrap}
+.tab:hover{border-color:#7c5cff;color:#e2e8f0}
+.tab.active{background:#7c5cff;color:#fff;border-color:#7c5cff;font-weight:600}
+#main{display:flex;gap:12px}
+#canvasWrap{flex:1;background:#0d1017;border:1px solid #1a1d27;border-radius:8px;overflow:hidden;min-width:0}
+#canvas{width:100%;display:block}
+#panel{width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+#panel .ptitle{font-size:11px;color:#4a5568;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;font-family:Consolas,monospace}
+.pbtn{padding:9px 12px;border:1px solid #1a1d27;border-radius:5px;background:#0d1017;color:#8b95a7;cursor:pointer;font-size:12px;text-align:left;transition:all .18s}
+.pbtn:hover{border-color:#2dd4ff;color:#e2e8f0}
+.pbtn.active{background:#1a1d27;border-color:#7c5cff;color:#7c5cff;font-weight:600}
+#log{margin-top:12px;background:#0d1017;border:1px solid #1a1d27;border-radius:8px;padding:14px 16px;max-height:160px;overflow-y:auto;font-family:Consolas,'Courier New',monospace;font-size:12px;line-height:1.7;color:#8b95a7;white-space:pre-wrap}
+#log .tag{color:#7c5cff}
+#log .info{color:#2dd4ff}
+#log .warn{color:#fbbf24}
+#log .err{color:#ef4444}
+#log .ok{color:#4ade80}
+#log .dim{color:#4a5568}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0a0c12}
+::-webkit-scrollbar-thumb{background:#1a1d27;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#2d3344}
+</style>
+</head>
+<body>
+<div id="app">
+<nav>
+<div class="left">
+<a href="../index.html">&#8592; 返回 TW Hub</a>
+<span class="title">多智能体协议与标准可视化实验室</span>
+</div>
+<span class="ver">v1.0 / 8 Modules / 34 Views</span>
+</nav>
+<div id="tabs"></div>
+<div id="main">
+<div id="canvasWrap"><svg id="canvas" viewBox="0 0 920 460"></svg></div>
+<div id="panel"></div>
+</div>
+<div id="log"></div>
+</div>
+<script>
+var BD='#1a1d27',DIM='#4a5568',AC='#7c5cff',INFO='#2dd4ff',WARN='#fbbf24',ERR='#ef4444',PUR='#a78bfa',ROSE='#f472b6';
+var svg=document.getElementById('canvas');
+var panel=document.getElementById('panel');
+var logEl=document.getElementById('log');
+var tabsEl=document.getElementById('tabs');
+var curM='m1';
+
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild);}
+
+function Sbox(x,y,w,h,fill,stroke,r){var o={x:x,y:y,width:w,height:h,fill:fill,stroke:stroke,'stroke-width':1.5};if(r){o.rx=r;o.ry=r;}return el('rect',o,svg);}
+function Stext(x,y,s,fill,sz,w,anchor){var o={x:x,y:y,fill:fill};if(sz)o['font-size']=sz;if(w)o['font-weight']=w;if(anchor)o['text-anchor']=anchor;el('text',o,svg).textContent=s;}
+function Sline(x1,y1,x2,y2,stroke,w,da){var o={x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke,'stroke-width':w||1.5};if(da)o['stroke-dasharray']=da;el('line',o,svg);}
+function Sarrow(x1,y1,x2,y2,color){
+  Sline(x1,y1,x2,y2,color,1.5);
+  var a=Math.atan2(y2-y1,x2-x1),s=7;
+  var p1=(x2-s*Math.cos(a-0.4))+','+(y2-s*Math.sin(a-0.4));
+  var p2=x2+','+y2;
+  var p3=(x2-s*Math.cos(a+0.4))+','+(y2-s*Math.sin(a+0.4));
+  el('polygon',{points:p1+' '+p2+' '+p3,fill:color},svg);
+}
+function Scircle(cx,cy,r,fill,stroke){return el('circle',{cx:cx,cy:cy,r:r,fill:fill,stroke:stroke,'stroke-width':1.5},svg);}
+function Spoly(pts,fill,stroke){var o={points:pts,fill:fill};if(stroke){o.stroke=stroke;o['stroke-width']=1.5;}el('polygon',o,svg);}
+function Sdash(x1,y1,x2,y2,color){Sline(x1,y1,x2,y2,color,1.2,'5,3');}
+
+function setLog(lines){
+  clear(logEl);
+  lines.forEach(function(l){
+    var d=document.createElement('div');
+    if(l[1]) d.className=l[1];
+    d.textContent=l[0];
+    logEl.appendChild(d);
+  });
+}
+
+var modDefs=[
+  ['m1','M1 协议全景'],['m2','M2 MCP协议'],['m3','M3 A2A协议'],
+  ['m4','M4 消息格式'],['m5','M5 协作模式'],['m6','M6 信任安全'],
+  ['m7','M7 协议互操作'],['m8','M8 应用场景']
+];
+
+function buildTabs(){
+  clear(tabsEl);
+  modDefs.forEach(function(m){
+    var b=document.createElement('div');
+    b.className='tab'+(curM===m[0]?' active':'');
+    b.textContent=m[1];
+    b.onclick=function(){curM=m[0];buildTabs();switchMod();};
+    tabsEl.appendChild(b);
+  });
+}
+
+function buildPanel(views,mode,fn){
+  clear(panel);
+  var tl=document.createElement('div');
+  tl.className='ptitle';
+  tl.textContent='控制面板 / Views';
+  panel.appendChild(tl);
+  views.forEach(function(v){
+    var b=document.createElement('button');
+    b.className='pbtn'+(mode===v[0]?' active':'');
+    b.textContent=v[1];
+    b.onclick=function(){fn(v[0]);};
+    panel.appendChild(b);
+  });
+}
+
+function switchMod(){
+  var f={m1:m1Draw,m2:m2Draw,m3:m3Draw,m4:m4Draw,m5:m5Draw,m6:m6Draw,m7:m7Draw,m8:m8Draw};
+  if(f[curM])f[curM]();
+}
+
+// ============ M1 协议全景 ============
+function m1Draw(){m1View('mcp');}
+function m1View(mode){
+  buildPanel([['mcp','MCP协议'],['a2a','A2A协议'],['acp','ACP协议'],['fipa','FIPA标准'],['cmp','协议对比']],mode,m1View);
+  clear(svg);
+  Stext(460,32,'多智能体协议全景','#e2e8f0',17,600,'middle');
+  if(mode==='mcp'){
+    Stext(460,52,'Model Context Protocol — 模型上下文协议','#8b95a7',11,null,'middle');
+    Sbox(350,150,220,60,AC,AC,8);Stext(460,185,'MCP Server','#fff',15,600,'middle');
+    Sbox(120,80,200,50,'#11131a',BD,6);Stext(220,110,'LLM Host (Claude/GPT)','#2dd4ff',12,600,'middle');
+    Sbox(600,80,200,50,'#11131a',BD,6);Stext(700,110,'MCP Client','#a78bfa',12,600,'middle');
+    Sarrow(320,110,360,155,AC);Sarrow(550,155,620,110,PUR);
+    Sbox(80,280,150,45,'#11131a',INFO,6);Stext(155,307,'Tools 工具集','#2dd4ff',11,600,'middle');
+    Sbox(260,280,150,45,'#11131a',WARN,6);Stext(335,307,'Resources 资源','#fbbf24',11,600,'middle');
+    Sbox(440,280,150,45,'#11131a',ROSE,6);Stext(515,307,'Prompts 模板','#f472b6',11,600,'middle');
+    Sbox(620,280,150,45,'#11131a',PUR,6);Stext(695,307,'Sampling 采样','#a78bfa',11,600,'middle');
+    Sarrow(155,280,280,210,INFO);Sarrow(335,280,330,210,WARN);Sarrow(515,280,440,210,ROSE);Sarrow(695,280,560,210,PUR);
+    Sbox(80,370,760,30,'#0a0c12',BD,4);Stext(460,390,'传输层: stdio / SSE / WebSocket — 基于 JSON-RPC 2.0','#4a5568',11,null,'middle');
+    Sbox(80,415,760,30,'#0a0c12',DIM,4);Stext(460,435,'Anthropic 2024 发布 · 标准化 LLM 与外部工具连接','#4a5568',10,null,'middle');
+    setLog([
+      ['[M1/MCP] Model Context Protocol 模型上下文协议','tag'],
+      ['MCP 由 Anthropic 于 2024年11月开源发布，旨在标准化大语言模型与外部工具、资源、',''],
+      ['提示词模板之间的连接方式。其核心架构包含三个角色：',''],
+      ['  · Host（宿主）— 运行 LLM 的应用程序（如 Claude Desktop, IDE 插件）','info'],
+      ['  · Client（客户端）— 与 Server 保持 1:1 连接，负责协议握手与消息路由','info'],
+      ['  · Server（服务端）— 暴露 Tools / Resources / Prompts 三类能力原语','info'],
+      ['传输层支持 stdio（本地进程）、SSE（服务器推送）和 WebSocket（双向通信），',''],
+      ['消息格式统一采用 JSON-RPC 2.0，支持请求/响应/通知三种消息类型。',''],
+      ['MCP 的核心价值：将 N×M 的工具集成问题降为 N+M，任何 MCP Server 可被任何','ok'],
+      ['MCP 兼容客户端直接使用，实现工具生态的即插即用。','ok']
+    ]);
+  }else if(mode==='a2a'){
+    Stext(460,52,'Agent-to-Agent Protocol — 智能体间通信协议','#8b95a7',11,null,'middle');
+    var agents=[[160,140,'#7c5cff','Agent-A'],[460,110,'#2dd4ff','Agent-B'],[760,140,'#a78bfa','Agent-C'],[300,300,'#f472b6','Agent-D'],[620,300,'#fbbf24','Agent-E']];
+    agents.forEach(function(a){Scircle(a[0],a[1],34,a[2]+'22',a[2]);Scircle(a[0],a[1],8,a[2],a[2]);Stext(a[0],a[1]+52,a[3],a[2],11,600,'middle');});
+    Sarrow(194,140,426,115,AC);Sarrow(494,115,726,140,INFO);Sarrow(460,144,460,266,PUR);
+    Sarrow(194,150,270,275,ROSE);Sarrow(726,150,650,275,WARN);Sdash(300,270,620,270,DIM);
+    Sbox(710,370,180,45,'#11131a',INFO,6);Stext(800,397,'Agent Card','#2dd4ff',11,600,'middle');
+    Sbox(720,385,160,1,'#0a0c12','#0a0c12');
+    Stext(800,365,'JSON-LD 格式','#4a5568',9,null,'middle');
+    Sbox(40,370,180,45,'#11131a',AC,6);Stext(130,397,'任务委托','#7c5cff',11,600,'middle');
+    Stext(130,365,'JSON-RPC','#4a5568',9,null,'middle');
+    Sbox(280,370,180,45,'#11131a',WARN,6);Stext(370,397,'状态同步','#fbbf24',11,600,'middle');
+    Stext(370,365,'SSE / gRPC','#4a5568',9,null,'middle');
+    Sbox(490,370,180,45,'#11131a',ROSE,6);Stext(580,397,'Agent发现','#f472b6',11,600,'middle');
+    Stext(580,365,'Agent Card','#4a5568',9,null,'middle');
+    setLog([
+      ['[M1/A2A] Agent-to-Agent Protocol 智能体间通信协议','tag'],
+      ['A2A 由 Google 于 2025年提出，专注于解决独立智能体之间的通信与协作问题。',''],
+      ['与 MCP 关注"工具连接"不同，A2A 关注"智能体间协作"。',''],
+      ['核心概念：',''],
+      ['  · Agent Card — JSON-LD 格式的智能体名片，声明能力、端点、认证方式','info'],
+      ['  · Task 生命周期 — submitted/working/input-required/completed/failed','info'],
+      ['  · 任务委托 — Agent 可将子任务委托给其他 Agent，支持长任务异步执行','info'],
+      ['  · 状态同步 — 通过 SSE 或 gRPC stream 实时推送任务状态变更','info'],
+      ['通信模式：点对点直连、经由注册中心发现、多 Agent 协同编排。',''],
+      ['A2A 与 MCP 互补：MCP 让 Agent 获取工具，A2A 让 Agent 协作分工。','ok']
+    ]);
+  }else if(mode==='acp'){
+    Stext(460,52,'Agent Communication Protocol — 智能体通信协议','#8b95a7',11,null,'middle');
+    Sbox(60,80,280,310,'#0d1017',AC,8);Stext(200,105,'ACP 消息信封','#7c5cff',13,600,'middle');
+    Sbox(80,125,240,30,'#11131a',DIM,4);Stext(200,145,'envelope: { sender, receiver }','#8b95a7',10,null,'middle');
+    Sbox(80,165,240,30,'#11131a',DIM,4);Stext(200,185,'performative: 请求类型','#8b95a7',10,null,'middle');
+    Sbox(80,205,240,30,'#11131a',DIM,4);Stext(200,225,'content: 消息内容本体','#8b95a7',10,null,'middle');
+    Sbox(80,245,240,30,'#11131a',DIM,4);Stext(200,265,'language: 编码语言','#8b95a7',10,null,'middle');
+    Sbox(80,285,240,30,'#11131a',DIM,4);Stext(200,305,'ontology: 本体引用','#8b95a7',10,null,'middle');
+    Sbox(80,325,240,45,'#11131a',AC,4);Stext(200,352,'protocol: 交互协议','#7c5cff',10,600,'middle');
+    Sbox(380,80,250,310,'#0d1017',INFO,8);Stext(505,105,'Performatives 言语行为','#2dd4ff',13,600,'middle');
+    var perfs=[['request','请求执行'],['inform','通知信息'],['query','查询知识'],['propose','提出建议'],['agree','同意提议'],['refuse','拒绝请求'],['confirm','确认事实'],['disconfirm','否定事实']];
+    perfs.forEach(function(p,i){var y=135+i*30;Sbox(400,y,210,24,'#11131a',DIM,3);Stext(415,y+16,p[0],INFO,10,null);Stext(490,y+16,p[1],'#8b95a7',10,null);});
+    Sbox(670,80,210,310,'#0d1017',PUR,8);Stext(775,105,'核心特性','#a78bfa',13,600,'middle');
+    var feats=[['消息路由','支持直接/广播/组播'],['异步通信','非阻塞消息传递'],['会话管理','多轮对话状态跟踪'],['安全层','端到端加密 + 认证'],['语义互操作','基于本体理解']];
+    feats.forEach(function(f,i){var y=135+i*48;Sbox(685,y,180,40,'#11131a',PUR,4);Stext(775,y+16,f[0],'#a78bfa',11,600,'middle');Stext(775,y+32,f[1],'#8b95a7',9,null,'middle');});
+    setLog([
+      ['[M1/ACP] Agent Communication Protocol 智能体通信协议','tag'],
+      ['ACP 是一种通用的智能体通信封装协议，借鉴 FIPA-ACL 的言语行为理论，',''],
+      ['提供标准化的消息信封结构。每条消息包含 7 个核心字段：',''],
+      ['  · envelope — 发送方与接收方标识','info'],
+      ['  · performative — 言语行为类型（request/inform/query 等）','info'],
+      ['  · content — 消息实际内容','info'],
+      ['  · language — 内容编码语言（SL/KIF/JSON 等）','info'],
+      ['  · ontology — 引用的本体定义','info'],
+      ['  · protocol — 交互协议（FIPA-Request/FIPA-Contract-Net 等）','info'],
+      ['ACP 支持同步与异步通信模式，内置会话管理用于多轮对话跟踪。',''],
+      ['安全层提供端到端加密和身份认证，确保通信机密性与完整性。','ok']
+    ]);
+  }else if(mode==='fipa'){
+    Stext(460,52,'FIPA — Foundation for Intelligent Physical Agents','#8b95a7',11,null,'middle');
+    Sbox(360,80,200,50,AC,AC,8);Stext(460,110,'FIPA 标准体系','#fff',13,600,'middle');
+    Sbox(80,170,180,50,'#11131a',INFO,6);Stext(170,200,'FIPA-ACL','#2dd4ff',12,600,'middle');
+    Stext(170,222,'通信语言','#4a5568',9,null,'middle');
+    Sbox(280,170,180,50,'#11131a',WARN,6);Stext(370,200,'FIPA-SL','#fbbf24',12,600,'middle');
+    Stext(370,222,'语义语言','#4a5568',9,null,'middle');
+    Sbox(480,170,180,50,'#11131a',PUR,6);Stext(570,200,'FIPA-CPL','#a78bfa',12,600,'middle');
+    Stext(570,222,'会话策略','#4a5568',9,null,'middle');
+    Sbox(680,170,180,50,'#11131a',ROSE,6);Stext(770,200,'FIPA-Agent','#f472b6',12,600,'middle');
+    Stext(770,222,'管理规范','#4a5568',9,null,'middle');
+    Sarrow(170,220,320,270,INFO);Sarrow(370,220,370,270,WARN);Sarrow(570,220,520,270,PUR);Sarrow(770,220,640,270,ROSE);
+    Sbox(80,270,780,70,'#0d1017',BD,6);Stext(460,295,'FIPA 参考架构组件','#7c5cff',12,600,'middle');
+    Sbox(100,305,140,28,'#11131a',INFO,4);Stext(170,323,'AMS 管理服务','#2dd4ff',10,600,'middle');
+    Sbox(260,305,140,28,'#11131a',WARN,4);Stext(330,323,'DF 目录服务','#fbbf24',10,600,'middle');
+    Sbox(420,305,140,28,'#11131a',PUR,4);Stext(490,323,'ACC 通信通道','#a78bfa',10,600,'middle');
+    Sbox(580,305,140,28,'#11131a',ROSE,4);Stext(650,323,'MTS 传输服务','#f472b6',10,600,'middle');
+    Sbox(100,360,760,70,'#0d1017',DIM,6);Stext(460,382,'FIPA 交互协议',DIM,11,600,'middle');
+    Stext(460,400,'FIPA-Request · FIPA-Query · FIPA-Contract-Net · FIPA-English-Auction · FIPA-Dutch-Auction','#8b95a7',10,null,'middle');
+    Stext(460,418,'FIPA-Iterated-Contract-Net · FIPA-Brokering · FIPA-Recruiting','#4a5568',9,null,'middle');
+    setLog([
+      ['[M1/FIPA] FIPA 智能物理代理基金会标准','tag'],
+      ['FIPA（Foundation for Intelligent Physical Agents）是 IEEE 旗下标准化组织，',''],
+      ['自 1996 年起制定多智能体系统互操作标准。是最早的 Agent 通信标准体系。',''],
+      ['核心标准族：',''],
+      ['  · FIPA-ACL — Agent 通信语言，定义 20+ 种言语行为','info'],
+      ['  · FIPA-SL — 语义语言，基于一阶逻辑的形式化内容表达','info'],
+      ['  · FIPA-CPL — 会话策略语言，描述对话合法序列','info'],
+      ['  · FIPA-Agent-Management — Agent 生命周期与管理规范','info'],
+      ['参考架构包含四大核心组件：',''],
+      ['  · AMS（Agent Management System）— 白页，注册与生命周期管理','warn'],
+      ['  · DF（Directory Facilitator）— 黄页，服务发现与能力匹配','warn'],
+      ['  · ACC（Agent Communication Channel）— 消息路由与传输','warn'],
+      ['  · MTS（Message Transport Service）— 底层传输抽象','warn'],
+      ['FIPA 定义了多种交互协议：Request、Query、Contract-Net、拍卖协议等。','ok']
+    ]);
+  }else if(mode==='cmp'){
+    Stext(460,52,'四大协议横向对比','#8b95a7',11,null,'middle');
+    var cols=[['MCP',AC,130],['A2A',INFO,330],['ACP',WARN,530],['FIPA',PUR,730]];
+    var rows=[['发布方','Anthropic','Google','社区','IEEE/FIPA'],['年份','2024','2025','2023','1996'],['关注点','工具连接','智能体协作','消息封装','标准体系'],['通信模式','JSON-RPC','JSON-RPC+SSE','消息信封','ACL+SL'],['发现机制','配置注册','Agent Card','目录服务','DF黄页'],['安全模型','传输层','OAuth+Token','加密+认证','FIPA-Sec'],['交互协议','请求/响应','任务生命周期','言语行为','FIPA协议族'],['生态规模','快速增长','新兴','小众','学术成熟']];
+    Sbox(60,75,90,30,'#1a1d27',AC,4);Stext(105,95,'特性','#fff',11,600,'middle');
+    cols.forEach(function(c){Sbox(c[2]-35,75,180,30,'#1a1d27',c[1],4);Stext(c[2]+55,95,c[0],'#fff',11,600,'middle');});
+    rows.forEach(function(r,i){
+      var y=105+i*38;
+      Sbox(60,y,90,34,'#0d1017',BD,3);Stext(105,y+22,r[0],'#8b95a7',10,600,'middle');
+      cols.forEach(function(c,j){
+        Sbox(c[2]-35,y,180,34,'#0d1017',BD,3);
+        Stext(c[2]+55,y+22,r[j+1],'#e2e8f0',10,null,'middle');
+      });
+    });
+    setLog([
+      ['[M1/对比] 四大协议横向对比','tag'],
+      ['MCP — 聚焦工具连接，生态增长最快，被主流 IDE 和 AI 应用广泛采纳','info'],
+      ['A2A — 聚焦智能体协作，Google 主导，与 MCP 形成互补关系','info'],
+      ['ACP — 通用消息封装协议，借鉴 FIPA 理论，注重语义互操作','warn'],
+      ['FIPA — 学术标准体系，最成熟但生态较小，定义了完整的 ACL 规范','warn'],
+      ['选择建议：',''],
+      ['  · 需要连接工具/资源 → MCP','ok'],
+      ['  · 需要 Agent 间协作 → A2A','ok'],
+      ['  · 需要语义互操作 → ACP','ok'],
+      ['  · 学术研究/形式化 → FIPA','ok']
+    ]);
+  }
+}
+
+// ============ M2 MCP协议 ============
+function m2Draw(){m2View('tools');}
+function m2View(mode){
+  buildPanel([['tools','工具暴露'],['res','资源访问'],['prompt','Prompt模板'],['arch','架构']],mode,m2View);
+  clear(svg);
+  Stext(460,32,'MCP 协议深度解析','#e2e8f0',17,600,'middle');
+  if(mode==='tools'){
+    Stext(460,52,'Tools 工具暴露机制','#8b95a7',11,null,'middle');
+    var tools=[['filesystem','文件读写','#2dd4ff'],['git','版本控制','#7c5cff'],['postgres','数据库查询','#fbbf24'],['fetch','HTTP请求','#a78bfa'],['slack','消息发送','#f472b6'],['shell','命令执行','#ef4444']];
+    tools.forEach(function(t,i){
+      var x=70+(i%3)*290,y=80+Math.floor(i/3)*110;
+      Sbox(x,y,260,95,'#0d1017',t[2],6);Stext(x+130,y+22,t[0],t[2],12,600,'middle');
+      Sbox(x+15,y+35,230,22,'#11131a',BD,3);Stext(x+25,y+51,'inputSchema: JSON Schema定义','#8b95a7',9,null);
+      Sbox(x+15,y+62,230,22,'#11131a',BD,3);Stext(x+25,y+78,'returns: 结构化输出','#8b95a7',9,null);
+    });
+    Sbox(60,310,800,50,'#0d1017',AC,6);Stext(460,335,'tools/list → 返回工具清单 · tools/call → 调用指定工具','#7c5cff',11,600,'middle');
+    Sbox(60,375,800,55,'#0d1017',INFO,6);
+    Stext(80,397,'调用流程','#2dd4ff',11,600);Stext(80,418,'1. Client调用 tools/list 获取能力 → 2. LLM选择工具 → 3. Client调用 tools/call → 4. Server执行返回结果','#8b95a7',10);
+    setLog([
+      ['[M2/Tools] MCP 工具暴露机制','tag'],
+      ['Tools 是 MCP 最核心的能力原语，允许 Server 向 Client 暴露可执行函数。',''],
+      ['每个工具定义包含：',''],
+      ['  · name — 唯一工具名称','info'],
+      ['  · description — 自然语言描述（供 LLM 理解用途）','info'],
+      ['  · inputSchema — JSON Schema 格式的输入参数定义','info'],
+      ['协议方法：',''],
+      ['  · tools/list — 列出 Server 提供的所有工具','warn'],
+      ['  · tools/call — 调用指定工具，传入参数，获取结果','warn'],
+      ['调用流程：Client 先获取工具列表 → LLM 根据用户意图选择工具 → Client 发起',''],
+      ['tools/call 请求 → Server 执行并返回结构化结果 → LLM 基于结果继续推理。',''],
+      ['工具结果支持文本、图片、嵌入资源等多种内容类型。','ok']
+    ]);
+  }else if(mode==='res'){
+    Stext(460,52,'Resources 资源访问机制','#8b95a7',11,null,'middle');
+    Sbox(60,80,180,320,'#0d1017',AC,6);Stext(150,105,'资源类型树','#7c5cff',12,600,'middle');
+    var nodes=[['file://','文件系统',130,135,INFO],['http://','Web资源',130,165,WARN],['db://','数据库',130,195,PUR],['git://','代码仓库',130,225,ROSE],['mem://','内存对象',130,255,AC],['s3://','对象存储',130,285,INFO],['search://','搜索引擎',130,315,WARN]];
+    nodes.forEach(function(n){Sbox(80,n[3]-14,140,22,'#11131a',n[4],3);Stext(90,n[3]+1,n[0]+' '+n[1],n[4],9,null);});
+    Sbox(75,335,150,50,'#11131a',DIM,4);Stext(150,355,'URI 统一寻址','#8b95a7',10,600,'middle');Stext(150,372,'schema://path','#4a5568',9,null,'middle');
+    Sarrow(240,200,290,200,AC);
+    Sbox(290,80,260,320,'#0d1017',INFO,6);Stext(420,105,'访问模式','#2dd4ff',12,600,'middle');
+    Sbox(310,125,220,30,'#11131a',BD,3);Stext(420,145,'resources/list — 列出资源','#8b95a7',10,null,'middle');
+    Sbox(310,165,220,30,'#11131a',BD,3);Stext(420,185,'resources/read — 读取内容','#8b95a7',10,null,'middle');
+    Sbox(310,205,220,30,'#11131a',BD,3);Stext(420,225,'resources/subscribe — 订阅变更','#8b95a7',10,null,'middle');
+    Sbox(310,245,220,30,'#11131a',BD,3);Stext(420,265,'resources/unsubscribe — 取消订阅','#8b95a7',10,null,'middle');
+    Sbox(310,285,220,95,'#11131a',INFO,4);Stext(420,308,'内容类型','#2dd4ff',10,600,'middle');Stext(420,328,'text/plain','#8b95a7',9,null,'middle');Stext(420,346,'application/json','#8b95a7',9,null,'middle');Stext(420,364,'image/png (base64)','#8b95a7',9,null,'middle');
+    Sbox(580,80,280,320,'#0d1017',WARN,6);Stext(720,105,'资源 vs 工具','#fbbf24',12,600,'middle');
+    Sbox(600,130,240,70,'#11131a',BD,4);Stext(720,152,'Resources 资源','#fbbf24',11,600,'middle');Stext(720,172,'被动数据源','#8b95a7',10,null,'middle');Stext(720,190,'LLM 决定何时读取','#4a5568',9,null,'middle');
+    Sbox(600,215,240,70,'#11131a',BD,4);Stext(720,237,'Tools 工具','#7c5cff',11,600,'middle');Stext(720,257,'主动执行操作','#8b95a7',10,null,'middle');Stext(720,275,'有副作用','#4a5568',9,null,'middle');
+    Sbox(600,300,240,80,'#11131a',DIM,4);Stext(720,322,'Templates 模板','#8b95a7',10,600,'middle');Stext(720,342,'可复用提示词','#4a5568',9,null,'middle');Stext(720,360,'参数化生成','#4a5568',9,null,'middle');
+    setLog([
+      ['[M2/Resources] MCP 资源访问机制','tag'],
+      ['Resources 是 MCP 的第二大能力原语，允许 Server 向 Client 暴露可读取的数据源。',''],
+      ['与 Tools 的区别：',''],
+      ['  · Resources 是被动数据源 — Client/LLM 决定何时读取','info'],
+      ['  · Tools 是主动操作 — 有副作用，由 LLM 决定何时调用','info'],
+      ['资源通过 URI 统一寻址，支持多种 schema：',''],
+      ['  · file:// — 本地文件系统','warn'],
+      ['  · http(s):// — Web 资源','warn'],
+      ['  · db:// — 数据库表/查询','warn'],
+      ['  · git:// — 代码仓库内容','warn'],
+      ['协议方法：resources/list、resources/read、resources/subscribe',''],
+      ['支持订阅模式：当资源内容变更时，Server 主动推送通知给 Client。','ok'],
+      ['内容类型支持：纯文本、JSON、图片（base64编码）等。','ok']
+    ]);
+  }else if(mode==='prompt'){
+    Stext(460,52,'Prompts 提示词模板机制','#8b95a7',11,null,'middle');
+    var tpls=[['code-review','代码审查',AC,'审查以下代码的安全性与性能问题'],['sql-gen','SQL生成',INFO,'根据自然语言描述生成优化SQL'],['doc-summarize','文档摘要',WARN,'将长文档压缩为结构化摘要'],['test-gen','测试生成',PUR,'为指定函数生成单元测试'],['debug-helper','调试助手',ROSE,'分析错误堆栈并给出修复建议'],['translate','翻译',ERR,'在指定语言间进行专业翻译']];
+    tpls.forEach(function(t,i){
+      var x=60+(i%3)*290,y=75+Math.floor(i/3)*120;
+      Sbox(x,y,270,105,'#0d1017',t[2],6);
+      Stext(x+135,y+22,t[0]+'()','#fff',12,600,'middle');
+      Stext(x+135,y+40,t[1],t[2],10,null,'middle');
+      Sbox(x+15,y+52,240,42,'#11131a',BD,3);
+      Stext(x+25,y+70,t[3],'#8b95a7',9,null);
+      Stext(x+25,y+86,'参数: {context, lang, ...}','#4a5568',8,null);
+    });
+    Sbox(60,320,800,50,'#0d1017',AC,6);Stext(460,345,'prompts/list → 获取模板列表 · prompts/get → 渲染指定模板','#7c5cff',11,600,'middle');
+    Sbox(60,385,800,55,'#0d1017',PUR,6);
+    Stext(80,407,'模板渲染流程','#a78bfa',11,600);Stext(80,428,'1. prompts/list 获取模板 → 2. prompts/get 传入参数 → 3. Server 渲染返回消息序列 → 4. 注入 LLM 上下文','#8b95a7',10);
+    setLog([
+      ['[M2/Prompts] MCP 提示词模板机制','tag'],
+      ['Prompts 是 MCP 的第三大能力原语，允许 Server 提供可复用的提示词模板。',''],
+      ['模板特点：',''],
+      ['  · 参数化 — 支持变量注入，动态生成上下文','info'],
+      ['  · 结构化 — 返回 role/content 消息序列，直接注入对话','info'],
+      ['  · 可组合 — 可嵌入资源引用和工具调用建议','info'],
+      ['协议方法：',''],
+      ['  · prompts/list — 列出可用模板','warn'],
+      ['  · prompts/get — 按名称获取并渲染模板','warn'],
+      ['应用场景：',''],
+      ['  · 代码审查模板 — 注入代码资源 + 审查指令','ok'],
+      ['  · SQL 生成模板 — 注入表结构 + 自然语言查询','ok'],
+      ['  · 文档摘要模板 — 注入文档资源 + 摘要指令','ok'],
+      ['模板由 Server 端维护，确保提示词质量一致性和最佳实践复用。','ok']
+    ]);
+  }else if(mode==='arch'){
+    Stext(460,52,'MCP 分层架构','#8b95a7',11,null,'middle');
+    Sbox(60,80,800,50,'#0d1017',AC,6);Stext(460,105,'Host 宿主层 — 运行 LLM 的应用程序（Claude Desktop / IDE）','#fff',13,600,'middle');
+    Stext(460,122,'管理 Client 生命周期 · 聚合多 Server 能力 · 决定工具调用权限','#8b95a7',9,null,'middle');
+    Sbox(60,145,800,50,'#0d1017',INFO,6);Stext(460,170,'Client 客户端层 — 与 Server 保持 1:1 连接','#fff',13,600,'middle');
+    Stext(460,187,'协议握手(capability negotiation) · 消息路由 · 请求/响应配对','#8b95a7',9,null,'middle');
+    Sbox(60,210,800,50,'#0d1017',WARN,6);Stext(460,235,'Server 服务端层 — 暴露 Tools/Resources/Prompts 三类能力','#fff',13,600,'middle');
+    Stext(460,252,'能力注册 · 请求处理 · 资源管理 · 工具执行','#8b95a7',9,null,'middle');
+    Sbox(60,275,800,50,'#0d1017',PUR,6);Stext(460,300,'Transport 传输层 — 底层通信抽象','#fff',13,600,'middle');
+    Stext(460,317,'stdio (本地) · SSE (推送) · WebSocket (双向) — JSON-RPC 2.0 编码','#8b95a7',9,null,'middle');
+    Sarrow(460,130,460,145,AC);Sarrow(460,195,460,210,INFO);Sarrow(460,260,460,275,WARN);
+    Sbox(60,345,380,85,'#0d1017',ROSE,6);Stext(250,368,'初始化握手',ROSE,11,600,'middle');
+    Stext(80,390,'1. initialize — 协商版本与能力','#8b95a7',9);Stext(80,406,'2. initialized — 确认就绪','#8b95a7',9);Stext(80,422,'3. 正常消息交换开始','#8b95a7',9);
+    Sbox(460,345,400,85,'#0d1017',ERR,6);Stext(660,368,'错误处理',ERR,11,600,'middle');
+    Stext(480,390,'· JSON-RPC error codes (-32000 ~ -32099)','#8b95a7',9);Stext(480,406,'· 工具执行失败返回 isError=true','#8b95a7',9);Stext(480,422,'· 超时与重连机制','#8b95a7',9);
+    setLog([
+      ['[M2/Arch] MCP 分层架构','tag'],
+      ['MCP 采用四层架构设计，各层职责清晰分离：',''],
+      ['  · Host 宿主层 — 运行 LLM 的宿主应用，管理多个 Client 实例','info'],
+      ['  · Client 客户端层 — 每个 Client 与一个 Server 保持 1:1 连接','info'],
+      ['  · Server 服务端层 — 实现具体能力，暴露三类原语','info'],
+      ['  · Transport 传输层 — 底层通信，支持多种传输方式','info'],
+      ['初始化流程：',''],
+      ['  1. Client 发送 initialize 请求，声明协议版本和支持能力','warn'],
+      ['  2. Server 响应，声明自身支持的能力','warn'],
+      ['  3. Client 发送 initialized 通知，握手完成','warn'],
+      ['  4. 双方开始正常消息交换','warn'],
+      ['能力协商（Capability Negotiation）确保双方只使用对方支持的功能。','ok'],
+      ['传输层抽象使同一 Server 可通过 stdio 本地使用，也可通过 HTTP 远程访问。','ok']
+    ]);
+  }
+}
+
+// ============ M3 A2A协议 ============
+function m3Draw(){m3View('discover');}
+function m3View(mode){
+  buildPanel([['discover','Agent发现'],['delegate','任务委托'],['sync','状态同步'],['sec','安全机制']],mode,m3View);
+  clear(svg);
+  Stext(460,32,'A2A 协议深度解析','#e2e8f0',17,600,'middle');
+  if(mode==='discover'){
+    Stext(460,52,'Agent 发现机制','#8b95a7',11,null,'middle');
+    Sbox(60,80,200,80,'#0d1017',AC,6);Stext(160,110,'Agent Registry','#7c5cff',12,600,'middle');Stext(160,135,'注册中心',DIM,10,null,'middle');
+    Sbox(300,80,200,80,'#0d1017',INFO,6);Stext(400,110,'Agent Card','#2dd4ff',12,600,'middle');Stext(400,135,'JSON-LD 名片',DIM,10,null,'middle');
+    Sbox(540,80,200,80,'#0d1017',WARN,6);Stext(640,110,'Capability Match','#fbbf24',12,600,'middle');Stext(640,135,'能力匹配',DIM,10,null,'middle');
+    Sarrow(260,120,300,120,AC);Sarrow(500,120,540,120,INFO);
+    Sbox(60,190,800,70,'#0d1017',BD,6);Stext(460,215,'Agent Card 结构 (JSON-LD)','#7c5cff',12,600,'middle');
+    Stext(460,238,'{"name","description","url","version","capabilities","skills","authentication"}','#8b95a7',10,null,'middle');
+    Stext(460,255,'skills[] — 每个技能含 name/description/inputModes/outputModes','#4a5568',9,null,'middle');
+    var flow=[['1.发布',100,310,AC],['2.发现',290,310,INFO],['3.匹配',480,310,WARN],['4.连接',670,310,PUR]];
+    flow.forEach(function(f){Scircle(f[1]+40,f[2]+20,26,f[3]+'22',f[3]);Stext(f[1]+40,f[2]+24,f[0],f[3],10,600,'middle');});
+    Sarrow(166,330,290,330,DIM);Sarrow(356,330,480,330,DIM);Sarrow(546,330,670,330,DIM);
+    Sbox(80,360,190,70,'#0d1017',AC,4);Stext(175,382,'发布阶段',AC,10,600,'middle');Stext(175,400,'Agent 启动时向','#8b95a7',9,null,'middle');Stext(175,416,'Registry 注册','#8b95a7',9,null);
+    Sbox(290,360,190,70,'#0d1017',INFO,4);Stext(385,382,'发现阶段',INFO,10,600,'middle');Stext(385,400,'Client 查询','#8b95a7',9,null,'middle');Stext(385,416,'Registry 获取列表','#8b95a7',9,null);
+    Sbox(490,360,190,70,'#0d1017',WARN,4);Stext(585,382,'匹配阶段',WARN,10,600,'middle');Stext(585,400,'按 skills 匹配','#8b95a7',9,null,'middle');Stext(585,416,'选择最优 Agent','#8b95a7',9,null);
+    Sbox(680,360,190,70,'#0d1017',PUR,4);Stext(775,382,'连接阶段',PUR,10,600,'middle');Stext(775,400,'获取 Agent Card','#8b95a7',9,null,'middle');Stext(775,416,'建立通信通道','#8b95a7',9,null);
+    setLog([
+      ['[M3/发现] A2A Agent 发现机制','tag'],
+      ['A2A 协议的 Agent 发现是智能体协作的前提，核心依赖 Agent Card 机制。',''],
+      ['Agent Card 是 JSON-LD 格式的智能体名片，包含：',''],
+      ['  · name / description — 基本身份信息','info'],
+      ['  · url — 服务端点地址','info'],
+      ['  · version — 协议版本','info'],
+      ['  · capabilities — 支持的能力（streaming/pushNotifications）','info'],
+      ['  · skills[] — 技能列表，每个含名称、描述、输入输出模式','info'],
+      ['  · authentication — 认证方式声明','info'],
+      ['发现流程四阶段：',''],
+      ['  1. 发布 — Agent 启动时向 Registry 注册自己的 Agent Card','warn'],
+      ['  2. 发现 — Client 查询 Registry 或直接访问 /.well-known/agent.json','warn'],
+      ['  3. 匹配 — 根据任务需求与 skills 描述进行能力匹配','warn'],
+      ['  4. 连接 — 获取目标 Agent Card 并建立通信通道','warn'],
+      ['支持去中心化发现（直接访问 URL）和中心化发现（经 Registry）。','ok']
+    ]);
+  }else if(mode==='delegate'){
+    Stext(460,52,'任务委托机制','#8b95a7',11,null,'middle');
+    var states=[['submitted',100,120,AC],['working',280,120,INFO],['input-required',460,120,WARN],['completed',640,120,'4ade80'],['failed',820,120,ERR]];
+    states.forEach(function(s){Scircle(s[1],s[2],26,s[4]+'22',s[4]);Stext(s[1],s[2]+4,s[0].substring(0,8),s[4],8,600,'middle');});
+    Sarrow(126,120,254,120,DIM);Sarrow(306,120,434,120,DIM);Sarrow(486,120,614,120,DIM);Sarrow(666,120,794,120,DIM);
+    Stext(460,165,'Task 生命周期状态机',DIM,11,600,'middle');
+    Sbox(60,190,410,230,'#0d1017',AC,6);Stext(265,215,'任务委托流程','#7c5cff',12,600,'middle');
+    var steps=[['Client 创建 task (message)','230'],['发送到 Agent endpoint','255'],['Agent 返回 task 状态','280'],['Agent 异步执行','305'],['结果通过 SSE 推送','330'],['Client 可取消 task','355'],['支持多轮交互','380'],['长任务可分块返回','405']];
+    steps.forEach(function(s){Stext(80,parseInt(s[1]),'\u00B7 '+s[0],'#8b95a7',10);});
+    Sbox(490,190,370,230,'#0d1017',WARN,6);Stext(675,215,'消息类型','#fbbf24',12,600,'middle');
+    var msgs=[['tasks/send','发送任务消息','240'],['tasks/get','查询任务状态','270'],['tasks/cancel','取消任务','300'],['tasks/sendSubscribe','发送并订阅','330'],['tasks/pushNotification','推送通知设置','360'],['message/stream','SSE 流式响应','390']];
+    msgs.forEach(function(m){Sbox(510,m[2]-16,330,24,'#11131a',BD,3);Stext(525,m[2],m[0],WARN,10,null);Stext(640,m[2],m[1],'#8b95a7',9,null);});
+    setLog([
+      ['[M3/委托] A2A 任务委托机制','tag'],
+      ['A2A 的任务委托支持异步长任务执行，是智能体协作的核心能力。',''],
+      ['Task 生命周期包含 5 个状态：',''],
+      ['  · submitted — 已提交，等待接受','info'],
+      ['  · working — 执行中','info'],
+      ['  · input-required — 需要额外输入（多轮交互）','info'],
+      ['  · completed — 成功完成','info'],
+      ['  · failed — 执行失败','info'],
+      ['消息方法：',''],
+      ['  · tasks/send — 发送任务消息，同步返回当前状态','warn'],
+      ['  · tasks/get — 查询任务状态','warn'],
+      ['  · tasks/cancel — 取消正在执行的任务','warn'],
+      ['  · tasks/sendSubscribe — 发送任务并订阅 SSE 流式更新','warn'],
+      ['  · tasks/pushNotification — 配置 webhook 推送通知','warn'],
+      ['支持长任务分块返回，Client 可通过 SSE 实时获取中间结果。','ok'],
+      ['多轮交互：当 Agent 需要 Client 提供更多信息时返回 input-required 状态。','ok']
+    ]);
+  }else if(mode==='sync'){
+    Stext(460,52,'状态同步机制','#8b95a7',11,null,'middle');
+    Sbox(60,80,380,140,'#0d1017',INFO,6);Stext(250,105,'SSE 流式同步','#2dd4ff',12,600,'middle');
+    var t=[['t=0s','task submitted','130'],['t=2s','working...','155'],['t=5s','progress 30%','180'],['t=8s','progress 70%','205'],['t=12s','completed','230']];
+    t.forEach(function(e){Sbox(80,e[2]-16,340,22,'#11131a',BD,3);Stext(90,e[2],e[0]+'  '+e[1],'#8b95a7',9,null);});
+    Sbox(460,80,400,140,'#0d1017',WARN,6);Stext(660,105,'gRPC Stream 同步','#fbbf24',12,600,'middle');
+    Sbox(480,125,360,30,'#11131a',BD,3);Stext(660,145,'双向流式通信','#8b95a7',10,null,'middle');
+    Sbox(480,160,360,30,'#11131a',BD,3);Stext(660,180,'低延迟状态推送','#8b95a7',10,null,'middle');
+    Sbox(480,195,360,15,'#11131a',BD,3);Stext(660,207,'适合高频同步场景','#4a5568',9,null,'middle');
+    Sbox(60,245,800,90,'#0d1017',PUR,6);Stext(460,270,'状态同步策略对比','#a78bfa',12,600,'middle');
+    Sbox(80,285,230,40,'#11131a',PUR,4);Stext(195,302,'Polling 轮询',PUR,10,600,'middle');Stext(195,318,'简单但延迟高','#4a5568',9,null,'middle');
+    Sbox(330,285,230,40,'#11131a',INFO,4);Stext(445,302,'SSE 推送',INFO,10,600,'middle');Stext(445,318,'单向低延迟','#4a5568',9,null,'middle');
+    Sbox(580,285,230,40,'#11131a',WARN,4);Stext(695,302,'gRPC Stream',WARN,10,600,'middle');Stext(695,318,'双向最低延迟','#4a5568',9,null,'middle');
+    Sbox(60,350,800,85,'#0d1017',AC,6);Stext(460,375,'事件类型','#7c5cff',12,600,'middle');
+    var evs=[['TaskStatusUpdate','任务状态变更','390'],['TaskProgress','进度更新','410'],['ArtifactChunk','产物分块','430'],['TaskComplete','任务完成','450']];
+    evs.forEach(function(e,i){Stext(80+i*200,e[0],AC,10,null);Stext(80+i*200,parseInt(e[2]),e[1],'#8b95a7',9);});
+    setLog([
+      ['[M3/同步] A2A 状态同步机制','tag'],
+      ['A2A 提供三种状态同步策略，适用于不同延迟和复杂度需求：',''],
+      ['  · Polling 轮询 — Client 定期调用 tasks/get 查询状态','info'],
+      ['    优点：实现简单；缺点：延迟高、资源浪费','info'],
+      ['  · SSE 推送 — Server 通过 Server-Sent Events 主动推送','info'],
+      ['    优点：单向低延迟、HTTP 兼容；缺点：不支持 Client→Server 推送','info'],
+      ['  · gRPC Stream — 双向流式通信','info'],
+      ['    优点：最低延迟、双向；缺点：需要 gRPC 基础设施','info'],
+      ['事件类型：',''],
+      ['  · TaskStatusUpdate — 任务状态变更通知','warn'],
+      ['  · TaskProgress — 执行进度更新','warn'],
+      ['  · ArtifactChunk — 产物分块传输（大文件）','warn'],
+      ['  · TaskComplete — 任务最终完成事件','warn'],
+      ['推荐：短任务用 SSE，实时性要求高的场景用 gRPC Stream。','ok']
+    ]);
+  }else if(mode==='sec'){
+    Stext(460,52,'A2A 安全机制','#8b95a7',11,null,'middle');
+    var layers=[['传输层安全',80,AC,'TLS 1.3 加密 · mTLS 双向认证'],['认证层',140,INFO,'OAuth 2.0 · API Key · JWT Token'],['授权层',200,WARN,'作用域控制 · 细粒度权限'],['审计层',260,PUR,'操作日志 · 合规追踪'],['隔离层',320,ROSE,'任务沙箱 · 资源限制']];
+    layers.forEach(function(l){Sbox(60,l[1]-22,800,44,'#0d1017',l[2],6);Stext(80,l[1]+2,l[0],l[2],12,600);Stext(200,l[1]+2,l[3],'#8b95a7',10,null);});
+    Sbox(60,360,390,75,'#0d1017',ERR,6);Stext(255,382,'认证流程',ERR,11,600,'middle');
+    Stext(80,405,'1. Client 获取 OAuth token','#8b95a7',9);Stext(80,421,'2. 请求携带 Authorization header','#8b95a7',9);
+    Sbox(470,360,390,75,'#0d1017',AC,6);Stext(665,382,'授权模型',AC,11,600,'middle');
+    Stext(490,405,'scope: tasks:send / tasks:read','#8b95a7',9);Stext(490,421,'scope: tasks:cancel / admin','#8b95a7',9);
+    setLog([
+      ['[M3/安全] A2A 安全机制','tag'],
+      ['A2A 采用五层安全防护体系，覆盖从传输到隔离的完整安全链路。',''],
+      ['五层安全架构：',''],
+      ['  · 传输层 — TLS 1.3 加密 + mTLS 双向证书认证','err'],
+      ['  · 认证层 — OAuth 2.0 / API Key / JWT 多种认证方式','warn'],
+      ['  · 授权层 — 基于作用域（scope）的细粒度权限控制','warn'],
+      ['  · 审计层 — 完整操作日志记录，支持合规审计','warn'],
+      ['  · 隔离层 — 任务沙箱执行，资源使用限制','err'],
+      ['认证流程：',''],
+      ['  1. Client 向认证服务器获取 OAuth 2.0 access token','info'],
+      ['  2. 每次请求在 Authorization header 携带 Bearer token','info'],
+      ['  3. Server 验证 token 并检查 scope 权限','info'],
+      ['授权作用域示例：',''],
+      ['  · tasks:send — 允许发送任务','ok'],
+      ['  · tasks:read — 允许查询任务状态','ok'],
+      ['  · tasks:cancel — 允许取消任务','ok'],
+      ['  · admin — 管理权限','ok']
+    ]);
+  }
+}
+
+// ============ M4 消息格式 ============
+function m4Draw(){m4View('jsonrpc');}
+function m4View(mode){
+  buildPanel([['jsonrpc','JSON-RPC'],['proto','Protobuf'],['semantic','语义描述'],['version','版本管理']],mode,m4View);
+  clear(svg);
+  Stext(460,32,'消息格式与编码','#e2e8f0',17,600,'middle');
+  if(mode==='jsonrpc'){
+    Stext(460,52,'JSON-RPC 2.0 消息结构','#8b95a7',11,null,'middle');
+    Sbox(60,75,280,160,'#0d1017',AC,6);Stext(200,98,'Request 请求',AC,12,600,'middle');
+    Sbox(75,110,250,22,'#11131a',BD,3);Stext(85,126,'{"jsonrpc":"2.0"','#8b95a7',9);
+    Sbox(75,136,250,22,'#11131a',BD,3);Stext(85,152,'"id":1, "method":"tools/call"','#8b95a7',9);
+    Sbox(75,162,250,22,'#11131a',BD,3);Stext(85,178,'"params":{...}}','#8b95a7',9);
+    Stext(200,207,'id+method+params','#4a5568',9,null,'middle');
+    Sbox(360,75,280,160,'#0d1017',INFO,6);Stext(500,98,'Response 响应',INFO,12,600,'middle');
+    Sbox(375,110,250,22,'#11131a',BD,3);Stext(385,126,'{"jsonrpc":"2.0"','#8b95a7',9);
+    Sbox(375,136,250,22,'#11131a',BD,3);Stext(385,152,'"id":1, "result":{...}}','#8b95a7',9);
+    Sbox(375,162,250,22,'#11131a',BD,3);Stext(385,178,'// 或 "error":{...}}','#4a5568',9);
+    Stext(500,207,'id+result/error','#4a5568',9,null,'middle');
+    Sbox(660,75,220,160,'#0d1017',WARN,6);Stext(770,98,'Notification 通知',WARN,12,600,'middle');
+    Sbox(675,110,190,22,'#11131a',BD,3);Stext(685,126,'{"jsonrpc":"2.0"','#8b95a7',9);
+    Sbox(675,136,190,22,'#11131a',BD,3);Stext(685,152,'"method":"progress"','#8b95a7',9);
+    Sbox(675,162,190,22,'#11131a',BD,3);Stext(685,178,'"params":{...}}','#8b95a7',9);
+    Stext(770,207,'无id (无需响应)','#4a5568',9,null,'middle');
+    Sbox(60,255,820,60,'#0d1017',PUR,6);Stext(460,280,'批量请求 Batch Request','#a78bfa',12,600,'middle');
+    Stext(460,300,'[{"jsonrpc":"2.0","id":1,...}, {"jsonrpc":"2.0","id":2,...}] — 单次发送多条请求','#8b95a7',10,null,'middle');
+    Sbox(60,330,400,100,'#0d1017',ERR,6);Stext(260,353,'错误码定义',ERR,11,600,'middle');
+    var codes=[['-32700','Parse error 解析错误','375'],['-32600','Invalid request 无效请求','395'],['-32601','Method not found 方法不存在','415'],['-32603','Internal error 内部错误','435']];
+    codes.forEach(function(c){Stext(75,c[2],c[0],ERR,9);Stext(130,c[2],c[1],'#8b95a7',9);});
+    Sbox(480,330,400,100,'#0d1017',ROSE,6);Stext(680,353,'特性优势',ROSE,11,600,'middle');
+    var feats=[['语言无关','JSON 原生支持','375'],['双向通信','请求/响应/通知','395'],['批量处理','单次多条请求','415'],['错误标准化','统一错误码','435']];
+    feats.forEach(function(f){Stext(495,f[2],f[0],ROSE,9);Stext(575,f[2],f[1],'#8b95a7',9);});
+    setLog([
+      ['[M4/JSON-RPC] JSON-RPC 2.0 消息格式','tag'],
+      ['JSON-RPC 2.0 是 MCP 和 A2A 共同采用的消息编码格式。',''],
+      ['三种消息类型：',''],
+      ['  · Request — 包含 id + method + params，期望得到响应','info'],
+      ['  · Response — 包含 id + result（成功）或 error（失败）','info'],
+      ['  · Notification — 包含 method + params 但无 id，无需响应','info'],
+      ['核心字段：',''],
+      ['  · jsonrpc — 固定值 "2.0"，标识协议版本','warn'],
+      ['  · id — 请求标识符，用于配对请求与响应（整数或字符串）','warn'],
+      ['  · method — 方法名称，如 "tools/call"、"tasks/send"','warn'],
+      ['  · params — 方法参数（结构化对象或数组）','warn'],
+      ['错误码范围：-32700（解析错误）到 -32099（实现自定义错误）','err'],
+      ['批量请求：可将多个 Request 放入数组一次性发送，提高效率。','ok']
+    ]);
+  }else if(mode==='proto'){
+    Stext(460,52,'Protocol Buffers 编码格式','#8b95a7',11,null,'middle');
+    Sbox(60,75,400,180,'#0d1017',WARN,6);Stext(260,98,'Protobuf Schema 定义',WARN,12,600,'middle');
+    Sbox(75,110,370,130,'#11131a',BD,3);
+    Stext(85,130,'syntax = "proto3";','#8b95a7',9);
+    Stext(85,148,'message AgentMessage {','#2dd4ff',9);
+    Stext(95,166,'string agent_id = 1;','#8b95a7',9);
+    Stext(95,184,'MessageType type = 2;','#8b95a7',9);
+    Stext(95,202,'bytes payload = 3;','#8b95a7',9);
+    Stext(95,220,'int64 timestamp = 4;','#8b95a7',9);
+    Stext(85,238,'}',DIM,9);
+    Sbox(480,75,400,180,'#0d1017',INFO,6);Stext(680,98,'Wire Format 编码',INFO,12,600,'middle');
+    Sbox(495,110,370,130,'#11131a',BD,3);
+    Stext(505,130,'字段编号 + 类型 + 长度 + 值','#8b95a7',9);
+    Stext(505,155,'Varint 编码: 小整数 1 字节','#2dd4ff',9);
+    Stext(505,175,'Length-delimited: 长度前缀','#2dd4ff',9);
+    Stext(505,195,'Fixed64/Fixed32: 固定长度','#2dd4ff',9);
+    Stext(505,220,'紧凑二进制 · 比 JSON 小 3-10x','#4ade80',9);
+    Sbox(60,275,280,75,'#0d1017',AC,6);Stext(200,298,'优势',AC,11,600,'middle');
+    Stext(200,320,'体积小 · 解析快','#8b95a7',9,null,'middle');Stext(200,338,'强类型 · 向后兼容','#8b95a7',9,null,'middle');
+    Sbox(360,275,280,75,'#0d1017',ERR,6);Stext(500,298,'劣势',ERR,11,600,'middle');
+    Stext(500,320,'不可读 · 需编译','#8b95a7',9,null,'middle');Stext(500,338,'Schema 依赖','#8b95a7',9,null,'middle');
+    Sbox(660,275,220,75,'#0d1017',PUR,6);Stext(770,298,'适用场景',PUR,11,600,'middle');
+    Stext(770,320,'高频通信','#8b95a7',9,null,'middle');Stext(770,338,'大规模集群','#8b95a7',9,null,'middle');
+    Sbox(60,370,820,65,'#0d1017',ROSE,6);Stext(460,393,'JSON-RPC vs Protobuf 对比',ROSE,12,600,'middle');
+    Sbox(80,410,380,20,'#11131a',BD,3);Stext(270,424,'JSON: 可读性强 · 体积大 · 解析慢','#8b95a7',9,null,'middle');
+    Sbox(480,410,380,20,'#11131a',BD,3);Stext(670,424,'Protobuf: 二进制 · 体积小 · 解析快','#8b95a7',9,null,'middle');
+    setLog([
+      ['[M4/Protobuf] Protocol Buffers 编码格式','tag'],
+      ['Protocol Buffers 是 Google 开发的高效二进制序列化格式。',''],
+      ['Schema 定义示例：',''],
+      ['  message AgentMessage {','info'],
+      ['    string agent_id = 1;','info'],
+      ['    MessageType type = 2;','info'],
+      ['    bytes payload = 3;','info'],
+      ['    int64 timestamp = 4;','info'],
+      ['  }','info'],
+      ['编码特性：',''],
+      ['  · Varint — 变长整数编码，小整数仅占 1 字节','warn'],
+      ['  · Length-delimited — 长度前缀编码字符串和嵌套消息','warn'],
+      ['  · 字段按编号标识，缺失字段使用默认值','warn'],
+      ['  · 未知字段向前兼容（proto3 默认忽略）','warn'],
+      ['优势：体积比 JSON 小 3-10 倍，解析速度快 10-100 倍','ok'],
+      ['劣势：二进制不可读，需要 .proto 文件和编译工具链','err'],
+      ['适用场景：Agent 间高频通信、大规模集群内部通信。','ok']
+    ]);
+  }else if(mode==='semantic'){
+    Stext(460,52,'语义描述与本体映射','#8b95a7',11,null,'middle');
+    var concepts=[['Agent','智能体',150,140,AC],['Task','任务',400,110,INFO],['Goal','目标',650,140,WARN],['Action','动作',250,260,PUR],['Resource','资源',500,260,ROSE],['Policy','策略',750,260,ERR]];
+    concepts.forEach(function(c){Scircle(c[2],c[3],32,c[4]+'22',c[4]);Stext(c[2],c[3]-2,c[0],c[4],9,600,'middle');Stext(c[2],c[3]+12,c[1],'#8b95a7',8,null,'middle');});
+    Sarrow(182,140,368,115,DIM);Sarrow(432,115,618,140,DIM);Sarrow(175,172,235,230,DIM);Sarrow(390,140,475,230,DIM);Sarrow(650,172,720,230,DIM);Sarrow(320,260,468,260,DIM);Sarrow(532,260,718,260,DIM);
+    Sbox(60,330,400,100,'#0d1017',INFO,6);Stext(260,353,'本体描述语言',INFO,11,600,'middle');
+    var langs=[['RDF/OWL','W3C 本体标准','375'],['JSON-LD','JSON 语义扩展','395'],['FIPA-SL','逻辑形式语言','415']];
+    langs.forEach(function(l){Stext(75,l[2],l[0],INFO,9);Stext(160,l[2],l[1],'#8b95a7',9);});
+    Sbox(480,330,400,100,'#0d1017',WARN,6);Stext(680,353,'语义映射策略',WARN,11,600,'middle');
+    var maps=[['直接映射','概念一一对应','375'],['复合映射','多概念组合','395'],['推理映射','基于规则推理','415']];
+    maps.forEach(function(m){Stext(495,m[2],m[0],WARN,9);Stext(590,m[2],m[1],'#8b95a7',9);});
+    setLog([
+      ['[M4/语义] 语义描述与本体映射','tag'],
+      ['语义描述解决不同 Agent 间概念理解不一致的问题。',''],
+      ['核心本体概念：',''],
+      ['  · Agent — 具有自主行为的实体','info'],
+      ['  · Task — 需要完成的工作单元','info'],
+      ['  · Goal — 期望达到的目标状态','info'],
+      ['  · Action — Agent 可执行的操作','info'],
+      ['  · Resource — 可利用的数据/工具','info'],
+      ['  · Policy — 行为约束规则','info'],
+      ['本体描述语言：',''],
+      ['  · RDF/OWL — W3C 标准本体语言，支持推理','warn'],
+      ['  · JSON-LD — JSON 语义扩展，A2A Agent Card 使用','warn'],
+      ['  · FIPA-SL — 基于一阶逻辑的形式化语义语言','warn'],
+      ['语义映射策略：直接映射、复合映射、推理映射',''],
+      ['语义互操作确保不同协议的 Agent 能理解彼此的意图。','ok']
+    ]);
+  }else if(mode==='version'){
+    Stext(460,52,'协议版本管理','#8b95a7',11,null,'middle');
+    Sbox(60,75,800,30,'#0d1017',DIM,4);Stext(460,95,'版本演进时间线',DIM,11,600,'middle');
+    var vers=[['1996','FIPA 97',120,PUR],['2002','FIPA 2.0',250,PUR],['2024','MCP 1.0',420,AC],['2025','A2A 0.1',570,INFO],['2025','A2A 0.2',700,INFO],['2026','MCP 2.0',830,AC]];
+    vers.forEach(function(v){Scircle(v[2],120,8,v[3],v[3]);Stext(v[2],145,v[0],v[3],9,null,'middle');Stext(v[2],160,v[1],'#8b95a7',9,null,'middle');});
+    Sline(120,120,830,120,DIM,1.5);
+    Sbox(60,185,280,100,'#0d1017',AC,6);Stext(200,208,'语义版本控制',AC,11,600,'middle');
+    Stext(200,232,'MAJOR.MINOR.PATCH','#8b95a7',10,null,'middle');
+    Stext(200,255,'MAJOR: 不兼容变更','#4a5568',9,null,'middle');
+    Stext(200,272,'MINOR: 向后兼容新增','#4a5568',9,null,'middle');
+    Sbox(360,185,280,100,'#0d1017',INFO,6);Stext(500,208,'兼容性策略',INFO,11,600,'middle');
+    Stext(500,232,'能力协商 (Negotiation)','#8b95a7',10,null,'middle');
+    Stext(500,255,'initialize 时声明版本','#4a5568',9,null,'middle');
+    Stext(500,272,'未知字段向前兼容','#4a5568',9,null,'middle');
+    Sbox(660,185,220,100,'#0d1017',WARN,6);Stext(770,208,'迁移策略',WARN,11,600,'middle');
+    Stext(770,232,'渐进式迁移','#8b95a7',10,null,'middle');
+    Stext(770,255,'双版本并行','#4a5568',9,null,'middle');
+    Stext(770,272,'废弃标记过渡','#4a5568',9,null,'middle');
+    Sbox(60,305,820,60,'#0d1017',ERR,6);Stext(460,330,'Breaking Changes 破坏性变更',ERR,11,600,'middle');
+    Stext(460,352,'删除字段 · 改变字段类型 · 改变消息语义 · 移除方法','#8b95a7',10,null,'middle');
+    Sbox(60,385,820,50,'#0d1017',PUR,6);Stext(460,407,'版本协商示例: client {"protocolVersion":"2025-03-26"} ↔ server {"protocolVersion":"2025-03-26"}','#a78bfa',10,null,'middle');
+    Stext(460,425,'协商失败时 server 返回 error 并声明支持的版本范围','#4a5568',9,null,'middle');
+    setLog([
+      ['[M4/版本] 协议版本管理','tag'],
+      ['协议版本管理确保不同版本的组件能够互操作。',''],
+      ['语义版本控制（SemVer）：MAJOR.MINOR.PATCH',''],
+      ['  · MAJOR — 不兼容的 API 变更','info'],
+      ['  · MINOR — 向后兼容的功能新增','info'],
+      ['  · PATCH — 向后兼容的缺陷修复','info'],
+      ['兼容性策略：',''],
+      ['  · 能力协商 — 初始化时双方声明支持的协议版本','warn'],
+      ['  · 向前兼容 — 未知字段保留，不报错','warn'],
+      ['  · 向后兼容 — 新版本能理解旧版本消息','warn'],
+      ['迁移策略：',''],
+      ['  · 渐进式迁移 — 逐步从旧版本迁移到新版本','warn'],
+      ['  · 双版本并行 — 同时支持新旧版本，平滑过渡','warn'],
+      ['  · 废弃标记 — 先标记废弃，下个大版本移除','warn'],
+      ['破坏性变更（Breaking Changes）需要 MAJOR 版本升级。','err']
+    ]);
+  }
+}
+
+// ============ M5 协作模式 ============
+function m5Draw(){m5View('master');}
+function m5View(mode){
+  buildPanel([['master','主从模式'],['peer','对等模式'],['bid','竞标模式'],['bb','黑板模式'],['cmp','模式对比']],mode,m5View);
+  clear(svg);
+  Stext(460,32,'多智能体协作模式','#e2e8f0',17,600,'middle');
+  if(mode==='master'){
+    Stext(460,52,'主从模式 (Master-Slave)','#8b95a7',11,null,'middle');
+    Scircle(460,130,38,AC+'22',AC);Scircle(460,130,10,AC,AC);Stext(460,185,'Master','#fff',12,600,'middle');
+    var slaves=[[160,260],[340,260],[580,260],[760,260]];
+    slaves.forEach(function(s,i){Scircle(s[0],s[1],28,INFO+'22',INFO);Scircle(s[0],s[1],8,INFO,INFO);Stext(s[0],s[1]+45,'Slave-'+(i+1),INFO,10,600,'middle');Sarrow(460,168,s[0],s[1]-28,AC);});
+    Sbox(60,330,400,100,'#0d1017',AC,6);Stext(260,353,'模式特征',AC,11,600,'middle');
+    Stext(80,375,'\u00B7 Master 统一调度，全局最优','#8b95a7',9);Stext(80,392,'\u00B7 Slave 被动执行，无自主决策','#8b95a7',9);Stext(80,409,'\u00B7 通信简单，中心化控制','#8b95a7',9);Stext(80,426,'\u00B7 单点故障风险','#ef4444',9);
+    Sbox(480,330,400,100,'#0d1017',WARN,6);Stext(680,353,'适用场景',WARN,11,600,'middle');
+    Stext(500,375,'\u00B7 工作流编排','#8b95a7',9);Stext(500,392,'\u00B7 任务分发系统','#8b95a7',9);Stext(500,409,'\u00B7 MapReduce 批处理','#8b95a7',9);Stext(500,426,'\u00B7 微服务编排','#8b95a7',9);
+    setLog([
+      ['[M5/主从] 主从协作模式','tag'],
+      ['主从模式是最常见的多智能体协作结构。',''],
+      ['结构特征：',''],
+      ['  · Master 拥有全局视图，负责任务分解与分配','info'],
+      ['  · Slave 接收指令并执行，返回结果给 Master','info'],
+      ['  · 通信呈星形拓扑，Slave 之间不直接通信','info'],
+      ['优势：',''],
+      ['  · 控制逻辑集中，易于实现和调试','ok'],
+      ['  · 全局优化，避免局部最优陷阱','ok'],
+      ['  · 通信开销低（O(n) 而非 O(n^2)）','ok'],
+      ['劣势：',''],
+      ['  · Master 单点故障（SPOF）','err'],
+      ['  · Master 性能瓶颈','err'],
+      ['  · Slave 缺乏自主性，适应性差','err'],
+      ['典型应用：工作流引擎、分布式任务队列、ETL 管道。','ok']
+    ]);
+  }else if(mode==='peer'){
+    Stext(460,52,'对等模式 (Peer-to-Peer)','#8b95a7',11,null,'middle');
+    var peers=[[460,120],[250,200],[670,200],[180,330],[460,330],[740,330],[320,410],[600,410]];
+    peers.forEach(function(p,i){Scircle(p[0],p[1],26,PUR+'22',PUR);Scircle(p[0],p[1],7,PUR,PUR);Stext(p[0],p[1]+40,'P'+(i+1),PUR,9,600,'middle');});
+    for(var i=0;i<peers.length;i++){for(var j=i+1;j<peers.length;j++){Sdash(peers[i][0],peers[i][1],peers[j][0],peers[j][1],DIM);}}
+    Sbox(60,260,200,90,'#0d1017',PUR,6);Stext(160,283,'共识机制',PUR,10,600,'middle');
+    Stext(160,303,'Raft / PBFT','#8b95a7',9,null,'middle');Stext(160,320,'Gossip 协议','#8b95a7',9,null,'middle');Stext(160,337,'Quorum 投票','#8b95a7',9,null,'middle');
+    Sbox(60,370,200,70,'#0d1017',INFO,6);Stext(160,393,'无中心节点',INFO,10,600,'middle');Stext(160,413,'去中心化','#8b95a7',9,null,'middle');Stext(160,430,'高可用性','#4ade80',9,null,'middle');
+    Sbox(700,260,200,90,'#0d1017',WARN,6);Stext(800,283,'通信开销',WARN,10,600,'middle');Stext(800,303,'O(n^2) 连接','#ef4444',9,null,'middle');Stext(800,320,'一致性挑战','#ef4444',9,null,'middle');Stext(800,337,'冲突解决','#8b95a7',9,null,'middle');
+    Sbox(700,370,200,70,'#0d1017',AC,6);Stext(800,393,'应用场景',AC,10,600,'middle');Stext(800,413,'区块链网络','#8b95a7',9,null,'middle');Stext(800,430,'联邦学习','#8b95a7',9,null,'middle');
+    setLog([
+      ['[M5/对等] 对等协作模式','tag'],
+      ['对等模式中所有智能体地位平等，无中心控制节点。',''],
+      ['结构特征：',''],
+      ['  · 所有节点平等，均可发起和响应请求','info'],
+      ['  · 网状拓扑，任意两个节点可直接通信','info'],
+      ['  · 需要共识机制解决状态一致性问题','info'],
+      ['共识算法：',''],
+      ['  · Raft — 强领导者选举，日志复制','warn'],
+      ['  · PBFT — 实用拜占庭容错，3f+1 节点','warn'],
+      ['  · Gossip — 流言协议，最终一致性','warn'],
+      ['  · Quorum — 多数派投票，NWR 模型','warn'],
+      ['优势：无单点故障、高可扩展性、容错性强','ok'],
+      ['劣势：通信开销 O(n^2)、一致性复杂、调试困难','err'],
+      ['典型应用：区块链、联邦学习、P2P 文件共享、分布式数据库。','ok']
+    ]);
+  }else if(mode==='bid'){
+    Stext(460,52,'竞标模式 (Contract Net Protocol)','#8b95a7',11,null,'middle');
+    Scircle(460,100,32,WARN+'22',WARN);Scircle(460,100,9,WARN,WARN);Stext(460,148,'Manager 管理者','#fff',11,600,'middle');
+    var bidders=[[140,250],[310,250],[480,250],[650,250],[820,250]];
+    bidders.forEach(function(b,i){Scircle(b[0],b[1],24,INFO+'22',INFO);Scircle(b[0],b[1],7,INFO,INFO);Stext(b[0],b[1]+38,'Bidder-'+(i+1),INFO,9,600,'middle');});
+    Sarrow(435,128,165,228,WARN);Sarrow(445,128,320,228,WARN);Sarrow(460,132,480,228,WARN);Sarrow(475,128,635,228,WARN);Sarrow(485,128,810,228,WARN);
+    Stext(280,200,'cfp (招标)',WARN,9,600,'middle');
+    Sarrow(175,250,435,128,AC);Sarrow(470,228,460,132,'4ade80');
+    Stext(540,200,'bid (投标) → award (中标)',AC,9,600,'middle');
+    var steps=[['1. cfp','Manager 广播任务招标',70,340,WARN],['2. bid','Bidder 评估并报价',250,340,INFO],['3. award','Manager 选择最优',430,340,AC],['4. result','中标者执行并返回',610,340,'4ade80'],['5. confirm','Manager 确认完成',790,340,PUR]];
+    steps.forEach(function(s){Sbox(s[2]-60,s[3]-16,130,32,'#0d1017',s[4],5);Stext(s[2],s[3]-2,s[0],s[4],9,600,'middle');Stext(s[2],s[3]+12,s[1],'#8b95a7',8,null,'middle');if(s[2]<790)Sarrow(s[2]+65,s[3],s[2]+125,s[3],DIM);});
+    Sbox(60,390,820,50,'#0d1017',ROSE,6);Stext(460,412,'FIPA Contract Net Interaction Protocol — 动态任务分配的市场机制','#f472b6',11,600,'middle');
+    Stext(460,432,'适用于任务异构、Agent 能力差异大的场景','#4a5568',9,null,'middle');
+    setLog([
+      ['[M5/竞标] 合约网协议（Contract Net Protocol）','tag'],
+      ['竞标模式借鉴市场经济机制，通过招标-投标实现动态任务分配。',''],
+      ['协议流程（FIPA Contract-Net）：',''],
+      ['  1. cfp (Call for Proposal) — Manager 广播任务招标','warn'],
+      ['  2. bid (Proposal) — Bidder 评估自身能力并报价','warn'],
+      ['  3. award — Manager 选择最优投标者并授权','warn'],
+      ['  4. result — 中标者执行任务并返回结果','warn'],
+      ['  5. confirm — Manager 确认结果，合约关闭','warn'],
+      ['关键特性：',''],
+      ['  · 动态分配 — 运行时根据能力匹配，非静态分配','info'],
+      ['  · 自愿参与 — Bidder 可拒绝投标（refuse）','info'],
+      ['  · 竞争机制 — 多个 Bidder 竞争，选择最优','info'],
+      ['  · 可取消 — Manager 或 Bidder 均可取消合约','info'],
+      ['变体：迭代合约网（多轮招标）、荷兰式拍卖（递减价格）。','ok'],
+      ['适用场景：云计算资源调度、供应链协调、众包任务分配。','ok']
+    ]);
+  }else if(mode==='bb'){
+    Stext(460,52,'黑板模式 (Blackboard)','#8b95a7',11,null,'middle');
+    Sbox(280,80,360,180,'#0d1017',ROSE,8);Stext(460,108,'Blackboard 共享黑板','#f472b6',13,600,'middle');
+    Sbox(300,125,320,22,'#11131a',BD,3);Stext(460,141,'问题空间 · 部分解','#8b95a7',10,null,'middle');
+    Sbox(300,152,320,22,'#11131a',BD,3);Stext(460,168,'知识源贡献的中间结果','#8b95a7',10,null,'middle');
+    Sbox(300,179,320,22,'#11131a',BD,3);Stext(460,195,'控制信息 · 触发条件','#8b95a7',10,null,'middle');
+    Sbox(300,206,320,40,'#11131a',ROSE,3);Stext(460,230,'共享数据区域','#f472b6',10,600,'middle');
+    var ks=[[120,180,'KS-1','分析器'],[800,180,'KS-2','推理器'],[120,330,'KS-3','规划器'],[460,330,'KS-4','验证器'],[800,330,'KS-5','合成器']];
+    ks.forEach(function(k){Sbox(k[0]-45,k[1]-18,90,36,'#0d1017',INFO,5);Stext(k[0],k[1]-2,k[2],INFO,10,600,'middle');Stext(k[0],k[1]+12,k[3],'#8b95a7',8,null,'middle');Sdash(k[0],k[1]-18,460,k[1]<200?260:260,DIM);});
+    Sbox(60,390,820,50,'#0d1017',PUR,6);Stext(460,412,'Knowledge Sources 监听黑板变化 · 当触发条件满足时主动贡献知识','#a78bfa',11,600,'middle');
+    Stext(460,432,'控制 shell 协调各知识源的执行顺序','#4a5568',9,null,'middle');
+    setLog([
+      ['[M5/黑板] 黑板协作模式','tag'],
+      ['黑板模式通过共享数据结构实现智能体间间接协作。',''],
+      ['核心组件：',''],
+      ['  · Blackboard（黑板）— 共享数据空间，存储问题状态和中间结果','info'],
+      ['  · Knowledge Sources（知识源）— 独立专家模块，监听黑板变化','info'],
+      ['  · Control Shell（控制壳）— 协调知识源执行顺序','info'],
+      ['工作机制：',''],
+      ['  1. 知识源订阅黑板上的特定数据模式','warn'],
+      ['  2. 当黑板状态满足触发条件时，知识源被激活','warn'],
+      ['  3. 知识源读取黑板数据，执行专业推理','warn'],
+      ['  4. 将结果写回黑板，可能触发其他知识源','warn'],
+      ['  5. 迭代直到问题解决','warn'],
+      ['优势：松耦合（知识源独立）、可扩展（新增知识源容易）、适合复杂问题','ok'],
+      ['劣势：控制复杂、可能死锁、调试困难','err'],
+      ['典型应用：语音识别、专家系统、协作编辑、多模态融合。','ok']
+    ]);
+  }else if(mode==='cmp'){
+    Stext(460,52,'协作模式横向对比','#8b95a7',11,null,'middle');
+    var cols=[['主从',AC,210],['对等',PUR,410],['竞标',WARN,610],['黑板',ROSE,810]];
+    var rows=[['拓扑结构','星形','网状','星形+投标','黑板+知识源'],['控制方式','集中式','分布式','市场机制','事件驱动'],['通信复杂度','O(n) 低','O(n^2) 高','O(n) 中','O(n) 低'],['容错性','低(SPOF)','高','中','中'],['可扩展性','中','高','中','高'],['自主性','低','高','中','中'],['任务分配','静态','协商','动态竞标','触发驱动'],['适用规模','中小','大','中','中小']];
+    Sbox(60,75,90,30,'#1a1d27',AC,4);Stext(105,95,'特性','#fff',10,600,'middle');
+    cols.forEach(function(c){Sbox(c[2]-65,75,150,30,'#1a1d27',c[1],4);Stext(c[2]+10,95,c[0],'#fff',10,600,'middle');});
+    rows.forEach(function(r,i){
+      var y=105+i*37;
+      Sbox(60,y,90,33,'#0d1017',BD,3);Stext(105,y+21,r[0],'#8b95a7',9,600,'middle');
+      cols.forEach(function(c,j){Sbox(c[2]-65,y,150,33,'#0d1017',BD,3);Stext(c[2]+10,y+21,r[j+1],'#e2e8f0',9,null,'middle');});
+    });
+    setLog([
+      ['[M5/对比] 四种协作模式对比','tag'],
+      ['主从模式 — 集中控制，简单高效，适合工作流编排','info'],
+      ['对等模式 — 去中心化，高容错，适合大规模分布式系统','info'],
+      ['竞标模式 — 市场机制，动态分配，适合异构任务调度','warn'],
+      ['黑板模式 — 事件驱动，松耦合，适合复杂问题求解','warn'],
+      ['选择决策树：',''],
+      ['  · 需要全局最优控制 → 主从','ok'],
+      ['  · 需要高可用去中心化 → 对等','ok'],
+      ['  · 任务异构需动态分配 → 竞标','ok'],
+      ['  · 复杂问题需专家协作 → 黑板','ok'],
+      ['实际系统常组合多种模式，如主从+黑板、对等+竞标。','ok']
+    ]);
+  }
+}
+
+// ============ M6 信任与安全 ============
+function m6Draw(){m6View('auth');}
+function m6View(mode){
+  buildPanel([['auth','身份验证'],['perm','权限控制'],['audit','审计追踪'],['sandbox','沙箱隔离']],mode,m6View);
+  clear(svg);
+  Stext(460,32,'信任与安全体系','#e2e8f0',17,600,'middle');
+  if(mode==='auth'){
+    Stext(460,52,'身份验证机制','#8b95a7',11,null,'middle');
+    var flows=[['Client',100,130,INFO],['Auth Server',350,130,WARN],['Agent',600,130,AC],['Resource',830,130,ROSE]];
+    flows.forEach(function(f){Sbox(f[1]-55,f[2]-20,110,40,'#0d1017',f[3],6);Stext(f[1],f[2]+4,f[0],f[3],11,600,'middle');});
+    Sarrow(155,130,295,130,WARN);Stext(225,120,'1.获取token',WARN,8,600);
+    Sarrow(405,130,545,130,AC);Stext(475,120,'2.携带token',AC,8,600);
+    Sarrow(655,130,775,130,ROSE);Stext(715,120,'3.访问资源',ROSE,8,600);
+    Sbox(60,185,280,120,'#0d1017',WARN,6);Stext(200,208,'OAuth 2.0 流程',WARN,11,600,'middle');
+    Stext(80,232,'1. Client → Auth: 请求授权','#8b95a7',9);Stext(80,250,'2. Auth → Client: 授权码','#8b95a7',9);Stext(80,268,'3. Client → Auth: 换取token','#8b95a7',9);Stext(80,286,'4. Client → Resource: token','#8b95a7',9);
+    Sbox(360,185,280,120,'#0d1017',INFO,6);Stext(500,208,'JWT Token 结构',INFO,11,600,'middle');
+    Stext(380,232,'Header.Payload.Signature','#2dd4ff',9,null,'middle');
+    Stext(380,255,'Header: alg + typ','#8b95a7',9);Stext(380,273,'Payload: claims + exp','#8b95a7',9);Stext(380,291,'Signature: HMAC/RSA','#8b95a7',9);
+    Sbox(660,185,220,120,'#0d1017',AC,6);Stext(770,208,'mTLS 双向认证',AC,11,600,'middle');
+    Stext(680,232,'Client 证书 ↔ Server 证书','#8b95a7',9);Stext(680,255,'TLS 1.3 加密通道','#8b95a7',9);Stext(680,278,'零信任网络基础','#8b95a7',9);Stext(680,298,'SPIFFE/SPIRE','#4a5568',9);
+    Sbox(60,325,820,55,'#0d1017',ERR,6);Stext(460,348,'多因素认证 (MFA)',ERR,11,600,'middle');
+    Stext(460,368,'密码 + TOTP + 生物特征 + 硬件密钥 — 纵深防御','#8b95a7',10,null,'middle');
+    Sbox(60,395,820,45,'#0d1017',PUR,6);Stext(460,417,'Token 刷新机制: access_token (短期) + refresh_token (长期) — 自动续期','#a78bfa',10,null,'middle');
+    Stext(460,433,'Token 撤销: 黑名单 / 短过期时间 / 推送撤销通知','#4a5568',9,null,'middle');
+    setLog([
+      ['[M6/认证] 身份验证机制','tag'],
+      ['身份验证确认"你是谁"，是安全体系的第一道防线。',''],
+      ['认证方式：',''],
+      ['  · OAuth 2.0 — 授权码流程，适合第三方应用授权','info'],
+      ['  · JWT (JSON Web Token) — 无状态令牌，自包含声明','info'],
+      ['  · mTLS — 双向证书认证，零信任网络基础','info'],
+      ['  · API Key — 简单密钥认证，适合服务间通信','info'],
+      ['OAuth 2.0 流程：',''],
+      ['  1. Client 向 Auth Server 请求授权','warn'],
+      ['  2. Auth Server 返回授权码（authorization code）','warn'],
+      ['  3. Client 用授权码换取 access_token','warn'],
+      ['  4. Client 携带 token 访问受保护资源','warn'],
+      ['JWT 结构：Header(alg).Payload(claims).Signature(HMAC/RSA)','info'],
+      ['多因素认证（MFA）提供纵深防御：密码+TOTP+生物特征+硬件密钥。','ok'],
+      ['Token 管理：短期 access_token + 长期 refresh_token，支持撤销。','ok']
+    ]);
+  }else if(mode==='perm'){
+    Stext(460,52,'权限控制模型','#8b95a7',11,null,'middle');
+    Sbox(60,75,280,80,'#0d1017',AC,6);Stext(200,98,'RBAC 角色访问控制',AC,11,600,'middle');Stext(200,120,'User → Role → Permission','#8b95a7',9,null,'middle');Stext(200,140,'企业常用模型','#4a5568',9,null,'middle');
+    Sbox(360,75,280,80,'#0d1017',INFO,6);Stext(500,98,'ABAC 属性访问控制',INFO,11,600,'middle');Stext(500,120,'基于属性策略评估','#8b95a7',9,null,'middle');Stext(500,140,'细粒度动态控制','#4a5568',9,null,'middle');
+    Sbox(660,75,220,80,'#0d1017',WARN,6);Stext(770,98,'ACL 访问控制列表',WARN,11,600,'middle');Stext(770,120,'资源→主体列表','#8b95a7',9,null,'middle');Stext(770,140,'简单直接','#4a5568',9,null,'middle');
+    Sbox(60,175,820,130,'#0d1017',PUR,6);Stext(460,198,'RBAC 权限矩阵示例','#a78bfa',12,600,'middle');
+    var roles=[['Admin',AC],['Manager',INFO],['Worker',WARN],['Guest',DIM]];
+    var perms=['read','write','execute','delete','admin'];
+    Stext(120,228,'角色 \\ 权限','#8b95a7',9,600,'middle');
+    perms.forEach(function(p,i){Stext(220+i*130,228,p,'#a78bfa',9,600,'middle');});
+    var matrix=[[1,1,1,1,1],[1,1,1,0,0],[1,1,0,0,0],[1,0,0,0,0]];
+    matrix.forEach(function(r,i){Stext(120,255+i*25,roles[i][0],roles[i][1],9,600,'middle');r.forEach(function(v,j){Scircle(220+j*130,250+i*25,8,v?'#4ade80'+'22':'#ef4444'+'22',v?'#4ade80':'#ef4444');if(v)Stext(220+j*130,254+i*25,'\u2713','#4ade80',8,600,'middle');else Stext(220+j*130,254+i*25,'\u2717','#ef4444',8,600,'middle');});});
+    Sbox(60,325,400,100,'#0d1017',ERR,6);Stext(260,348,'最小权限原则',ERR,11,600,'middle');
+    Stext(80,372,'仅授予完成任务所需的最小权限','#8b95a7',9);Stext(80,390,'定期审查与回收权限','#8b95a7',9);Stext(80,408,'权限分离 (SoD)','#8b95a7',9);
+    Sbox(480,325,400,100,'#0d1017',ROSE,6);Stext(680,348,'策略引擎',ROSE,11,600,'middle');
+    Stext(500,372,'OPA / Rego 策略语言','#8b95a7',9);Stext(500,390,'运行时动态评估','#8b95a7',9);Stext(500,408,'属性+环境+资源综合决策','#8b95a7',9);
+    setLog([
+      ['[M6/权限] 权限控制模型','tag'],
+      ['权限控制决定"你能做什么"，是安全体系的第二道防线。',''],
+      ['三种权限模型：',''],
+      ['  · RBAC（角色访问控制）— User→Role→Permission 映射','info'],
+      ['    适合企业组织结构，管理简单','info'],
+      ['  · ABAC（属性访问控制）— 基于主体/资源/环境属性评估','info'],
+      ['    细粒度动态控制，策略灵活','info'],
+      ['  · ACL（访问控制列表）— 资源→主体直接映射','info'],
+      ['    简单直接，适合小规模系统','info'],
+      ['核心原则：',''],
+      ['  · 最小权限（Least Privilege）— 仅授予必要权限','err'],
+      ['  · 权限分离（SoD）— 敏感操作需多人授权','err'],
+      ['  · 定期审查 — 及时回收不再需要的权限','err'],
+      ['策略引擎：OPA（Open Policy Agent）使用 Rego 语言定义策略，',''],
+      ['支持运行时动态评估，实现统一权限决策。','ok']
+    ]);
+  }else if(mode==='audit'){
+    Stext(460,52,'审计追踪机制','#8b95a7',11,null,'middle');
+    Sbox(60,75,800,30,'#0d1017',DIM,4);Stext(460,95,'事件时间线 (Immutable Log Chain)',DIM,11,600,'middle');
+    var events=[['t1','auth.login','user=admin','120','#4ade80'],['t2','task.create','id=task-001','250',INFO],['t3','tool.call','name=shell.exec','380',WARN],['t4','resource.read','uri=file:///etc','510',ERR],['t5','task.complete','id=task-001','640','#4ade80'],['t6','auth.logout','user=admin','770',PUR]];
+    events.forEach(function(e){Scircle(parseInt(e[3]),120,7,e[4],e[4]);Stext(parseInt(e[3]),140,e[1],e[4],8,600,'middle');Stext(parseInt(e[3]),155,e[2],'#4a5568',7,null,'middle');});
+    Sline(120,120,770,120,DIM,1.5);
+    Sbox(60,180,390,120,'#0d1017',INFO,6);Stext(255,203,'审计日志结构',INFO,11,600,'middle');
+    Stext(80,227,'timestamp: ISO 8601 精确时间','#8b95a7',9);Stext(80,245,'actor: 操作主体标识','#8b95a7',9);Stext(80,263,'action: 执行的操作','#8b95a7',9);Stext(80,281,'resource: 操作对象','#8b95a7',9);Stext(80,299,'result: 成功/失败 + 详情','#8b95a7',9);
+    Sbox(470,180,390,120,'#0d1017',WARN,6);Stext(665,203,'链式完整性',WARN,11,600,'middle');
+    Stext(490,227,'hash(prev) + event → hash(curr)','#8b95a7',9);Stext(490,245,'类似区块链的链式哈希','#8b95a7',9);Stext(490,263,'防篡改: 修改任何记录断裂','#8b95a7',9);Stext(490,281,'Merkle Tree 批量验证','#8b95a7',9);Stext(490,299,'WORM 存储一写多读','#4a5568',9);
+    Sbox(60,320,390,120,'#0d1017',ERR,6);Stext(255,343,'安全事件检测',ERR,11,600,'middle');
+    Stext(80,367,'异常登录检测','#8b95a7',9);Stext(80,385,'权限提升告警','#8b95a7',9);Stext(80,403,'批量操作检测','#8b95a7',9);Stext(80,421,'越权访问拦截','#8b95a7',9);Stext(80,439,'SIEM 集成分析','#4a5568',9);
+    Sbox(470,320,390,120,'#0d1017',PUR,6);Stext(665,343,'合规与报告',PUR,11,600,'middle');
+    Stext(490,367,'GDPR 数据访问审计','#8b95a7',9);Stext(490,385,'SOC2 操作可追溯','#8b95a7',9);Stext(490,403,'HIPAA 医疗合规','#8b95a7',9);Stext(490,421,'ISO 27001 标准','#8b95a7',9);Stext(490,439,'自动生成合规报告','#4a5568',9);
+    setLog([
+      ['[M6/审计] 审计追踪机制','tag'],
+      ['审计追踪记录"谁在何时做了什么"，是安全合规的基础。',''],
+      ['审计日志结构：',''],
+      ['  · timestamp — ISO 8601 精确时间戳','info'],
+      ['  · actor — 操作主体（用户/Agent/服务）','info'],
+      ['  · action — 执行的操作类型','info'],
+      ['  · resource — 操作对象标识','info'],
+      ['  · result — 操作结果（成功/失败+详情）','info'],
+      ['  · context — 请求来源、IP、会话等上下文','info'],
+      ['链式完整性保障：',''],
+      ['  · 每条日志包含前一条的哈希：hash = H(prev_hash + event)','warn'],
+      ['  · 类似区块链结构，任何篡改都会导致链条断裂','warn'],
+      ['  · Merkle Tree 支持高效批量完整性验证','warn'],
+      ['  · WORM（Write Once Read Many）存储防删除','warn'],
+      ['安全事件检测：异常登录、权限提升、批量操作、越权访问','err'],
+      ['合规框架：GDPR、SOC2、HIPAA、ISO 27001','ok']
+    ]);
+  }else if(mode==='sandbox'){
+    Stext(460,52,'沙箱隔离机制','#8b95a7',11,null,'middle');
+    Sbox(60,80,250,200,'#0d1017',AC,6);Stext(185,103,'Agent 进程',AC,11,600,'middle');
+    Sbox(80,120,210,30,'#11131a',INFO,3);Stext(185,140,'CPU 限制','#2dd4ff',9,600,'middle');
+    Sbox(80,155,210,30,'#11131a',WARN,3);Stext(185,175,'内存限制','#fbbf24',9,600,'middle');
+    Sbox(80,190,210,30,'#11131a',PUR,3);Stext(185,210,'磁盘配额','#a78bfa',9,600,'middle');
+    Sbox(80,225,210,40,'#11131a',ERR,3);Stext(185,248,'网络隔离','#ef4444',9,600,'middle');
+    Sbox(330,80,250,200,'#0d1017',INFO,6);Stext(455,103,'隔离技术',INFO,11,600,'middle');
+    var techs=[['容器隔离','Docker / Podman','130'],['进程沙箱','seccomp + namespaces','160'],['VM隔离','轻量级虚拟机','190'],['WASM沙箱','浏览器级安全','220'],['语言沙箱','V8 isolate','250']];
+    techs.forEach(function(t){Stext(350,t[2]-4,'\u00B7 '+t[0],'#2dd4ff',9);Stext(460,t[2]-4,t[1],'#8b95a7',9);});
+    Sbox(600,80,260,200,'#0d1017',WARN,6);Stext(730,103,'资源限制策略',WARN,11,600,'middle');
+    Sbox(620,125,220,24,'#11131a',BD,3);Stext(730,142,'cgroups: CPU/Memory/IO','#8b95a7',9,null,'middle');
+    Sbox(620,155,220,24,'#11131a',BD,3);Stext(730,172,'ulimit: 文件描述符/进程','#8b95a7',9,null,'middle');
+    Sbox(620,185,220,24,'#11131a',BD,3);Stext(730,202,'网络策略: egress 过滤','#8b95a7',9,null,'middle');
+    Sbox(620,215,220,24,'#11131a',BD,3);Stext(730,232,'超时: 执行时间上限','#8b95a7',9,null,'middle');
+    Sbox(620,245,220,24,'#11131a',BD,3);Stext(730,262,'只读文件系统','#8b95a7',9,null,'middle');
+    Sbox(60,300,400,140,'#0d1017',ERR,6);Stext(260,323,'攻击面缩减',ERR,11,600,'middle');
+    Stext(80,348,'\u00B7 代码执行隔离 — 防止恶意代码逃逸','#8b95a7',9);Stext(80,368,'\u00B7 文件系统隔离 — 限制可访问路径','#8b95a7',9);Stext(80,388,'\u00B7 网络隔离 — 仅允许白名单域名','#8b95a7',9);Stext(80,408,'\u00B7 权限降级 — nobody 用户运行','#8b95a7',9);Stext(80,428,'\u00B7 系统调用过滤 — seccomp 白名单','#8b95a7',9);
+    Sbox(480,300,380,140,'#0d1017',PUR,6);Stext(670,323,'监控与告警',PUR,11,600,'middle');
+    Stext(500,348,'\u00B7 实时资源使用监控','#8b95a7',9);Stext(500,368,'\u00B7 异常行为检测','#8b95a7',9);Stext(500,388,'\u00B7 OOM / 超时自动终止','#8b95a7',9);Stext(500,408,'\u00B7 逃逸尝试告警','#ef4444',9);Stext(500,428,'\u00B7 审计日志记录','#8b95a7',9);
+    setLog([
+      ['[M6/沙箱] 沙箱隔离机制','tag'],
+      ['沙箱隔离限制 Agent 的执行环境，防止恶意行为影响宿主系统。',''],
+      ['隔离维度：',''],
+      ['  · CPU 限制 — cgroups 配额，防止资源耗尽','info'],
+      ['  · 内存限制 — OOM killer 自动终止超限进程','info'],
+      ['  · 磁盘配额 — 限制写入量和 inode','info'],
+      ['  · 网络隔离 — egress 过滤，仅允许白名单','info'],
+      ['  · 文件系统 — 只读根 + 临时写入区','info'],
+      ['隔离技术栈：',''],
+      ['  · 容器（Docker/Podman）— namespace + cgroups','warn'],
+      ['  · 进程沙箱 — seccomp + capabilities','warn'],
+      ['  · VM 隔离 — Firecracker/gVisor 轻量虚拟机','warn'],
+      ['  · WASM 沙箱 — 浏览器级安全隔离','warn'],
+      ['  · 语言沙箱 — V8 isolate / Lua sandbox','warn'],
+      ['安全策略：权限降级、系统调用过滤、超时终止、逃逸检测。','err'],
+      ['纵深防御：多层隔离叠加，单层突破不影响整体安全。','ok']
+    ]);
+  }
+}
+
+// ============ M7 协议互操作 ============
+function m7Draw(){m7View('bridge');}
+function m7View(mode){
+  buildPanel([['bridge','协议桥接'],['mapping','语义映射'],['adapter','适配器'],['cmp','互操作对比']],mode,m7View);
+  clear(svg);
+  Stext(460,32,'协议互操作体系','#e2e8f0',17,600,'middle');
+  if(mode==='bridge'){
+    Stext(460,52,'协议桥接机制','#8b95a7',11,null,'middle');
+    Sbox(60,100,200,80,'#0d1017',AC,6);Stext(160,135,'MCP 域','#7c5cff',12,600,'middle');Stext(160,158,'tools/resources','#8b95a7',9,null,'middle');
+    Sbox(660,100,200,80,'#0d1017',INFO,6);Stext(760,135,'A2A 域','#2dd4ff',12,600,'middle');Stext(760,158,'tasks/agents','#8b95a7',9,null,'middle');
+    Sbox(60,220,200,80,'#0d1017',WARN,6);Stext(160,255,'FIPA 域','#fbbf24',12,600,'middle');Stext(160,278,'ACL/SL','#8b95a7',9,null,'middle');
+    Sbox(660,220,200,80,'#0d1017',PUR,6);Stext(760,255,'ACP 域','#a78bfa',12,600,'middle');Stext(760,278,'envelope','#8b95a7',9,null,'middle');
+    Sbox(340,110,240,200,'#11131a',ROSE,8);Stext(460,138,'Protocol Bridge','#f472b6',13,600,'middle');
+    Sbox(360,155,200,24,'#0d1017',BD,3);Stext(460,171,'消息格式转换',DIM,9,600,'middle');
+    Sbox(360,185,200,24,'#0d1017',BD,3);Stext(460,201,'语义概念映射',DIM,9,600,'middle');
+    Sbox(360,215,200,24,'#0d1017',BD,3);Stext(460,231,'寻址方案转换',DIM,9,600,'middle');
+    Sbox(360,245,200,24,'#0d1017',BD,3);Stext(460,261,'安全模型统一',DIM,9,600,'middle');
+    Sbox(360,275,200,24,'#0d1017',BD,3);Stext(460,291,'错误码映射',DIM,9,600,'middle');
+    Sarrow(260,140,340,160,AC);Sarrow(580,160,660,140,INFO);
+    Sarrow(260,260,340,240,WARN);Sarrow(580,240,660,260,PUR);
+    Sbox(60,330,400,110,'#0d1017',AC,6);Stext(260,353,'桥接策略',AC,11,600,'middle');
+    Stext(80,377,'\u00B7 直接桥接 — 1:1 协议翻译','#8b95a7',9);Stext(80,395,'\u00B7 中间表示 — 统一 IR 转换','#8b95a7',9);Stext(80,413,'\u00B7 星形桥接 — 中心枢纽模式','#8b95a7',9);Stext(80,431,'\u00B7 全互联 — N(N-1)/2 桥接','#4a5568',9);
+    Sbox(480,330,380,110,'#0d1017',ERR,6);Stext(670,353,'桥接挑战',ERR,11,600,'middle');
+    Stext(500,377,'\u00B7 语义损失 — 概念无法精确映射','#ef4444',9);Stext(500,395,'\u00B7 性能开销 — 翻译延迟','#8b95a7',9);Stext(500,413,'\u00B7 状态同步 — 跨协议一致性','#8b95a7',9);Stext(500,431,'\u00B7 错误传播 — 跨域错误处理','#8b95a7',9);
+    setLog([
+      ['[M7/桥接] 协议桥接机制','tag'],
+      ['协议桥接使不同协议的 Agent 能够相互通信。',''],
+      ['桥接核心功能：',''],
+      ['  · 消息格式转换 — JSON-RPC ↔ ACL ↔ Protobuf','info'],
+      ['  · 语义概念映射 — tools ↔ skills ↔ actions','info'],
+      ['  · 寻址方案转换 — URI ↔ Agent ID ↔ AID','info'],
+      ['  · 安全模型统一 — OAuth ↔ FIPA-Sec','info'],
+      ['  · 错误码映射 — 统一错误语义','info'],
+      ['桥接拓扑策略：',''],
+      ['  · 直接桥接 — 两个协议间 1:1 翻译，效率高但扩展性差','warn'],
+      ['  · 中间表示 — 转换为统一 IR 再翻译，N+M 复杂度','warn'],
+      ['  · 星形桥接 — 中心枢纽协议，所有协议与之桥接','warn'],
+      ['  · 全互联 — 每对协议直接桥接，N^2 复杂度','warn'],
+      ['挑战：语义损失（概念无法精确映射）、性能开销、状态同步。','err'],
+      ['最佳实践：采用中间表示（IR）模式，平衡效率与扩展性。','ok']
+    ]);
+  }else if(mode==='mapping'){
+    Stext(460,52,'语义映射机制','#8b95a7',11,null,'middle');
+    Sbox(60,80,350,250,'#0d1017',AC,6);Stext(235,105,'MCP 本体','#7c5cff',12,600,'middle');
+    var mcp=[['tools','可执行函数','135'],['resources','可读数据源','160'],['prompts','提示模板','185'],['sampling','LLM 采样','210'],['roots','根目录','235'],['transport','传输层','260']];
+    mcp.forEach(function(m){Sbox(80,m[2]-14,310,22,'#11131a',AC,3);Stext(95,m[2],m[0],AC,9,600);Stext(180,m[2],m[1],'#8b95a7',9);});
+    Sbox(510,80,350,250,'#0d1017',INFO,6);Stext(685,105,'A2A 本体','#2dd4ff',12,600,'middle');
+    var a2a=[['skills','技能能力','135'],['tasks','任务实例','160'],['agent_card','智能体名片','185'],['artifacts','任务产物','210'],['messages','消息交互','235'],['streaming','流式更新','260']];
+    a2a.forEach(function(m){Sbox(530,m[2]-14,310,22,'#11131a',INFO,3);Stext(545,m[2],m[0],INFO,9,600);Stext(640,m[2],m[1],'#8b95a7',9);});
+    var maps=[['tools','skills','135'],['resources','artifacts','160'],['prompts','messages','185'],['sampling','agent_card','210'],['roots','—','235'],['transport','streaming','260']];
+    maps.forEach(function(m){
+      var y=parseInt(m[2]);
+      Sdash(390,y,530,y,m[1]==='—'?ERR:DIM);
+      if(m[1]!=='—'){Stext(460,y-4,'↔',WARN,11,600,'middle');}else{Stext(460,y-4,'×',ERR,11,600,'middle');}
+    });
+    Sbox(60,350,400,90,'#0d1017',WARN,6);Stext(260,373,'映射类型',WARN,11,600,'middle');
+    Stext(80,397,'等价映射: 概念完全对应','#4ade80',9);Stext(80,415,'包含映射: 一方包含另一方','#8b95a7',9);Stext(80,433,'近似映射: 语义相近有损失','#fbbf24',9);
+    Sbox(480,350,380,90,'#0d1017',PUR,6);Stext(670,373,'映射工具',PUR,11,600,'middle');
+    Stext(500,397,'本体对齐 (Ontology Alignment)','#8b95a7',9);Stext(500,415,'概念相似度计算','#8b95a7',9);Stext(500,433,'映射规则引擎','#8b95a7',9);
+    setLog([
+      ['[M7/映射] 语义映射机制','tag'],
+      ['语义映射解决不同协议间概念对应关系问题。',''],
+      ['MCP ↔ A2A 概念映射：',''],
+      ['  · tools ↔ skills — 可执行能力对应','info'],
+      ['  · resources ↔ artifacts — 数据资源对应','info'],
+      ['  · prompts ↔ messages — 提示/消息对应','info'],
+      ['  · sampling ↔ agent_card — 采样/名片近似','info'],
+      ['  · transport ↔ streaming — 传输/流式对应','info'],
+      ['  · roots — 无对应（MCP 特有）','err'],
+      ['映射类型：',''],
+      ['  · 等价映射 — 概念完全对应，无损转换','ok'],
+      ['  · 包含映射 — 一方是另一方的子集','warn'],
+      ['  · 近似映射 — 语义相近但有损失','warn'],
+      ['  · 无映射 — 概念无法对应，需特殊处理','err'],
+      ['映射工具：本体对齐算法、概念相似度计算、映射规则引擎。','ok']
+    ]);
+  }else if(mode==='adapter'){
+    Stext(460,52,'适配器模式','#8b95a7',11,null,'middle');
+    Sbox(60,90,160,70,'#0d1017',AC,6);Stext(140,120,'Legacy',AC,11,600,'middle');Stext(140,142,'Agent','#8b95a7',9,null,'middle');
+    Sbox(260,90,160,70,'#0d1017',WARN,6);Stext(340,120,'Adapter',WARN,11,600,'middle');Stext(340,142,'适配器','#8b95a7',9,null,'middle');
+    Sbox(460,90,160,70,'#0d1017',INFO,6);Stext(540,120,'Target',INFO,11,600,'middle');Stext(540,142,'标准接口','#8b95a7',9,null,'middle');
+    Sarrow(220,125,260,125,AC);Sarrow(420,125,460,125,INFO);
+    Sbox(660,90,200,70,'#0d1017',PUR,6);Stext(760,120,'Modern',PUR,11,600,'middle');Stext(760,142,'Agent','#8b95a7',9,null,'middle');
+    Sarrow(620,125,660,125,INFO);
+    Sbox(60,190,820,30,'#0d1017',DIM,4);Stext(460,210,'适配器将遗留 Agent 接口转换为标准协议接口',DIM,10,600,'middle');
+    Sbox(60,240,390,190,'#0d1017',AC,6);Stext(255,263,'适配器职责',AC,11,600,'middle');
+    Stext(80,290,'接口转换',AC,10,600);Stext(80,307,'方法名/参数名映射','#8b95a7',9);
+    Stext(80,330,'数据转换',AC,10,600);Stext(80,347,'数据结构格式适配','#8b95a7',9);
+    Stext(80,370,'协议转换',AC,10,600);Stext(80,387,'HTTP ↔ gRPC ↔ stdio','#8b95a7',9);
+    Stext(80,410,'错误转换',AC,10,600);Stext(80,427,'错误码/消息映射','#8b95a7',9);
+    Sbox(470,240,390,190,'#0d1017',INFO,6);Stext(665,263,'适配器类型',INFO,11,600,'middle');
+    Stext(490,290,'入站适配器',INFO,10,600);Stext(490,307,'外部协议 → 内部标准','#8b95a7',9);
+    Stext(490,330,'出站适配器',INFO,10,600);Stext(490,347,'内部标准 → 外部协议','#8b95a7',9);
+    Stext(490,370,'双向适配器',INFO,10,600);Stext(490,387,'两个方向都支持','#8b95a7',9);
+    Stext(490,410,'协议网关',INFO,10,600);Stext(490,427,'多协议汇聚转换','#8b95a7',9);
+    setLog([
+      ['[M7/适配器] 适配器模式','tag'],
+      ['适配器模式使遗留系统能够接入现代协议生态。',''],
+      ['结构：Legacy Agent → Adapter → Target Interface → Modern Agent',''],
+      ['适配器核心职责：',''],
+      ['  · 接口转换 — 方法名和参数名映射','info'],
+      ['  · 数据转换 — 数据结构格式适配','info'],
+      ['  · 协议转换 — HTTP ↔ gRPC ↔ stdio','info'],
+      ['  · 错误转换 — 错误码和消息映射','info'],
+      ['适配器类型：',''],
+      ['  · 入站适配器 — 外部协议转换为内部标准','warn'],
+      ['  · 出站适配器 — 内部标准转换为外部协议','warn'],
+      ['  · 双向适配器 — 两个方向都支持','warn'],
+      ['  · 协议网关 — 多协议汇聚转换','warn'],
+      ['优势：不修改原有代码、渐进式迁移、关注点分离','ok'],
+      ['劣势：额外性能开销、适配器层复杂度、可能的语义损失','err'],
+      ['MCP SDK 内置多种适配器：stdio-bridge、sse-bridge、ws-bridge。','ok']
+    ]);
+  }else if(mode==='cmp'){
+    Stext(460,52,'互操作方案对比','#8b95a7',11,null,'middle');
+    var cols=[['桥接',AC,220],['映射',INFO,460],['适配器',WARN,700]];
+    var rows=[['复杂度','高','中','低'],['灵活性','高','中','低'],['性能','中','高','中'],['维护成本','高','中','低'],['语义保真','中','高','低'],['扩展性','低','高','中'],['适用阶段','短期','中期','长期']];
+    Sbox(60,75,90,30,'#1a1d27',AC,4);Stext(105,95,'特性','#fff',10,600,'middle');
+    cols.forEach(function(c){Sbox(c[2]-65,75,150,30,'#1a1d27',c[1],4);Stext(c[2]+10,95,c[0],'#fff',10,600,'middle');});
+    rows.forEach(function(r,i){
+      var y=105+i*40;
+      Sbox(60,y,90,36,'#0d1017',BD,3);Stext(105,y+22,r[0],'#8b95a7',9,600,'middle');
+      cols.forEach(function(c,j){Sbox(c[2]-65,y,150,36,'#0d1017',BD,3);var col=r[j+1]==='高'?'#4ade80':r[j+1]==='中'?'#fbbf24':'#ef4444';Stext(c[2]+10,y+22,r[j+1],col,10,600,'middle');});
+    });
+    Sbox(60,395,820,45,'#0d1017',PUR,6);Stext(460,417,'推荐: 短期用适配器快速接入 → 中期建立语义映射 → 长期统一协议桥接','#a78bfa',10,null,'middle');
+    setLog([
+      ['[M7/对比] 互操作方案对比','tag'],
+      ['三种互操作方案各有优劣：',''],
+      ['桥接 — 直接协议翻译','info'],
+      ['  优势：灵活性高、实时转换','ok'],
+      ['  劣势：复杂度高、维护成本大','err'],
+      ['映射 — 语义概念对应','info'],
+      ['  优势：语义保真高、扩展性好','ok'],
+      ['  劣势：需要本体工程、初期投入大','err'],
+      ['适配器 — 接口模式转换','info'],
+      ['  优势：简单低复杂度、维护成本低','ok'],
+      ['  劣势：灵活性低、语义保真差','err'],
+      ['演进策略：',''],
+      ['  短期：用适配器快速接入遗留系统','warn'],
+      ['  中期：建立语义映射，提高互操作质量','warn'],
+      ['  长期：统一协议桥接，实现全面互操作','warn'],
+      ['最终目标：统一协议标准，消除互操作需求。','ok']
+    ]);
+  }
+}
+
+// ============ M8 应用场景 ============
+function m8Draw(){m8View('ent');}
+function m8View(mode){
+  buildPanel([['ent','企业自动化'],['sci','科研协作'],['fin','金融交易'],['cmp','场景对比']],mode,m8View);
+  clear(svg);
+  Stext(460,32,'协议应用场景','#e2e8f0',17,600,'middle');
+  if(mode==='ent'){
+    Stext(460,52,'企业自动化场景','#8b95a7',11,null,'middle');
+    var depts=[['销售部',100,130,AC],['财务部',100,220,INFO],['HR部',100,310,WARN],['IT部',100,400,PUR]];
+    depts.forEach(function(d){Sbox(d[1]-40,d[2]-25,110,50,'#0d1017',d[3],5);Stext(d[1]+15,d[2]-2,d[0],d[3],10,600,'middle');});
+    Sbox(280,100,200,60,'#11131a',ROSE,8);Stext(380,125,'编排引擎','#f472b6',12,600,'middle');Stext(380,145,'Orchestrator','#8b95a7',9,null,'middle');
+    Sbox(520,100,200,60,'#11131a',AC,8);Stext(620,125,'MCP Server','#7c5cff',12,600,'middle');Stext(620,145,'工具网关','#8b95a7',9,null,'middle');
+    Sbox(760,100,130,60,'#11131a',INFO,8);Stext(825,125,'A2A','#2dd4ff',12,600,'middle');Stext(825,145,'Agent协作','#8b95a7',9,null,'middle');
+    depts.forEach(function(d){Sarrow(d[1]+70,d[2],280,130,DIM);});
+    Sarrow(480,130,520,130,ROSE);Sarrow(720,130,760,130,AC);
+    var flows=[['CRM同步','销售数据实时同步','350',AC],['报销审批','自动审批流程','380',INFO],['简历筛选','AI辅助招聘','410',WARN],['运维告警','智能故障处理','440',PUR]];
+    flows.forEach(function(f){Sbox(60,f[2]-14,540,24,'#0d1017',f[3]==='#7c5cff'?AC:f[3],3);Stext(75,f[2],f[0],f[3],9,600);Stext(200,f[2],f[1],'#8b95a7',9);});
+    Sbox(620,335,240,120,'#0d1017',ERR,6);Stext(740,358,'协议组合',ERR,11,600,'middle');
+    Stext(640,382,'MCP: 工具调用','#8b95a7',9);Stext(640,400,'A2A: 部门协作','#8b95a7',9);Stext(640,418,'RBAC: 权限控制','#8b95a7',9);Stext(640,436,'Audit: 全链路审计','#8b95a7',9);
+    setLog([
+      ['[M8/企业] 企业自动化应用场景','tag'],
+      ['企业自动化是多智能体协议最直接的商业应用场景。',''],
+      ['架构：各部门 Agent → 编排引擎 → MCP工具网关 → A2A协作',''],
+      ['典型流程：',''],
+      ['  · 销售部 — CRM数据同步、客户跟进自动化','info'],
+      ['  · 财务部 — 报销审批流程、发票自动处理','info'],
+      ['  · HR部 — 简历筛选、面试安排、入职自动化','info'],
+      ['  · IT部 — 运维告警、故障诊断、自动修复','info'],
+      ['协议组合使用：',''],
+      ['  · MCP — 连接企业内部工具（ERP/CRM/OA）','warn'],
+      ['  · A2A — 跨部门 Agent 协作与任务委托','warn'],
+      ['  · RBAC — 基于角色的细粒度权限控制','warn'],
+      ['  · Audit — 全链路审计追踪，满足合规要求','warn'],
+      ['效益：减少 60-80% 重复工作、跨系统数据自动流转。','ok']
+    ]);
+  }else if(mode==='sci'){
+    Stext(460,52,'科研协作场景','#8b95a7',11,null,'middle');
+    var teams=[['物理组',140,120,AC],['化学组',340,120,INFO],['生物组',540,120,WARN],['计算机组',740,120,PUR]];
+    teams.forEach(function(t){Sbox(t[1]-50,t[2]-18,110,42,'#0d1017',t[3],5);Stext(t[1]+5,t[2]+4,t[0],t[3],10,600,'middle');});
+    Sbox(280,200,360,50,'#11131a',ROSE,8);Stext(460,222,'共享知识黑板','#f472b6',12,600,'middle');Stext(460,240,'Blackboard Pattern','#8b95a7',9,null,'middle');
+    teams.forEach(function(t){Sdash(t[1]+5,t[2]+24,460,200,DIM);});
+    var data=[['实验数据','结构化存储','290',AC],['论文知识','语义检索','320',INFO],['计算资源','分布式调度','350',WARN],['分析结果','可视化报告','380',PUR]];
+    data.forEach(function(d){Sbox(60,d[2]-14,250,24,'#0d1017',BD,3);Stext(75,d[2],d[0],d[3],9,600);Stext(170,d[2],d[1],'#8b95a7',9);});
+    Sbox(620,275,240,90,'#0d1017',INFO,6);Stext(740,298,'A2A 协作',INFO,11,600,'middle');
+    Stext(640,320,'跨学科任务委托','#8b95a7',9);Stext(640,338,'实验复现请求','#8b95a7',9);Stext(640,356,'数据共享协商','#8b95a7',9);
+    Sbox(60,410,800,30,'#0d1017',DIM,4);Stext(460,430,'MCP连接实验设备 · A2A跨组协作 · 黑板模式共享中间结果','#4a5568',10,null,'middle');
+    setLog([
+      ['[M8/科研] 科研协作应用场景','tag'],
+      ['科研协作是多智能体协议在学术领域的典型应用。',''],
+      ['架构：各学科组 Agent → 共享知识黑板 → A2A协作',''],
+      ['协作模式：黑板模式（共享中间结果）+ 对等模式（跨组协商）',''],
+      ['典型场景：',''],
+      ['  · 物理组 — 仿真计算、实验数据采集','info'],
+      ['  · 化学组 — 分子建模、反应预测','info'],
+      ['  · 生物组 — 基因序列分析、蛋白质折叠','info'],
+      ['  · 计算机组 — 算法优化、模型训练','info'],
+      ['数据共享：',''],
+      ['  · 实验数据 — 结构化存储与检索','warn'],
+      ['  · 论文知识 — 语义检索与关联','warn'],
+      ['  · 计算资源 — 分布式任务调度','warn'],
+      ['  · 分析结果 — 自动可视化报告','warn'],
+      ['A2A任务委托：跨学科实验复现、数据共享协商、联合分析。','ok'],
+      ['价值：加速跨学科发现、减少重复实验、提高科研效率。','ok']
+    ]);
+  }else if(mode==='fin'){
+    Stext(460,52,'金融交易场景','#8b95a7',11,null,'middle');
+    var traders=[[120,130,'做市商',AC],[320,130,'套利者',INFO],[520,130,'风控员',WARN],[720,130,'清算员',PUR]];
+    traders.forEach(function(t){Sbox(t[0]-50,t[1]-20,110,44,'#0d1017',t[3],5);Stext(t[0]+5,t[1]+4,t[2],t[3],10,600,'middle');});
+    Sbox(280,210,360,50,'#11131a',ERR,8);Stext(460,232,'交易撮合引擎',ERR,12,600,'middle');Stext(460,250,'低延迟 · 强一致','#8b95a7',9,null,'middle');
+    traders.forEach(function(t){Sarrow(t[0]+5,t[1]+24,380,210,DIM);Sarrow(540,210,t[0]+5,t[1]+24,DIM);});
+    var metrics=[['延迟','< 1ms','300',INFO],['吞吐','100K TPS','330',AC],['一致性','强一致','360',WARN],['可用性','99.999%','390',PUR]];
+    metrics.forEach(function(m){Sbox(60,m[2]-14,200,24,'#0d1017',BD,3);Stext(75,m[2],m[0],'#8b95a7',9,600);Stext(160,m[2],m[1],m[3],9,600);});
+    Sbox(300,290,260,90,'#0d1017',WARN,6);Stext(430,313,'竞标模式',WARN,11,600,'middle');
+    Stext(320,335,'Contract-Net 撮合','#8b95a7',9);Stext(320,353,'最优报价选择','#8b95a7',9);Stext(320,371,'多做市商竞争','#8b95a7',9);
+    Sbox(580,290,280,90,'#0d1017',ERR,6);Stext(720,313,'安全要求',ERR,11,600,'middle');
+    Stext(600,335,'mTLS 加密通信','#8b95a7',9);Stext(600,353,'审计日志不可篡改','#8b95a7',9);Stext(600,371,'沙箱隔离策略','#8b95a7',9);
+    Sbox(60,400,800,30,'#0d1017',DIM,4);Stext(460,420,'Protobuf低延迟编码 · gRPC流式同步 · 竞标模式撮合 · 全链路审计','#4a5568',10,null,'middle');
+    setLog([
+      ['[M8/金融] 金融交易应用场景','tag'],
+      ['金融交易对多智能体协议提出最严苛的性能与安全要求。',''],
+      ['架构：交易Agent → 撮合引擎 → 清算系统',''],
+      ['协作模式：竞标模式（Contract-Net 撮合）',''],
+      ['参与角色：',''],
+      ['  · 做市商 — 提供买卖报价，维持市场流动性','info'],
+      ['  · 套利者 — 跨市场价差套利','info'],
+      ['  · 风控员 — 实时风险监控与拦截','info'],
+      ['  · 清算员 — 交易结算与对账','info'],
+      ['性能指标：',''],
+      ['  · 延迟 < 1ms — Protobuf 编码 + gRPC 通信','warn'],
+      ['  · 吞吐 100K TPS — 批量处理 + 异步IO','warn'],
+      ['  · 强一致性 — 分布式共识（Raft/PBFT）','warn'],
+      ['  · 可用性 99.999% — 多活容灾架构','warn'],
+      ['安全要求：mTLS加密、审计日志不可篡改、策略沙箱隔离。','err'],
+      ['竞标模式：多个做市商竞争报价，撮合引擎选择最优。','ok']
+    ]);
+  }else if(mode==='cmp'){
+    Stext(460,52,'应用场景横向对比','#8b95a7',11,null,'middle');
+    var cols=[['企业自动化',AC,220],['科研协作',INFO,460],['金融交易',WARN,700]];
+    var rows=[['主导协议','MCP+A2A','A2A+黑板','Protobuf+竞标'],['协作模式','主从编排','黑板+对等','竞标撮合'],['延迟要求','秒级','分钟级','亚毫秒级'],['安全等级','高','中','极高'],['一致性','最终一致','最终一致','强一致'],['规模','中大型','中小型','大型'],['审计需求','合规审计','可追溯','不可篡改']];
+    Sbox(60,75,90,30,'#1a1d27',AC,4);Stext(105,95,'维度','#fff',10,600,'middle');
+    cols.forEach(function(c){Sbox(c[2]-70,75,160,30,'#1a1d27',c[1],4);Stext(c[2]+10,95,c[0],'#fff',9,600,'middle');});
+    rows.forEach(function(r,i){var y=105+i*40;Sbox(60,y,90,36,'#0d1017',BD,3);Stext(105,y+22,r[0],'#8b95a7',9,600,'middle');cols.forEach(function(c,j){Sbox(c[2]-70,y,160,36,'#0d1017',BD,3);Stext(c[2]+10,y+22,r[j+1],'#e2e8f0',9,null,'middle');});});
+    Sbox(60,400,820,40,'#0d1017',PUR,6);Stext(460,422,'企业重集成 · 科研重共享 · 金融重性能 — 不同场景对协议提出差异化要求','#a78bfa',10,null,'middle');
+    setLog([
+      ['[M8/对比] 应用场景横向对比','tag'],
+      ['三大应用场景对多智能体协议提出差异化要求：',''],
+      ['企业自动化 — 重集成与合规','info'],
+      ['  · 协议：MCP（工具连接）+ A2A（部门协作）','ok'],
+      ['  · 模式：主从编排、RBAC权限、全链路审计','ok'],
+      ['  · 特点：秒级延迟、最终一致、合规优先','ok'],
+      ['科研协作 — 重共享与发现','info'],
+      ['  · 协议：A2A（跨组协作）+ 黑板模式','ok'],
+      ['  · 模式：对等协商、知识共享、实验复现','ok'],
+      ['  · 特点：分钟级延迟、可追溯、开放协作','ok'],
+      ['金融交易 — 重性能与安全','info'],
+      ['  · 协议：Protobuf（低延迟）+ 竞标模式','ok'],
+      ['  · 模式：竞标撮合、强一致、不可篡改审计','ok'],
+      ['  · 特点：亚毫秒延迟、强一致、极高安全','ok'],
+      ['选型原则：根据延迟、一致性、安全、规模需求选择协议组合。','ok']
+    ]);
+  }
+}
+
+// ===== 初始化 =====
+buildTabs();
+m1Draw();
+</script>
+</body>
+</html>
