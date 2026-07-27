@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 321 个零依赖交互式可视化项目 + 30 个配套工具，2568+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 326 个零依赖交互式可视化项目 + 30 个配套工具，2608+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-321-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2568+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-326-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2608+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 321 |
-| 可视化模块 | 2568+ |
+| 项目总数 | 326 |
+| 可视化模块 | 2608+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -395,6 +395,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 319 | AI超级应用与一体化入口可视化实验室 | 超级应用全景/全模态交互/服务集成架构/个性化与记忆/垂直场景深耕/新BAT格局/生态系统构建/隐私与体验等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-super-app-portal-viz-lab/) |
 | 320 | 开源编译器与异构算力栈可视化实验室 | 异构算力全景/编译器技术栈/算子语言收敛/FlagOS开放平台/软硬解耦设计/跨芯片迁移/算力普惠与成本/国产生态与自主可控等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/open-compiler-heterogeneous-stack-viz-lab/) |
 | 321 | AI欺骗与系统安全攻防可视化实验室 | 从幻觉到欺骗/欺骗行为分类/回路追踪技术/自动化安全研究/对齐-扫描-防御体系/智能体可信互连/终端安全框架/自演化攻防等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-deception-security-defense-viz-lab/) |
+| 322 | Token经济与硅基劳动力可视化实验室 | Token经济演进/OPC开放协议/硅基劳动力/一人公司范式/Agent市场经济/算力调度与成本/智能体生产关系/未来组织形态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/token-economy-silicon-workforce-viz-lab/) |
+| 323 | AI4Science自主科学发现可视化实验室 | AI科研自动化全景/假设生成与验证/实验设计优化/文献挖掘与知识发现/跨学科推理/AI科学家系统/科学范式变革/未来实验室等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai4science-autonomous-discovery-viz-lab/) |
+| 324 | AI×脑科学大模型可视化实验室 | Brainμ模型架构/神经信号解码/脑机接口BCI/认知建模与计算/神经可塑性模拟/脑疾病AI诊断/意识计算理论/类脑智能未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-brain-science-llm-viz-lab/) |
+| 325 | AI金融与量化智能可视化实验室 | AI金融全景/智能选股与因子挖掘/智能投研/风险预测模型/市场情绪分析/监管科技RegTech/AI保险定价/金融AI基础设施等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-finance-quantitative-intelligence-viz-lab/) |
+| 326 | 全双工实时AI交互可视化实验室 | 实时交互全景/流式ASR-TTS/全双工协议/延迟优化/打断处理/多模态实时融合/边缘部署/应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/full-duplex-realtime-ai-interaction-viz-lab/) |
 
 ## 技术栈
 
