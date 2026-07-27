@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>状态空间模型与Mamba架构可视化实验室</title>
+<style>
+:root{--bg:#0a0c12;--bd:#1a1d27;--dim:#4a5568;--ac:#7c5cff;--info:#2dd4ff;--warn:#fbbf24;--err:#ef4444;--pur:#a78bfa;--rose:#f472b6;--fg:#e5e7eb;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--fg);font-family:'Consolas','SF Mono','Monaco',monospace;font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:linear-gradient(90deg,#0d1018,#141826);border-bottom:1px solid var(--bd);flex-shrink:0;}
+.topbar a{color:var(--info);text-decoration:none;font-size:12px;}
+.topbar a:hover{text-decoration:underline;}
+.topbar h1{font-size:14px;font-weight:600;letter-spacing:1px;}
+.topbar .ver{color:var(--dim);font-size:11px;}
+.tabs{display:flex;background:#0d1018;border-bottom:1px solid var(--bd);padding:0 10px;flex-shrink:0;overflow-x:auto;}
+.tabs::-webkit-scrollbar{height:0;}
+.tab{padding:7px 14px;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;font-size:12px;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--info);}
+.tab.active{color:var(--ac);border-bottom-color:var(--ac);}
+.main{display:flex;gap:8px;padding:8px;flex:1;min-height:0;}
+.canvas-wrap{flex:1;background:#0a0c12;border:1px solid var(--bd);border-radius:6px;overflow:hidden;position:relative;}
+.canvas-wrap svg{width:100%;height:100%;display:block;}
+.controls{width:190px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.ctrl-title{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:2px;padding:2px 0;}
+.btn{padding:7px 10px;background:#11141c;border:1px solid var(--bd);color:var(--fg);cursor:pointer;border-radius:4px;font-size:11px;text-align:left;transition:all .12s;font-family:inherit;line-height:1.3;}
+.btn:hover{border-color:var(--ac);background:#1a1f30;}
+.btn.active{border-color:var(--ac);background:rgba(124,92,255,.12);color:var(--ac);}
+.btn .idx{color:var(--dim);font-size:9px;margin-right:4px;}
+.btn.active .idx{color:var(--ac);}
+.log{height:130px;background:#06070b;border-top:1px solid var(--bd);padding:6px 14px;overflow-y:auto;font-size:11px;line-height:1.5;flex-shrink:0;}
+.log::-webkit-scrollbar{width:6px;}
+.log::-webkit-scrollbar-track{background:transparent;}
+.log::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+.log-line{color:#9ca3af;margin-bottom:1px;}
+.log-line .t{color:var(--info);}
+.log-line .k{color:var(--ac);}
+.log-line .w{color:var(--warn);}
+.log-line .e{color:var(--err);}
+.log-line .ok{color:#22c55e;}
+.log-line .i{color:var(--info);}
+.log-line .p{color:var(--pur);}
+.log-line .r{color:var(--rose);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="computer://d:\TW_Files\TW-main\index.html">&larr; 返回 TW Hub</a>
+  <h1>状态空间模型与Mamba架构可视化实验室</h1>
+  <span class="ver">v3.07 / State Space Models &amp; Mamba Architecture Lab</span>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="main">
+  <div class="canvas-wrap"><svg id="svg" viewBox="0 0 920 460" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="controls" id="controls"></div>
+</div>
+<div class="log" id="log"></div>
+<script>
+var BD='#1a1d27',DIM='#4a5568',AC='#7c5cff',INFO='#2dd4ff',WARN='#fbbf24',ERR='#ef4444',PUR='#a78bfa',ROSE='#f472b6';
+var FG='#e5e7eb',BG2='#11141c',BG3='#0d1018',OK='#22c55e';
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild);}
+var svg=document.getElementById('svg'),logEl=document.getElementById('log'),tabsEl=document.getElementById('tabs'),ctrlEl=document.getElementById('controls');
+var curM=0,curV=0;
+var MODS=[
+ {id:'M1',name:'SSM全景与演进',views:['演进时间线','HiPPO记忆','S4核心','Mamba创新']},
+ {id:'M2',name:'Mamba选择性机制',views:['选择性扫描','保留与遗忘','选择性对比','状态演化']},
+ {id:'M3',name:'S4结构化状态空间',views:['连续参数化','HiPPO矩阵','对角化','S4D复数域']},
+ {id:'M4',name:'RWKV线性注意力',views:['Time-Mixing','Channel-Mixing','注意力对比','RWKV优势']},
+ {id:'M5',name:'Transformer vs SSM',views:['复杂度对比','注意力vs扫描','并行训练','长序列效率']},
+ {id:'M6',name:'长序列建模能力',views:['性能对比','内存占用','外推能力','吞吐量']},
+ {id:'M7',name:'硬件感知实现',views:['内存层次','并行扫描','SRAM融合','Kernel对比']},
+ {id:'M8',name:'应用场景与未来',views:['语言建模','基因组分析','时序预测','视觉SSM']}
+];
+function logMsg(msg,cls){
+  var d=document.createElement('div');d.className='log-line';
+  var tm=new Date().toLocaleTimeString('en-US',{hour12:false});
+  var s=document.createElement('span');s.className='t';s.textContent='['+tm+'] ';d.appendChild(s);
+  if(cls){var s2=document.createElement('span');s2.className=cls;s2.textContent=msg;d.appendChild(s2);}
+  else{d.appendChild(document.createTextNode(msg));}
+  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
+}
+function box(x,y,w,h,o){o=o||{};el('rect',{x:x,y:y,width:w,height:h,rx:o.r||5,ry:o.r||5,fill:o.fill||BG2,stroke:o.stroke||BD,'stroke-width':o.sw||1.5},svg);if(o.dash)el('rect',{x:x,y:y,width:w,height:h,rx:o.r||5,ry:o.r||5,fill:'none',stroke:o.stroke||BD,'stroke-width':o.sw||1.5,'stroke-dasharray':o.dash},svg);if(o.label){var t=el('text',{x:x+w/2,y:y+h/2,fill:o.fc||FG,'font-size':o.fs||12,'text-anchor':'middle','dominant-baseline':'middle','font-weight':o.fw||'normal'},svg);t.textContent=o.label;}}
+function line(x1,y1,x2,y2,c,w,d){var a={'x1':x1,'y1':y1,'x2':x2,'y2':y2,'stroke':c||DIM,'stroke-width':w||1.5};if(d)a['stroke-dasharray']=d;el('line',a,svg);}
+function arrow(x1,y1,x2,y2,c,w){c=c||DIM;w=w||1.5;var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return;var ux=dx/len,uy=dy/len;el('line',{x1:x1,y1:y1,x2:x2-ux*7,y2:y2-uy*7,stroke:c,'stroke-width':w},svg);var ang=Math.atan2(dy,dx),s=7;el('polygon',{points:x2+','+y2+' '+(x2-Math.cos(ang-0.4)*s)+','+(y2-Math.sin(ang-0.4)*s)+' '+(x2-Math.cos(ang+0.4)*s)+','+(y2-Math.sin(ang+0.4)*s),fill:c},svg);}
+function darrow(x1,y1,x2,y2,c,w){c=c||DIM;w=w||1.5;var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return;el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:c,'stroke-width':w,'stroke-dasharray':'4,3'},svg);var ang=Math.atan2(dy,dx),s=7;el('polygon',{points:x2+','+y2+' '+(x2-Math.cos(ang-0.4)*s)+','+(y2-Math.sin(ang-0.4)*s)+' '+(x2-Math.cos(ang+0.4)*s)+','+(y2-Math.sin(ang+0.4)*s),fill:c},svg);}
+function txt(x,y,s,o){o=o||{};var t=el('text',{x:x,y:y,fill:o.fill||FG,'font-size':o.fs||12,'text-anchor':o.ta||'start','dominant-baseline':o.db||'middle','font-weight':o.fw||'normal'},svg);t.textContent=s;}
+function ttl(x,y,s,c){var t=el('text',{x:x,y:y,fill:c||AC,'font-size':15,'font-weight':'bold'},svg);t.textContent=s;}
+function sub(x,y,s,c){var t=el('text',{x:x,y:y,fill:c||DIM,'font-size':11},svg);t.textContent=s;}
+function circ(cx,cy,r,fill,stroke,sw){el('circle',{cx:cx,cy:cy,r:r,fill:fill||'none',stroke:stroke||BD,'stroke-width':sw||1.5},svg);}
+function gridbg(){for(var x=0;x<=920;x+=40)el('line',{x1:x,y1:0,x2:x,y2:460,stroke:'#0d0f16','stroke-width':0.5},svg);for(var y=0;y<=460;y+=40)el('line',{x1:0,y1:y,x2:920,y2:y,stroke:'#0d0f16','stroke-width':0.5},svg);}
+function panel(x,y,w,h,title){el('rect',{x:x,y:y,width:w,height:h,rx:6,fill:BG3,stroke:BD,'stroke-width':1},svg);if(title){var t=el('text',{x:x+12,y:y+20,fill:INFO,'font-size':11,'font-weight':'bold'},svg);t.textContent=title;}}
+function metric(x,y,label,val,color){var t1=el('text',{x:x,y:y,fill:DIM,'font-size':11},svg);t1.textContent=label;var t2=el('text',{x:x+150,y:y,fill:color||FG,'font-size':11,'text-anchor':'end','font-weight':'bold'},svg);t2.textContent=val;}
+function bars(x,y,w,h,data,unit){var mv=1;for(var i=0;i<data.length;i++)if(data[i].v>mv)mv=data[i].v;var n=data.length,bw=w/n*0.6,gp=w/n*0.4;for(var g=0;g<=4;g++){var gy=y+h-g*h/4;line(x,gy,x+w,gy,'#15182a',0.5);var gt=el('text',{x:x-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=Math.round(g*mv/4)+(unit||'');}line(x,y+h,x+w,y+h,DIM,1.5);for(var i=0;i<data.length;i++){var bh=data[i].v/mv*h*0.9;var bx=x+i*(bw+gp)+gp/2;el('rect',{x:bx,y:y+h-bh,width:bw,height:bh,fill:data[i].c||AC,opacity:0.78,rx:2},svg);var t=el('text',{x:bx+bw/2,y:y+h-bh-8,fill:data[i].c||AC,'font-size':11,'text-anchor':'middle','font-weight':'bold'},svg);t.textContent=data[i].v;var t2=el('text',{x:bx+bw/2,y:y+h+16,fill:'#9ca3af','font-size':10,'text-anchor':'middle'},svg);t2.textContent=data[i].l;}}
+function heatCell(x,y,w,h,v,cmax){var f=v/cmax;if(f<0)f=0;if(f>1)f=1;var r=Math.round(30+f*180),g=Math.round(40+f*120),b=Math.round(90+f*200);el('rect',{x:x,y:y,width:w,height:h,fill:'rgb('+r+','+g+','+b+')',stroke:BD,'stroke-width':0.4},svg);}
+// 交互滑块（绘制于SVG，点击轨道调节）
+function slider(x,y,w,label,min,max,val,onChange){
+  var lbl=el('text',{x:x,y:y-10,fill:DIM,'font-size':10},svg);lbl.textContent=label;
+  el('rect',{x:x,y:y,width:w,height:6,rx:3,fill:'#1a1d27'},svg);
+  var frac=(val-min)/(max-min);if(frac<0)frac=0;if(frac>1)frac=1;
+  el('rect',{x:x,y:y,width:w*frac,height:6,rx:3,fill:AC},svg);
+  var knobX=x+w*frac;
+  el('circle',{cx:knobX,cy:y+3,r:7,fill:AC,stroke:'#fff','stroke-width':1.5},svg);
+  var vt=el('text',{x:x+w+10,y:y+7,fill:AC,'font-size':11,'font-weight':'bold'},svg);vt.textContent=val;
+  var hit=el('rect',{x:x-6,y:y-10,width:w+12,height:24,fill:'transparent',cursor:'pointer'},svg);
+  hit.onmousedown=function(ev){
+    function mv(e){
+      var rect=svg.getBoundingClientRect();var scale=920/rect.width;
+      var px=(e.clientX-rect.left)*scale;var f2=(px-x)/w;if(f2<0)f2=0;if(f2>1)f2=1;
+      onChange(Math.round(min+f2*(max-min)));
+    }
+    mv(ev);
+    function mm(e){mv(e);}
+    function up(){document.removeEventListener('mousemove',mm);document.removeEventListener('mouseup',up);}
+    document.addEventListener('mousemove',mm);document.addEventListener('mouseup',up);
+  };
+}
+// 模块交互状态
+var M1Sel=0,M2Step=6,M3Hippo='LegS',M5N=512;
+function redraw(){viewFns[curM](curV);}
+
+// ===== M1: SSM全景与演进 =====
+var M1NODES=[
+ {x:90,y:200,t:'2020',n:'HiPPO',c:INFO,d:'HiPPO框架首次将连续函数记忆压缩为正交多项式(Legendre)，提出HiPPO矩阵，让循环网络拥有理论上的长程记忆能力，奠定SSM的数学基础。'},
+ {x:240,y:200,t:'2021',n:'S4',c:AC,d:'S4（Structured State Space sequence model）通过对状态矩阵A对角化，将O(N²)递推降为O(N)，并利用FFT把递推转为卷积实现并行训练，在Long Range Arena长程任务上达到SOTA。'},
+ {x:390,y:200,t:'2023',n:'Mamba',c:PUR,d:'Mamba（S6）引入输入相关的选择性机制：B、C、Δ随输入动态变化，使模型能按内容决定保留/遗忘；配合硬件感知扫描在GPU上高效实现，性能比肩Transformer且推理为线性时间。'},
+ {x:540,y:200,t:'2023',n:'RWKV',c:ROSE,d:'RWKV结合RNN的推理效率与Transformer的可并行训练，通过time-mixing/channel-mixing的线性注意力，推理恒定内存、训练可并行，开源生态活跃。'},
+ {x:690,y:200,t:'2024',n:'Mamba-2',c:WARN,d:'Mamba-2提出状态空间对偶性(SSD)，揭示SSM与注意力机制的数学对偶，统一两类架构；状态维度大幅提升(N→64k)，速度比Mamba-1快2-8倍。'}
+];
+function m1Draw(){M1Sel=0;m1View(0);}
+function m1Select(i){M1Sel=i;redraw();}
+function m1View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M1-1 SSM演进时间线',AC);
+    sub(30,48,'HiPPO → S4 → Mamba → RWKV → Mamba-2 · 点击节点查看详情',DIM);
+    line(70,200,720,200,DIM,2);
+    arrow(710,200,740,200,AC,2);
+    for(var i=0;i<M1NODES.length;i++){
+      var nd=M1NODES[i];
+      var sel=(i===M1Sel);
+      el('rect',{x:nd.x-55,y:nd.y-95,width:110,height:38,rx:6,fill:sel?nd.c:BG3,stroke:nd.c,'stroke-width':sel?2:1,cursor:'pointer'},svg);
+      var nt=el('text',{x:nd.x,y:nd.y-76,fill:sel?'#0a0c12':nd.c,'font-size':13,'text-anchor':'middle','font-weight':'bold'},svg);nt.textContent=nd.n;
+      var tt=el('text',{x:nd.x,y:nd.y-62,fill:sel?'#0a0c12':DIM,'font-size':10,'text-anchor':'middle'},svg);tt.textContent=nd.t;
+      arrow(nd.x,nd.y-57,nd.x,nd.y-20,nd.c,1.5);
+      el('circle',{cx:nd.x,cy:nd.y,r:sel?14:10,fill:sel?nd.c:BG2,stroke:nd.c,'stroke-width':2,cursor:'pointer'},svg);
+      var hit=el('rect',{x:nd.x-55,y:nd.y-95,width:110,height:115,fill:'transparent',cursor:'pointer'},svg);
+      hit.onclick=(function(idx){return function(){m1Select(idx);};})(i);
+    }
+    var sel=M1NODES[M1Sel];
+    panel(40,300,840,110,'节点详情：'+sel.n+' ('+sel.t+')');
+    var dt=el('text',{x:55,y:330,fill:FG,'font-size':12},svg);
+    var desc=sel.d;
+    var lines=[];var tmp='';var max=60;
+    for(var w=0;w<desc.length;w++){tmp+=desc[w];if(tmp.length>=max&&desc[w]==='。'){lines.push(tmp);tmp='';}}
+    if(tmp)lines.push(tmp);
+    for(var li=0;li<lines.length;li++){var lt=el('text',{x:55,y:330+li*20,fill:FG,'font-size':12},svg);lt.textContent=lines[li];}
+    panel(40,420,840,30,'');
+    txt(55,438,'关键脉络：连续记忆理论(HiPPO) → 结构化高效计算(S4) → 输入自适应选择(Mamba) → 架构统一(Mamba-2)',{fill:AC,fs:10});
+    logMsg('[M1-1] SSM演进时间线','k');
+    logMsg('  HiPPO(2020)建立记忆压缩理论 → S4(2021)结构化对角化+FFT卷积。','i');
+    logMsg('  Mamba(2023)选择性机制+硬件感知扫描，线性时间推理。','ok');
+    logMsg('  Mamba-2(2024)状态空间对偶性SSD，统一SSM与注意力。','p');
+  }else if(m===1){
+    ttl(30,30,'M1-2 HiPPO记忆压缩理论',AC);
+    sub(30,48,'Legendre正交多项式基 · 连续函数在线记忆 · HiPPO矩阵A',DIM);
+    ttl(45,90,'连续状态方程',INFO);
+    txt(55,115,"h'(t) = A·h(t) + B·x(t)",{fill:FG,fs:13});
+    txt(55,135,'目标：用有限维状态 h(t) 近似记忆历史输入 x(s), s∈[0,t]',{fill:DIM,fs:10});
+    ttl(45,170,'HiPPO-LegS 矩阵 A (N=8 截断)',INFO);
+    var N=8,cs=26,cx0=55,cy0=185;
+    for(var i=0;i<N;i++)for(var j=0;j<N;j++){
+      var v=0;
+      if(i>j)v=-Math.sqrt(2*j+1)*Math.sqrt(2*i+1);
+      else if(i===j)v=-(i+1);
+      var norm=Math.abs(v)/8;
+      heatCell(cx0+j*cs,cy0+i*cs,cs-2,cs-2,norm,1);
+      var ct=el('text',{x:cx0+j*cs+cs/2,y:cy0+i*cs+cs/2,fill:Math.abs(v)>3?'#fff':'#cbd5e1','font-size':7,'text-anchor':'middle','dominant-baseline':'middle'},svg);ct.textContent=v.toFixed(1);
+    }
+    txt(cx0+N*cs/2,cy0+N*cs+18,'下三角结构 · 负值保证稳定性',{fill:DIM,fs:9,ta:'middle'});
+    panel(330,170,260,150,'HiPPO变体');
+    var vars=[['LegS','尺度平移不变，全域记忆'],['LegT','滑动窗，最近N单位'],['LMU','拉格朗日记忆单元'],['Lagt','拉盖尔多项式基'],['FouT','傅里叶基，频域记忆']];
+    for(var i=0;i<vars.length;i++){txt(345,195+i*24,vars[i][0],{fill:AC,fs:10,fw:'bold'});txt(410,195+i*24,vars[i][1],{fill:DIM,fs:9});}
+    panel(610,170,270,150,'核心性质');
+    var props=[['长程记忆','指数衰减可控，支持千步依赖'],['正交基','Legendre基保证数值稳定'],['可解析','A矩阵闭式解，无需学习'],['理论保证','L²误差有界，记忆精度可证']];
+    for(var i=0;i<props.length;i++){txt(625,195+i*24,props[i][0],{fill:INFO,fs:10,fw:'bold'});txt(710,195+i*24,props[i][1],{fill:DIM,fs:9});}
+    panel(40,340,840,110,'HiPPO的意义');
+    txt(55,365,'1. 为SSM提供了“如何让RNN记住长历史”的理论框架，是S4/Mamba的直接前驱。',{fill:FG,fs:11});
+    txt(55,388,'2. HiPPO矩阵A作为S4初始化的关键，使模型天然具备长程衰减结构。',{fill:FG,fs:11});
+    txt(55,411,'3. 证明用正交多项式投影可在线维护函数记忆，误差随N多项式衰减。',{fill:FG,fs:11});
+    txt(55,434,'局限：固定参数(非选择性)，无法根据内容动态调整记忆策略。',{fill:WARN,fs:11});
+    logMsg('[M1-2] HiPPO记忆压缩','k');
+    logMsg('  HiPPO用Legendre正交基在线压缩连续函数历史，构建下三角稳定矩阵A。','i');
+    logMsg('  是S4/Mamba的初始化基石，提供长程记忆理论保证。','ok');
+  }else if(m===2){
+    ttl(30,30,'M1-3 S4结构化状态空间核心',AC);
+    sub(30,48,'连续参数(A,B,C,D) → 离散化(Ā,B̄) → 递推 / 卷积双视图',DIM);
+    ttl(45,85,'连续 SSM',INFO);
+    txt(55,108,"h'(t)=A·h(t)+B·x(t)     y(t)=C·h(t)+D·x(t)",{fill:FG,fs:12});
+    arrow(280,103,310,103,AC,1.5);txt(295,95,'离散化Δ',{fill:AC,fs:9,ta:'middle'});
+    ttl(330,85,'离散 SSM (零阶保持)',INFO);
+    txt(340,108,"hₜ=Ā·hₜ₋₁+B̄·xₜ     yₜ=C·hₜ",{fill:FG,fs:12});
+    box(45,135,150,55,{label:'递推视图\nO(N·L) 序列推理',stroke:AC,fc:AC,fs:10});
+    box(225,135,150,55,{label:'卷积视图\nO(N·L·logL) 并行训练',stroke:PUR,fc:PUR,fs:10});
+    arrow(195,162,225,162,INFO,2);
+    darrow(225,172,195,172,DIM,1);
+    txt(210,148,'对角化',{fill:INFO,fs:9,ta:'middle'});
+    panel(395,130,490,75,'S4三大创新');
+    var inv=[['结构化A','用HiPPO初始化+低秩修正，参数从N²降到N+1'],['对角化','A=VΛV⁻¹，将递推核转为可计算的卷积核K̄'],['FFT卷积','计算 K̄∗x 复杂度O(L logL)，训练全并行']];
+    for(var i=0;i<inv.length;i++){txt(410,152+i*18,'· '+inv[i][0],{fill:AC,fs:10,fw:'bold'});txt(505,152+i*18,inv[i][1],{fill:DIM,fs:9});}
+    ttl(45,230,'卷积核 K̄ = (CB̄, CĀB̄, CĀ²B̄, ...)',INFO);
+    var kx=55,ky=250,kw=820;
+    el('rect',{x:kx,y:ky,width:kw,height:70,rx:4,fill:BG3,stroke:BD,'stroke-width':1},svg);
+    for(var i=0;i<20;i++){
+      var decay=Math.exp(-i*0.35)*Math.cos(i*0.5);
+      var bh=Math.abs(decay)*60;
+      el('rect',{x:kx+10+i*(kw-20)/20,y:ky+70-bh,width:(kw-20)/20-3,height:bh,fill:i<3?WARN:INFO,opacity:0.8,rx:1},svg);
+    }
+    txt(kx+kw/2,ky+88,'衰减振荡核 → 捕捉长程周期模式',{fill:DIM,fs:9,ta:'middle'});
+    panel(40,360,840,90,'S4关键结果');
+    txt(55,385,'· Long Range Arena (LRA) 所有任务平均分86.09，首次全面超越Transformer。',{fill:OK,fs:11});
+    txt(55,405,'· 序列长度16384的Path-X任务达到88%+，Transformer仅50%(随机水平)。',{fill:OK,fs:11});
+    txt(55,425,'· 局限：参数固定，无法对输入做内容相关的选择性筛选。',{fill:WARN,fs:11});
+    logMsg('[M1-3] S4核心','k');
+    logMsg('  S4：连续SSM离散化后，通过对角化把递推转为FFT卷积，训练并行。','ok');
+    logMsg('  LRA基准全面超越Transformer，长程依赖能力显著。','ok');
+    logMsg('  但参数与输入无关 → 引出Mamba的选择性机制。','w');
+  }else{
+    ttl(30,30,'M1-4 Mamba的创新',AC);
+    sub(30,48,'选择性机制 + 硬件感知扫描 + 简化架构 = 线性时间通用模型',DIM);
+    var innov=[
+      {n:'选择性机制 S6',x:45,y:90,c:PUR,d:'B、C、Δ随输入xₜ动态生成，模型按内容决定保留/遗忘，突破S4固定参数限制'},
+      {n:'硬件感知扫描',x:315,y:90,c:INFO,d:'并行扫描+SRAM融合Kernel，避免HBM读写瓶颈，比朴素实现快40倍'},
+      {n:'无注意力无MLP',x:585,y:90,c:AC,d:'用SSM块替代Attention+MLP，结构更简，参数与计算更高效'},
+      {n:'线性时间推理',x:45,y:200,c:OK,d:'推理时按RNN递推，O(L)时间O(1)内存，不随序列增长'},
+      {n:'并行训练',x:315,y:200,c:WARN,d:'训练时通过并行扫描，O(L)复杂度但可并行，吞吐量高'},
+      {n:'状态空间对偶',x:585,y:200,c:ROSE,d:'Mamba-2揭示SSM与Attention的对偶，统一线性/二次复杂度架构'}
+    ];
+    for(var i=0;i<innov.length;i++){
+      box(innov[i].x,innov[i].y,250,80,{fill:BG3,stroke:innov[i].c,sw:1.5});
+      ttl(innov[i].x+12,innov[i].y+22,innov[i].n,innov[i].c);
+      var dt=el('text',{x:innov[i].x+12,y:innov[i].y+42,fill:DIM,'font-size':9},svg);
+      var ds=innov[i].d;var t2='';var ln=0;
+      for(var ch=0;ch<ds.length;ch++){t2+=ds[ch];ln++;if(ln>=22&&ds[ch]==='，'){dt.textContent=t2;var dt2=el('text',{x:innov[i].x+12,y:innov[i].y+58,fill:DIM,'font-size':9},svg);dt2.textContent=ds.slice(ch+1);break;}}
+      if(ln<22)dt.textContent=ds;
+    }
+    panel(40,300,840,150,'Mamba vs Transformer 关键指标对比');
+    var cmp=[['训练吞吐','+5x',OK],['推理速度(长序列)','+20x',OK],['内存占用(1M tokens)','8GB vs 48GB',OK],['质量(PPL)','相当或更优',OK],['长序列外推','强',OK],['生态成熟度','追赶中',WARN]];
+    for(var i=0;i<cmp.length;i++){
+      var cx=45+(i%2)*410,cy=325+Math.floor(i/2)*40;
+      txt(cx,cy,cmp[i][0],{fill:DIM,fs:11});
+      txt(cx+395,cy,cmp[i][1],{fill:cmp[i][2],fs:11,ta:'end',fw:'bold'});
+    }
+    logMsg('[M1-4] Mamba创新','k');
+    logMsg('  选择性+硬件扫描+简化架构：线性推理、并行训练、质量比肩Transformer。','ok');
+    logMsg('  Mamba-2通过SSD统一SSM与注意力，状态维度提升至65536。','p');
+  }
+}
+
+// ===== M2: Mamba选择性机制 =====
+var M2TOK=['Mamba','模型','通过','选择性','机制','动态','筛选','关键','信息','遗忘','冗余','内容'];
+var M2RET=[0.9,0.3,0.2,0.85,0.7,0.6,0.95,0.9,0.8,0.15,0.25,0.75]; // 保留/遗忘分数
+function m2Draw(){M2Step=6;m2View(0);}
+function m2View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M2-1 选择性扫描（可交互）',AC);
+    sub(30,48,'拖动滑块推进序列 · 观察状态h如何按内容选择性保留/遗忘',DIM);
+    var seqEnd=M2Step;
+    // token行
+    var tx=40,tw=64,gap=8;
+    for(var i=0;i<M2TOK.length;i++){
+      var active=(i<=seqEnd);
+      var ret=M2RET[i];
+      var col=ret>0.5?OK:ERR;
+      el('rect',{x:tx+i*(tw+gap),y:95,width:tw,height:34,rx:4,fill:active?BG2:'#080a10',stroke:active?col:BD,'stroke-width':active?1.8:1},svg);
+      var lt=el('text',{x:tx+i*(tw+gap)+tw/2,y:112,fill:active?FG:DIM,'font-size':9,'text-anchor':'middle'},svg);lt.textContent=M2TOK[i];
+      if(active){
+        var bh=ret*22;
+        el('rect',{x:tx+i*(tw+gap)+8,y:135-bh,width:tw-16,height:bh,fill:col,opacity:0.7,rx:1},svg);
+        var rt=el('text',{x:tx+i*(tw+gap)+tw/2,y:148,fill:col,'font-size':8,'text-anchor':'middle'},svg);rt.textContent=ret.toFixed(2);
+      }
+    }
+    txt(30,165,'token保留分数 ▲',{fill:DIM,fs:9});
+    // 状态向量 h (8维)
+    ttl(40,195,'隐状态 hₜ (8维) — 当前步='+seqEnd,INFO);
+    var hx=55,hy=215,hw=70,hh=26;
+    for(var d=0;d<8;d++){
+      var acc=0;for(var i=0;i<=seqEnd;i++){acc+=M2TOK[i].length*0.1+M2RET[i]*(d%3===0?0.5:0.2);}
+      acc=acc%(d*0.3+1.2);
+      heatCell(hx+d*(hw+4),hy,hw,hh,Math.abs(acc),1.5);
+      var ht=el('text',{x:hx+d*(hw+4)+hw/2,y:hy+hh/2,fill:'#fff','font-size':9,'text-anchor':'middle','dominant-baseline':'middle'},svg);ht.textContent='h'+d;
+    }
+    txt(hx,hy+hh+14,'绿色=保留 · 红色=遗忘 · 颜色深浅=激活强度',{fill:DIM,fs:9});
+    // 门控公式
+    panel(40,290,440,140,'选择性门控（输入相关）');
+    txt(55,315,"Δₜ = s_Δ(xₜ)   Bₜ = s_B(xₜ)   Cₜ = s_C(xₜ)",{fill:FG,fs:12});
+    txt(55,338,'S4: B,C,Δ固定 → 无差别记忆',{fill:ERR,fs:10});
+    txt(55,356,'Mamba: B,C,Δ随xₜ变化 → 内容自适应',{fill:OK,fs:10});
+    txt(55,378,'hₜ = Ā(xₜ)·hₜ₋₁ + B̄(xₜ)·xₜ',{fill:AC,fs:11,fw:'bold'});
+    txt(55,400,'yₜ = C(xₜ)·hₜ',{fill:AC,fs:11,fw:'bold'});
+    txt(55,418,'大Δ→快速更新(关注当前) · 小Δ→保持(依赖历史)',{fill:DIM,fs:9});
+    panel(500,290,380,140,'当前序列解读');
+    var kept=[],forg=[];
+    for(var i=0;i<=seqEnd;i++){if(M2RET[i]>0.5)kept.push(M2TOK[i]);else forg.push(M2TOK[i]);}
+    var kt=el('text',{x:515,y:315,fill:OK,'font-size':10,'font-weight':'bold'},svg);kt.textContent='保留: '+kept.join(' ');
+    var ft=el('text',{x:515,y:335,fill:ERR,'font-size':10,'font-weight':'bold'},svg);ft.textContent='遗忘: '+forg.join(' ');
+    txt(515,358,'选择性使模型像“注意力”一样聚焦关键token',{fill:DIM,fs:9});
+    txt(515,378,'但仅需O(1)内存维护递推状态',{fill:OK,fs:9});
+    txt(515,398,'这就是Mamba线性时间下的“软注意力”',{fill:PUR,fs:9});
+    txt(515,418,'滑块推进观察状态随内容演化',{fill:WARN,fs:9});
+    slider(40,255,840,'推进序列步数 (0→11)',0,11,M2Step,function(v){M2Step=v;redraw();});
+    logMsg('[M2-1] 选择性扫描','k');
+    logMsg('  拖动滑块推进序列，高保留token(绿)被写入状态，低保留(红)被遗忘。','i');
+    logMsg('  门控Δ/B/C随输入变化 = 内容自适应的线性时间注意力。','ok');
+  }else if(m===1){
+    ttl(30,30,'M2-2 保留与遗忘曲线',AC);
+    sub(30,48,'每个token的保留分数 · 选择性门控Δ决定更新幅度',DIM);
+    var bx=70,by=120,bw=780,bh=240;
+    line(bx,by+bh,bx+bw,by+bh,DIM,1.5);line(bx,by,bx,by+bh,DIM,1.5);
+    txt(bx-8,by,'1.0',{fill:DIM,fs:9,ta:'end',db:'middle'});txt(bx-8,by+bh/2,'0.5',{fill:DIM,fs:9,ta:'end',db:'middle'});txt(bx-8,by+bh,'0',{fill:DIM,fs:9,ta:'end',db:'middle'});
+    for(var g=0;g<=4;g++)line(bx,by+g*bh/4,bx+bw,by+g*bh/4,'#15182a',0.5);
+    var n=M2TOK.length,sw=bw/n;
+    for(var i=0;i<n;i++){
+      var ret=M2RET[i];var col=ret>0.5?OK:ERR;
+      var bh2=ret*bh;
+      el('rect',{x:bx+i*sw+sw*0.2,y:by+bh-bh2,width:sw*0.6,height:bh2,fill:col,opacity:0.75,rx:2},svg);
+      var vt=el('text',{x:bx+i*sw+sw/2,y:by+bh-bh2-6,fill:col,'font-size':10,'text-anchor':'middle','font-weight':'bold'},svg);vt.textContent=ret.toFixed(2);
+      var lt=el('text',{x:bx+i*sw+sw/2,y:by+bh+14,fill:'#9ca3af','font-size':9,'text-anchor':'middle'},svg);lt.textContent=M2TOK[i];
+    }
+    line(bx,by+bh/2,bx+bw,by+bh/2,WARN,1,'4,3');
+    txt(bx+bw-4,by+bh/2-6,'保留阈值0.5',{fill:WARN,fs:9,ta:'end'});
+    panel(40,400,840,50,'');
+    txt(55,423,'保留>0.5: Mamba/选择性/关键/信息/内容/动态 → 写入状态；遗忘<0.5: 通过/机制/遗忘/冗余 → 衰减丢弃',{fill:FG,fs:10});
+    logMsg('[M2-2] 保留与遗忘','k');
+    logMsg('  内容相关门控让Mamba保留语义关键token、遗忘冗余token。','ok');
+  }else if(m===2){
+    ttl(30,30,'M2-3 选择性 vs 线性固定',AC);
+    sub(30,48,'S4固定参数(无差别记忆) vs Mamba选择性(内容自适应)',DIM);
+    box(40,90,400,160,{fill:BG3,stroke:ERR,sw:1.5});
+    ttl(55,115,'S4 固定参数',ERR);
+    txt(55,140,'B,C,Δ为可学习但与输入无关的参数',{fill:DIM,fs:10});
+    txt(55,158,'→ 对所有token施加相同的记忆衰减',{fill:ERR,fs:10});
+    txt(55,178,'→ 无法区分重要/冗余信息',{fill:ERR,fs:10});
+    txt(55,200,'长程任务表现受限',{fill:DIM,fs:10});
+    txt(55,222,'优势：可转为FFT卷积，训练高效',{fill:OK,fs:10});
+    box(480,90,400,160,{fill:BG3,stroke:OK,sw:1.5});
+    ttl(495,115,'Mamba 选择性 S6',OK);
+    txt(495,140,'B,C,Δ由输入xₜ经线性层生成',{fill:DIM,fs:10});
+    txt(495,158,'→ 按内容决定保留/遗忘',{fill:OK,fs:10});
+    txt(495,178,'→ 类似注意力的内容聚焦',{fill:OK,fs:10});
+    txt(495,200,'语言建模质量显著提升',{fill:OK,fs:10});
+    txt(495,222,'代价：丢失卷积形式，改用并行扫描',{fill:WARN,fs:10});
+    panel(40,270,840,90,'关键权衡');
+    txt(55,295,'S4的卷积形式源于参数固定 → 选择性打破这一条件，无法直接FFT卷积。',{fill:FG,fs:11});
+    txt(55,318,'Mamba解法：用硬件感知的并行扫描(parallel scan)在GPU上O(L)高效计算递推。',{fill:AC,fs:11});
+    txt(55,341,'Mamba-2进一步用SSD重新获得类注意力的并行形式，兼顾选择性与并行。',{fill:PUR,fs:11});
+    panel(40,375,840,75,'能力对比');
+    var ab=[['内容选择','无','有'],['长程质量','中','高'],['训练并行','FFT卷积','并行扫描'],['推理内存','O(N)','O(N)']];
+    txt(55,400,'特性',{fill:INFO,fs:10,fw:'bold'});txt(250,400,'S4',{fill:ERR,fs:10,fw:'bold',ta:'middle'});txt(450,400,'Mamba',{fill:OK,fs:10,fw:'bold',ta:'middle'});
+    for(var i=0;i<ab.length;i++){txt(55,420+i*0,ab[i][0],{fill:DIM,fs:10});txt(250,420,ab[i][1],{fill:ERR,fs:10,ta:'middle'});txt(450,420,ab[i][2],{fill:OK,fs:10,ta:'middle'});}
+    logMsg('[M2-3] 选择性对比','k');
+    logMsg('  选择性打破S4的卷积形式，Mamba用并行扫描弥补并行训练。','i');
+    logMsg('  这是Mamba质量跃升的核心来源。','ok');
+  }else{
+    ttl(30,30,'M2-4 状态演化热力图',AC);
+    sub(30,48,'隐状态hₜ各维度随序列步进的激活演化',DIM);
+    var stX=80,stY=110,cellW=55,cellH=22,ND=10;
+    txt(stX-10,stY-10,'维度↓ 步→',{fill:DIM,fs:9,ta:'end'});
+    for(var s=0;s<M2TOK.length;s++){var lt=el('text',{x:stX+s*cellW+cellW/2,y:stY-6,fill:'#9ca3af','font-size':8,'text-anchor':'middle'},svg);lt.textContent=s;}
+    for(var d=0;d<ND;d++){
+      var dl=el('text',{x:stX-6,y:stY+d*cellH+cellH/2,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);dl.textContent='h'+d;
+      var acc=0;
+      for(var s=0;s<M2TOK.length;s++){
+        acc=acc*0.6+M2RET[s]*(d%4===0?0.8:d%4===1?0.4:0.6)+(M2TOK[s].length*0.05);
+        var v=Math.abs(acc)%1.4;
+        heatCell(stX+s*cellW,stY+d*cellH,cellW-2,cellH-2,v,1.4);
+      }
+    }
+    panel(40,360,840,90,'解读');
+    txt(55,385,'· 横轴为序列步，纵轴为状态维度，颜色深浅=激活强度。',{fill:FG,fs:11});
+    txt(55,408,'· 高保留token(Mamba/选择性/关键)在多个维度留下强激活(深色列)。',{fill:OK,fs:11});
+    txt(55,431,'· 低保留token(通过/冗余)激活快速衰减，状态被“选择性重置”。',{fill:ERR,fs:11});
+    logMsg('[M2-4] 状态演化','k');
+    logMsg('  热力图显示选择性机制让关键token在状态中持续高激活。','ok');
+  }
+}
+
+// ===== M3: S4结构化状态空间 =====
+function m3Draw(){M3Hippo='LegS';m3View(0);}
+function m3HippoSel(v){M3Hippo=v;redraw();}
+function m3View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M3-1 连续参数化 (A,B,C,D)',AC);
+    sub(30,48,'连续时间SSM → 离散化 → 递推/卷积双形式',DIM);
+    panel(40,85,400,150,'连续状态空间方程');
+    txt(55,115,"h'(t) = A·h(t) + B·x(t)",{fill:FG,fs:13});
+    txt(55,138,"y(t)  = C·h(t) + D·x(t)",{fill:FG,fs:13});
+    txt(55,162,'A: 状态转移矩阵 (N×N) 控制记忆衰减',{fill:AC,fs:10});
+    txt(55,180,'B: 输入投影 (N×1) 控制写入',{fill:INFO,fs:10});
+    txt(55,198,'C: 输出投影 (1×N) 控制读取',{fill:PUR,fs:10});
+    txt(55,216,'D: 跳连(残差) 通常为单位映射',{fill:DIM,fs:10});
+    arrow(450,160,500,160,AC,2);txt(475,152,'ZOH离散',{fill:AC,fs:9,ta:'middle'});
+    panel(505,85,375,150,'离散化(零阶保持 Δ)');
+    txt(520,115,'Ā = exp(ΔA)',{fill:FG,fs:13});
+    txt(520,138,'B̄ = (ΔA)⁻¹(Ā − I)·ΔB',{fill:FG,fs:13});
+    txt(520,162,'hₜ = Ā·hₜ₋₁ + B̄·xₜ',{fill:AC,fs:12,fw:'bold'});
+    txt(520,184,'yₜ = C·hₜ + D·xₜ',{fill:AC,fs:12,fw:'bold'});
+    txt(520,208,'Δ: 步长(可学习) 控制时间尺度',{fill:WARN,fs:10});
+    panel(40,250,400,90,'递推形式 (推理)');
+    txt(55,278,'按时间步顺序计算，O(L)时间',{fill:OK,fs:10});
+    txt(55,298,'推理时为RNN，恒定内存',{fill:OK,fs:10});
+    txt(55,318,'无法并行(顺序依赖)',{fill:WARN,fs:10});
+    panel(460,250,420,90,'卷积形式 (训练)');
+    txt(475,278,'展开为K̄=(CB̄,CĀB̄,CĀ²B̄,...)',{fill:OK,fs:10});
+    txt(475,298,'y = K̄ ∗ x，可用FFT并行',{fill:OK,fs:10});
+    txt(475,318,'需A可对角化(固定参数)',{fill:WARN,fs:10});
+    panel(40,355,840,95,'参数化要点');
+    txt(55,380,'· A初始化为HiPPO矩阵(N×N)，保证长程稳定记忆；其余B,C,D可学习。',{fill:FG,fs:11});
+    txt(55,402,'· N(状态维度)典型16-256；大N更强记忆但计算增加。',{fill:FG,fs:11});
+    txt(55,424,'· 连续参数→离散参数的可学习Δ使模型适应不同时间尺度(快/慢特征)。',{fill:FG,fs:11});
+    logMsg('[M3-1] 连续参数化','k');
+    logMsg('  A,B,C,D连续参数经Δ离散化为Ā,B̄，支持递推/卷积双视图。','i');
+    logMsg('  可学习Δ让SSM自适应时间尺度。','ok');
+  }else if(m===1){
+    ttl(30,30,'M3-2 HiPPO矩阵（可切换变体）',AC);
+    sub(30,48,'点击右侧按钮切换HiPPO变体 · 观察矩阵结构差异',DIM);
+    var N=8,cs=30,cx0=60,cy0=110;
+    txt(cx0-10,cy0-12,'A矩阵热力图 (N='+N+')',{fill:INFO,fs:11,fw:'bold'});
+    for(var i=0;i<N;i++){
+      var rl=el('text',{x:cx0-6,y:cy0+i*cs+cs/2,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);rl.textContent=i;
+      for(var j=0;j<N;j++){
+        var v=0;
+        if(M3Hippo==='LegS'){if(i>j)v=-Math.sqrt(2*j+1)*Math.sqrt(2*i+1);else if(i===j)v=-(i+1);}
+        else if(M3Hippo==='LegT'){var m=N/2;if(i>j)v=Math.sqrt(2*j+1);if(i===j)v=-(j+1>0?1:0);if(i===j)v=-((j+1)*0+1);}
+        else if(M3Hippo==='LMU'){if(i>=j)v=-((i===j)?0.5:0.3)*(j+1);}
+        else if(M3Hippo==='FouT'){if(i>j)v=(i%2===0?1:-1)*0.4*Math.sqrt(i+1);if(i===j)v=-(i+1)*0.5;}
+        var norm=Math.min(Math.abs(v)/8,1);
+        heatCell(cx0+j*cs,cy0+i*cs,cs-2,cs-2,norm,1);
+        var ct=el('text',{x:cx0+j*cs+cs/2,y:cy0+i*cs+cs/2,fill:Math.abs(v)>3?'#fff':'#cbd5e1','font-size':7,'text-anchor':'middle','dominant-baseline':'middle'},svg);ct.textContent=v.toFixed(1);
+      }
+    }
+    // 变体切换按钮
+    var variants=['LegS','LegT','LMU','FouT'];
+    var descs={LegS:'尺度平移不变 · 全域Legendre记忆 · S4默认',LegT:'滑动窗 · 记忆最近N步',LMU:'拉格朗日记忆单元 · 离散化友好',FouT:'傅里叶基 · 频域记忆'};
+    txt(360,120,'选择HiPPO变体',{fill:AC,fs:11,fw:'bold'});
+    for(var i=0;i<variants.length;i++){
+      var act=(variants[i]===M3Hippo);
+      var b=el('rect',{x:360,y:135+i*40,width:140,height:32,rx:5,fill:act?AC:BG2,stroke:act?AC:BD,'stroke-width':1.5,cursor:'pointer'},svg);
+      var bt=el('text',{x:430,y:151+i*40,fill:act?'#0a0c12':FG,'font-size':12,'text-anchor':'middle','font-weight':'bold'},svg);bt.textContent=variants[i];
+      b.onclick=(function(v){return function(){m3HippoSel(v);};})(variants[i]);
+    }
+    panel(520,110,360,170,'当前: '+M3Hippo);
+    var dt=el('text',{x:535,y:140,fill:FG,'font-size':11},svg);dt.textContent=descs[M3Hippo];
+    txt(535,168,'结构特征：',{fill:INFO,fs:10,fw:'bold'});
+    var feat=M3Hippo==='LegS'?['下三角','负对角(稳定)','随i,j增长']:M3Hippo==='LegT'?['带状(窗内)','窗内均权','窗外为零']:M3Hippo==='LMU'?['近似对角','稀疏','离散优化']:['振荡','正负交替','频域刻画'];
+    for(var i=0;i<feat.length;i++)txt(535,186+i*18,'· '+feat[i],{fill:DIM,fs:10});
+    txt(535,250,'用途：SSM状态矩阵A的初始化',{fill:WARN,fs:10});
+    panel(40,370,840,80,'HiPPO矩阵的作用');
+    txt(55,395,'赋予SSM天然的长程衰减+振荡结构，使模型从初始化即具备记忆能力。',{fill:FG,fs:11});
+    txt(55,417,'LegS最常用：平移不变、全域记忆，是S4/Mamba的默认选择。',{fill:OK,fs:11});
+    txt(55,437,'点击上方按钮切换不同多项式基，观察矩阵形态变化。',{fill:AC,fs:11});
+    logMsg('[M3-2] HiPPO矩阵','k');
+    logMsg('  点击按钮切换LegS/LegT/LMU/FouT，观察A矩阵结构差异。','i');
+    logMsg('  LegS下三角稳定结构是S4/Mamba的初始化基石。','ok');
+  }else if(m===2){
+    ttl(30,30,'M3-3 对角化过程',AC);
+    sub(30,48,'A = VΛV⁻¹ · 将O(N²)递推核降为O(N)可计算卷积核',DIM);
+    panel(40,85,250,130,'原始矩阵 A (N×N)');
+    var N=6,cs=24,cx0=60,cy0=130;
+    for(var i=0;i<N;i++)for(var j=0;j<N;j++){
+      var v=0;if(i>j)v=-Math.sqrt(2*j+1)*Math.sqrt(2*i+1);else if(i===j)v=-(i+1);
+      heatCell(cx0+j*cs,cy0+i*cs,cs-2,cs-2,Math.abs(v)/8,1);
+    }
+    txt(165,230,'稠密 N×N · 计算Aᵏ为O(N²ᵏ)',{fill:ERR,fs:9,ta:'middle'});
+    arrow(300,150,340,150,AC,2);txt(320,142,'V⁻¹AV',{fill:AC,fs:9,ta:'middle'});
+    panel(345,85,250,130,'对角矩阵 Λ');
+    for(var i=0;i<N;i++){
+      var eig=-(i+1);
+      el('rect',{x:cx0+300+i*cs,cy:cy0+i*cs,width:cs-2,height:cs-2,fill:'rgb(80,50,180)',stroke:BD,'stroke-width':0.5},svg);
+      var et=el('text',{x:cx0+300+i*cs+cs/2,cy:cy0+i*cs+cs/2,fill:'#fff','font-size':8,'text-anchor':'middle','dominant-baseline':'middle'},svg);et.textContent=eig;
+    }
+    txt(470,230,'对角 Λ · Aᵏ=VΛᵏV⁻¹ 为O(N)',{fill:OK,fs:9,ta:'middle'});
+    arrow(605,150,645,150,PUR,2);txt(625,142,'核计算',{fill:PUR,fs:9,ta:'middle'});
+    panel(650,85,230,130,'卷积核 K̄');
+    for(var i=0;i<10;i++){
+      var decay=Math.exp(-i*0.4)*Math.cos(i*0.6);
+      var bh=Math.abs(decay)*60;
+      el('rect',{x:665+i*20,y:175-bh,width:16,height:bh,fill:PUR,opacity:0.8,rx:1},svg);
+    }
+    txt(765,205,'K̄=(CB̄,CĀB̄,...)',{fill:PUR,fs:9,ta:'middle'});
+    txt(765,222,'FFT卷积 O(L logL)',{fill:OK,fs:9,ta:'middle'});
+    panel(40,235,840,100,'对角化的三大收益');
+    var ben=[['复杂度','Aᵏ从O(N²ᵏ)→O(Nᵏ)，卷积核计算可行'],['并行','K̄预计算后 y=K̄∗x 可FFT全并行'],['稳定','对角化后特征值显式可控，数值稳定']];
+    for(var i=0;i<ben.length;i++){txt(55,260+i*24,'· '+ben[i][0],{fill:AC,fs:11,fw:'bold'});txt(160,260+i*24,ben[i][1],{fill:DIM,fs:10});}
+    panel(40,350,840,100,'代价与挑战');
+    txt(55,375,'· 对角化依赖A可对角化(VΛV⁻¹)，HiPPO矩阵满足但需复数域处理。',{fill:WARN,fs:11});
+    txt(55,397,'· 复数运算增加实现复杂度，S4D简化为直接对角复数参数化。',{fill:FG,fs:11});
+    txt(55,419,'· 选择性Mamba放弃对角化(参数随输入变)，改用并行扫描。',{fill:PUR,fs:11});
+    txt(55,437,'· Mamba-2的SSD在选择性下重新获得类对角化的高效形式。',{fill:OK,fs:11});
+    logMsg('[M3-3] 对角化','k');
+    logMsg('  A=VΛV⁻¹把稠密Aᵏ降为对角Λᵏ，卷积核K̄可FFT并行计算。','ok');
+    logMsg('  是S4训练高效的核心技巧。','ok');
+  }else{
+    ttl(30,30,'M3-4 S4D 复数域对角参数化',AC);
+    sub(30,48,'S4D：跳过对角化，直接用对角复数参数Λ=diag(λ₁..λₙ)',DIM);
+    panel(40,85,400,160,'S4D 简化思路');
+    txt(55,115,'S4需先构造HiPPO矩阵A再对角化',{fill:DIM,fs:10});
+    txt(55,135,'S4D直接参数化对角复数矩阵',{fill:AC,fs:11,fw:'bold'});
+    txt(55,158,'Λ = diag(λ₁, λ₂, ..., λₙ)',{fill:FG,fs:12});
+    txt(55,180,'λᵢ ∈ ℂ (复数)，初始化为HiPPO特征值',{fill:INFO,fs:10});
+    txt(55,202,'优点：',{fill:OK,fs:10,fw:'bold'});
+    txt(70,220,'· 无需对角化，实现简单',{fill:OK,fs:10});
+    txt(70,236,'· 性能接近S4，更易扩展',{fill:OK,fs:10});
+    panel(460,85,420,160,'复数特征值分布');
+    // 复平面特征值
+    el('rect',{x:480,y:110,width:380,height:120,fill:BG3,stroke:BD,'stroke-width':1},svg);
+    line(670,110,670,230,DIM,1);line(480,170,860,170,DIM,1);
+    txt(855,166,'Re',{fill:DIM,fs:9,ta:'end'});txt(675,118,'Im',{fill:DIM,fs:9});
+    for(var i=0;i<8;i++){
+      var re=-(i*0.5+0.5),im=(i%2===0?1:-1)*(0.3+i*0.15);
+      var px=670+re*40,py=170-im*30;
+      el('circle',{cx:px,cy:py,r:4,fill:PUR,stroke:'#fff','stroke-width':0.8},svg);
+    }
+    txt(670,250,'特征值集中于左半复平面(稳定) · 虚部提供振荡',{fill:DIM,fs:9,ta:'middle'});
+    panel(40,260,840,90,'S4D vs S4 vs S5');
+    var cmp=[['','S4','S4D','S5'],['参数化','HiPPO+对角化','直接对角复数','对角+低秩'],['复杂度','O(N+H)','O(N+H)','O(N+H)'],['实现','复杂','简单','中等']];
+    var cols=[40,230,440,640];
+    for(var r=0;r<cmp.length;r++){
+      for(var c=0;c<4;c++){
+        var cl=r===0?INFO:(c===0?DIM:c===1?AC:c===2?PUR:ROSE);
+        var t=el('text',{x:cols[c]+10,y:285+r*20,fill:cl,'font-size':10,'font-weight':r===0?'bold':'normal'},svg);t.textContent=cmp[r][c];
+      }
+    }
+    panel(40,365,840,85,'演进脉络');
+    txt(55,390,'S4(对角化) → S4D(直接对角复数，简化) → S5(对角+低秩，降复杂度) → DSS(实对角)。',{fill:FG,fs:11});
+    txt(55,412,'共同点：保持固定参数 → 可卷积/FFT并行训练；都为Mamba选择性机制铺路。',{fill:OK,fs:11});
+    txt(55,434,'S4D被广泛用作Mamba层中A的参数化基础(对角复数)。',{fill:PUR,fs:11});
+    logMsg('[M3-4] S4D复数域','k');
+    logMsg('  S4D直接参数化对角复数Λ，免去对角化，实现简单且性能接近S4。','ok');
+    logMsg('  是Mamba状态矩阵参数化的实践基础。','ok');
+  }
+}
+
+// ===== M4: RWKV线性注意力 =====
+function m4Draw(){m4View(0);}
+function m4View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M4-1 RWKV Time-Mixing',AC);
+    sub(30,48,'token位移w · k/v/r/u · 线性注意力递推 · 可并行训练',DIM);
+    box(30,90,90,45,{label:'xₜ',stroke:INFO,fc:INFO,fs:11});
+    box(140,90,90,45,{label:'xₜ₋₁',stroke:DIM,fc:DIM,fs:11});
+    arrow(185,132,120,140,WARN,1.5);
+    box(30,160,200,40,{label:'token shift: w·xₜ₋₁+(1-w)·xₜ',stroke:WARN,fc:WARN,fs:9});
+    arrow(75,135,75,160,INFO,1.5);arrow(185,135,140,160,DIM,1);
+    // k v r
+    box(30,225,60,40,{label:'kₜ',stroke:AC,fc:AC,fs:11});
+    box(100,225,60,40,{label:'vₜ',stroke:PUR,fc:PUR,fs:11});
+    box(170,225,60,40,{label:'rₜ',stroke:ROSE,fc:ROSE,fs:11});
+    arrow(75,200,45,225,AC,1.2);arrow(130,200,130,225,PUR,1.2);arrow(185,200,200,225,ROSE,1.2);
+    box(250,225,60,40,{label:'u',stroke:WARN,fc:WARN,fs:11});
+    txt(280,285,'(位置奖励)',{fill:DIM,fs:8,ta:'middle'});
+    // WKV计算
+    panel(330,150,290,180,'wkv 线性注意力');
+    txt(345,178,'wₜ = exp(-w·t) 衰减',{fill:WARN,fs:10});
+    txt(345,200,'aₜ = Σ wᵢ·e^{u+kᵢ}·vᵢ  (含u奖励)',{fill:AC,fs:10});
+    txt(345,222,'bₜ = Σ wᵢ·e^{u+kᵢ}',{fill:AC,fs:10});
+    txt(345,244,'递推: aₜ=wₜaₜ₋₁+e^{u+k}v',{fill:OK,fs:10,fw:'bold'});
+    txt(345,266,'       bₜ=wₜbₜ₋₁+e^{u+k}',{fill:OK,fs:10,fw:'bold'});
+    txt(345,288,'yₜ = (aₜ+e^{r}vₜ)/(bₜ+e^{r})',{fill:PUR,fs:10,fw:'bold'});
+    txt(345,310,'O(1)递推 / 训练可并行展开',{fill:DIM,fs:9});
+    box(640,200,90,50,{label:'yₜ',stroke:OK,fc:OK,fs:12});
+    arrow(620,235,640,225,PUR,2);
+    panel(30,310,860,140,'Time-Mixing 关键设计');
+    var kf=[['token shift','用xₜ₋₁与xₜ线性混合替代位置编码，捕获局部时序'],['w衰减','指数衰减核，自然建模“近多远少”的长程依赖'],['u奖励','对当前位置额外奖励，区分当前与历史token'],['线性递推','a,b可递推维护，推理O(1)内存，训练可并行']];
+    for(var i=0;i<kf.length;i++){txt(45,335+i*26,'· '+kf[i][0],{fill:AC,fs:11,fw:'bold'});txt(190,335+i*26,kf[i][1],{fill:DIM,fs:10});}
+    logMsg('[M4-1] RWKV Time-Mixing','k');
+    logMsg('  token shift + 指数衰减核 + 线性递推：RNN式推理、可并行训练。','ok');
+    logMsg('  u位置奖励使当前token区别于历史。','i');
+  }else if(m===2||m===1){
+    var cm=m===1;
+    ttl(30,30,cm?'M4-2 RWKV Channel-Mixing':'M4-3 注意力对比',AC);
+    sub(30,48,cm?'通道维度的time-mixing + 门控FFN':'Transformer注意力 vs RWKV线性注意力',DIM);
+    if(cm){
+      box(30,90,80,45,{label:'xₜ',stroke:INFO,fc:INFO,fs:11});
+      box(130,90,80,45,{label:'xₜ₋₁',stroke:DIM,fc:DIM,fs:11});
+      box(30,160,200,40,{label:'channel shift: 按通道混',stroke:WARN,fc:WARN,fs:9});
+      arrow(70,135,70,160,INFO,1.5);arrow(170,135,130,160,DIM,1);
+      box(30,225,60,40,{label:'kₜ',stroke:AC,fc:AC,fs:10});
+      box(100,225,60,40,{label:'rₜ',stroke:ROSE,fc:ROSE,fs:10});
+      box(170,225,60,40,{label:'vₜ',stroke:PUR,fc:PUR,fs:10});
+      arrow(70,200,50,225,AC,1.2);arrow(130,200,130,225,ROSE,1.2);arrow(185,200,200,225,PUR,1.2);
+      panel(260,150,300,180,'Channel-Mixing 计算');
+      txt(275,178,'kₜ = W_k·mix(x)',{fill:AC,fs:11});
+      txt(275,200,'rₜ = W_r·mix(x)',{fill:ROSE,fs:11});
+      txt(275,222,'vₜ = W_v·mix(x)',{fill:PUR,fs:11});
+      txt(275,248,'y = sigmoid(rₜ) ⊙ (Wₒ·(gelu(kₜ)⊙vₜ))',{fill:OK,fs:11,fw:'bold'});
+      txt(275,276,'门控r控制信息流',{fill:DIM,fs:10});
+      txt(275,296,'gelu(k)⊙v 非线性混合',{fill:DIM,fs:10});
+      txt(275,316,'类似GLU/FFN结构',{fill:DIM,fs:10});
+      box(580,210,90,50,{label:'yₜ',stroke:OK,fc:OK,fs:12});
+      arrow(560,235,580,235,PUR,2);
+      panel(30,350,860,100,'Channel-Mixing 作用');
+      txt(55,375,'在通道维度做时序混+门控非线性，相当于Transformer的FFN/MLP角色。',{fill:FG,fs:11});
+      txt(55,397,'与Time-Mixing交替堆叠，分别建模时序依赖与通道非线性变换。',{fill:OK,fs:11});
+      txt(55,419,'两者都为线性注意力形式，推理恒定内存。',{fill:PUR,fs:11});
+      logMsg('[M4-2] Channel-Mixing','k');
+      logMsg('  通道维time-mix+门控GLU，扮演FFN角色，与Time-Mixing交替堆叠。','ok');
+    }else{
+      panel(40,90,400,150,'Transformer 注意力');
+      ttl(55,115,'O(n²) 全局注意力',ERR);
+      txt(55,140,'Q,K,V ∈ ℝⁿˣᵈ',{fill:FG,fs:11});
+      txt(55,160,'Attn = softmax(QKᵀ/√d)V',{fill:ERR,fs:11,fw:'bold'});
+      txt(55,184,'· 每对token交互 → O(n²)',{fill:ERR,fs:10});
+      txt(55,202,'· 全局信息聚合，质量高',{fill:OK,fs:10});
+      txt(55,220,'· 内存随n二次增长',{fill:WARN,fs:10});
+      panel(480,90,400,150,'RWKV 线性注意力');
+      ttl(495,115,'O(n) 线性递推',OK);
+      txt(495,140,'aₜ,bₜ 递推维护',{fill:FG,fs:11});
+      txt(495,160,'yₜ = (aₜ+e^r v)/(bₜ+e^r)',{fill:OK,fs:11,fw:'bold'});
+      txt(495,184,'· 仅与状态交互 → O(n)',{fill:OK,fs:10});
+      txt(495,202,'· 质量接近注意力',{fill:OK,fs:10});
+      txt(495,220,'· 内存恒定O(d)',{fill:OK,fs:10});
+      panel(40,255,840,90,'复杂度对比 (n=序列长度)');
+      var data=[{l:'训练',v1:1,v2:0.3,c1:ERR,c2:OK},{l:'推理',v1:1,v2:0.05,c1:ERR,c2:OK},{l:'内存',v1:1,v2:0.1,c1:ERR,c2:OK}];
+      for(var i=0;i<3;i++){
+        var y0=275+i*22;
+        txt(55,y0,data[i].l,{fill:DIM,fs:10});
+        el('rect',{x:130,y:y0-8,width:200,height:10,fill:'#1a1d27'},svg);
+        el('rect',{x:130,y:y0-8,width:200*data[i].v1,height:10,fill:data[i].c1,opacity:0.7},svg);
+        txt(340,y0,'Transformer',{fill:data[i].c1,fs:9});
+        el('rect',{x:470,y:y0-8,width:200,height:10,fill:'#1a1d27'},svg);
+        el('rect',{x:470,y:y0-8,width:200*data[i].v2,height:10,fill:data[i].c2,opacity:0.7},svg);
+        txt(680,y0,'RWKV',{fill:data[i].c2,fs:9});
+      }
+      panel(40,360,840,90,'本质差异');
+      txt(55,385,'Transformer：显式n×n注意力矩阵，每token看见全部历史 → 质量高但O(n²)。',{fill:ERR,fs:11});
+      txt(55,407,'RWKV：用衰减核把历史压缩进递推状态(a,b) → 线性时间，质量近似。',{fill:OK,fs:11});
+      txt(55,429,'两者在中等长度质量接近；超长序列RWKV内存优势凸显。',{fill:PUR,fs:11});
+      logMsg('[M4-3] 注意力对比','k');
+      logMsg('  Transformer O(n²)显式注意力 vs RWKV O(n)线性递推。','i');
+      logMsg('  RWKV用衰减核压缩历史，质量接近注意力但线性高效。','ok');
+    }
+  }else{
+    ttl(30,30,'M4-4 RWKV 架构优势',AC);
+    sub(30,48,'RNN推理效率 + Transformer训练并行 + 开源生态',DIM);
+    var adv=[
+      {n:'推理恒定内存',x:40,y:90,c:OK,d:'推理按RNN递推，O(1)内存不随序列增长，适合长文本生成'},
+      {n:'训练可并行',x:315,y:90,c:AC,d:'训练时递推可展开为并行形式，吞吐量接近Transformer'},
+      {n:'无位置编码',x:590,y:90,c:PUR,d:'token shift内置时序，无需显式位置编码，外推性好'},
+      {n:'线性复杂度',x:40,y:200,c:INFO,d:'训练推理均O(n)，长序列优势显著'},
+      {n:'完全开源',x:315,y:200,c:ROSE,d:'RWKV-7全开源，权重可本地部署，社区活跃'},
+      {n:'多模态扩展',x:590,y:200,c:WARN,d:'RWKV-6/7支持视觉、音频，多模态统一架构'}
+    ];
+    for(var i=0;i<adv.length;i++){
+      box(adv[i].x,adv[i].y,260,80,{fill:BG3,stroke:adv[i].c,sw:1.5});
+      ttl(adv[i].x+12,adv[i].y+22,adv[i].n,adv[i].c);
+      var ds=adv[i].d;var dt=el('text',{x:adv[i].x+12,y:adv[i].y+45,fill:DIM,'font-size':9},svg);dt.textContent=ds;
+    }
+    panel(40,300,840,150,'RWKV 版本演进');
+    var ver=[['RWKV-4','首个可用版本，证明线性注意力可行性'],['RWKV-5','架构优化，多语言增强'],['RWKV-6','Time-Mix数据依赖，多模态支持'],['RWKV-7','goose机制，质量追平同规模Transformer']];
+    for(var i=0;i<ver.length;i++){
+      txt(55,325+i*28,ver[i][0],{fill:AC,fs:11,fw:'bold'});
+      txt(170,325+i*28,ver[i][1],{fill:DIM,fs:10});
+    }
+    logMsg('[M4-4] RWKV优势','k');
+    logMsg('  RNN推理效率+Transformer训练并行+开源，线性注意力代表。','ok');
+    logMsg('  RWKV-7质量追平同规模Transformer。','ok');
+  }
+}
+
+// ===== M5: Transformer vs SSM =====
+function m5Draw(){M5N=512;m5View(0);}
+function m5View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M5-1 复杂度对比（可交互）',AC);
+    sub(30,48,'拖动滑块调节序列长度n · Transformer O(n²) vs SSM O(n)',DIM);
+    var n=M5N;
+    var tFLOPs=n*n*0.0001;
+    var sFLOPs=n*8*0.0001;
+    var tNorm=Math.min(tFLOPs*8,1);
+    var sNorm=Math.min(sFLOPs*8,1);
+    panel(40,100,400,140,'Transformer 注意力');
+    ttl(55,125,'O(n²) = '+n+'²',ERR);
+    el('rect',{x:55,y:140,width:370,height:24,rx:3,fill:'#1a1d27'},svg);
+    el('rect',{x:55,y:140,width:370*tNorm,height:24,rx:3,fill:ERR,opacity:0.8},svg);
+    var tf=el('text',{x:60,y:157,fill:'#fff','font-size':11,'font-weight':'bold'},svg);tf.textContent=tFLOPs.toFixed(2)+' GFLOPs';
+    txt(55,185,'每token与全部n个token交互',{fill:DIM,fs:10});
+    txt(55,205,'注意力矩阵 n×n = '+(n*n).toLocaleString()+' 元素',{fill:ERR,fs:10});
+    txt(55,225,'n='+n.toLocaleString()+' 时内存 '+(n*n*4/1e9).toFixed(2)+'GB',{fill:WARN,fs:10});
+    panel(480,100,400,140,'SSM 扫描');
+    ttl(495,125,'O(n·N) = '+n+'×8',OK);
+    el('rect',{x:495,y:140,width:370,height:24,rx:3,fill:'#1a1d27'},svg);
+    el('rect',{x:495,y:140,width:370*sNorm,height:24,rx:3,fill:OK,opacity:0.8},svg);
+    var sf=el('text',{x:500,y:157,fill:'#fff','font-size':11,'font-weight':'bold'},svg);sf.textContent=sFLOPs.toFixed(2)+' GFLOPs';
+    txt(495,185,'每token仅与状态N交互',{fill:DIM,fs:10});
+    txt(495,205,'状态向量 N维 = '+(n*8).toLocaleString()+' 累计',{fill:OK,fs:10});
+    txt(495,225,'n='+n.toLocaleString()+' 时内存 '+(n*8*4/1e6).toFixed(2)+'MB',{fill:OK,fs:10});
+    panel(40,260,840,70,'对比结论');
+    var ratio=(tFLOPs/sFLOPs).toFixed(0);
+    txt(55,285,'序列长度 n='+n.toLocaleString()+' 时，Transformer计算量是SSM的 '+ratio+' 倍',{fill:AC,fs:12,fw:'bold'});
+    txt(55,307,'随n增大，差距持续放大 → SSM在长序列上具决定性优势',{fill:OK,fs:11});
+    slider(40,350,840,'序列长度 n (64 → 100000)',64,100000,M5N,function(v){M5N=v;redraw();});
+    panel(40,375,840,75,'趋势解读');
+    txt(55,400,'· n=512：Transformer 0.03 vs SSM 0.004 GFLOPs (≈7倍)',{fill:FG,fs:10});
+    txt(55,420,'· n=8192：Transformer 6.7 vs SSM 0.07 GFLOPs (≈100倍)',{fill:WARN,fs:10});
+    txt(55,438,'· n=100000：差距超1000倍，Transformer显存爆掉，SSM仍可运行',{fill:ERR,fs:10});
+    logMsg('[M5-1] 复杂度对比 n='+n,'k');
+    logMsg('  Transformer O(n²) vs SSM O(n)，n='+n+'时差距约'+ratio+'倍。','ok');
+  }else if(m===1){
+    ttl(30,30,'M5-2 注意力矩阵 vs 线性扫描',AC);
+    sub(30,48,'可视化 n×n 注意力矩阵 与 SSM 线性递推扫描',DIM);
+    panel(40,90,380,280,'Transformer 注意力矩阵 (n×n)');
+    var N=10,cs=28,cx=80,cy=130;
+    txt(cx+N*cs/2,cy-12,'QKᵀ (n×n) 全连接',{fill:ERR,fs:10,ta:'middle'});
+    for(var i=0;i<N;i++)for(var j=0;j<N;j++){
+      var v=Math.exp(-Math.abs(i-j)*0.3)+Math.random()*0.2;
+      heatCell(cx+j*cs,cy+i*cs,cs-2,cs-2,v,1.3);
+    }
+    txt(cx+N*cs/2,cy+N*cs+12,'每格=i对j的注意力 · 共n²个',{fill:DIM,fs:9,ta:'middle'});
+    txt(cx+N*cs/2,cy+N*cs+28,'存储/计算 O(n²)',{fill:ERR,fs:10,ta:'middle',fw:'bold'});
+    panel(460,90,420,280,'SSM 线性递推扫描');
+    txt(670,cy-12,'hₜ=Āhₜ₋₁+B̄xₜ 链式',{fill:OK,fs:10,ta:'middle'});
+    for(var i=0;i<N;i++){
+      var hx=500+i*36;
+      el('circle',{cx:hx,cy:200,r:11,fill:BG2,stroke:OK,'stroke-width':2},svg);
+      var lt=el('text',{x:hx,y:203,fill:OK,'font-size':9,'text-anchor':'middle'},svg);lt.textContent='h'+i;
+      if(i<N-1)arrow(hx+11,200,hx+25,200,OK,1.5);
+      var xt=el('text',{x:hx,y:225,fill:INFO,'font-size':8,'text-anchor':'middle'},svg);xt.textContent='x'+i;
+      arrow(hx,180,hx,189,INFO,1);
+    }
+    txt(670,255,'每步仅O(N)更新状态 · 共n步',{fill:DIM,fs:9,ta:'middle'});
+    txt(670,275,'存储 O(N) · 计算 O(n·N)',{fill:OK,fs:10,ta:'middle',fw:'bold'});
+    txt(670,300,'无n×n矩阵，内存独立于n',{fill:OK,fs:9,ta:'middle'});
+    panel(40,385,840,65,'本质对比');
+    txt(55,410,'注意力：显式构建n×n关系矩阵，任意位置直接交互(质量高，O(n²))。',{fill:ERR,fs:11});
+    txt(55,432,'SSM：用状态h作“信息中转”，位置i通过h间接看到j(线性O(n))。',{fill:OK,fs:11});
+    logMsg('[M5-2] 矩阵vs扫描','k');
+    logMsg('  注意力显式n×n全连接；SSM用状态中转线性扫描。','i');
+  }else if(m===2){
+    ttl(30,30,'M5-3 并行训练能力',AC);
+    sub(30,48,'Transformer全并行 vs SSM并行扫描 vs RNN顺序',DIM);
+    panel(40,90,260,200,'RNN (顺序)');
+    for(var i=0;i<6;i++){
+      el('circle',{cx:90+i*32,cy:140,r:9,fill:BG2,stroke:ERR,'stroke-width':2},svg);
+      if(i<5)arrow(99,140,113,140,ERR,1);
+    }
+    txt(170,170,'t1→t2→...→tn',{fill:ERR,fs:10,ta:'middle'});
+    txt(170,195,'必须顺序计算',{fill:ERR,fs:10,ta:'middle'});
+    txt(170,220,'训练O(n)不可并行',{fill:WARN,fs:10,ta:'middle'});
+    txt(170,245,'GPU利用率低',{fill:WARN,fs:10,ta:'middle'});
+    panel(320,90,260,200,'Transformer (全并行)');
+    for(var i=0;i<6;i++){
+      el('circle',{cx:370+i*32,cy:140,r:9,fill:BG2,stroke:OK,'stroke-width':2},svg);
+    }
+    line(370,165,530,165,OK,1.5);
+    txt(450,170,'全并行',{fill:OK,fs:10,ta:'middle'});
+    txt(450,195,'所有token同时算',{fill:OK,fs:10,ta:'middle'});
+    txt(450,220,'训练O(1)深度并行',{fill:OK,fs:10,ta:'middle'});
+    txt(450,245,'GPU利用率高',{fill:OK,fs:10,ta:'middle'});
+    panel(600,90,280,200,'SSM 并行扫描');
+    for(var i=0;i<6;i++){
+      el('circle',{cx:640+i*38,cy:140,r:9,fill:BG2,stroke:AC,'stroke-width':2},svg);
+    }
+    // 树形扫描
+    line(640,165,716,165,AC,1);line(716,165,716,175,AC,1);line(754,165,716,165,AC,1);
+    line(640,175,678,175,AC,1);line(678,175,678,185,AC,1);line(716,175,678,175,AC,1);
+    txt(740,170,'并行scan',{fill:AC,fs:10,ta:'middle'});
+    txt(740,195,'前缀和式并行',{fill:OK,fs:10,ta:'middle'});
+    txt(740,220,'O(log n)深度',{fill:OK,fs:10,ta:'middle'});
+    txt(740,245,'吞吐接近Transformer',{fill:OK,fs:10,ta:'middle'});
+    panel(40,310,840,140,'并行训练对比');
+    var pt=[['训练并行度','低(顺序)','高(全并行)','高(并行扫描)'],['计算复杂度','O(n)','O(n²)','O(n)'],['GPU利用率','<20%','>80%','>70%'],['长序列训练','慢','显存爆','高效']];
+    var cols=[40,260,470,690];
+    var hdr=['','RNN','Transformer','SSM(Mamba)'];
+    for(var c=0;c<4;c++){var t=el('text',{x:cols[c]+10,y:335,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=hdr[c];}
+    for(var r=0;r<4;r++){
+      for(var c=0;c<4;c++){
+        var cl=c===0?DIM:(c===1?ERR:c===2?OK:AC);
+        var t=el('text',{x:cols[c]+10,y:358+r*22,fill:cl,'font-size':10},svg);t.textContent=pt[r][c];
+      }
+    }
+    logMsg('[M5-3] 并行训练','k');
+    logMsg('  Mamba用并行扫描获得接近Transformer的并行度，同时保持O(n)。','ok');
+  }else{
+    ttl(30,30,'M5-4 长序列效率',AC);
+    sub(30,48,'不同序列长度下的相对效率（对数尺度）',DIM);
+    var lens=[1024,4096,16384,65536,262144,1048576];
+    var tEff=[100,40,12,3,0.5,0.05];
+    var sEff=[95,90,85,80,75,70];
+    var bx=80,by=110,bw=520,bh=260;
+    txt(bx-8,by,'效率%',{fill:DIM,fs:9,ta:'end',db:'middle'});
+    line(bx,by,bx,by+bh,DIM,1.5);line(bx,by+bh,bx+bw,by+bh,DIM,1.5);
+    for(var g=0;g<=4;g++){var gy=by+g*bh/4;line(bx,gy,bx+bw,gy,'#15182a',0.5);var gt=el('text',{x:bx-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=(100-g*25)+'%';}
+    for(var i=0;i<lens.length;i++){
+      var lx=bx+i*(bw/(lens.length-1));
+      var lt=el('text',{x:lx,y:by+bh+14,fill:DIM,'font-size':9,'text-anchor':'middle'},svg);lt.textContent=(lens[i]>=1024?(lens[i]/1024)+'K':lens[i]);
+    }
+    txt(bx+bw/2,by+bh+34,'序列长度',{fill:DIM,fs:10,ta:'middle'});
+    // 折线
+    function plot(data,col){
+      var pts=[];
+      for(var i=0;i<data.length;i++){var px=bx+i*(bw/(data.length-1));var py=by+bh-data[i]/100*bh;pts.push(px+','+py);if(i>0)el('line',{x1:bx+(i-1)*(bw/(data.length-1)),y1:by+bh-data[i-1]/100*bh,x2:px,y2:py,stroke:col,'stroke-width':2},svg);}
+      for(var i=0;i<data.length;i++){var px=bx+i*(bw/(data.length-1));var py=by+bh-data[i]/100*bh;el('circle',{cx:px,cy:py,r:4,fill:col,stroke:'#0a0c12','stroke-width':1.5},svg);}
+    }
+    plot(tEff,ERR);plot(sEff,OK);
+    panel(620,110,260,260,'图例');
+    el('circle',{cx:640,cy:140,r:5,fill:ERR},svg);txt(655,140,'Transformer',{fill:ERR,fs:11});
+    el('circle',{cx:640,cy:165,r:5,fill:OK},svg);txt(655,165,'SSM(Mamba)',{fill:OK,fs:11});
+    txt(640,195,'1M tokens:',{fill:DIM,fs:10,fw:'bold'});
+    txt(640,215,'Transformer: 0.05%',{fill:ERR,fs:10});
+    txt(640,235,'SSM: 70%',{fill:OK,fs:10});
+    txt(640,265,'SSM在超长序列保持',{fill:DIM,fs:9});
+    txt(640,282,'高吞吐，Transformer',{fill:DIM,fs:9});
+    txt(640,299,'因显存/算力急剧下降',{fill:DIM,fs:9});
+    panel(40,395,840,55,'结论');
+    txt(55,420,'序列越长，SSM优势越大；1M tokens时SSM吞吐为Transformer的1400倍。',{fill:OK,fs:11});
+    logMsg('[M5-4] 长序列效率','k');
+    logMsg('  1M tokens时SSM吞吐为Transformer约1400倍，长序列决定性优势。','ok');
+  }
+}
+
+// ===== M6: 长序列建模能力 =====
+function m6Draw(){m6View(0);}
+function m6View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M6-1 长序列性能对比',AC);
+    sub(30,48,'不同模型在长序列任务上的准确率（对数横轴）',DIM);
+    var lens=[1024,4096,16384,65536,262144];
+    var models=[{n:'Transformer',c:ERR,data:[92,88,70,40,20]},{n:'Mamba',c:OK,data:[91,90,89,87,84]},{n:'RWKV',c:AC,data:[90,89,87,85,82]},{n:'S4',c:PUR,data:[88,87,86,84,80]}];
+    var bx=80,by=110,bw=520,bh=250;
+    line(bx,by,bx,by+bh,DIM,1.5);line(bx,by+bh,bx+bw,by+bh,DIM,1.5);
+    for(var g=0;g<=4;g++){var gy=by+g*bh/4;line(bx,gy,bx+bw,gy,'#15182a',0.5);var gt=el('text',{x:bx-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=(100-g*25)+'%';}
+    for(var i=0;i<lens.length;i++){var lx=bx+i*(bw/(lens.length-1));var lt=el('text',{x:lx,y:by+bh+14,fill:DIM,'font-size':9,'text-anchor':'middle'},svg);lt.textContent=(lens[i]/1024)+'K';}
+    txt(bx+bw/2,by+bh+34,'序列长度',{fill:DIM,fs:10,ta:'middle'});
+    for(var mi=0;mi<models.length;mi++){
+      var md=models[mi];
+      for(var i=0;i<md.data.length;i++){
+        var px=bx+i*(bw/(md.data.length-1));var py=by+bh-md.data[i]/100*bh;
+        if(i>0)el('line',{x1:bx+(i-1)*(bw/(md.data.length-1)),y1:by+bh-md.data[i-1]/100*bh,x2:px,y2:py,stroke:md.c,'stroke-width':2},svg);
+      }
+      for(var i=0;i<md.data.length;i++){var px=bx+i*(bw/(md.data.length-1));var py=by+bh-md.data[i]/100*bh;el('circle',{cx:px,cy:py,r:4,fill:md.c,stroke:'#0a0c12','stroke-width':1.5},svg);}
+    }
+    panel(620,110,260,250,'图例');
+    for(var mi=0;mi<models.length;mi++){el('circle',{cx:640,cy:140+mi*30,r:5,fill:models[mi].c},svg);txt(655,140+mi*30,models[mi].n,{fill:models[mi].c,fs:11,fw:'bold'});}
+    txt(640,270,'SSM系随长度增加',{fill:DIM,fs:9});
+    txt(640,288,'性能下降极小；',{fill:DIM,fs:9});
+    txt(640,306,'Transformer急剧退化',{fill:DIM,fs:9});
+    panel(40,380,840,70,'结论');
+    txt(55,405,'Transformer在>16K后准确率断崖式下降；SSM系(Mamba/RWKV/S4)在256K仍保持>80%。',{fill:OK,fs:11});
+    txt(55,427,'SSM的线性状态压缩天然适配超长序列的远程依赖建模。',{fill:AC,fs:11});
+    logMsg('[M6-1] 长序列性能','k');
+    logMsg('  SSM在256K仍>80%，Transformer在64K即降至40%。','ok');
+  }else if(m===1){
+    ttl(30,30,'M6-2 内存占用对比',AC);
+    sub(30,48,'峰值显存 vs 序列长度（对数双轴）',DIM);
+    var lens=[1024,4096,16384,65536,262144,1048576];
+    var tMem=[0.5,2,8,32,128,512];
+    var sMem=[0.05,0.08,0.15,0.4,1.2,4];
+    var bx=80,by=110,bw=520,bh=250;
+    line(bx,by,bx,by+bh,DIM,1.5);line(bx,by+bh,bx+bw,by+bh,DIM,1.5);
+    var yMax=600;
+    for(var g=0;g<=4;g++){var gy=by+g*bh/4;line(bx,gy,bx+bw,gy,'#15182a',0.5);var val=yMax/Math.pow(10,g*1.5);var gt=el('text',{x:bx-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=val>=1?val+'G':(val*1024)+'M';}
+    function logY(v){return by+bh-Math.log10(v/yMax*0.001+0.001)/Math.log10(0.001/yMax*0.001+0.001)*bh;}
+    function lpos(v){return by+bh-bh*Math.log10(v+1)/Math.log10(513);}
+    for(var i=0;i<lens.length;i++){var lx=bx+i*(bw/(lens.length-1));var lt=el('text',{x:lx,y:by+bh+14,fill:DIM,'font-size':9,'text-anchor':'middle'},svg);lt.textContent=(lens[i]>=1048576?'1M':(lens[i]/1024)+'K');}
+    txt(bx+bw/2,by+bh+34,'序列长度',{fill:DIM,fs:10,ta:'middle'});
+    function plotMem(data,col){
+      for(var i=0;i<data.length;i++){
+        var px=bx+i*(bw/(data.length-1));var py=lpos(data[i]);
+        if(i>0)el('line',{x1:bx+(i-1)*(bw/(data.length-1)),y1:lpos(data[i-1]),x2:px,y2:py,stroke:col,'stroke-width':2},svg);
+      }
+      for(var i=0;i<data.length;i++){var px=bx+i*(bw/(data.length-1));var py=lpos(data[i]);el('circle',{cx:px,cy:py,r:4,fill:col,stroke:'#0a0c12','stroke-width':1.5},svg);}
+    }
+    plotMem(tMem,ERR);plotMem(sMem,OK);
+    panel(620,110,260,250,'图例');
+    el('circle',{cx:640,cy:140,r:5,fill:ERR},svg);txt(655,140,'Transformer',{fill:ERR,fs:11,fw:'bold'});
+    el('circle',{cx:640,cy:165,r:5,fill:OK},svg);txt(655,165,'SSM(Mamba)',{fill:OK,fs:11,fw:'bold'});
+    txt(640,200,'1M tokens:',{fill:DIM,fs:10,fw:'bold'});
+    txt(640,220,'Transformer: 512GB',{fill:ERR,fs:10});
+    txt(640,240,'SSM: 4GB',{fill:OK,fs:10});
+    txt(640,270,'差距128倍',{fill:WARN,fs:11,fw:'bold'});
+    txt(640,300,'Transformer O(n²)显存',{fill:DIM,fs:9});
+    txt(640,318,'SSM O(n)显存',{fill:DIM,fs:9});
+    panel(40,380,840,70,'结论');
+    txt(55,405,'1M tokens时Transformer需512GB(超出单卡)，SSM仅需4GB(单卡可跑)。',{fill:OK,fs:11});
+    txt(55,427,'SSM使百万级token上下文在消费级GPU上可行。',{fill:AC,fs:11});
+    logMsg('[M6-2] 内存占用','k');
+    logMsg('  1M tokens：Transformer 512GB vs SSM 4GB，差距128倍。','ok');
+  }else if(m===2){
+    ttl(30,30,'M6-3 外推能力',AC);
+    sub(30,48,'训练长度L_train外的外推表现 · SSM vs Transformer',DIM);
+    var bx=80,by=110,bw=520,bh=250;
+    line(bx,by,bx,by+bh,DIM,1.5);line(bx,by+bh,bx+bw,by+bh,DIM,1.5);
+    for(var g=0;g<=4;g++){var gy=by+g*bh/4;line(bx,gy,bx+bw,gy,'#15182a',0.5);var gt=el('text',{x:bx-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=(100-g*25)+'%';}
+    var trainX=bx+bw*0.4;
+    line(trainX,by,trainX,by+bh,WARN,1,'5,3');
+    txt(trainX,by-6,'训练长度 L_train',{fill:WARN,fs:10,ta:'middle'});
+    var lens=[0,0.2,0.4,0.6,0.8,1.0];
+    var tData=[95,93,90,70,45,20];
+    var sData=[94,93,92,91,90,89];
+    for(var mi=0;mi<2;mi++){
+      var data=mi===0?tData:sData;var col=mi===0?ERR:OK;
+      for(var i=0;i<data.length;i++){
+        var px=bx+lens[i]*bw;var py=by+bh-data[i]/100*bh;
+        if(i>0)el('line',{x1:bx+lens[i-1]*bw,y1:by+bh-data[i-1]/100*bh,x2:px,y2:py,stroke:col,'stroke-width':2},svg);
+      }
+      for(var i=0;i<data.length;i++){var px=bx+lens[i]*bw;var py=by+bh-data[i]/100*bh;el('circle',{cx:px,cy:py,r:4,fill:col,stroke:'#0a0c12','stroke-width':1.5},svg);}
+    }
+    txt(bx+bw*0.2,by+bh+14,'L_train',{fill:DIM,fs:9,ta:'middle'});txt(bx+bw*0.7,by+bh+14,'2×L_train',{fill:DIM,fs:9,ta:'middle'});txt(bx+bw,by+bh+14,'3×L_train',{fill:DIM,fs:9,ta:'middle'});
+    txt(bx+bw/2,by+bh+34,'相对训练长度',{fill:DIM,fs:10,ta:'middle'});
+    panel(620,110,260,250,'外推机制');
+    el('circle',{cx:640,cy:140,r:5,fill:ERR},svg);txt(655,140,'Transformer',{fill:ERR,fs:11});
+    el('circle',{cx:640,cy:165,r:5,fill:OK},svg);txt(655,165,'SSM',{fill:OK,fs:11});
+    txt(640,195,'SSM外推强：',{fill:DIM,fs:10,fw:'bold'});
+    txt(640,215,'· 连续时间参数化',{fill:OK,fs:9});
+    txt(640,232,'· 状态衰减与长度无关',{fill:OK,fs:9});
+    txt(640,249,'· 无位置编码截断',{fill:OK,fs:9});
+    txt(640,275,'Transformer外推弱：',{fill:DIM,fs:10,fw:'bold'});
+    txt(640,295,'· 位置编码超出范围',{fill:ERR,fs:9});
+    txt(640,312,'· 注意力分布偏移',{fill:ERR,fs:9});
+    txt(640,329,'· 需RoPE等技巧缓解',{fill:WARN,fs:9});
+    panel(40,380,840,70,'结论');
+    txt(55,405,'SSM在3×L_train外推仍保持89%；Transformer降至20%(接近随机)。',{fill:OK,fs:11});
+    txt(55,427,'连续参数化使SSM天然支持超出训练长度的序列建模。',{fill:AC,fs:11});
+    logMsg('[M6-3] 外推能力','k');
+    logMsg('  SSM 3×外推89%，Transformer仅20%；连续参数化是关键。','ok');
+  }else{
+    ttl(30,30,'M6-4 吞吐量对比',AC);
+    sub(30,48,'tokens/秒 · 不同序列长度下的推理吞吐（对数纵轴）',DIM);
+    var data=[{l:'Transformer',c:ERR,v:[12000,8000,3000,500,20]},{l:'Mamba',c:OK,v:[11000,10500,9800,9000,7500]},{l:'RWKV',c:AC,v:[10000,9500,9000,8500,7000]}];
+    bars(80,110,760,260,data.map(function(d){return {l:d.l,v:0,c:d.c};}),'');
+    // 自绘分组柱（吞吐，1K与1M对比）
+    var bx=90,by=120,bw=720,bh=240;
+    clear(svg);gridbg();
+    ttl(30,30,'M6-4 吞吐量对比',AC);
+    sub(30,48,'1K vs 1M tokens 推理吞吐(tokens/s，对数尺度)',DIM);
+    line(bx,by,bx,by+bh,DIM,1.5);line(bx,by+bh,bx+bw,by+bh,DIM,1.5);
+    var vals=[10,100,1000,10000];
+    for(var g=0;g<=3;g++){var gy=by+g*bh/3;line(bx,gy,bx+bw,gy,'#15182a',0.5);var gt=el('text',{x:bx-6,y:gy,fill:DIM,'font-size':9,'text-anchor':'end','dominant-baseline':'middle'},svg);gt.textContent=vals[3-g];}
+    txt(bx-30,by+bh/2,'tokens/s',{fill:DIM,fs:10,ta:'middle',db:'middle'});
+    var groups=[{l:'Transformer',v1:12000,v2:20,c:ERR},{l:'Mamba',v1:11000,v2:7500,c:OK},{l:'RWKV',v1:10000,v2:7000,c:AC}];
+    var gw=bw/groups.length;
+    function lpos(v){return by+bh-bh*(Math.log10(v)-1)/(Math.log10(12000)-1);}
+    for(var i=0;i<groups.length;i++){
+      var gx=bx+i*gw;
+      var gt2=el('text',{x:gx+gw/2,y:by+bh+16,fill:groups[i].c,'font-size':11,'text-anchor':'middle','font-weight':'bold'},svg);gt2.textContent=groups[i].l;
+      // 1K
+      var h1=by+bh-lpos(groups[i].v1);
+      el('rect',{x:gx+gw*0.2,y:lpos(groups[i].v1),width:gw*0.25,height:h1,fill:groups[i].c,opacity:0.5,rx:2},svg);
+      var vt1=el('text',{x:gx+gw*0.32,y:lpos(groups[i].v1)-6,fill:groups[i].c,'font-size':10,'text-anchor':'middle','font-weight':'bold'},svg);vt1.textContent=groups[i].v1;
+      // 1M
+      var h2=by+bh-lpos(groups[i].v2);
+      el('rect',{x:gx+gw*0.55,y:lpos(groups[i].v2),width:gw*0.25,height:h2,fill:groups[i].c,opacity:0.9,rx:2},svg);
+      var vt2=el('text',{x:gx+gw*0.67,y:lpos(groups[i].v2)-6,fill:groups[i].c,'font-size':10,'text-anchor':'middle','font-weight':'bold'},svg);vt2.textContent=groups[i].v2;
+    }
+    panel(40,400,400,50,'');el('rect',{x:55,y:415,width:14,height:10,fill:AC,opacity:0.5},svg);txt(75,420,'1K tokens',{fill:DIM,fs:10});el('rect',{x:175,y:415,width:14,height:10,fill:AC,opacity:0.9},svg);txt(195,420,'1M tokens',{fill:DIM,fs:10});
+    panel(460,395,420,55,'结论');
+    txt(475,418,'1M tokens时Mamba吞吐7500 vs Transformer 20，差距375倍。',{fill:OK,fs:11});
+    txt(475,438,'长序列推理SSM系全面碾压Transformer。',{fill:AC,fs:11});
+    logMsg('[M6-4] 吞吐量','k');
+    logMsg('  1M tokens：Mamba 7500 tok/s vs Transformer 20，差距375倍。','ok');
+  }
+}
+
+// ===== M7: 硬件感知实现 =====
+function m7Draw(){m7View(0);}
+function m7View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M7-1 GPU内存层次',AC);
+    sub(30,48,'SRAM(片上) → HBM → DRAM · 带宽与容量权衡',DIM);
+    var layers=[{n:'寄存器',cap:'~256KB',bw:'~20TB/s',c:OK,y:95},{n:'SRAM/L1缓存',cap:'~192KB/SM',bw:'~10TB/s',c:INFO,y:155},{n:'L2缓存',cap:'~50MB',bw:'~4TB/s',c:AC,y:215},{n:'HBM(显存)',cap:'80GB',bw:'~2TB/s',c:PUR,y:275},{n:'DRAM(主机)',cap:'~1TB',bw:'~100GB/s',c:WARN,y:335}];
+    for(var i=0;i<layers.length;i++){
+      var w=760-i*70;
+      box(80+(760-w)/2,layers[i].y,w,45,{fill:BG3,stroke:layers[i].c,sw:1.5});
+      var t=el('text',{x:80+(760-w)/2+12,y:layers[i].y+18,fill:layers[i].c,'font-size':12,'font-weight':'bold'},svg);t.textContent=layers[i].n;
+      var t2=el('text',{x:80+(760-w)/2+w-12,y:layers[i].y+18,fill:FG,'font-size':10,'text-anchor':'end'},svg);t2.textContent='容量 '+layers[i].cap;
+      var t3=el('text',{x:80+(760-w)/2+12,y:layers[i].y+34,fill:DIM,'font-size':9},svg);t3.textContent='带宽 '+layers[i].bw;
+      if(i<layers.length-1){arrow(460,layers[i].y+45,460,layers[i+1].y-2,layers[i+1].c,1.5);}
+    }
+    txt(460,395,'↓ 越往下容量越大但带宽越低 · 数据搬运是性能瓶颈',{fill:WARN,fs:10,ta:'middle'});
+    panel(40,410,840,40,'');
+    txt(55,432,'Mamba硬件感知核心：让SSM扫描在SRAM内完成，避免反复读写HBM(显存)。',{fill:AC,fs:11});
+    logMsg('[M7-1] 内存层次','k');
+    logMsg('  SRAM带宽10TB/s vs HBM 2TB/s，5倍差距 → 减少HBM访问是关键。','ok');
+  }else if(m===1){
+    ttl(30,30,'M7-2 并行扫描算法',AC);
+    sub(30,48,'前缀和式并行扫描 · O(n)工作 / O(log n)深度',DIM);
+    panel(40,85,420,200,'朴素顺序扫描');
+    for(var i=0;i<8;i++){
+      el('circle',{cx:70+i*46,cy:130,r:11,fill:BG2,stroke:ERR,'stroke-width':2},svg);
+      if(i<7)arrow(81+i*46,130,109+i*46,130,ERR,1);
+    }
+    txt(250,165,'8步顺序 · 深度O(n)',{fill:ERR,fs:10,ta:'middle'});
+    txt(250,185,'必须等上一步完成',{fill:ERR,fs:10,ta:'middle'});
+    txt(250,210,'GPU利用率低',{fill:WARN,fs:10,ta:'middle'});
+    txt(250,235,'hₜ依赖hₜ₋₁',{fill:DIM,fs:10,ta:'middle'});
+    txt(250,260,'无法并行',{fill:ERR,fs:10,ta:'middle',fw:'bold'});
+    panel(480,85,400,200,'并行扫描(Blelloch)');
+    var sx=500;
+    for(var lvl=0;lvl<3;lvl++){
+      var span=Math.pow(2,lvl);
+      var ly=130+lvl*28;
+      for(var k=0;k<8;k+=span*2){
+        var ax=sx+k*22+span*11;
+        var bx2=sx+(k+span)*22+span*11;
+        el('circle',{cx:ax,cy:ly,r:6,fill:AC,stroke:'#0a0c12','stroke-width':1},svg);
+        el('line',{x1:ax,y1:ly,x2:bx2,y2:ly,stroke:AC,'stroke-width':1.5},svg);
+        el('circle',{cx:bx2,cy:ly,r:6,fill:OK,stroke:'#0a0c12','stroke-width':1},svg);
+      }
+    }
+    txt(680,248,'3层并行 · 深度O(log n)',{fill:OK,fs:10,ta:'middle'});
+    txt(680,268,'每层可并行',{fill:OK,fs:10,ta:'middle'});
+    txt(680,288,'GPU高利用率',{fill:OK,fs:10,ta:'middle'});
+    txt(680,308,'工作量O(n)',{fill:DIM,fs:10,ta:'middle'});
+    panel(40,300,840,80,'并行扫描原理');
+    txt(55,325,'前缀和式扫描：上扫(reduce)+下扫(distribute)，把顺序递推转为树形并行。',{fill:FG,fs:11});
+    txt(55,347,'深度O(log n)：8元素仅需3层并行combine，Mamba以此实现GPU高效扫描。',{fill:OK,fs:11});
+    txt(55,369,'思想同FlashAttention：减少HBM中间读写，在SRAM内融合计算。',{fill:AC,fs:11});
+    logMsg('[M7-2] 并行扫描','k');
+    logMsg('  Blelloch前缀和扫描：O(n)工作O(log n)深度，递推SSM在GPU并行。','ok');
+  }else if(m===2){
+    ttl(30,30,'M7-3 SRAM融合Kernel',AC);
+    sub(30,48,'分块(tiling) + 融合扫描 · 数据驻留SRAM避免HBM往返',DIM);
+    panel(40,85,400,150,'朴素实现(未融合)');
+    box(60,115,360,30,{label:'HBM读入 x,A,B,C',stroke:ERR,fc:ERR,fs:10});
+    arrow(240,145,240,158,ERR,1);
+    box(60,160,360,30,{label:'SRAM计算 hₜ=Āh+B̄x',stroke:WARN,fc:WARN,fs:10});
+    arrow(240,190,240,203,ERR,1);
+    box(60,205,360,30,{label:'HBM写出 yₜ',stroke:ERR,fc:ERR,fs:10});
+    txt(240,255,'每步4次HBM往返 → 带宽瓶颈',{fill:ERR,fs:10,ta:'middle'});
+    txt(240,275,'L步 → 4L次HBM访问',{fill:ERR,fs:10,ta:'middle',fw:'bold'});
+    panel(460,85,400,150,'融合Kernel(Mamba)');
+    box(480,115,360,30,{label:'HBM一次性读入分块',stroke:OK,fc:OK,fs:10});
+    arrow(660,145,660,158,OK,1);
+    box(480,160,360,30,{label:'SRAM内完成全部扫描',stroke:OK,fc:OK,fs:10});
+    arrow(660,190,660,203,OK,1);
+    box(480,205,360,30,{label:'HBM一次性写出结果',stroke:OK,fc:OK,fs:10});
+    txt(660,255,'仅2次HBM访问 → 带宽解放',{fill:OK,fs:10,ta:'middle'});
+    txt(660,275,'计算在SRAM全融合',{fill:OK,fs:10,ta:'middle',fw:'bold'});
+    panel(40,250,840,130,'融合策略：分块扫描');
+    txt(55,278,'1. 将序列切分为块(block)，每块大小适配SRAM容量(~192KB/SM)。',{fill:FG,fs:11});
+    txt(55,300,'2. 块内：在SRAM内完成并行扫描，中间状态不落HBM。',{fill:OK,fs:11});
+    txt(55,322,'3. 块间：传递末尾状态h作为下一块初值，串联递推。',{fill:AC,fs:11});
+    txt(55,344,'4. 选择性参数(Δ,B,C)的生成也融合进同一Kernel，避免额外HBM读写。',{fill:PUR,fs:11});
+    txt(55,366,'效果：比朴素PyTorch实现快40倍，比优化的CUDA循环快2-8倍。',{fill:OK,fs:11,fw:'bold'});
+    panel(40,390,840,60,'');
+    txt(55,415,'关键洞察：SSM扫描的递推性使其可分块处理，与FlashAttention的分块思想一致。',{fill:AC,fs:11});
+    txt(55,437,'区别：注意力分块需重计算，SSM分块只需传递状态向量(更轻量)。',{fill:DIM,fs:11});
+    logMsg('[M7-3] SRAM融合','k');
+    logMsg('  分块+融合扫描：数据驻留SRAM，HBM访问从4L次降到2次。','ok');
+    logMsg('  比朴素实现快40倍，是Mamba工程效率的核心。','ok');
+  }else{
+    ttl(30,30,'M7-4 Kernel实现对比',AC);
+    sub(30,48,'朴素递推 vs 并行扫描 vs 融合扫描 · 延迟与吞吐',DIM);
+    var ks=[{n:'朴素递推(PyTorch)',c:ERR,d:100,t:1,m:4},{n:'并行扫描(无融合)',c:WARN,d:30,t:8,m:3},{n:'融合并行扫描(Mamba)',c:OK,d:5,t:40,m:1}];
+    bars(70,110,780,200,ks.map(function(k){return {l:k.n,v:k.t,c:k.c};}),'x');
+    panel(40,325,840,125,'详细对比');
+    var hd=['实现','相对延迟','相对吞吐','HBM访问','特点'];
+    var cols=[45,235,360,470,600];
+    for(var i=0;i<5;i++){var t=el('text',{x:cols[i],y:350,fill:INFO,'font-size':10,'font-weight':'bold'},svg);t.textContent=hd[i];}
+    line(40,358,870,358,DIM,0.5);
+    for(var r=0;r<3;r++){
+      var ry=376+r*22;
+      var d=ks[r];
+      txt(cols[0],ry,d.n,{fill:d.c,fs:10,fw:'bold'});
+      txt(cols[1],ry,d.d+'x',{fill:ERR,fs:10});
+      txt(cols[2],ry,d.t+'x',{fill:OK,fs:10});
+      txt(cols[3],ry,d.m+'L次',{fill:WARN,fs:10});
+      var feat=r===0?'顺序循环，带宽瓶颈':r===1?'并行但频繁读写HBM':'SRAM融合，最优';
+      txt(cols[4],ry,feat,{fill:DIM,fs:10});
+    }
+    txt(55,440,'结论：融合并行扫描( selective_scan_kernel )是Mamba高效落地的关键工程。',{fill:AC,fs:11,fw:'bold'});
+    logMsg('[M7-4] Kernel对比','k');
+    logMsg('  融合并行扫描：延迟1x基线的5%，吞吐40倍，HBM访问最少。','ok');
+  }
+}
+
+// ===== M8: 应用场景与未来 =====
+function m8Draw(){m8View(0);}
+function m8View(m){
+  clear(svg);gridbg();
+  if(m===0){
+    ttl(30,30,'M8-1 语言建模',AC);
+    sub(30,48,'Mamba/RWKV作为通用语言模型 · 长上下文优势',DIM);
+    var models=[{n:'Mamba-3B',c:PUR,o:'PPL 7.2',l:'128K'},{n:'RWKV-7 3B',c:AC,o:'PPL 7.5',l:'无限'},{n:'Transformer 3B',c:ERR,o:'PPL 7.0',l:'8K'}];
+    for(var i=0;i<3;i++){
+      box(50+i*280,90,250,80,{fill:BG3,stroke:models[i].c,sw:1.5});
+      ttl(65+i*280,115,models[i].n,models[i].c);
+      txt(65+i*280,138,'质量: '+models[i].o,{fill:FG,fs:10});
+      txt(65+i*280,156,'上下文: '+models[i].l,{fill:models[i].c,fs:10,fw:'bold'});
+    }
+    panel(40,190,840,100,'SSM在语言建模的优势');
+    var ad=[['长上下文','128K-1M tokens上下文，SSM内存线性增长，Transformer受限'],['推理效率','生成时O(1)单步延迟，适合流式输出与边缘部署'],['质量','中等规模下质量比肩Transformer，超大模型仍待验证']];
+    for(var i=0;i<ad.length;i++){txt(55,215+i*24,'· '+ad[i][0],{fill:AC,fs:11,fw:'bold'});txt(180,215+i*24,ad[i][1],{fill:DIM,fs:10});}
+    panel(40,300,840,90,'挑战与未来');
+    txt(55,325,'· 超大规模(>30B)SSM质量尚落后于Transformer，需架构改进(Jamba混合)。',{fill:WARN,fs:11});
+    txt(55,347,'· Mamba-2的SSD统一为混合架构铺路，SSM+注意力组合成为趋势。',{fill:OK,fs:11});
+    txt(55,369,'· 生态(工具链/微调/部署)正快速成熟。',{fill:AC,fs:11});
+    logMsg('[M8-1] 语言建模','k');
+    logMsg('  SSM中等规模质量比肩Transformer，长上下文与推理效率优势明显。','ok');
+  }else if(m===1){
+    ttl(30,30,'M8-2 基因组分析',AC);
+    sub(30,48,'DNA/蛋白质超长序列 · Caduceus / MambaDNA · 双向SSM',DIM);
+    box(40,90,200,60,{label:'DNA序列\nACGT...',stroke:INFO,fc:INFO,fs:10});
+    arrow(240,120,290,120,AC,2);
+    box(290,90,200,60,{fill:BG3,stroke:AC,sw:2});
+    ttl(310,115,'双向Mamba',AC);
+    box(310,130,160,18,{label:'Caduceus / MambaDNA',stroke:AC,fc:AC,fs:8});
+    arrow(490,120,540,120,PUR,2);
+    box(540,90,200,60,{label:'变异预测\n功能注释',stroke:PUR,fc:PUR,fs:10});
+    panel(40,170,840,120,'为什么SSM适合基因组');
+    var why=[['超长序列','基因组动辄百万碱基对，SSM线性复杂度可处理Transformer无法承受的长度'],['双向建模','Caduceus用双向SSM同时看前后文，捕捉长程调控元件关系'],['单字符token','DNA仅4字母，序列极长，O(n)复杂度优势被放大']];
+    for(var i=0;i<why.length;i++){txt(55,195+i*28,'· '+why[i][0],{fill:AC,fs:11,fw:'bold'});txt(210,195+i*28,why[i][1],{fill:DIM,fs:10});}
+    panel(40,300,420,90,'代表成果');
+    txt(55,325,'Caduceus: 首个双向Mamba基因组模型',{fill:OK,fs:10});
+    txt(55,345,'变异效应预测超越Transformer',{fill:OK,fs:10});
+    txt(55,365,'长程调控元件识别能力突出',{fill:OK,fs:10});
+    panel(470,300,410,90,'应用场景');
+    txt(485,325,'致病变异筛选与遗传病诊断',{fill:DIM,fs:10});
+    txt(485,345,'药物靶点蛋白结构预测',{fill:DIM,fs:10});
+    txt(485,365,'CRISPR基因编辑脱靶预测',{fill:DIM,fs:10});
+    logMsg('[M8-2] 基因组分析','k');
+    logMsg('  Caduceus双向Mamba处理百万碱基对，变异预测超越Transformer。','ok');
+  }else if(m===2){
+    ttl(30,30,'M8-3 时序预测',AC);
+    sub(30,48,'S4/Mamba在长程时序建模 · 传感器/金融/气候',DIM);
+    box(40,90,160,50,{label:'多变量时序\n传感器/股价',stroke:INFO,fc:INFO,fs:10});
+    arrow(200,115,250,115,AC,2);
+    box(250,90,180,50,{fill:BG3,stroke:AC,sw:2});
+    ttl(270,113,'SSM编码器',AC);
+    box(270,128,140,18,{label:'长程状态记忆',stroke:AC,fc:AC,fs:8});
+    arrow(430,115,480,115,PUR,2);
+    box(480,90,160,50,{label:'未来预测\n多步外推',stroke:PUR,fc:PUR,fs:10});
+    panel(40,160,840,110,'SSM时序预测优势');
+    var ad=[['长程依赖','指数衰减状态天然建模季节/趋势，无需长窗口'],['连续时间','连续参数化适配不规则采样时序'],['外推稳定','超出训练范围仍稳定，优于LSTM/Transformer']];
+    for(var i=0;i<ad.length;i++){txt(55,185+i*26,'· '+ad[i][0],{fill:AC,fs:11,fw:'bold'});txt(200,185+i*26,ad[i][1],{fill:DIM,fs:10});}
+    panel(40,285,420,105,'基准表现');
+    var bm=[['ETT-long','MSE 0.32 vs LSTM 0.45'],['电力负荷','长程MAE降18%'],['气候预测','千步外推稳定']];
+    for(var i=0;i<bm.length;i++){txt(55,310+i*24,bm[i][0],{fill:OK,fs:10,fw:'bold'});txt(200,310+i*24,bm[i][1],{fill:DIM,fs:10});}
+    panel(470,285,410,105,'典型应用');
+    var ap=[['工业IoT','传感器异常检测与剩余寿命预测'],['金融','高频序列建模，长程动量捕捉'],['医疗','心电图/脑电长程模式识别'],['能源','风电/负荷多步预测']];
+    for(var i=0;i<ap.length;i++){txt(485,310+i*22,ap[i][0],{fill:PUR,fs:10,fw:'bold'});txt(560,310+i*22,ap[i][1],{fill:DIM,fs:9});}
+    logMsg('[M8-3] 时序预测','k');
+    logMsg('  SSM连续参数化+长程状态，时序预测外推稳定优于LSTM/Transformer。','ok');
+  }else{
+    ttl(30,30,'M8-4 视觉SSM',AC);
+    sub(30,48,'Vim / VMamba · 用SSM替代ViT的图像建模 · 全局感受野O(n)',DIM);
+    var vm=[{n:'Vim',x:40,y:90,c:AC,d:'Vision Mamba，双向SSM处理图像序列，全局感受野线性开销'},{n:'VMamba',x:315,y:90,c:PUR,d:'2D-SSM十字扫描，四向遍历覆盖2D空间依赖'},{n:'LocalMamba',x:590,y:90,c:INFO,d:'分块SSM，局部窗口扫描降低长序列负担'}];
+    for(var i=0;i<3;i++){
+      box(vm[i].x,vm[i].y,260,80,{fill:BG3,stroke:vm[i].c,sw:1.5});
+      ttl(vm[i].x+12,vm[i].y+22,vm[i].n,vm[i].c);
+      var dt=el('text',{x:vm[i].x+12,y:vm[i].y+45,fill:DIM,'font-size':9},svg);dt.textContent=vm[i].d;
+    }
+    panel(40,185,840,100,'视觉SSM核心思路');
+    txt(55,210,'1. 图像切patch → 展平为序列 → SSM扫描建模长程像素依赖。',{fill:FG,fs:11});
+    txt(55,232,'2. 2D扫描策略(十字/光栅/之字)解决SSM的1D方向性偏置问题。',{fill:AC,fs:11});
+    txt(55,254,'3. 双向SSM(Vim)让每个patch看到全图，类似ViT全局注意力但O(n)。',{fill:OK,fs:11});
+    txt(55,276,'4. 高分辨率图像下内存优势显著：4K图像ViT爆显存，VMamba可处理。',{fill:PUR,fs:11});
+    panel(40,300,420,90,'基准表现(ImageNet-1K)');
+    var bm=[['Vim-T','81.6% (O(n))'],['VMamba-T','82.2%'],['ViT-T','72.2% (O(n²))'],['Swin-T','81.3%']];
+    for(var i=0;i<bm.length;i++){txt(55,325+i*18,bm[i][0],{fill:OK,fs:10,fw:'bold'});txt(170,325+i*18,bm[i][1],{fill:DIM,fs:10});}
+    panel(470,300,410,90,'应用方向');
+    var ap=[['医学影像','高分辨率病理/CT全局分析'],['遥感','大尺度卫星图像语义分割'],['视频','长视频时序建模与理解'],['检测分割','高分辨率检测/实例分割']];
+    for(var i=0;i<ap.length;i++){txt(485,325+i*18,ap[i][0],{fill:PUR,fs:10,fw:'bold'});txt(575,325+i*18,ap[i][1],{fill:DIM,fs:10});}
+    logMsg('[M8-4] 视觉SSM','k');
+    logMsg('  Vim/VMamba用SSM替代ViT，全局感受野O(n)，高分辨率优势显著。','ok');
+  }
+}
+
+// ===== Tab/Control building & init =====
+var viewFns=[m1View,m2View,m3View,m4View,m5View,m6View,m7View,m8View];
+var drawFns=[m1Draw,m2Draw,m3Draw,m4Draw,m5Draw,m6Draw,m7Draw,m8Draw];
+function buildTabs(){
+  clear(tabsEl);
+  for(var i=0;i<MODS.length;i++){
+    var d=document.createElement('div');
+    d.className='tab'+(i===curM?' active':'');
+    var s1=document.createElement('span');
+    s1.style.color=i===curM?AC:DIM;
+    s1.textContent=MODS[i].id+' ';
+    d.appendChild(s1);
+    var s2=document.createElement('span');
+    s2.textContent=MODS[i].name;
+    d.appendChild(s2);
+    d.onclick=(function(idx){return function(){switchModule(idx);};})(i);
+    tabsEl.appendChild(d);
+  }
+}
+function buildControls(){
+  clear(ctrlEl);
+  var t=document.createElement('div');t.className='ctrl-title';t.textContent='视图切换';ctrlEl.appendChild(t);
+  for(var i=0;i<MODS[curM].views.length;i++){
+    var b=document.createElement('div');
+    b.className='btn'+(i===curV?' active':'');
+    var s1=document.createElement('span');s1.className='idx';s1.textContent='V'+(i+1);b.appendChild(s1);
+    var s2=document.createElement('span');s2.textContent=MODS[curM].views[i];b.appendChild(s2);
+    b.onclick=(function(idx){return function(){switchView(idx);};})(i);
+    ctrlEl.appendChild(b);
+  }
+  var sp=document.createElement('div');sp.style.flex='1';ctrlEl.appendChild(sp);
+  var info=document.createElement('div');info.className='ctrl-title';info.textContent='当前模块';ctrlEl.appendChild(info);
+  var cur=document.createElement('div');cur.style.color=AC;cur.style.fontSize='13px';cur.style.fontWeight='bold';cur.textContent=MODS[curM].id+' '+MODS[curM].name;ctrlEl.appendChild(cur);
+  var sub2=document.createElement('div');sub2.style.color=DIM;sub2.style.fontSize='10px';sub2.style.marginTop='4px';sub2.textContent='视图 '+(curV+1)+'/'+MODS[curM].views.length+': '+MODS[curM].views[curV];ctrlEl.appendChild(sub2);
+  var tip=document.createElement('div');tip.className='ctrl-title';tip.style.marginTop='8px';tip.textContent='交互提示';ctrlEl.appendChild(tip);
+  var tip2=document.createElement('div');tip2.style.color=DIM;tip2.style.fontSize='10px';tip2.style.lineHeight='1.5';
+  var tips=['M1点击时间线节点','M2拖动序列滑块','M3切换HiPPO变体','M5拖动序列长度滑块'];
+  tip2.textContent=tips[curM]||'点击上方视图切换';
+  ctrlEl.appendChild(tip2);
+}
+function switchModule(i){
+  curM=i;curV=0;
+  buildTabs();buildControls();
+  clear(logEl);
+  logMsg('===== '+MODS[i].id+' '+MODS[i].name+' =====','k');
+  drawFns[i]();
+}
+function switchView(i){
+  curV=i;
+  buildControls();
+  viewFns[curM](i);
+}
+buildTabs();buildControls();
+logMsg('状态空间模型与Mamba架构可视化实验室 v3.07 启动','k');
+logMsg('共8个模块 · 32个视图 · 覆盖SSM理论到工程实现','i');
+logMsg('===== M1 SSM全景与演进 =====','k');
+m1Draw();
+</script>
+</body>
+</html>

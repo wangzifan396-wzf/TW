@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 306 个零依赖交互式可视化项目 + 30 个配套工具，2448+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 311 个零依赖交互式可视化项目 + 30 个配套工具，2488+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-306-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2448+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-311-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2488+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 306 |
-| 可视化模块 | 2448+ |
+| 项目总数 | 311 |
+| 可视化模块 | 2488+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -375,6 +375,16 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 299 | AI编译器与计算图优化可视化实验室 | AI编译器全景/计算图表示/算子融合/内核自动调优/量化感知训练/内存优化/跨平台部署/编译流程等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-compiler-graph-opt-viz-lab/) |
 | 300 | 多智能体强化学习可视化实验室 | MARL全景/范式分类/独立学习IQL/通信机制/中心化训练CTDE/博弈论/涌现行为/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multi-agent-rl-viz-lab/) |
 | 301 | 群体智能与群体机器人可视化实验室 | 群体智能全景/蚁群算法/粒子群优化/Boids鸟群模型/蜂群算法/形态形成理论/群体机器人/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/swarm-intelligence-viz-lab/) |
+| 302 | 合成数据生成与验证可视化实验室 | 合成数据全景/GAN数据生成/扩散模型生成/LLM数据合成/合成数据验证/合成vs真实/隐私保护合成/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/synthetic-data-generation-viz-lab/) |
+| 303 | AI科学家与自动化发现可视化实验室 | AI科学家全景/自动假设生成/自动化实验/数据驱动发现/AI论文生成/科学基础模型/干湿闭环实验/应用领域等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-scientist-automated-discovery-viz-lab/) |
+| 304 | 机制可解释性可视化实验室 | 可解释性全景/神经回路分析/逆向工程模型/Superposition假说/诱导头机制/探测与干预/欺骗与对齐/工具与方法等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/mechanistic-interpretability-viz-lab/) |
+| 305 | 多智能体协议与标准可视化实验室 | 协议全景/MCP协议/A2A协议/消息格式/协作模式/信任与安全/协议互操作/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/multi-agent-protocol-viz-lab/) |
+| 306 | 端侧AI与边缘推理可视化实验室 | 端侧AI全景/模型压缩/端侧推理引擎/NPU移动芯片/隐私计算/动态推理/端云协同/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/edge-ai-on-device-viz-lab/) |
+| 307 | 状态空间模型与Mamba架构可视化实验室 | SSM全景与演进/Mamba选择性机制/S4结构化状态空间/RWKV线性注意力/Transformer vs SSM/长序列建模/硬件感知实现/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/state-space-model-mamba-viz-lab/) |
+| 308 | AI水印与内容溯源可视化实验室 | 水印技术全景/不可见水印嵌入/深度伪造检测/C2PA内容溯源标准/水印鲁棒性/文本水印/图像视频水印/应用与挑战等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-watermarking-provenance-viz-lab/) |
+| 309 | 推理芯片与加速架构可视化实验室 | 推理芯片全景/Groq LPU架构/Cerebras晶圆级引擎/定制ASIC推理/vLLM推理框架/TensorRT-LLM优化/内存带宽优化/推理vs训练算力等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/inference-chip-acceleration-viz-lab/) |
+| 310 | HBM内存与近存计算可视化实验室 | 内存墙问题/HBM4技术演进/CXL互连协议/近存计算架构/存内计算/MoE内存挑战/带宽优化技术/未来内存技术等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hbm-memory-near-compute-viz-lab/) |
+| 311 | 知识蒸馏与推理迁移可视化实验室 | 蒸馏全景/推理过程蒸馏/跨模型迁移/小模型推理能力/蒸馏策略对比/多教师蒸馏/自蒸馏与在线蒸馏/端侧部署应用等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/knowledge-distillation-reasoning-viz-lab/) |
 
 ## 技术栈
 
