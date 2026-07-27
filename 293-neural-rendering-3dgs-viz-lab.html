@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 神经渲染与3D高斯泼溅可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+header span.sub{color:#62697b;font-size:12px;margin-left:auto}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.module{display:none;padding:24px}
+.module.active{display:block}
+.module h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.module>p{font-size:13px;color:#9aa0b0;margin-bottom:16px;max-width:860px}
+.ctrl{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ctrl button{padding:6px 14px;background:#1a1d27;color:#e6e8ee;border:1px solid #2d3344;border-radius:6px;font-size:12px;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.ctrl button:hover{background:#252836;border-color:#00d4aa}
+.ctrl button.on{background:#00d4aa22;border-color:#00d4aa;color:#00d4aa}
+svg{width:100%;max-width:920px;height:auto;background:#0f1117;border:1px solid #1a1d27;border-radius:8px}
+.log{margin-top:8px;padding:8px 12px;background:#0a0c12;border:1px solid #1a1d27;border-radius:6px;font-size:12px;color:#9aa0b0;font-family:monospace;min-height:24px;white-space:pre-wrap;word-break:break-all}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>神经渲染与3D高斯泼溅可视化实验室</h1>
+<span class="sub">Neural Rendering &amp; 3D Gaussian Splatting · M1-M8</span>
+</header>
+<nav class="tabs" id="tabs">
+<button class="tab active" data-m="m1">M1 渲染演进</button>
+<button class="tab" data-m="m2">M2 NeRF原理</button>
+<button class="tab" data-m="m3">M3 高斯泼溅</button>
+<button class="tab" data-m="m4">M4 渲染管线</button>
+<button class="tab" data-m="m5">M5 动态重建</button>
+<button class="tab" data-m="m6">M6 场景编辑</button>
+<button class="tab" data-m="m7">M7 压缩流式</button>
+<button class="tab" data-m="m8">M8 应用场景</button>
+</nav>
+<main>
+<section class="module active" id="m1">
+<h2>M1 · 渲染技术演进</h2>
+<p>从光栅化到光线追踪到 NeRF 再到 3D 高斯泼溅，渲染技术经历四代演进：从硬件光栅化的实时但无全局光照，到光线追踪的真实物理模拟，再到神经辐射场的高质量新视角合成，最终到 3D 高斯泼溅的实时高质量显式表示。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m1View(0)">光栅化</button>
+<button onclick="btnOn(this);m1View(1)">光线追踪</button>
+<button onclick="btnOn(this);m1View(2)">NeRF</button>
+<button onclick="btnOn(this);m1View(3)">3DGS</button>
+</div>
+<svg id="s1" viewBox="0 0 920 500"></svg>
+<div class="log" id="l1"></div>
+</section>
+
+<section class="module" id="m2">
+<h2>M2 · NeRF 原理与训练</h2>
+<p>神经辐射场用 MLP 编码 5D 输入 (x,y,z,θ,φ) → (RGB,σ)，通过体渲染合成新视角。采样相机射线、查询网络、积分合成、端到端训练是其四大核心环节。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m2Step(0)">射线采样</button>
+<button onclick="btnOn(this);m2Step(1)">MLP网络</button>
+<button onclick="btnOn(this);m2Step(2)">体渲染</button>
+<button onclick="btnOn(this);m2Step(3)">训练流程</button>
+</div>
+<svg id="s2" viewBox="0 0 920 500"></svg>
+<div class="log" id="l2"></div>
+</section>
+
+<section class="module" id="m3">
+<h2>M3 · 3D 高斯泼溅原理</h2>
+<p>用 3D 高斯椭球体表示场景，通过泼溅 (splatting) 投影到 2D 屏幕并按深度排序做 alpha 混合，实现实时渲染。每个高斯由位置、缩放、旋转、颜色 (球谐)、不透明度参数化。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m3View(0)">高斯椭球</button>
+<button onclick="btnOn(this);m3View(1)">泼溅过程</button>
+<button onclick="btnOn(this);m3View(2)">α混合</button>
+<button onclick="btnOn(this);m3View(3)">属性参数</button>
+</div>
+<svg id="s3" viewBox="0 0 920 500"></svg>
+<div class="log" id="l3"></div>
+</section>
+
+<section class="module" id="m4">
+<h2>M4 · 3DGS 渲染管线</h2>
+<p>从 3D 高斯到 2D 图像的完整可微渲染管线：按深度排序 → 分块 (tile) 分配 → 光栅化泼溅 → 前向 alpha 混合成图，反向传播梯度更新高斯参数。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m4Step(0)">排序</button>
+<button onclick="btnOn(this);m4Step(1)">泼溅</button>
+<button onclick="btnOn(this);m4Step(2)">分块渲染</button>
+<button onclick="btnOn(this);m4Step(3)">反向传播</button>
+</div>
+<svg id="s4" viewBox="0 0 920 500"></svg>
+<div class="log" id="l4"></div>
+</section>
+
+<section class="module" id="m5">
+<h2>M5 · 动态场景重建</h2>
+<p>从静态到动态：4D 高斯泼溅与变形场 (deformation field) 为 3DGS 注入时间维度，实现视频级动态场景的重建与自由视角回放。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m5View(0)">静态3DGS</button>
+<button onclick="btnOn(this);m5View(1)">4D高斯</button>
+<button onclick="btnOn(this);m5View(2)">变形场</button>
+<button onclick="btnOn(this);m5View(3)">对比</button>
+</div>
+<svg id="s5" viewBox="0 0 920 500"></svg>
+<div class="log" id="l5"></div>
+</section>
+
+<section class="module" id="m6">
+<h2>M6 · 场景编辑与操控</h2>
+<p>对 3DGS 场景进行编辑、变形、组合：显式的高斯表示让物体移除、纹理编辑、场景组合、物理模拟等操控成为可能，开辟了可编辑神经渲染新方向。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m6Step(0)">物体移除</button>
+<button onclick="btnOn(this);m6Step(1)">纹理编辑</button>
+<button onclick="btnOn(this);m6Step(2)">场景组合</button>
+<button onclick="btnOn(this);m6Step(3)">物理模拟</button>
+</div>
+<svg id="s6" viewBox="0 0 920 500"></svg>
+<div class="log" id="l6"></div>
+</section>
+
+<section class="module" id="m7">
+<h2>M7 · 压缩与流式传输</h2>
+<p>3DGS 场景动辄数百 MB，压缩与流式传输是实用化关键：量化降精度、剪枝去冗余、分块 LOD 流式加载，让大场景在移动端也能流畅呈现。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m7View(0)">原始大小</button>
+<button onclick="btnOn(this);m7View(1)">量化压缩</button>
+<button onclick="btnOn(this);m7View(2)">剪枝压缩</button>
+<button onclick="btnOn(this);m7View(3)">流式传输</button>
+</div>
+<svg id="s7" viewBox="0 0 920 500"></svg>
+<div class="log" id="l7"></div>
+</section>
+
+<section class="module" id="m8">
+<h2>M8 · 应用场景</h2>
+<p>从 VR/AR 到数字孪生，从自动驾驶仿真到影视虚拟制作，神经渲染与 3DGS 正在重塑三维内容的生产与消费方式，实现照片级真实感的实时交互。</p>
+<div class="ctrl">
+<button class="on" onclick="btnOn(this);m8Step(0)">VR/AR</button>
+<button onclick="btnOn(this);m8Step(1)">数字孪生</button>
+<button onclick="btnOn(this);m8Step(2)">自动驾驶</button>
+<button onclick="btnOn(this);m8Step(3)">影视制作</button>
+</div>
+<svg id="s8" viewBox="0 0 920 500"></svg>
+<div class="log" id="l8"></div>
+</section>
+</main>
+<script>
+// ===== 标签切换 =====
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+
+// ===== SVG 辅助 =====
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a){if(a[k]!=null)e.setAttribute(k,a[k]);}if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function T(s,x,y,c,fs,ta,p){var a={x:x,y:y,fill:c,'font-size':fs,'font-family':'-apple-system,Segoe UI,sans-serif'};if(ta)a['text-anchor']=ta;var e=el('text',a,p);e.textContent=s;return e;}
+function Ln(x1,y1,x2,y2,c,w,p,da){return el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:c,'stroke-width':w||1,'stroke-dasharray':da||null},p);}
+function R(x,y,w,h,p,fill,stroke,rw,rx){return el('rect',{x:x,y:y,width:w,height:h,fill:fill||'none',stroke:stroke||BD,'stroke-width':rw||1,rx:rx||4},p);}
+function Pl(pts,c,w,p,fill,fo){return el('polyline',{points:pts,fill:fill||'none',stroke:c,'stroke-width':w||1,'fill-opacity':fo||null},p);}
+function Pg(pts,p,fill,fo,stroke,sw){return el('polygon',{points:pts,fill:fill||'none','fill-opacity':fo||null,stroke:stroke||null,'stroke-width':sw||1},p);}
+function btnOn(b){var sibs=b.parentNode.querySelectorAll('button');sibs.forEach(function(x){x.classList.remove('on')});b.classList.add('on');}
+
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344',BG2='#1a1d27',TXT='#e6e8ee',BG3='#0a0c12';
+</script>
+<script>
+// ===== M1 渲染技术演进 =====
+function m1Draw(){m1View(0);}
+function m1View(n){
+  var s=document.getElementById('s1'),log=document.getElementById('l1');
+  clear(s);
+  T('渲染技术四代演进时间线',460,30,TXT,16,'middle',s);
+  var techs=[{n:'光栅化',y:'1960s',x:160,c:INFO},{n:'光线追踪',y:'1980s',x:360,c:AC},{n:'NeRF',y:'2020',x:560,c:PUR},{n:'3DGS',y:'2023',x:760,c:WARN}];
+  Ln(120,86,800,86,DIM,2,s);
+  techs.forEach(function(t,i){var on=i===n;el('circle',{cx:t.x,cy:86,r:on?9:5,fill:on?t.c:DIM,stroke:'#0f1117','stroke-width':2},s);T(t.n,t.x,66,on?t.c:DIM,12,'middle',s);T(t.y,t.x,106,DIM,10,'middle',s);if(on)Ln(t.x,96,t.x,122,t.c,1.5,s,'4 3');});
+  R(40,124,840,336,s,BG2,BD,1,10);
+  if(n===0){
+    T('光栅化 Rasterization',460,152,INFO,14,'middle',s);
+    el('polygon',{points:'110,212 178,190 150,258',fill:INFO,'fill-opacity':0.12,stroke:INFO,'stroke-width':1.5},s);T('3D三角形',140,286,INFO,10,'middle',s);
+    Ln(196,224,256,224,AC,1.5,s,'4 3');T('MVP投影',226,216,DIM,10,'middle',s);
+    el('polygon',{points:'286,212 354,190 326,258',fill:INFO,'fill-opacity':0.25,stroke:INFO,'stroke-width':1.5},s);T('2D投影',316,286,INFO,10,'middle',s);
+    Ln(372,224,432,224,AC,1.5,s,'4 3');T('扫描线',402,216,DIM,10,'middle',s);
+    var gx=460,gy=188;for(var r=0;r<8;r++)for(var cc=0;cc<8;cc++){var f=(cc>=1&&cc<=6&&r>=1&&r<=6&&(r+cc)%2===0)?INFO:BG2;el('rect',{x:gx+cc*16,y:gy+r*16,width:15,height:15,fill:f,stroke:BD},s);}
+    T('帧缓冲',520,330,INFO,10,'middle',s);
+    R(80,360,760,82,s,'none',BD,1,6);T('固定渲染管线：顶点处理 → 图元装配 → 光栅化 → 片元着色 → 帧缓冲',460,388,TXT,12,'middle',s);
+    T('优点：GPU 硬件加速、实时渲染   |   局限：无全局光照、无反射/折射/软阴影',460,416,DIM,11,'middle',s);
+    log.textContent='[光栅化] 将3D图元(三角形)经MVP变换投影到2D,再扫描填充像素。\n管线固定:顶点着色器→几何着色器→光栅化→片元着色器。\n优势:实时、GPU高度并行。局限:局部光照,无法模拟光的多次弹射。';
+  }else if(n===1){
+    T('光线追踪 Ray Tracing',460,152,AC,14,'middle',s);
+    el('rect',{x:58,y:198,width:42,height:32,fill:AC,'fill-opacity':0.18,stroke:AC},s);T('相机',80,250,AC,10,'middle',s);
+    Ln(100,214,250,214,AC,1.5,s);T('主光线',175,206,DIM,10,'middle',s);
+    el('circle',{cx:278,cy:214,r:30,fill:AC,'fill-opacity':0.12,stroke:AC,'stroke-width':1.5},s);T('镜面',278,260,AC,10,'middle',s);
+    Ln(278,214,420,150,INFO,1.5,s);T('反射光线',350,172,INFO,10,'middle',s);
+    el('circle',{cx:442,cy:138,r:22,fill:INFO,'fill-opacity':0.14,stroke:INFO},s);T('物体',442,176,INFO,10,'middle',s);
+    Ln(442,138,566,98,WARN,1.5,s,'4 3');T('阴影光线',504,90,WARN,10,'middle',s);
+    el('circle',{cx:586,cy:92,r:14,fill:WARN,'fill-opacity':0.3,stroke:WARN},s);T('光源',586,124,WARN,10,'middle',s);
+    Ln(278,214,402,300,PUR,1.5,s);T('折射光线',340,292,PUR,10,'middle',s);
+    el('circle',{cx:424,cy:312,r:20,fill:PUR,'fill-opacity':0.14,stroke:PUR},s);T('玻璃',424,348,PUR,10,'middle',s);
+    Ln(620,92,700,160,WARN,1,s,'2 3');
+    R(80,370,760,72,s,'none',BD,1,6);T('递归追踪：主光线 → 反射/折射/阴影光线 → 递归至深度上限',460,396,TXT,12,'middle',s);
+    T('优点：真实全局光照、反射、折射、软阴影   |   局限：计算昂贵、难以实时',460,422,DIM,11,'middle',s);
+    log.textContent='[光线追踪] 从相机发射光线,与场景求交后递归追踪反射/折射/阴影光线。\n蒙特卡洛采样多次弹射→路径追踪,逼近物理真实。\n优势:全局光照、镜面、软阴影。局限:像素需大量采样,计算昂贵。';
+  }else if(n===2){
+    T('NeRF 神经辐射场',460,152,PUR,14,'middle',s);
+    el('rect',{x:48,y:204,width:38,height:30,fill:PUR,'fill-opacity':0.18,stroke:PUR},s);T('相机',67,252,PUR,10,'middle',s);
+    for(var a=-2;a<=2;a++){Ln(88,219,250,182+a*16,PUR,1,s);}
+    el('ellipse',{cx:340,cy:198,rx:82,ry:52,fill:PUR,'fill-opacity':0.08,stroke:PUR,'stroke-dasharray':'4 3'},s);
+    T('5D 辐射场',340,192,PUR,11,'middle',s);T('(x,y,z,θ,φ) → (RGB,σ)',340,212,DIM,10,'middle',s);
+    for(var pi=0;pi<5;pi++){el('circle',{cx:300+pi*18,cy:230,r:3,fill:WARN},s);}
+    T('采样点',340,248,WARN,9,'middle',s);
+    Ln(425,198,470,198,AC,1.5,s,'4 3');
+    R(472,160,150,84,s,'#1a1d27',PUR,1.5,8);T('MLP 网络',547,184,PUR,12,'middle',s);T('8 层 × 256 维',547,204,DIM,10,'middle',s);T('位置编码 γ(x)',547,224,DIM,10,'middle',s);
+    Ln(622,198,666,198,AC,1.5,s,'4 3');
+    el('rect',{x:666,y:182,width:62,height:22,fill:AC,'fill-opacity':0.18,stroke:AC},s);T('RGB',697,197,AC,10,'middle',s);
+    el('rect',{x:666,y:210,width:62,height:22,fill:WARN,'fill-opacity':0.18,stroke:WARN},s);T('σ 密度',697,225,WARN,10,'middle',s);
+    Ln(728,198,772,198,AC,1.5,s,'4 3');
+    el('rect',{x:772,y:170,width:64,height:58,fill:AC,'fill-opacity':0.1,stroke:AC},s);T('新视角',804,204,AC,10,'middle',s);
+    R(80,360,760,82,s,'none',BD,1,6);T('训练：多视角图像 + 位姿 → 网络优化 → 体渲染损失 → 收敛(数小时)',460,388,TXT,12,'middle',s);
+    T('优点：高质量新视角合成   |   局限：训练慢、渲染慢、仅静态场景',460,416,DIM,11,'middle',s);
+    log.textContent='[NeRF] 用全连接MLP隐式编码场景的5D辐射场:位置(x,y,z)+视角(θ,φ)→颜色RGB+密度σ。\n位置编码提升高频细节,体渲染积分合成新视角,端到端优化。\n优势:照片级新视角。局限:训练数小时,渲染秒级,无法实时,仅静态。';
+  }else if(n===3){
+    T('3D Gaussian Splatting',460,152,WARN,14,'middle',s);
+    el('ellipse',{cx:180,cy:212,rx:36,ry:22,fill:WARN,'fill-opacity':0.16,stroke:WARN,transform:'rotate(-20 180 212)'},s);
+    el('ellipse',{cx:240,cy:262,rx:28,ry:17,fill:ROSE,'fill-opacity':0.16,stroke:ROSE,transform:'rotate(30 240 262)'},s);
+    el('ellipse',{cx:150,cy:282,rx:32,ry:19,fill:INFO,'fill-opacity':0.16,stroke:INFO,transform:'rotate(10 150 282)'},s);
+    el('ellipse',{cx:210,cy:230,rx:22,ry:14,fill:AC,'fill-opacity':0.16,stroke:AC,transform:'rotate(-40 210 230)'},s);
+    T('3D 高斯椭球集合',195,332,WARN,11,'middle',s);
+    Ln(300,244,380,244,AC,2,s,'6 3');T('泼溅',340,236,AC,11,'middle',s);
+    R(400,180,250,168,s,BG3,AC,1.5,6);
+    var splats=[[440,210,WARN],[482,242,ROSE],[524,212,INFO],[566,252,AC],[608,224,PUR],[460,286,WARN],[504,296,INFO],[548,274,ROSE],[592,306,AC],[622,266,PUR],[442,322,INFO],[610,212,ROSE],[472,196,AC],[588,296,WARN]];
+    for(var si=0;si<splats.length;si++){var sp=splats[si];el('ellipse',{cx:sp[0],cy:sp[1],rx:9+si,ry:6+si%4,fill:sp[2],'fill-opacity':0.28,stroke:sp[2]},s);}
+    T('2D 屏幕图像',525,368,WARN,11,'middle',s);
+    R(680,180,180,168,s,'none',BD,1,6);T('单高斯属性',770,204,TXT,11,'middle',s);
+    T('位置 μ (3)',770,226,DIM,10,'middle',s);T('缩放 s (3)',770,246,DIM,10,'middle',s);T('旋转 q (4)',770,266,DIM,10,'middle',s);T('颜色 SH (48)',770,286,DIM,10,'middle',s);T('不透明度 α (1)',770,306,DIM,10,'middle',s);
+    R(80,376,760,66,s,'none',BD,1,6);T('优点：实时渲染(>100fps)、显式表示、可编辑   |   局限：内存大、需百万级高斯',460,416,DIM,11,'middle',s);
+    log.textContent='[3DGS] 用显式3D高斯椭球集合表示场景:每个高斯由位置/缩放/旋转/球谐颜色/不透明度参数化。\n前向:3D高斯投影为2D高斯→按深度排序→alpha混合成图。可微,支持自适应密度控制(克隆/分裂/剪枝)。\n优势:实时、高质量、显式可编辑。';
+  }
+}
+
+// ===== M2 NeRF 原理与训练 =====
+function m2Draw(){m2Step(0);}
+function m2Step(n){
+  var s=document.getElementById('s2'),log=document.getElementById('l2');
+  clear(s);
+  if(n===0){
+    T('射线采样 Ray Sampling',460,30,PUR,16,'middle',s);
+    el('rect',{x:48,y:230,width:40,height:34,fill:PUR,'fill-opacity':0.18,stroke:PUR},s);T('相机',68,286,PUR,10,'middle',s);
+    Ln(90,247,260,180,PUR,1.5,s);Ln(90,247,260,210,PUR,1.5,s);Ln(90,247,260,240,PUR,1.5,s);Ln(90,247,260,270,PUR,1.5,s);
+    T('相机射线 r(t)=o+td',175,150,PUR,11,'middle',s);
+    el('ellipse',{cx:430,cy:225,rx:120,ry:70,fill:PUR,'fill-opacity':0.06,stroke:PUR,'stroke-dasharray':'4 3'},s);T('场景体素边界',430,168,PUR,10,'middle',s);
+    // near/far
+    Ln(280,150,280,310,DIM,1,s,'3 3');T('t_near',280,144,DIM,9,'middle',s);
+    Ln(560,150,560,310,DIM,1,s,'3 3');T('t_far',560,144,DIM,9,'middle',s);
+    var pts=[[320,222],[360,214],[400,206],[440,206],[480,214],[520,226]];
+    for(var i=0;i<pts.length;i++){el('circle',{cx:pts[i][0],cy:pts[i][1],r:5,fill:WARN,stroke:'#0f1117','stroke-width':1},s);T('t'+(i+1),pts[i][0],pts[i][1]-12,WARN,9,'middle',s);}
+    Ln(320,222,520,226,WARN,1,s);
+    for(var j=0;j<pts.length;j++){Ln(pts[j][0],pts[j][1],600,250,AC,0.6,s,'2 4');}
+    R(600,210,200,80,s,BG2,PUR,1,8);T('查询 MLP',700,236,PUR,11,'middle',s);T('(x,y,z,θ,φ)',700,256,DIM,10,'middle',s);T('→ (RGB, σ)',700,274,DIM,10,'middle',s);
+    R(60,360,800,80,s,'none',BD,1,6);T('采样策略：分层采样 + 分箱均匀采样，确保射线覆盖近远平面间全部体素',460,388,TXT,12,'middle',s);
+    T('每条射线采样 N=64 个点，分别查询 MLP 得到颜色与密度，供后续体渲染积分',460,414,DIM,11,'middle',s);
+    log.textContent='[射线采样] 从相机像素发射射线 r(t)=o+td,在近/远平面间采样N个点。\n分层采样(coarse)+精细采样(fine)提升效率,每个采样点(x,y,z,θ,φ)查询MLP。\n这是NeRF体渲染的输入来源,采样质量直接决定合成清晰度。';
+  }else if(n===1){
+    T('MLP 网络结构',460,30,PUR,16,'middle',s);
+    var lx=[120,260,400,540,680,810];
+    var lc=[WARN,PUR,PUR,PUR,PUR,AC];
+    var ll=['输入 5D','隐藏层 256','隐藏层 256','隐藏层 256','隐藏层 256','输出 RGB+σ'];
+    function npos(x,cnt,top,step){var a=[];for(var i=0;i<cnt;i++)a.push([x,top+i*step]);return a;}
+    var NN=[npos(120,5,210,20),npos(260,8,180,20),npos(400,8,180,20),npos(540,8,180,20),npos(680,8,180,20),npos(810,4,215,30)];
+    // connections
+    for(var li=0;li<NN.length-1;li++){for(var a2=0;a2<NN[li].length;a2++){for(var b2=0;b2<NN[li+1].length;b2++){Ln(NN[li][a2][0],NN[li][a2][1],NN[li+1][b2][0],NN[li+1][b2][1],PUR,0.3,s);}}}
+    // nodes
+    for(var li2=0;li2<NN.length;li2++){for(var ni=0;ni<NN[li2].length;ni++){el('circle',{cx:NN[li2][ni][0],cy:NN[li2][ni][1],r:7,fill:lc[li2],'fill-opacity':0.85,stroke:'#0f1117','stroke-width':1},s);}}
+    for(var lb=0;lb<6;lb++){T(ll[lb],lx[lb],330,lc[lb],10,'middle',s);}
+    // skip connection
+    Ln(120,300,540,180,ROSE,1.2,s,'5 4');T('位置编码 skip',330,360,ROSE,9,'middle',s);
+    R(60,380,800,60,s,'none',BD,1,6);T('8 层全连接 × 256 维，第 4 层拼接位置编码，输出 RGB(3)+密度σ(1)',460,418,DIM,11,'middle',s);
+    log.textContent='[MLP网络] NeRF用8层全连接网络(每层256维)编码辐射场。\n输入5D(x,y,z,θ,φ)经位置编码γ提升到高维,第4层skip拼接位置编码。\n两个输出头:RGB颜色(3维)+体密度σ(1维)。权重共享,隐式表示全场。';
+  }else if(n===2){
+    T('体渲染 Volume Rendering',460,30,PUR,16,'middle',s);
+    Ln(90,220,640,220,WARN,1.5,s);el('polygon',{points:'635,215 648,220 635,225',fill:WARN},s);
+    T('射线方向',360,206,WARN,10,'middle',s);
+    var xp=[150,220,290,360,430,500,570];var alp=[0.15,0.4,0.7,0.85,0.6,0.3,0.1];
+    for(var k=0;k<xp.length;k++){el('circle',{cx:xp[k],cy:220,r:12,fill:INFO,'fill-opacity':alp[k],stroke:INFO},s);T('σ'+(k+1),xp[k],248,DIM,9,'middle',s);}
+    T('采样点 (颜色c, 密度σ)',360,180,INFO,10,'middle',s);
+    // formula box
+    R(120,290,680,80,s,BG2,BD,1,8);
+    T('C(r) = Σ Tᵢ(1−exp(−σᵢδᵢ))cᵢ',460,318,PUR,15,'middle',s);
+    T('透射率  Tᵢ = Πⱼ₌₁ⁱ (1−exp(−σⱼδⱼ))   ,   δᵢ = 相邻采样距离',460,346,DIM,11,'middle',s);
+    // alpha accumulation visualization
+    R(120,395,680,55,s,'none',BD,1,6);
+    var acc=0;for(var m=0;m<xp.length;m++){var w=alp[m]*(1-acc);el('rect',{x:140+m*90,y:405,width:80,height:35,fill:INFO,'fill-opacity':w},s);acc+=w*0.9;}
+    T('前向累积：颜色按透射率加权求和 → 最终像素色',460,430,DIM,11,'middle',s);
+    log.textContent='[体渲染] 沿射线积分:每个采样点贡献=透射率T×不透明度(1−e^−σδ)×颜色。\n透射率T=前面所有点的(1−α)连乘,表示光穿过到该点的剩余比例。\n离散求和近似连续积分,得到像素颜色。这是NeRF可微渲染核心。';
+  }else if(n===3){
+    T('训练流程 Training',460,30,PUR,16,'middle',s);
+    var flow=[{x:110,t:'输入图像',c:INFO,sub:'+位姿'},{x:280,t:'渲染',c:PUR,sub:'体渲染'},{x:450,t:'L2损失',c:WARN,sub:'MSE'},{x:620,t:'反传',c:ROSE,sub:'梯度'},{x:790,t:'更新MLP',c:AC,sub:'Adam'}];
+    for(var f=0;f<flow.length;f++){R(flow[f].x-60,180,120,60,s,BG2,flow[f].c,1.5,8);T(flow[f].t,flow[f].x,210,flow[f].c,12,'middle',s);T(flow[f].sub,flow[f].x,228,DIM,10,'middle',s);if(f<flow.length-1){Ln(flow[f].x+60,210,flow[f+1].x-60,210,AC,1.5,s,'5 3');}}
+    // loss curve
+    R(120,290,680,110,s,BG3,BD,1,8);T('训练损失曲线(对数)',460,312,DIM,10,'middle',s);
+    Ln(160,310,160,390,DIM,1,s);Ln(160,390,780,390,DIM,1,s);
+    var curve='160,388 220,360 280,320 340,300 400,345 460,318 520,300 580,330 640,315 700,330 760,322';
+    Pl(curve,WARN,2,s);T('loss',150,330,WARN,9,'end',s);
+    T('迭代步数 →',460,412,DIM,10,'middle',s);
+    R(60,420,800,30,s,'none',BD,1,6);T('约 100k–300k 步收敛，训练时长数小时；位置编码 + 分层采样提升细节',460,438,DIM,10,'middle',s);
+    log.textContent='[训练流程] 输入:多视角图像+已知相机位姿。前向:采样射线→MLP→体渲染得预测图。\n损失:L2(MSE)对比真实像素。反向:梯度更新MLP权重(Adam优化)。\n约100k-300k步收敛,数小时训练。位置编码与分层采样是高质量关键。';
+  }
+}
+
+// ===== M3 3D 高斯泼溅原理 =====
+function m3Draw(){m3View(0);}
+function m3View(n){
+  var s=document.getElementById('s3'),log=document.getElementById('l3');
+  clear(s);
+  if(n===0){
+    T('3D 高斯椭球',460,30,WARN,16,'middle',s);
+    var cx=300,cy=240;
+    el('ellipse',{cx:cx,cy:cy,rx:130,ry:74,fill:WARN,'fill-opacity':0.10,stroke:WARN,'stroke-width':1.5,transform:'rotate(-18 '+cx+' '+cy+')'},s);
+    el('ellipse',{cx:cx,cy:cy,rx:90,ry:50,fill:WARN,'fill-opacity':0.14,stroke:WARN,opacity:0.7,transform:'rotate(-18 '+cx+' '+cy+')'},s);
+    el('ellipse',{cx:cx,cy:cy,rx:50,ry:28,fill:WARN,'fill-opacity':0.22,stroke:WARN,opacity:0.8,transform:'rotate(-18 '+cx+' '+cy+')'},s);
+    el('ellipse',{cx:cx,cy:cy,rx:20,ry:11,fill:WARN,'fill-opacity':0.5,transform:'rotate(-18 '+cx+' '+cy+')'},s);
+    // center
+    el('circle',{cx:cx,cy:cy,r:4,fill:TXT},s);
+    Ln(cx,cy,cx+90,cy-50,AC,1,s,'4 3');T('中心 μ (x,y,z)',cx+118,cy-54,AC,10,'middle',s);
+    Ln(cx,cy,cx-120,cy-20,INFO,1,s,'4 3');T('缩放 s (s1,s2,s3)',cx-150,cy-26,INFO,10,'middle',s);
+    Ln(cx,cy,cx+40,cy+90,PUR,1,s,'4 3');T('旋转 q (四元数)',cx+80,cy+100,PUR,10,'middle',s);
+    Ln(cx,cy,cx-90,cy+70,ROSE,1,s,'4 3');T('球谐颜色 SH',cx-120,cy+82,ROSE,10,'middle',s);
+    Ln(cx,cy,cx+130,cy+30,WARN,1,s,'4 3');T('不透明度 α',cx+165,cy+34,WARN,10,'middle',s);
+    // opacity profile
+    R(560,170,300,200,s,BG2,BD,1,8);T('不透明度径向衰减',710,194,DIM,11,'middle',s);
+    Ln(600,210,600,340,DIM,1,s);Ln(600,340,840,340,DIM,1,s);
+    var prof='600,220 640,250 680,300 720,335 760,338 800,335 840,332';
+    Pl(prof,WARN,2,s);
+    el('polygon',{points:'600,340 640,250 680,300 720,335 760,338 800,335 840,332 840,340',fill:WARN,'fill-opacity':0.18},s);
+    T('α',590,215,WARN,9,'end',s);T('r →',820,355,DIM,9,'middle',s);
+    R(40,400,840,60,s,'none',BD,1,6);T('高斯函数：G(x)=exp(−½(x−μ)ᵀΣ⁻¹(x−μ))，Σ=RSSᵀRᵀ 由缩放与旋转决定',460,436,DIM,11,'middle',s);
+    log.textContent='[高斯椭球] 单个3D高斯由5组参数定义:\n中心μ(3)、缩放s(3)、旋转q(4四元数)、球谐颜色SH(48阶)、不透明度α(1)。\n协方差Σ=R·diag(s)·Rᵀ,决定椭球形状与朝向。不透明度按高斯径向衰减。';
+  }else if(n===1){
+    T('泼溅过程 Splatting',460,30,WARN,16,'middle',s);
+    // 3D view
+    el('ellipse',{cx:200,cy:200,rx:50,ry:30,fill:WARN,'fill-opacity':0.18,stroke:WARN,transform:'rotate(-25 200 200)'},s);
+    el('ellipse',{cx:160,cy:260,rx:36,ry:22,fill:ROSE,'fill-opacity':0.18,stroke:ROSE,transform:'rotate(20 160 260)'},s);
+    el('ellipse',{cx:250,cy:280,rx:40,ry:24,fill:INFO,'fill-opacity':0.18,stroke:INFO,transform:'rotate(10 250 280)'},s);
+    T('3D 高斯(世界空间)',205,330,WARN,11,'middle',s);
+    // projection lines
+    for(var p=0;p<5;p++){Ln(200,200+p*18,540,210+p*8,AC,0.6,s,'2 4');}
+    Ln(290,210,540,230,AC,1.5,s,'5 3');T('EWA 投影',415,200,AC,10,'middle',s);
+    // 2D screen
+    R(540,150,300,220,s,BG3,AC,1.5,6);
+    var sp2=[[600,200,WARN,28,16],[680,210,ROSE,24,14],[640,280,INFO,30,18],[760,250,PUR,22,13],[700,320,WARN,26,15],[600,330,AC,20,12]];
+    for(var q=0;q<sp2.length;q++){el('ellipse',{cx:sp2[q][0],cy:sp2[q][1],rx:sp2[q][3],ry:sp2[q][4],fill:sp2[q][2],'fill-opacity':0.35,stroke:sp2[q][2]},s);}
+    T('2D 屏幕高斯(屏幕空间)',690,390,WARN,11,'middle',s);
+    R(60,410,800,50,s,'none',BD,1,6);T('3D 协方差 Σ → 2D 协方差 Σ′(EWA 椭圆加权平均)，直接光栅化为屏幕椭圆',460,440,DIM,11,'middle',s);
+    log.textContent='[泼溅过程] 3D高斯投影到2D屏幕:EWA(椭圆加权平均)将3D协方差Σ变换为2D协方差Σ′。\n投影后的2D高斯直接光栅化为屏幕椭圆,无需NeRF的逐点MLP查询。\n这是3DGS实时的根本原因:前向投影而非逐点采样积分。';
+  }else if(n===2){
+    T('Alpha 混合 α-Blending',460,30,WARN,16,'middle',s);
+    // layered gaussians back to front
+    var layers=[{y:130,c:WARN,fo:0.15,d:'最远'},{y:175,c:ROSE,fo:0.25,d:''},{y:220,c:INFO,fo:0.4,d:''},{y:265,c:PUR,fo:0.6,d:''},{y:310,c:AC,fo:0.85,d:'最近'}];
+    for(var l=0;l<layers.length;l++){el('rect',{x:120,y:layers[l].y,width:380,height:34,fill:layers[l].c,'fill-opacity':layers[l].fo,stroke:layers[l].c},s);if(layers[l].d)T(layers[l].d,100,layers[l].y+18,layers[l].c,10,'middle',s);}
+    Ln(100,130,100,345,DIM,1,s);T('深度',100,118,DIM,9,'middle',s);
+    Ln(140,345,480,345,AC,1.5,s,'4 3');T('前向(远→近)排序',310,360,AC,10,'middle',s);
+    // formula
+    R(540,120,330,150,s,BG2,BD,1,8);T('混合公式',705,146,PUR,12,'middle',s);
+    T('C = Σᵢ cᵢ αᵢ Πⱼ(1−αⱼ)',705,178,PUR,13,'middle',s);
+    T('αᵢ = oᵢ × exp(−½(x−μ)ᵀΣ′⁻¹(x−μ))',705,206,DIM,10,'middle',s);
+    T('累积透射率衰减',705,230,DIM,10,'middle',s);
+    T('Tᵢ = Πⱼ₌₁ⁱ(1−αⱼ)',705,252,DIM,10,'middle',s);
+    R(540,290,330,60,s,'none',BD,1,6);T('终止:累积α>0.99 或遍历完高斯',705,324,DIM,10,'middle',s);
+    R(60,390,800,60,s,'none',BD,1,6);T('前向混合保证可微：梯度可沿每层 α 流回高斯参数',460,418,DIM,11,'middle',s);
+    log.textContent='[α混合] 按深度从远到近排序高斯,逐层alpha混合:\nC=Σ cᵢαᵢΠ(1−αⱼ),其中透射率T=前面所有(1−α)连乘。\nαᵢ=不透明度o×高斯衰减。累积α>0.99可提前终止。\n前向混合天然可微,支持反向传播更新参数。';
+  }else if(n===3){
+    T('高斯属性参数',460,30,WARN,16,'middle',s);
+    var rows=[{k:'位置 μ',v:'3',d:'椭球中心(x,y,z)',c:AC},{k:'缩放 s',v:'3',d:'三轴缩放,需>0',c:INFO},{k:'旋转 q',v:'4',d:'四元数,自动归一化',c:PUR},{k:'颜色 SH',v:'48',d:'球谐系数(3阶×16)',c:ROSE},{k:'不透明度 α',v:'1',d:'[0,1] sigmoid约束',c:WARN}];
+    R(80,80,760,40,s,BG2,BD,1,6);T('参数',180,106,TXT,11,'middle',s);T('维度',360,106,TXT,11,'middle',s);T('说明',560,106,TXT,11,'middle',s);T('共 59 维/高斯',760,106,WARN,10,'middle',s);
+    for(var r=0;r<rows.length;r++){var y=128+r*42;R(80,y,760,38,s,r%2?BG2:'#14161f',BD,1,6);T(rows[r].k,180,y+24,rows[r].c,11,'middle',s);T(rows[r].v,360,y+24,TXT,11,'middle',s);T(rows[r].d,560,y+24,DIM,10,'middle',s);}
+    R(80,360,760,80,s,BG2,BD,1,8);T('示例值(单高斯)',460,384,DIM,11,'middle',s);
+    T('μ=[1.2,0.8,3.1]  s=[0.4,0.2,0.3]  q=[0.9,0.1,0.2,0.3]  α=0.72',460,406,TXT,10,'middle',s);
+    T('SH: [0.6,0.5,0.4, ... (48项)  →  视角相关颜色',460,426,DIM,10,'middle',s);
+    log.textContent='[属性参数] 每个高斯共59维参数:\n位置μ(3)+缩放s(3)+旋转q(4)+球谐SH(48)+不透明度α(1)。\n缩放经激活保证>0,旋转用四元数避免万向锁,α经sigmoid约束[0,1]。\n球谐(3阶16系数×3通道)编码视角相关颜色,实现镜面/各向异性外观。';
+  }
+}
+
+// ===== M4 3DGS 渲染管线 =====
+function m4Draw(){m4Step(0);}
+function m4Step(n){
+  var s=document.getElementById('s4'),log=document.getElementById('l4');
+  clear(s);
+  if(n===0){
+    T('步骤1 · 深度排序',460,30,AC,16,'middle',s);
+    T('排序前(乱序)',200,80,DIM,11,'middle',s);
+    var before=[[180,1,0.3],[180,2,0.7],[180,3,0.2],[180,4,0.9],[180,5,0.5]];
+    for(var b=0;b<5;b++){el('rect',{x:140,y:95+b*22,width:120,height:18,fill:INFO,'fill-opacity':before[b][2],stroke:INFO},s);T('d='+before[b][2],265,108+b*22,DIM,9,'start',s);}
+    Ln(300,180,380,180,AC,1.5,s,'5 3');T('按深度',340,172,AC,10,'middle',s);T('远→近',340,188,DIM,9,'middle',s);
+    T('排序后(远→近)',580,80,DIM,11,'middle',s);
+    var after=[[0.9],[0.7],[0.5],[0.3],[0.2]];var acols=[WARN,ROSE,PUR,INFO,AC];
+    for(var a=0;a<5;a++){el('rect',{x:520,y:95+a*22,width:120,height:18,fill:acols[a],'fill-opacity':after[a][0],stroke:acols[a]},s);T('d='+after[a][0],645,108+a*22,DIM,9,'start',s);}
+    R(120,250,680,70,s,BG2,BD,1,8);T('基数排序 O(N)，按视图空间深度对所有高斯排序',460,278,AC,12,'middle',s);T('保证前向 alpha 混合的正确性(远→近)',460,300,DIM,10,'middle',s);
+    // perf bar
+    R(120,350,680,90,s,BG3,BD,1,8);T('百万级高斯排序耗时',460,372,DIM,10,'middle',s);
+    el('rect',{x:160,y:390,width:520,height:20,fill:BG2,stroke:BD},s);el('rect',{x:160,y:390,width:90,height:20,fill:AC,'fill-opacity':0.5},s);
+    T('~3ms (GPU 并行基数排序)',420,405,TXT,10,'middle',s);
+    R(60,450,800,30,s,'none',BD,1,6);T('排序是3DGS管线第一步,决定后续分块与混合顺序',460,468,DIM,10,'middle',s);
+    log.textContent='[排序] 按视图空间深度对所有高斯排序(远→近)。\nGPU基数排序O(N)处理百万级高斯,约3ms。\n排序保证前向alpha混合正确性:远的先画,近的覆盖。\n这是可微且高质量混合的前提。';
+  }else if(n===1){
+    T('步骤2 · 泼溅光栅化',460,30,AC,16,'middle',s);
+    // 3D gaussians
+    el('ellipse',{cx:160,cy:150,rx:34,ry:20,fill:WARN,'fill-opacity':0.2,stroke:WARN,transform:'rotate(-20 160 150)'},s);
+    el('ellipse',{cx:160,cy:200,rx:28,ry:16,fill:ROSE,'fill-opacity':0.2,stroke:ROSE,transform:'rotate(25 160 200)'},s);
+    el('ellipse',{cx:160,cy:250,rx:38,ry:22,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    T('3D 高斯',160,300,WARN,10,'middle',s);
+    Ln(220,200,360,200,AC,1.5,s,'5 3');T('Σ→Σ′',290,192,AC,10,'middle',s);
+    // 2D splat raster
+    R(360,110,280,240,s,BG3,AC,1.5,6);
+    var rs=[[420,160,WARN,30,18],[500,180,ROSE,26,15],[460,240,INFO,34,20],[540,250,PUR,24,14],[400,300,AC,28,16],[560,150,ROSE,22,13]];
+    for(var i=0;i<rs.length;i++){el('ellipse',{cx:rs[i][0],cy:rs[i][1],rx:rs[i][3],ry:rs[i][4],fill:rs[i][2],'fill-opacity':0.4,stroke:rs[i][2]},s);}
+    T('2D 屏幕光栅化',500,372,WARN,10,'middle',s);
+    R(680,110,160,240,s,BG2,BD,1,8);T('光栅化步骤',760,134,AC,11,'middle',s);
+    T('1.投影到2D',760,160,DIM,10,'middle',s);T('2.计算2D包围盒',760,184,DIM,10,'middle',s);T('3.逐像素求α',760,208,DIM,10,'middle',s);T('4.前向混合',760,232,DIM,10,'middle',s);T('5.提前终止',760,256,DIM,10,'middle',s);
+    R(80,380,760,70,s,'none',BD,1,6);T('每个2D高斯在其屏幕包围盒内逐像素求 α=opacity×exp(−½ΔᵀΣ′⁻¹Δ)',460,408,AC,11,'middle',s);T('无需逐射线MLP查询，故可达实时 >100fps',460,432,DIM,10,'middle',s);
+    log.textContent='[泼溅] 排序后高斯投影为2D高斯(Σ→Σ′),在屏幕包围盒内逐像素计算α。\n无需NeRF逐点MLP查询,直接光栅化,因此实时。\n每个像素累积颜色+透射率,α>0.99提前终止,加速渲染。';
+  }else if(n===2){
+    T('步骤3 · 分块渲染 Tile',460,30,AC,16,'middle',s);
+    R(120,90,680,260,s,BG3,BD,1,6);
+    var TS=40;var cols=17,rows=6;
+    for(var c=0;c<cols;c++){for(var r=0;r<rows;r++){el('rect',{x:120+c*TS,y:90+r*TS,width:TS,height:TS,fill:'none',stroke:BD},s);}}
+    // active tiles
+    var act=[[3,1],[4,1],[5,2],[6,2],[3,2],[4,3],[5,3],[7,3],[8,2],[4,4],[5,4],[9,4],[10,3]];
+    for(var a=0;a<act.length;a++){el('rect',{x:120+act[a][0]*TS,y:90+act[a][1]*TS,width:TS,height:TS,fill:AC,'fill-opacity':0.18,stroke:AC},s);}
+    T('16×16 像素分块',460,76,AC,11,'middle',s);
+    // tile bucket
+    R(120,370,680,70,s,BG2,BD,1,8);T('每个 tile 维护其覆盖的高斯列表(线程块并行处理)',460,398,AC,12,'middle',s);
+    T('一像素一线程，tile 内共享高斯列表，最大化 GPU 并行度',460,422,DIM,10,'middle',s);
+    log.textContent='[分块渲染] 屏幕划分为16×16像素tile,每个高斯按其2D包围盒分配到覆盖的tile。\n每个tile由一个GPU线程块处理,块内高斯共享加载到共享内存。\n一像素一线程并行混合,最大化GPU利用率。这是3DGS实时性能的关键优化。';
+  }else if(n===3){
+    T('步骤4 · 反向传播',460,30,AC,16,'middle',s);
+    // forward
+    R(120,90,180,50,s,BG2,INFO,1,8);T('3D高斯参数',210,120,INFO,11,'middle',s);
+    Ln(300,115,360,115,AC,1.5,s,'5 3');T('前向',330,107,AC,10,'middle',s);
+    R(360,90,180,50,s,BG2,PUR,1,8);T('光栅化混合',450,120,PUR,11,'middle',s);
+    Ln(540,115,600,115,AC,1.5,s,'5 3');T('前向',570,107,AC,10,'middle',s);
+    R(600,90,180,50,s,BG2,WARN,1,8);T('渲染图像',690,120,WARN,11,'middle',s);
+    // loss
+    Ln(690,140,690,180,ERR,1.5,s);T('loss',710,162,ERR,10,'middle',s);
+    R(600,180,180,44,s,BG2,ERR,1,8);T('L1 + D-SSIM 损失',690,208,ERR,11,'middle',s);
+    // backward
+    Ln(600,202,540,202,ROSE,2,s,'6 3');T('梯度反向',570,194,ROSE,10,'middle',s);
+    Ln(360,202,300,202,ROSE,2,s,'6 3');
+    R(120,180,180,44,s,BG2,ROSE,1,8);T('∂L/∂参数',210,208,ROSE,11,'middle',s);
+    // params updated
+    R(120,260,680,60,s,BG3,BD,1,8);T('可微参数：μ, s, q, SH, α → 自适应密度控制(克隆/分裂/剪枝)',460,288,AC,12,'middle',s);
+    // density control
+    R(120,350,200,50,s,BG2,WARN,1,6);T('克隆',220,372,WARN,10,'middle',s);T('小高斯重建不足',220,388,DIM,9,'middle',s);
+    R(360,350,200,50,s,BG2,AC,1,6);T('分裂',460,372,AC,10,'middle',s);T('大高斯分裂细化',460,388,DIM,9,'middle',s);
+    R(600,350,200,50,s,BG2,ERR,1,6);T('剪枝',700,372,ERR,10,'middle',s);T('α过低移除',700,388,DIM,9,'middle',s);
+    R(60,420,800,40,s,'none',BD,1,6);T('可微渲染 + 自适应密度控制 = 高质量重建闭环',460,442,DIM,10,'middle',s);
+    log.textContent='[反向传播] 渲染可微:loss(L1+D-SSIM)的梯度反向流过混合→光栅化→3D高斯参数。\n更新μ/s/q/SH/α。自适应密度控制:重建不足处克隆,过大处分裂,α过低处剪枝。\n形成质量闭环,从稀疏点云逐步生长为高质量高斯场。';
+  }
+}
+
+// ===== M5 动态场景重建 =====
+function m5Draw(){m5View(0);}
+function m5View(n){
+  var s=document.getElementById('s5'),log=document.getElementById('l5');
+  clear(s);
+  if(n===0){
+    T('静态 3DGS',460,30,INFO,16,'middle',s);
+    T('单一时刻 · 一组固定高斯',460,58,DIM,11,'middle',s);
+    var st=[[200,180,WARN,40,24],[260,230,ROSE,30,18],[170,260,INFO,34,20],[230,300,PUR,28,16]];
+    for(var i=0;i<st.length;i++){el('ellipse',{cx:st[i][0],cy:st[i][1],rx:st[i][3],ry:st[i][4],fill:st[i][2],'fill-opacity':0.2,stroke:st[i][2]},s);}
+    T('t = t₀ (固定)',210,330,INFO,11,'middle',s);
+    // limitation
+    R(440,150,440,200,s,BG2,BD,1,8);T('局限',660,176,ERR,12,'middle',s);
+    T('• 仅重建单一静态时刻',660,204,DIM,11,'middle',s);T('• 无法表达运动/形变',660,226,DIM,11,'middle',s);T('• 视频需逐帧独立训练',660,248,DIM,11,'middle',s);T('• 帧间不连续、闪烁',660,270,DIM,11,'middle',s);
+    R(120,380,680,60,s,'none',BD,1,6);T('静态3DGS为动态方法提供基础，但缺乏时间一致性',460,408,DIM,11,'middle',s);
+    log.textContent='[静态3DGS] 仅重建t₀单一时刻,一组固定高斯。\n优势:质量高、实时。局限:无法表达运动形变,视频需逐帧独立训练→帧间不连续闪烁。\n这是动态重建方法要解决的核心痛点。';
+  }else if(n===1){
+    T('4D 高斯泼溅',460,30,WARN,16,'middle',s);
+    // multiple time frames
+    var frames=[{t:'t₁',x:120,c:INFO},{t:'t₂',x:330,c:AC},{t:'t₃',x:540,c:WARN},{t:'t₄',x:750,c:ROSE}];
+    for(var f=0;f<frames.length;f++){R(frames[f].x-80,80,160,260,s,BG2,frames[f].c,1,8);T(frames[f].t,frames[f].x,100,frames[f].c,12,'middle',s);
+      el('ellipse',{cx:frames[f].x,cy:200,rx:30,ry:18,fill:frames[f].c,'fill-opacity':0.2,stroke:frames[f].c,transform:'rotate('+(f*15)+' '+frames[f].x+' 200)'},s);
+      el('ellipse',{cx:frames[f].x,cy:240,rx:24,ry:14,fill:frames[f].c,'fill-opacity':0.2,stroke:frames[f].c},s);
+      el('ellipse',{cx:frames[f].x,cy:240,rx:24,ry:14,fill:frames[f].c,'fill-opacity':0.2,stroke:frames[f].c,transform:'translate('+(f*8)+',0)'},s);
+    }
+    // trajectory
+    Pl('200,300 410,290 620,280 770,270',ROSE,1.5,s,'none');T('运动轨迹',490,260,ROSE,10,'middle',s);
+    T('每个高斯随时间演化',460,372,WARN,11,'middle',s);
+    R(80,390,760,60,s,'none',BD,1,6);T('为高斯引入时间维度：位置/缩放/旋转随 t 连续变化',460,418,DIM,11,'middle',s);
+    log.textContent='[4D高斯] 为每个高斯增加时间维度:位置μ(t)、缩放s(t)、旋转q(t)随t连续变化。\n直接在4D空间优化高斯轨迹,可表达运动形变。\n挑战:时空一致性约束、参数量大、需时序正则化。代表:4DGS、Spacetime Gaussians。';
+  }else if(n===2){
+    T('变形场 Deformation Field',460,30,PUR,16,'middle',s);
+    // canonical
+    R(80,100,200,240,s,BG2,INFO,1,8);T('规范空间',180,124,INFO,12,'middle',s);T('(t₀ 静态高斯)',180,142,DIM,10,'middle',s);
+    el('ellipse',{cx:180,cy:200,rx:36,ry:22,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:160,cy:260,rx:26,ry:16,fill:AC,'fill-opacity':0.2,stroke:AC},s);
+    // deformation MLP
+    Ln(280,220,400,220,AC,1.5,s,'5 3');
+    R(400,150,200,150,s,BG2,PUR,1.5,8);T('变形 MLP',500,176,PUR,12,'middle',s);
+    T('输入 (x,y,z,t)',500,202,DIM,10,'middle',s);
+    Ln(460,212,540,212,PUR,1,s);T('→ Δ(位置/缩放/旋转)',500,236,DIM,10,'middle',s);
+    Ln(500,250,500,270,PUR,1,s);
+    T('时间条件',500,286,DIM,9,'middle',s);
+    Ln(600,220,720,220,AC,1.5,s,'5 3');
+    R(720,100,160,240,s,BG2,WARN,1,8);T('时刻 t',800,124,WARN,12,'middle',s);T('变形后高斯',800,142,DIM,10,'middle',s);
+    el('ellipse',{cx:800,cy:200,rx:36,ry:22,fill:WARN,'fill-opacity':0.2,stroke:WARN,transform:'translate(8,-6) rotate(15 800 200)'},s);
+    el('ellipse',{cx:780,cy:260,rx:26,ry:16,fill:ROSE,'fill-opacity':0.2,stroke:ROSE,transform:'translate(-6,4)'},s);
+    // time bar
+    Ln(180,360,740,360,DIM,1,s);T('t₀',180,376,DIM,9,'middle',s);T('t₁',400,376,DIM,9,'middle',s);T('t₂',620,376,DIM,9,'middle',s);T('t₃',740,376,DIM,9,'middle',s);
+    R(120,390,680,60,s,'none',BD,1,6);T('规范场(共享静态高斯) + 变形场(编码时变偏移)，大幅降低参数量',460,418,DIM,11,'middle',s);
+    log.textContent='[变形场] 拆分:规范空间(共享静态高斯)+变形MLP(编码时变偏移)。\n变形MLP输入(x,y,z,t)→Δ位置/缩放/旋转,应用到规范高斯得t时刻形态。\n优势:参数量远低于独立每帧训练,时序平滑。代表:Deformable3DGS、4DGS。';
+  }else if(n===3){
+    T('动态方法对比',460,30,AC,16,'middle',s);
+    var cols2=[{n:'静态3DGS',x:180,p:'低',q:'高',t:'✗',c:INFO},{n:'逐帧训练',x:380,p:'高',q:'中',t:'✗',c:WARN},{n:'4D高斯',x:560,p:'中',q:'高',t:'✓',c:ROSE},{n:'变形场',x:740,p:'低',q:'高',t:'✓',c:AC}];
+    R(80,80,760,40,s,BG2,BD,1,6);T('方法',230,106,TXT,11,'middle',s);T('参数量',440,106,TXT,11,'middle',s);T('质量',620,106,TXT,11,'middle',s);T('时序一致',790,106,TXT,11,'middle',s);
+    for(var r=0;r<4;r++){var y=128+r*38;var m=cols2[r];R(80,y,760,36,s,r%2?BG2:'#14161f',BD,1,6);T(m.n,230,y+24,m.c,11,'middle',s);T(m.p,440,y+24,DIM,11,'middle',s);T(m.q,620,y+24,DIM,11,'middle',s);T(m.t,790,y+24,m.t==='✓'?AC:ERR,12,'middle',s);}
+    R(120,330,680,80,s,BG2,BD,1,8);T('结论：变形场在参数量与时序一致性上最优',460,356,AC,12,'middle',s);T('4D高斯质量略优但参数更大；逐帧训练质量受限于单帧数据',460,384,DIM,10,'middle',s);
+    log.textContent='[对比] 静态3DGS:参数低但无时序。逐帧训练:参数高、不连续。\n4D高斯:质量高、时序一致,但参数量大。\n变形场:参数低(共享规范场)、质量高、时序一致→综合最优,工程最常用。';
+  }
+}
+
+// ===== M6 场景编辑与操控 =====
+function m6Draw(){m6Step(0);}
+function m6Step(n){
+  var s=document.getElementById('s6'),log=document.getElementById('l6');
+  clear(s);
+  if(n===0){
+    T('物体移除 Object Removal',460,30,ROSE,16,'middle',s);
+    // before
+    R(80,80,320,240,s,BG2,INFO,1,8);T('编辑前',240,104,INFO,11,'middle',s);
+    el('ellipse',{cx:160,cy:180,rx:34,ry:20,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:260,cy:240,rx:30,ry:18,fill:ROSE,'fill-opacity':0.2,stroke:ROSE},s);T('← 待移除',260,276,ERR,9,'middle',s);
+    el('ellipse',{cx:320,cy:160,rx:24,ry:14,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    Ln(400,200,500,200,AC,1.5,s,'5 3');T('选中+删除',450,192,AC,10,'middle',s);
+    // after
+    R(500,80,320,240,s,BG2,ROSE,1,8);T('编辑后',660,104,ROSE,11,'middle',s);
+    el('ellipse',{cx:580,cy:180,rx:34,ry:20,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:740,cy:160,rx:24,ry:14,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('circle',{cx:660,cy:240,r:30,fill:'none',stroke:ERR,'stroke-width':1.5,'stroke-dasharray':'4 3'},s);T('已移除',660,250,ERR,9,'middle',s);
+    R(120,350,680,70,s,BG3,BD,1,8);T('流程：高斯聚类分割 → 语义/几何选择目标 → 删除高斯 → 补洞微调',460,378,TXT,12,'middle',s);T('显式表示使物体级操控天然可行',460,402,DIM,10,'middle',s);
+    log.textContent='[物体移除] 3DGS显式表示使物体级操控可行:\n高斯聚类分割→语义/几何选中目标→直接删除高斯→周围补洞微调。\n相比NeRF隐式场,无需重训即可编辑,支持交互式场景清理。';
+  }else if(n===1){
+    T('纹理编辑 Texture Editing',460,30,ROSE,16,'middle',s);
+    el('ellipse',{cx:180,cy:200,rx:50,ry:30,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    Ln(180,230,180,260,DIM,1,s);T('原始颜色 SH',180,278,DIM,9,'middle',s);
+    Ln(240,200,360,200,AC,1.5,s,'5 3');T('改写 SH',300,192,AC,10,'middle',s);
+    // palette
+    R(360,120,200,180,s,BG2,BD,1,8);T('颜色调色板',460,146,PUR,11,'middle',s);
+    var pal=[WARN,ROSE,INFO,AC,PUR,ERR];
+    for(var p=0;p<6;p++){el('rect',{x:390+p*28,y:170,width:24,height:24,fill:pal[p],rx:4},s);}
+    T('球谐系数',460,216,DIM,10,'middle',s);
+    T('直接编辑SH(0阶=基色)',460,238,DIM,9,'middle',s);T('高阶=视角相关',460,258,DIM,9,'middle',s);
+    // after
+    el('ellipse',{cx:680,cy:200,rx:50,ry:30,fill:WARN,'fill-opacity':0.3,stroke:WARN},s);
+    Ln(680,230,680,260,DIM,1,s);T('新颜色 SH',680,278,WARN,9,'middle',s);
+    Ln(560,200,620,200,AC,1.5,s,'5 3');
+    R(120,340,680,80,s,BG3,BD,1,8);T('编辑球谐系数 → 视角相关外观实时更新，无需重训',460,368,TXT,12,'middle',s);T('支持材质替换、风格迁移、季节变化等',460,392,DIM,10,'middle',s);
+    log.textContent='[纹理编辑] 直接改写高斯的球谐SH系数:\n0阶=基色,高阶=视角相关(镜面/各向异性)。\n编辑即时生效,无需重训,支持材质替换、风格迁移、季节变化。\n这是NeRF难以做到的交互式外观编辑。';
+  }else if(n===2){
+    T('场景组合 Scene Composition',460,30,ROSE,16,'middle',s);
+    // scene A
+    R(60,90,220,180,s,BG2,INFO,1,8);T('场景 A',170,114,INFO,11,'middle',s);
+    el('ellipse',{cx:120,cy:180,rx:30,ry:18,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);el('ellipse',{cx:200,cy:220,rx:24,ry:14,fill:AC,'fill-opacity':0.2,stroke:AC},s);
+    // scene B
+    R(300,90,220,180,s,BG2,WARN,1,8);T('场景 B',410,114,WARN,11,'middle',s);
+    el('ellipse',{cx:360,cy:200,rx:28,ry:16,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);el('ellipse',{cx:440,cy:170,rx:22,ry:13,fill:ROSE,'fill-opacity':0.2,stroke:ROSE},s);
+    Ln(520,180,560,180,AC,1.5,s,'5 3');
+    R(560,90,300,180,s,BG2,ROSE,1,8);T('组合场景',710,114,ROSE,11,'middle',s);
+    el('ellipse',{cx:620,cy:180,rx:30,ry:18,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:700,cy:220,rx:24,ry:14,fill:AC,'fill-opacity':0.2,stroke:AC},s);
+    el('ellipse',{cx:760,cy:170,rx:28,ry:16,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('ellipse',{cx:680,cy:240,rx:22,ry:13,fill:ROSE,'fill-opacity':0.2,stroke:ROSE},s);
+    R(120,300,680,60,s,BG3,BD,1,8);T('变换(平移/旋转/缩放)高斯集合 → 无缝拼接成新场景',460,328,TXT,12,'middle',s);
+    R(120,380,680,50,s,'none',BD,1,6);T('显式表示使场景像3D素材一样可组合、可复用',460,416,DIM,10,'middle',s);
+    log.textContent='[场景组合] 多个3DGS场景可直接组合:\n对高斯集合施加变换(平移/旋转/缩放)→拼接成新场景。\n显式表示使场景像3D素材一样可组合复用,支持资产库式工作流。\n这是显式神经表示相比NeRF的工程优势。';
+  }else if(n===3){
+    T('物理模拟 Physics Simulation',460,30,ROSE,16,'middle',s);
+    // timeline of falling
+    var fr=[{x:140,y:120,t:'t₀'},{x:280,y:160,t:'t₁'},{x:420,y:220,t:'t₂'},{x:560,y:300,t:'t₃'},{x:700,y:360,t:'t₄'}];
+    Pl('140,120 280,160 420,220 560,300 700,360',AC,1.5,s,'none');
+    for(var i=0;i<fr.length;i++){el('ellipse',{cx:fr[i].x,cy:fr[i].y,rx:24,ry:14,fill:WARN,'fill-opacity':0.3-i*0.04,stroke:WARN,opacity:0.6},s);}
+    T('自由落体',420,100,WARN,10,'middle',s);
+    // ground
+    Ln(80,380,780,380,DIM,1.5,s);T('地面',80,396,DIM,9,'start',s);
+    // gravity arrow
+    Ln(740,150,740,300,ERR,1.5,s);el('polygon',{points:'735,295 740,310 745,295',fill:ERR},s);T('g',752,220,ERR,10,'middle',s);
+    R(120,400,680,40,s,BG3,BD,1,6);T('将高斯绑定刚体/流体 → 实时物理交互(碰撞、重力、流动)',460,424,DIM,11,'middle',s);
+    log.textContent='[物理模拟] 将高斯绑定到刚体/流体粒子,施加物理:\n重力、碰撞、流动→高斯随物理体运动,实时渲染交互结果。\n支持可交互动态场景(碰撞、堆积、流动),开辟神经渲染+仿真新方向。代表:GaussianSplatter物理扩展。';
+  }
+}
+
+// ===== M7 压缩与流式传输 =====
+function m7Draw(){m7View(0);}
+function m7View(n){
+  var s=document.getElementById('s7'),log=document.getElementById('l7');
+  clear(s);
+  if(n===0){
+    T('原始大小(未压缩)',460,30,WARN,16,'middle',s);
+    var bars=[{n:'位置μ',v:12,h:120,c:INFO},{n:'缩放s',v:12,h:120,c:AC},{n:'旋转q',v:16,h:160,c:PUR},{n:'颜色SH',v:192,h:320,c:ROSE},{n:'不透明度α',v:4,h:40,c:WARN}];
+    var bx=120;
+    for(var i=0;i<bars.length;i++){el('rect',{x:bx,y:400-bars[i].h,width:90,height:bars[i].h,fill:bars[i].c,'fill-opacity':0.3,stroke:bars[i].c},s);T(bars[i].n,bx+45,415,TXT,10,'middle',s);T(bars[i].v+'B',bx+45,390-bars[i].h,DIM,9,'middle',s);bx+=120;}
+    Ln(120,400,720,400,DIM,1,s);
+    T('每高斯 59 维 · FP32 = 236 字节',420,440,WARN,11,'middle',s);
+    R(120,80,680,60,s,BG2,ERR,1,8);T('百万高斯 ≈ 236 MB，VR/移动端难以承载',460,106,ERR,12,'middle',s);T('FP32 全精度，存在大量冗余与可压缩空间',460,128,DIM,10,'middle',s);
+    log.textContent='[原始大小] 每高斯59维FP32=236字节,百万高斯≈236MB。\nVR/移动端难以承载,且存在大量冗余(SH高阶系数、低不透明度高斯)。\n压缩是3DGS实用化的必经之路。';
+  }else if(n===1){
+    T('量化压缩 Quantization',460,30,AC,16,'middle',s);
+    // precision ladder
+    var lv=[{n:'FP32',b:236,c:ERR,fo:1},{n:'FP16',b:118,c:WARN,fo:0.8},{n:'INT8',b:59,c:PUR,fo:0.6},{n:'INT4',b:30,c:AC,fo:0.4},{n:'混合',b:22,c:INFO,fo:0.3}];
+    var by=120;
+    for(var i=0;i<lv.length;i++){var w=lv[i].b*2.6;el('rect',{x:120,y:by,width:w,height:30,fill:lv[i].c,'fill-opacity':0.25,stroke:lv[i].c},s);T(lv[i].n,120+w+12,by+20,lv[i].c,11,'start',s);T(lv[i].b+'MB',120+w+60,by+20,DIM,10,'start',s);by+=40;}
+    Ln(100,120,100,320,DIM,1,s);T('大小',92,220,DIM,9,'end',s);
+    R(120,350,680,70,s,BG3,BD,1,8);T('SH 高阶系数可更激进量化(感知不敏感)，位置需较高精度',460,378,AC,12,'middle',s);T('压缩比 ~10×，质量损失 <1dB PSNR',460,402,DIM,10,'middle',s);
+    log.textContent='[量化压缩] 降低参数精度:FP32→FP16→INT8→INT4,混合精度。\nSH高阶系数对感知不敏感→更激进量化;位置需高精度。\n压缩比约10×,质量损失<1dB PSNR。代表:SOG、Compressed3DGS。';
+  }else if(n===2){
+    T('剪枝压缩 Pruning',460,30,PUR,16,'middle',s);
+    // before dense
+    R(80,90,300,260,s,BG2,DIM,1,8);T('剪枝前(密集)',230,114,DIM,11,'middle',s);
+    for(var r=0;r<7;r++)for(var c=0;c<7;c++){el('circle',{cx:120+c*32,cy:140+r*32,r:8,fill:PUR,'fill-opacity':0.25,stroke:PUR},s);}
+    T('49 个高斯',230,376,PUR,10,'middle',s);
+    Ln(380,220,460,220,AC,1.5,s,'5 3');T('移除冗余',420,212,AC,10,'middle',s);
+    // after sparse
+    R(480,90,300,260,s,BG2,AC,1,8);T('剪枝后(精简)',630,114,AC,11,'middle',s);
+    var keep=[[3,1],[5,1],[2,3],[4,3],[6,3],[3,4],[5,4],[2,5],[4,5],[6,5],[3,2],[5,3]];
+    for(var k=0;k<keep.length;k++){el('circle',{cx:520+keep[k][0]*32,cy:140+keep[k][1]*32,r:9,fill:AC,'fill-opacity':0.3,stroke:AC},s);}
+    T('12 个高斯 (-75%)',630,376,AC,10,'middle',s);
+    R(120,390,680,50,s,BG3,BD,1,6);T('移除低不透明度 / 重叠冗余 / 高频噪声高斯，质量几乎无损',460,414,DIM,11,'middle',s);
+    log.textContent='[剪枝压缩] 移除冗余高斯:低不透明度、重叠冗余、高频噪声。\n基于重要性评分(α、梯度、覆盖)选择性删除,质量几乎无损。\n典型可减少50-90%高斯,是性价比最高的压缩手段。代表:LightGaussian、EAGLES。';
+  }else if(n===3){
+    T('流式传输 Streaming LOD',460,30,INFO,16,'middle',s);
+    // server
+    R(60,90,140,100,s,BG2,PUR,1,8);T('云端',130,116,PUR,12,'middle',s);T('完整场景',130,138,DIM,10,'middle',s);T('500MB',130,160,WARN,10,'middle',s);
+    Ln(200,140,280,140,AC,1.5,s,'5 3');T('按需分块',240,132,AC,10,'middle',s);
+    // LOD levels
+    var lo=[{l:'LOD0 精细',y:100,c:AC,w:280},{l:'LOD1 中等',y:160,c:INFO,w:220},{l:'LOD2 粗略',y:220,c:PUR,w:160},{l:'LOD3 远景',y:280,c:DIM,w:100}];
+    for(var i=0;i<lo.length;i++){R(300,lo[i].y,lo[i].w,40,s,BG2,lo[i].c,1,6);T(lo[i].l,300+lo[i].w/2,lo[i].y+24,lo[i].c,10,'middle',s);}
+    Ln(300,140,300,300,DIM,1,s);
+    // client
+    Ln(580,160,660,160,AC,1.5,s,'5 3');
+    R(660,100,180,220,s,BG2,INFO,1,8);T('客户端',750,126,INFO,12,'middle',s);T('视锥内优先',750,152,DIM,10,'middle',s);T('加载最近LOD',750,176,DIM,10,'middle',s);T('渐进式细化',750,200,DIM,10,'middle',s);T('后台预取',750,224,DIM,10,'middle',s);T('内存友好',750,248,DIM,10,'middle',s);
+    R(60,360,800,50,s,BG3,BD,1,6);T('按视距分块加载 + LOD 多层级，让大场景在移动端流畅呈现',460,384,INFO,11,'middle',s);
+    log.textContent='[流式传输] 按视锥/视距分块加载,多LOD层级:\n近处加载精细LOD0,远处用粗略LOD3,后台预取相邻块。\n渐进式细化,内存占用恒定,让500MB大场景在移动端流畅呈现。\n代表:HAC、3DGS流式渲染框架。';
+  }
+}
+
+// ===== M8 应用场景 =====
+function m8Draw(){m8Step(0);}
+function m8Step(n){
+  var s=document.getElementById('s8'),log=document.getElementById('l8');
+  clear(s);
+  if(n===0){
+    T('VR / AR 沉浸交互',460,30,INFO,16,'middle',s);
+    // HMD
+    R(120,120,180,90,s,BG2,INFO,1,8);T('头显 HMD',210,150,INFO,11,'middle',s);
+    el('circle',{cx:175,cy:180,r:14,fill:INFO,'fill-opacity':0.15,stroke:INFO},s);
+    el('circle',{cx:245,cy:180,r:14,fill:INFO,'fill-opacity':0.15,stroke:INFO},s);
+    Ln(300,165,400,165,AC,1.5,s,'5 3');T('低延迟',350,157,AC,10,'middle',s);
+    R(400,90,400,140,s,BG3,AC,1.5,8);T('3DGS 实时渲染',600,116,AC,12,'middle',s);
+    el('ellipse',{cx:520,cy:180,rx:30,ry:18,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('ellipse',{cx:680,cy:160,rx:26,ry:15,fill:ROSE,'fill-opacity':0.2,stroke:ROSE},s);
+    el('ellipse',{cx:620,cy:210,rx:34,ry:20,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    Ln(600,230,600,270,DIM,1,s);
+    // AR overlay
+    R(120,290,680,90,s,BG2,ROSE,1,8);T('AR 叠加：真实环境 + 虚拟高斯物体',460,316,ROSE,12,'middle',s);
+    T('要求：>90fps · <20ms 动作-光子延迟 · 眼动注视点渲染',460,344,DIM,10,'middle',s);T('3DGS 显式表示支持注视点与分块流式，适配头显',460,366,DIM,10,'middle',s);
+    log.textContent='[VR/AR] 3DGS实时渲染(>90fps)满足头显低延迟要求。\n显式表示支持注视点渲染(眼动中心高精度)+分块流式。\nAR场景:真实环境重建为高斯+虚拟物体叠加。挑战:移动端算力、动作-光子<20ms延迟。';
+  }else if(n===1){
+    T('数字孪生 Digital Twin',460,30,AC,16,'middle',s);
+    R(80,90,360,260,s,BG2,AC,1,8);T('物理实体',260,114,AC,11,'middle',s);
+    // building
+    R(140,180,80,120,s,BG3,WARN,1);R(240,200,60,100,s,BG3,INFO,1);R(310,160,50,140,s,BG3,PUR,1);
+    T('工厂/城市/设备',260,320,WARN,10,'middle',s);
+    Ln(440,220,500,220,AC,1.5,s,'5 3');T('扫描重建',470,212,AC,10,'middle',s);
+    R(500,90,360,260,s,BG2,INFO,1,8);T('数字孪生(3DGS)',680,114,INFO,11,'middle',s);
+    el('ellipse',{cx:580,cy:200,rx:30,ry:18,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('ellipse',{cx:680,cy:180,rx:26,ry:15,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:760,cy:240,rx:34,ry:20,fill:PUR,'fill-opacity':0.2,stroke:PUR},s);
+    T('高保真 · 可测量 · 可编辑',680,320,INFO,10,'middle',s);
+    R(120,380,680,60,s,BG3,BD,1,6);T('应用：城市规划、工厂运维、文化遗产、远程协作巡检',460,408,DIM,11,'middle',s);
+    log.textContent='[数字孪生] 扫描物理实体→3DGS重建为高保真数字孪生。\n可测量、可编辑、可交互漫游。应用:城市规划、工厂运维、文化遗产保护、远程协作巡检。\n3DGS照片级真实感+实时,优于传统建模与点云。';
+  }else if(n===2){
+    T('自动驾驶仿真',460,30,WARN,16,'middle',s);
+    // car
+    R(100,200,90,40,s,BG2,AC,1,6);el('circle',{cx:120,cy:245,r:8,fill:BD,stroke:AC},s);el('circle',{cx:170,cy:245,r:8,fill:BD,stroke:AC},s);T('自车',145,278,AC,10,'middle',s);
+    // sensors
+    Ln(190,220,260,180,WARN,1.5,s);Ln(190,220,260,220,INFO,1.5,s);Ln(190,220,260,260,PUR,1.5,s);
+    T('LiDAR',290,178,WARN,9,'start',s);T('相机',290,218,INFO,9,'start',s);T('雷达',290,258,PUR,9,'start',s);
+    // sim scene (3DGS)
+    R(360,120,480,200,s,BG3,WARN,1.5,8);T('3DGS 仿真场景库',600,146,WARN,11,'middle',s);
+    el('ellipse',{cx:440,cy:200,rx:30,ry:18,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('ellipse',{cx:560,cy:180,rx:26,ry:15,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:680,cy:220,rx:34,ry:20,fill:PUR,'fill-opacity':0.2,stroke:PUR},s);
+    el('ellipse',{cx:780,cy:190,rx:28,ry:16,fill:ROSE,'fill-opacity':0.2,stroke:ROSE},s);
+    T('真实扫描重建 · 稀有场景复现',600,250,DIM,10,'middle',s);
+    R(360,340,480,40,s,BG2,AC,1,6);T('传感器仿真 → 自动驾驶算法训练与回归测试',600,364,AC,10,'middle',s);
+    R(120,400,680,40,s,'none',BD,1,6);T('3DGS 提供照片级仿真环境，覆盖长尾与危险场景',460,424,DIM,10,'middle',s);
+    log.textContent='[自动驾驶] 3DGS重建真实道路场景→仿真环境库。\n照片级真实感训练感知算法,复现稀有/危险长尾场景。\n支持多传感器仿真(LiDAR/相机/雷达),算法回归测试。\n优于传统游戏引擎建模的真实度。';
+  }else if(n===3){
+    T('影视虚拟制作',460,30,ROSE,16,'middle',s);
+    R(80,90,260,240,s,BG2,ROSE,1,8);T('虚拟影棚',210,114,ROSE,11,'middle',s);
+    el('circle',{cx:160,cy:180,r:18,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);T('演员',160,210,WARN,9,'middle',s);
+    el('rect',{x:130,y:240,width:60,height:40,fill:INFO,'fill-opacity':0.15,stroke:INFO},s);T('摄影机',160,300,INFO,9,'middle',s);
+    Ln(340,200,420,200,AC,1.5,s,'5 3');T('实时合成',380,192,AC,10,'middle',s);
+    R(420,90,420,240,s,BG3,AC,1.5,8);T('3DGS 虚拟场景',630,116,AC,12,'middle',s);
+    el('ellipse',{cx:520,cy:180,rx:40,ry:24,fill:WARN,'fill-opacity':0.2,stroke:WARN},s);
+    el('ellipse',{cx:660,cy:160,rx:34,ry:20,fill:INFO,'fill-opacity':0.2,stroke:INFO},s);
+    el('ellipse',{cx:750,cy:220,rx:38,ry:22,fill:PUR,'fill-opacity':0.2,stroke:PUR},s);
+    T('LED 墙 / 虚拟制片',630,260,DIM,10,'middle',s);
+    R(120,360,680,70,s,BG2,BD,1,8);T('实时渲染 + 摄影机追踪 → 虚实无缝合成',460,388,ROSE,12,'middle',s);T('演员所见即所得，后期前置，降低实地拍摄成本',460,412,DIM,10,'middle',s);
+    log.textContent='[影视制作] 3DGS重建虚拟场景→LED墙实时投影虚拟制片。\n摄影机追踪同步渲染,虚实无缝合成,演员所见即所得。\n后期前置,降低实地拍摄成本。照片级真实感超越传统CG。\n代表:The Volume虚拟影棚技术,3DGS使其更轻量。';
+  }
+}
+
+// ===== 初始化 =====
+m1Draw();m2Draw();m3Draw();m4Draw();m5Draw();m6Draw();m7Draw();m8Draw();
+</script>
+</body>
+</html>

@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 291 个零依赖交互式可视化项目 + 30 个配套工具，2328+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 296 个零依赖交互式可视化项目 + 30 个配套工具，2368+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-291-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2328+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-296-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2368+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 291 |
-| 可视化模块 | 2328+ |
+| 项目总数 | 296 |
+| 可视化模块 | 2368+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -365,6 +365,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 289 | KV缓存与内存优化可视化实验室 | KV缓存全景/缓存机制/PagedAttention/量化压缩/驱逐策略/共享前缀/内存分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/kv-cache-optimization-viz-lab/) |
 | 290 | 向量搜索与近似最近邻可视化实验室 | 向量搜索全景/相似度度量/HNSW/IVF/PQ量化/混合索引/性能分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/vector-search-ann-viz-lab/) |
 | 291 | 分词器与词表工程可视化实验室 | 分词全景/BPE算法/WordPiece & SentencePiece/Tokenizer对比/词表设计/Token压缩/多语言分词/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/tokenizer-engineering-viz-lab/) |
+| 292 | AI意识与感知可视化实验室 | 意识理论全景/整合信息理论/全局工作空间理论/意识测量与评估/中文房间论证/AI感知能力评估/意识神经关联/AI伦理与意识权利等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-consciousness-viz-lab/) |
+| 293 | 神经渲染与3D高斯泼溅可视化实验室 | 渲染技术演进/NeRF原理与训练/3D高斯泼溅原理/3DGS渲染管线/动态场景重建/场景编辑与操控/压缩与流式传输/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/neural-rendering-3dgs-viz-lab/) |
+| 294 | 元学习与学会学习可视化实验室 | 元学习全景/MAML算法/度量学习/元强化学习/快速适应机制/元学习与预训练/元学习架构搜索/少样本学习等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/meta-learning-viz-lab/) |
+| 295 | AI推理验证与形式化可视化实验室 | 推理验证全景/形式化定理证明/推理链一致性检查/证明步骤验证/自动定理证明/AI生成代码验证/可信赖推理框架/数学竞赛与证明等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/reasoning-verification-viz-lab/) |
+| 296 | 自适应计算与动态推理可视化实验室 | 自适应计算全景/早退机制/动态深度路由/Token级计算分配/推理时缩放/稀疏激活模式/计算预算分配/能效与精度权衡等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/adaptive-computation-viz-lab/) |
 
 ## 技术栈
 
@@ -382,7 +387,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 使用方式
 
-1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 291 个项目
+1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 296 个项目
 2. **搜索筛选** — 在 Hub 页面使用搜索框和分类标签快速定位
 3. **随机探索** — 点击 "🎲 随机探索" 按钮发现新项目
 4. **本地运行** — 下载任意项目的 `index.html`，双击即可在浏览器中打开

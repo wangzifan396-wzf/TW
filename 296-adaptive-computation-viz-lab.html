@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 自适应计算与动态推理可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.module{display:none;padding:24px}
+.module.active{display:block}
+.module h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.module>p{font-size:13px;color:#9aa0b0;margin-bottom:16px;max-width:800px}
+.ctrl{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ctrl button{padding:6px 14px;background:#1a1d27;color:#e6e8ee;border:1px solid #2d3344;border-radius:6px;font-size:12px;cursor:pointer;transition:background .18s,border-color .18s}
+.ctrl button:hover{background:#252836;border-color:#00d4aa}
+svg{width:100%;max-width:920px;height:auto;background:#0f1117;border:1px solid #1a1d27;border-radius:8px}
+.log{margin-top:8px;padding:8px 12px;background:#0a0c12;border:1px solid #1a1d27;border-radius:6px;font-size:12px;color:#9aa0b0;font-family:monospace;min-height:24px}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>自适应计算与动态推理可视化实验室</h1>
+</header>
+<nav class="tabs" id="tabs">
+<button class="tab active" data-m="m1">M1 全景</button>
+<button class="tab" data-m="m2">M2 早退</button>
+<button class="tab" data-m="m3">M3 路由</button>
+<button class="tab" data-m="m4">M4 Token分配</button>
+<button class="tab" data-m="m5">M5 推理缩放</button>
+<button class="tab" data-m="m6">M6 稀疏激活</button>
+<button class="tab" data-m="m7">M7 计算预算</button>
+<button class="tab" data-m="m8">M8 能效权衡</button>
+</nav>
+<main>
+<section class="module active" id="m1">
+<h2>M1 · 自适应计算全景</h2>
+<p>不同输入需要不同计算量——自适应计算让模型按需思考。固定计算对所有输入一视同仁地跑满全部层，而自适应计算根据输入复杂度动态分配计算深度，简单输入少算、复杂输入多算，在保持精度的同时大幅降低平均计算开销。</p>
+<div class="ctrl">
+<button onclick="m1View('all')">全部</button>
+<button onclick="m1View('early')">早退机制</button>
+<button onclick="m1View('route')">动态路由</button>
+<button onclick="m1View('budget')">计算预算</button>
+</div>
+<svg id="svg1" viewBox="0 0 920 500"></svg>
+<div class="log" id="log1"></div>
+</section>
+<section class="module" id="m2">
+<h2>M2 · 早退机制(Early Exit)</h2>
+<p>在Transformer层间插入辅助分类器，简单输入提前输出，无需跑完所有层。每个退出点都有独立的分类头，当中间层的预测置信度超过阈值时即可提前终止计算，将剩余层的计算资源留给真正需要深度推理的复杂输入。</p>
+<div class="ctrl">
+<button onclick="m2View('arch')">架构</button>
+<button onclick="m2View('simple')">简单输入</button>
+<button onclick="m2View('complex')">复杂输入</button>
+<button onclick="m2View('threshold')">阈值调优</button>
+</div>
+<svg id="svg2" viewBox="0 0 920 500"></svg>
+<div class="log" id="log2"></div>
+</section>
+<section class="module" id="m3">
+<h2>M3 · 动态深度路由</h2>
+<p>Mixture-of-Depths让每个token选择自己的计算路径，跳过不必要的层。每层内置轻量路由器，对token进行重要性评估，只有被选中的token才通过该层计算，其余token直接跳过。这种机制实现了token级别的深度动态分配。</p>
+<div class="ctrl">
+<button onclick="m3View('router')">路由器</button>
+<button onclick="m3View('token')">token路径</button>
+<button onclick="m3View('skip')">层跳过</button>
+<button onclick="m3View('compare')">性能对比</button>
+</div>
+<svg id="svg3" viewBox="0 0 920 500"></svg>
+<div class="log" id="log3"></div>
+</section>
+<section class="module" id="m4">
+<h2>M4 · Token级计算分配</h2>
+<p>不同token需要不同计算量——关键token多算、填充token少算。通过重要性评估为序列中的每个token分配差异化的计算预算，将有限的计算资源集中在信息密度高的token上，从而在不增加总计算量的前提下提升模型性能。</p>
+<div class="ctrl">
+<button onclick="m4View('uniform')">均匀分配</button>
+<button onclick="m4View('weighted')">重要性加权</button>
+<button onclick="m4View('sparse')">稀疏激活</button>
+<button onclick="m4View('compare')">对比</button>
+</div>
+<svg id="svg4" viewBox="0 0 920 500"></svg>
+<div class="log" id="log4"></div>
+</section>
+<section class="module" id="m5">
+<h2>M5 · 推理时缩放(Scaling)</h2>
+<p>从CoT到ToT到自洽性，推理时增加计算量提升性能。不同于训练时缩放（扩大模型参数），推理时缩放在模型固定的情况下，通过更精巧的推理策略——生成更多中间步骤、探索多条路径、多采样投票——来换取更高的准确率。</p>
+<div class="ctrl">
+<button onclick="m5View('direct')">直接回答</button>
+<button onclick="m5View('cot')">链式思考</button>
+<button onclick="m5View('tot')">思维树</button>
+<button onclick="m5View('sc')">自洽投票</button>
+</div>
+<svg id="svg5" viewBox="0 0 920 500"></svg>
+<div class="log" id="log5"></div>
+</section>
+<section class="module" id="m6">
+<h2>M6 · 稀疏激活模式</h2>
+<p>MoE专家路由——只有部分专家被激活，总参数大但单次计算小。混合专家模型将稀疏性引入前馈网络层，每个token只激活Top-K个专家子网络，在保持模型容量的同时将单次推理的活跃参数量大幅降低。</p>
+<div class="ctrl">
+<button onclick="m6View('dense')">密集模型</button>
+<button onclick="m6View('moe')">MoE路由</button>
+<button onclick="m6View('topk')">Top-K选择</button>
+<button onclick="m6View('balance')">负载均衡</button>
+</div>
+<svg id="svg6" viewBox="0 0 920 500"></svg>
+<div class="log" id="log6"></div>
+</section>
+<section class="module" id="m7">
+<h2>M7 · 计算预算分配</h2>
+<p>在延迟、吞吐、精度之间权衡，动态分配计算预算。不同的部署场景对三项指标有不同优先级：实时交互关注低延迟，批处理关注高吞吐，关键任务关注高精度。自适应计算通过动态调度在这三者间寻找最优平衡。</p>
+<div class="ctrl">
+<button onclick="m7View('latency')">低延迟</button>
+<button onclick="m7View('throughput')">高吞吐</button>
+<button onclick="m7View('accuracy')">高精度</button>
+<button onclick="m7View('adaptive')">自适应</button>
+</div>
+<svg id="svg7" viewBox="0 0 920 500"></svg>
+<div class="log" id="log7"></div>
+</section>
+<section class="module" id="m8">
+<h2>M8 · 能效与精度权衡</h2>
+<p>自适应计算降低能耗——绿色AI的关键技术。固定计算模型无论输入难易都消耗相同能量，而自适应计算让简单输入用更少能量、复杂输入用更多能量，在保持精度的同时显著降低总能耗和碳排放，是实现可持续AI的核心路径。</p>
+<div class="ctrl">
+<button onclick="m8View('energy')">能耗对比</button>
+<button onclick="m8View('accuracy')">精度保持</button>
+<button onclick="m8View('carbon')">碳足迹</button>
+<button onclick="m8View('optimal')">最优策略</button>
+</div>
+<svg id="svg8" viewBox="0 0 920 500"></svg>
+<div class="log" id="log8"></div>
+</section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344',BG='#1a1d27',TXT='#e6e8ee';
+function T(s,x,y,t,f,c,a){var e=el('text',{x:x,y:y,fill:f||TXT,'font-size':c||12},s);if(a)e.setAttribute('text-anchor',a);e.textContent=t;return e;}
+function B(s,x,y,w,h,fl,st,r,sw,da){var a={x:x,y:y,width:w,height:h,fill:fl||'none',stroke:st||BD,'stroke-width':sw||1,rx:r||4};if(da)a['stroke-dasharray']=da;return el('rect',a,s);}
+function C(s,cx,cy,r,fl,st,sw,da){var a={cx:cx,cy:cy,r:r,fill:fl||'none',stroke:st||BD,'stroke-width':sw||1};if(da)a['stroke-dasharray']=da;return el('circle',a,s);}
+function L(s,x1,y1,x2,y2,st,w,da){var a={x1:x1,y1:y1,x2:x2,y2:y2,stroke:st||DIM,'stroke-width':w||1};if(da)a['stroke-dasharray']=da;return el('line',a,s);}
+function PL(s,pts,fl,st,w,da){var a={points:pts,fill:fl||'none',stroke:st||DIM,'stroke-width':w||1};if(da)a['stroke-dasharray']=da;return el('polyline',a,s);}
+function PG(s,pts,fl,st,w){return el('polygon',{points:pts,fill:fl||'none',stroke:st||BD,'stroke-width':w||1},s);}
+function PA(s,d,fl,st,w,da){var a={d:d,fill:fl||'none',stroke:st||DIM,'stroke-width':w||1};if(da)a['stroke-dasharray']=da;return el('path',a,s);}
+function AR(s,x1,y1,x2,y2,c){L(s,x1,y1,x2,y2,c||AC,2);var a=Math.atan2(y2-y1,x2-x1);PG(s,(x2-7*Math.cos(a-0.4))+','+(y2-7*Math.sin(a-0.4))+' '+(x2-7*Math.cos(a+0.4))+','+(y2-7*Math.sin(a+0.4))+' '+x2+','+y2,c||AC);}
+
+/* ===== M1 自适应计算全景 ===== */
+function m1Draw(){m1View('all');}
+function m1View(mode){
+var s=document.getElementById('svg1'),lg=document.getElementById('log1');clear(s);
+T(s,460,28,'自适应计算全景：固定计算 vs 按需计算',TXT,15,'middle');
+var ins=[{n:'简单',c:AC,d:2},{n:'中等',c:INFO,d:4},{n:'复杂',c:PUR,d:6}];
+var nL=6,lw=52,lg2=6,sx1=70,sx2=510;
+T(s,230,55,'固定计算 · 所有输入走满6层',DIM,12,'middle');
+T(s,690,55,'自适应计算 · 按需分配深度',AC,12,'middle');
+L(s,460,45,460,420,BD,1,'4 4');
+for(var i=0;i<3;i++){
+var y=78+i*110;
+C(s,28,y+15,11,ins[i].c+'22',ins[i].c,1.5);
+T(s,28,y+19,i+1+'',ins[i].c,9,'middle');
+T(s,48,y+19,ins[i].n+'输入',ins[i].c,11);
+for(var j=0;j<nL;j++){
+var x=sx1+j*(lw+lg2);
+B(s,x,y,lw,26,BG,ins[i].c,4);
+T(s,x+lw/2,y+17,'L'+(j+1),DIM,9,'middle');
+}
+T(s,sx1,y+42,'6层 · 6.0 GFLOPs',DIM,10);
+for(var j=0;j<nL;j++){
+var x=sx2+j*(lw+lg2);
+var act=j<ins[i].d;
+if(act){B(s,x,y,lw,26,ins[i].c+'25',ins[i].c,4,1.5);}
+else{B(s,x,y,lw,26,'none',BD,4,1,'3 3');}
+T(s,x+lw/2,y+17,'L'+(j+1),act?ins[i].c:DIM,9,'middle');
+}
+var ex=sx2+ins[i].d*(lw+lg2)-lg2;
+T(s,ex+lw/2,y-6,'↓退出',ins[i].c,10,'middle');
+var sav=Math.round((1-ins[i].d/6)*100);
+T(s,sx2,y+42,ins[i].d+'层 · '+ins[i].d.toFixed(1)+' GFLOPs (省'+sav+'%)',AC,10);
+}
+B(s,60,410,800,40,'#0a0c12',BD,6);
+T(s,100,435,'固定计算平均: 6.0 GFLOPs',DIM,12);
+T(s,380,435,'→',DIM,14);
+T(s,420,435,'自适应计算平均: '+(2+4+6)/3*1.0+' GFLOPs (省33%)',AC,12);
+var barW=800*(2+4+6)/3/6;
+B(s,60,450,barW,6,AC,AC,3);
+T(s,870,435,'省33%',AC,12);
+if(mode==='early'){
+B(s,65,68,375,335,'none',AC,4,2,'5 3');
+T(s,252,60,'← 早退机制 →',AC,11,'middle');
+}else if(mode==='route'){
+B(s,505,68,375,335,'none',PUR,4,2,'5 3');
+T(s,692,60,'← 动态路由 →',PUR,11,'middle');
+}else if(mode==='budget'){
+B(s,58,405,804,50,'none',WARN,4,2,'5 3');
+T(s,460,400,'↓ 计算预算分配 ↓',WARN,11,'middle');
+}
+var logs={
+all:'自适应计算范式概述：模型根据输入复杂度动态调整计算深度。简单输入仅用2层(2.0 GFLOPs)，中等输入4层(4.0 GFLOPs)，复杂输入6层(6.0 GFLOPs)。三种输入平均仅4.0 GFLOPs，较固定6.0 GFLOPs节省33%计算量，同时保持同等精度。核心思想是"按需思考"——不是所有问题都需要最大努力。',
+early:'早退机制(Early Exit)：在Transformer层间插入辅助分类器，当中间层预测置信度超过阈值时提前输出。简单样本在前2-3层即可高置信退出，避免浪费后续层计算。研究表明约50%的样本可在前1/3层正确退出，大幅降低平均推理延迟和计算开销。',
+route:'动态路由(Dynamic Routing)：每个token独立选择计算路径。Mixture-of-Depths在每层设置路由器，token可选择跳过当前层。关键token走完整路径获得深度处理，填充token跳过多层快速通过，实现token级别的计算深度分配。',
+budget:'计算预算(Compute Budget)：给定总FLOPs预算，动态分配给不同输入。高负载时降低平均深度保吞吐，低负载时提升深度保精度。通过自适应计算实现计算资源的弹性调度，在SLA约束下最大化整体效用，兼顾效率与质量。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M2 早退机制 ===== */
+function m2Draw(){m2View('arch');}
+function m2View(mode){
+var s=document.getElementById('svg2'),lg=document.getElementById('log2');clear(s);
+T(s,460,28,'早退机制：层间分类器与动态退出',TXT,15,'middle');
+var nL=12,lH=28,lg2=3,sY=58,lX=180,lW=260;
+var exits=[3,6,9,12];
+var exitColors=[AC,INFO,PUR,WARN];
+var exitNames=['EE-1','EE-2','EE-3','Final'];
+var exitConf=[0.92,0.85,0.80,0.95];
+T(s,55,62,'输入',INFO,11);
+B(s,40,70,120,30,INFO+'18',INFO,5);
+T(s,100,89,'"这是一个..."',INFO,10,'middle');
+AR(s,160,85,175,85,INFO);
+var highlightLayers={arch:[],simple:[1,2,3],complex:[1,2,3,4,5,6,7,8,9,10,11,12],threshold:[]};
+var hl=highlightLayers[mode];
+for(var i=0;i<nL;i++){
+var y=sY+i*(lH+lg2);
+var ln=i+1;
+var isHL=hl.indexOf(ln)>=0;
+var lc=isHL?(mode==='simple'?AC:mode==='complex'?WARN:DIM):DIM;
+B(s,lX,y,lW,lH,isHL?(mode==='simple'?AC+'15':mode==='complex'?WARN+'15':BG):BG,isHL?lc:BD,4,isHL?2:1);
+T(s,lX+12,y+18,'Transformer Layer '+ln,isHL?lc:DIM,11);
+if(ln<=6)T(s,lX+lW-12,y+18,'Attn+FFN',DIM,9);
+var ei=exits.indexOf(ln);
+if(ei>=0){
+var ec=exitColors[ei];
+B(s,lX+lW+15,y,lW*0.4,lH,ec+'15',ec,4);
+T(s,lX+lW+15+lW*0.2,y+18,exitNames[ei],ec,9,'middle');
+L(s,lX+lW,y+lH/2,lX+lW+15,y+lH/2,ec,1.5);
+B(s,lX+lW+lW*0.4+25,y+5,55,18,'#0a0c12',BD,3);
+B(s,lX+lW+lW*0.4+27,y+7,51*exitConf[ei],14,ec,ec,2);
+T(s,lX+lW+lW*0.4+85,y+18,Math.round(exitConf[ei]*100)+'%',ec,9);
+if(mode==='threshold'){
+L(s,lX+lW+lW*0.4+25,y+14,lX+lW+lW*0.4+80,y+14,ERR,1.5,'5 3');
+T(s,lX+lW+lW*0.4+88,y+12,'τ=80%',ERR,8);
+}
+if(mode==='simple'&&ei===0){
+AR(s,lX+lW+lW*0.4+100,y+lH/2,lX+lW+lW*0.4+150,y+lH/2,AC);
+T(s,lX+lW+lW*0.4+155,y+18,'输出',AC,10);
+}
+if(mode==='complex'&&ei===3){
+AR(s,lX+lW+lW*0.4+100,y+lH/2,lX+lW+lW*0.4+150,y+lH/2,WARN);
+T(s,lX+lW+lW*0.4+155,y+18,'输出',WARN,10);
+}
+}
+}
+if(mode==='simple'){
+B(s,lX-4,sY-4,lW+8,3*(lH+lg2)+8,'none',AC,4,2);
+T(s,lX-10,sY-10,'简单输入 → L3退出 (省75%)',AC,11);
+}else if(mode==='complex'){
+B(s,lX-4,sY-4,lW+8,12*(lH+lg2)+8,'none',WARN,4,2);
+T(s,lX-10,sY-10,'复杂输入 → L12退出 (全量计算)',WARN,11);
+}else if(mode==='arch'){
+T(s,560,55,'退出点分布',PUR,12);
+var sumY=70;
+for(var i=0;i<4;i++){
+B(s,540,sumY+i*35,180,28,exitColors[i]+'12',exitColors[i],4);
+T(s,550,sumY+i*35+18,exitNames[i]+' @ L'+exits[i]+' · 置信度 '+Math.round(exitConf[i]*100)+'%',exitColors[i],10);
+}
+T(s,540,sumY+4*35+18,'平均退出层数: 5.2 / 12',AC,11);
+T(s,540,sumY+4*35+38,'计算节省: ~57%',AC,11);
+}
+T(s,60,260,'架构说明',DIM,11);
+T(s,60,278,'• 12层 Transformer',DIM,10);
+T(s,60,294,'• 4个退出点',DIM,10);
+T(s,60,310,'• 置信度阈值控制',DIM,10);
+T(s,60,326,'• 动态深度推理',DIM,10);
+T(s,60,342,'• 辅助分类器头',DIM,10);
+var logs={
+arch:'早退机制架构：在12层Transformer的第3、6、9、12层插入辅助分类器(Early Exit Head)。每个分类器独立预测并输出置信度。输入从底部进入，逐层向上传播，任一分类器置信度超过阈值即可提前退出。架构开销仅增加少量分类器参数，但可大幅减少平均推理深度。平均退出层数5.2/12，节省约57%计算。',
+simple:'简单输入示例："这是一个苹果"——语义明确、结构简单。第3层分类器即达到92%置信度，远超80%阈值，提前退出。仅使用3层计算(节省75%)，分类正确率99.2%。约45%的输入属于此类简单样本，是早退机制的主要受益者。',
+complex:'复杂输入示例："分析以下论证的逻辑漏洞并给出反驳"——需要深度推理、多步分析。前9层置信度均未达阈值(最高80%)，必须跑满12层才获得95%置信度。使用全部计算量，但保证复杂任务的精度。约15%的输入属于此类，虽不节省计算但确保质量。',
+threshold:'阈值调优：退出阈值τ控制精度-效率权衡。τ=70%时平均3.2层退出，速度快但精度降2%；τ=90%时平均8.5层退出，精度接近完整模型。最优τ通常在80-85%之间，在精度损失<1%的情况下节省50%+计算。可通过验证集自动搜索最优阈值。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M3 动态深度路由 ===== */
+function m3Draw(){m3View('router');}
+function m3View(mode){
+var s=document.getElementById('svg3'),lg=document.getElementById('log3');clear(s);
+T(s,460,28,'动态深度路由：Mixture-of-Depths',TXT,15,'middle');
+var nL=6,lW=110,lH=44,lg2=18,sX=85,sY=95;
+var toks=[
+{n:'T1',c:AC,path:[1,1,0,1,0,0],label:'关键'},
+{n:'T2',c:INFO,path:[1,0,1,0,1,0],label:'中等'},
+{n:'T3',c:PUR,path:[1,0,0,0,0,0],label:'简单'},
+{n:'T4',c:WARN,path:[1,1,1,1,1,1],label:'复杂'},
+{n:'T5',c:ROSE,path:[1,0,1,1,0,0],label:'中等'}
+];
+var tkY=175;
+for(var i=0;i<5;i++)T(s,40,tkY+i*42+5,toks[i].label,toks[i].c,10);
+for(var i=0;i<nL;i++){
+var x=sX+i*(lW+lg2);
+B(s,x,sY,lW,lH,BG,BD,6);
+T(s,x+lW/2,sY+20,'Layer '+(i+1),TXT,12,'middle');
+T(s,x+lW/2,sY+36,'MoD',PUR,9,'middle');
+B(s,x+lW/2-28,sY+lH+4,56,18,PUR+'15',PUR,4);
+T(s,x+lW/2,sY+lH+17,'Router',PUR,9,'middle');
+for(var t=0;t<5;t++){
+var ty=tkY+t*42;
+var act=toks[t].path[i];
+if(act){
+C(s,x+lW/2,ty,9,toks[t].c+'30',toks[t].c,1.5);
+T(s,x+lW/2,ty+3,toks[t].n,toks[t].c,8,'middle');
+}else{
+C(s,x+lW/2,ty,7,'none',DIM,1,'2 2');
+}
+if(i<nL-1){
+var nx=sX+(i+1)*(lW+lg2);
+var nact=toks[t].path[i+1];
+var cline=act&&nact?toks[t].c:DIM;
+L(s,x+lW/2+9,ty,nx+lW/2-9,ty,cline,act&&nact?1.5:0.8,act&&nact?null:'3 3');
+if(!act||!nact){
+PA(s,'M'+(x+lW/2+9)+','+ty+' Q'+(x+lW/2+9+lg2/2)+','+(ty-15)+' '+(nx+lW/2-9)+','+ty,DIM,0.8,'3 3');
+}
+}
+}
+}
+if(mode==='router'){
+var rx=460,ry=430;
+B(s,rx-10,ry-20,200,50,BG,PUR,6);
+T(s,rx+90,ry,'Router: w = softmax(MLP(x))',PUR,11,'middle');
+T(s,rx+90,ry+18,'Top-K选择: 通过 or 跳过',PUR,10,'middle');
+AR(s,rx+90,ry-20,rx+90,sY+lH+22,PUR);
+}else if(mode==='token'){
+T(s,460,415,'Token路径统计',AC,12,'middle');
+var stats=[{n:'T1 关键',d:3,c:AC},{n:'T2 中等',d:3,c:INFO},{n:'T3 简单',d:1,c:PUR},{n:'T4 复杂',d:6,c:WARN},{n:'T5 中等',d:3,c:ROSE}];
+for(var i=0;i<5;i++){
+var by=435+i*12;
+T(s,360,by+9,stats[i].n,stats[i].c,9);
+B(s,440,by,stats[i].d*30,8,stats[i].c,stats[i].c,2);
+T(s,440+stats[i].d*30+5,by+9,stats[i].d+'层',stats[i].c,9);
+}
+}else if(mode==='skip'){
+T(s,460,430,'跳过统计: T3跳过5层 · T5跳过3层',WARN,11,'middle');
+T(s,460,448,'平均跳过: 2.4层/token · 节省40%计算',AC,11,'middle');
+}else if(mode==='compare'){
+var cx=520,cy=410;
+T(s,cx,cy,'性能对比',TXT,12,'middle');
+B(s,cx-100,cy+10,200,28,BG,BD,4);
+T(s,cx-90,cy+28,'标准Transformer: 6层 × 5 tokens = 30',DIM,10);
+B(s,cx-100,cy+42,200,28,BG,AC,4,1.5);
+T(s,cx-90,cy+60,'MoD: 平均3.4层 × 5 = 17 (省43%)',AC,10);
+}
+var logs={
+router:'路由器机制：每个MoD层内置轻量路由网络(小MLP)，对输入token计算标量权重，经Softmax归一化后通过Top-K选择决定哪些token通过该层。路由器仅增加极少参数(<1%)，但能精准评估token重要性。被选中的token进入层计算，未选中的直接跳过，实现计算资源的按需分配。',
+token:'Token路径分析：5个token展现了完全不同的计算路径。T3(简单)仅通过1层即跳过剩余5层；T4(复杂)走完全部6层获得最深度处理；T1/T2/T5各通过3层。平均每token仅3.4层(标准模型为6层)，节省43%计算量，同时保持质量因为重要token得到了充分处理。',
+skip:'层跳过机制：当路由器判定token无需当前层时，token通过残差连接直接跳过，不参与该层的注意力与前馈计算。跳过操作零计算开销——仅传递隐状态。T3跳过5层(83%)，T5跳过3层(50%)，而T4跳过0层。这种差异化的跳过策略让计算精准匹配每个token的实际需求。',
+compare:'性能对比：标准Transformer对5个token各跑6层，总计30层计算。MoD路由后5个token分别跑1/3/3/3/6层，总计16层，节省47%计算。在GLUE基准上MoD与标准模型精度差异<0.5%，但推理速度快1.8倍。在相同FLOPs预算下，MoD比标准模型获得更高精度，位于Pareto前沿。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M4 Token级计算分配 ===== */
+function m4Draw(){m4View('uniform');}
+function m4View(mode){
+var s=document.getElementById('svg4'),lg=document.getElementById('log4');clear(s);
+T(s,460,28,'Token级计算分配策略',TXT,15,'middle');
+var nT=12,bW=52,bGap=8,sX=70,maxH=280,baseY=380;
+var tkLabels=['这','是','一个','非常','重要','的','句子','需要','仔细','分析','的','内容'];
+var importance=[0.2,0.15,0.3,0.6,0.9,0.2,0.4,0.85,0.95,0.7,0.25,0.8];
+var uniform=[],weighted=[],sparse=[];
+for(var i=0;i<nT;i++){uniform[i]=0.5;weighted[i]=importance[i];sparse[i]=importance[i]>0.5?importance[i]:0.02;}
+var data={uniform:uniform,weighted:weighted,sparse:sparse};
+var colors={uniform:DIM,weighted:AC,sparse:PUR};
+var titles={uniform:'均匀分配 · 所有token相同计算量',weighted:'重要性加权 · 关键token多算',sparse:'稀疏激活 · 低重要token近乎跳过',compare:'三种策略对比'};
+T(s,460,52,titles[mode],colors[mode]||TXT,12,'middle');
+L(s,50,baseY,870,baseY,BD,1.5);
+L(s,50,baseY,50,baseY-maxH-20,BD,1.5);
+T(s,30,baseY-maxH-15,'计算量',DIM,10);
+T(s,860,baseY+18,'Token',DIM,10);
+for(var i=0;i<=5;i++){
+var y=baseY-i*maxH/5;
+L(s,48,y,50,y,BD,1);
+T(s,40,y+4,(i*20)+'%',DIM,9,'end');
+}
+var modes=mode==='compare'?['uniform','weighted','sparse']:[mode];
+var barOff=mode==='compare'?[-12,0,12]:[0];
+var barWs=mode==='compare'?[14,14,14]:[bW];
+for(var m=0;m<modes.length;m++){
+var md=modes[m];
+for(var i=0;i<nT;i++){
+var x=sX+i*(bW+bGap)+barOff[m];
+var h=data[md][i]*maxH;
+var c=colors[md];
+var fl=md==='uniform'?BG:c+'30';
+B(s,x,baseY-h,barWs[m],h,fl,c,2);
+T(s,sX+i*(bW+bGap)+bW/2,baseY+15,tkLabels[i],DIM,9,'middle');
+}
+}
+if(mode==='compare'){
+var legY=75;
+T(s,550,legY,'图例:',DIM,11);
+B(s,590,legY-10,12,12,BG,DIM,2);T(s,608,legY,'均匀',DIM,10);
+B(s,650,legY-10,12,12,AC+'30',AC,2);T(s,668,legY,'加权',AC,10);
+B(s,710,legY-10,12,12,PUR+'30',PUR,2);T(s,728,legY,'稀疏',PUR,10);
+}
+if(mode==='uniform'){
+T(s,460,420,'总计算量: 12 × 0.5 = 6.0 units',DIM,11,'middle');
+}else if(mode==='weighted'){
+T(s,460,420,'总计算量: 5.83 units (↓2.8%) · 精度↑3.2%',AC,11,'middle');
+}else if(mode==='sparse'){
+T(s,460,420,'总计算量: 3.94 units (↓34%) · 精度↓0.5%',PUR,11,'middle');
+}else{
+T(s,460,420,'均匀6.0 · 加权5.83 · 稀疏3.94 (省34%)',TXT,11,'middle');
+}
+var logs={
+uniform:'均匀分配：传统Transformer对所有token分配相同的计算量(每层全部参与)。无论token是关键语义词还是无信息填充词，都获得同样的FFN和注意力计算。总计算量6.0 units。这种方式简单但浪费——约40%的计算花在对输出贡献很小的token上。',
+weighted:'重要性加权：通过注意力权重或梯度信号评估每个token的重要性，按比例分配计算量。关键token(如"重要""分析""内容")获得更多FFN专家或更深的处理路径，填充词(如"是""的")获得较少计算。总计算量仅降2.8%但精度提升3.2%，因为计算资源精准投向高价值token。',
+sparse:'稀疏激活：设定重要性阈值，低于阈值的token近乎跳过所有计算(仅保留残差连接)。12个token中5个被稀疏化，总计算量降至3.94 units(节省34%)，精度仅降0.5%。极端的稀疏化在边缘部署等计算受限场景下极具价值，用最小代价维持可用精度。',
+compare:'三策略对比：均匀分配(6.0 units)是基线；重要性加权(5.83 units)在几乎不减少计算的情况下提升精度；稀疏激活(3.94 units)大幅减少计算但精度微降。实际应用中常将加权与稀疏结合——先评估重要性，再对高/低重要性token分别分配多/少计算，在精度与效率间取得最优平衡。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M5 推理时缩放 ===== */
+function m5Draw(){m5View('direct');}
+function m5View(mode){
+var s=document.getElementById('svg5'),lg=document.getElementById('log5');clear(s);
+T(s,460,28,'推理时缩放：从直接回答到自洽投票',TXT,15,'middle');
+var modes=['direct','cot','tot','sc'];
+var modeIdx=modes.indexOf(mode);
+var titles={direct:'直接回答 · 单次前向传播',cot:'链式思考(CoT) · 逐步推理',tot:'思维树(ToT) · 分支探索',sc:'自洽投票 · 多采样投票'};
+var colors={direct:DIM,cot:AC,tot:PUR,sc:WARN};
+T(s,460,52,titles[mode],colors[mode],12,'middle');
+var qX=60,qY=80;
+B(s,qX,qY,100,30,INFO+'15',INFO,5);
+T(s,qX+50,qY+19,'问题 Q',INFO,11,'middle');
+var ansY=430;
+B(s,760,ansY,100,30,AC+'15',AC,5);
+T(s,810,ansY+19,'答案 A',AC,11,'middle');
+if(mode==='direct'){
+AR(s,qX+100,qY+15,760,ansY+15,AC);
+T(s,410,qY+10,'单步生成',AC,11,'middle');
+B(s,380,qY-5,80,24,BG,AC,4);T(s,420,qY+12,'1次推理',AC,10,'middle');
+}else if(mode==='cot'){
+var steps=['Step1: 理解','Step2: 分析','Step3: 推理','Step4: 验证','Step5: 结论'];
+var stY=130;
+for(var i=0;i<5;i++){
+var y=stY+i*55;
+B(s,350,y,180,32,BG,AC,4,1.5);
+T(s,440,y+20,steps[i],AC,10,'middle');
+if(i<4)AR(s,440,y+32,440,y+55,AC);
+}
+AR(s,qX+100,qY+15,350,145,AC);
+AR(s,530,145+4*55+16,760,ansY+15,AC);
+B(s,580,120,80,20,BG,AC,4);T(s,620,134,'5步推理',AC,10,'middle');
+}else if(mode==='tot'){
+var nodes=[
+{x:250,y:120,t:'初始状态',c:PUR},
+{x:180,y:200,t:'分支A',c:AC},{x:320,y:200,t:'分支B',c:INFO},
+{x:130,y:280,t:'A-1',c:AC},{x:230,y:280,t:'A-2',c:DIM},{x:320,y:280,t:'B-1',c:INFO},{x:410,y:280,t:'B-2',c:DIM},
+{x:180,y:360,t:'最优路径',c:WARN}
+];
+for(var i=0;i<nodes.length;i++){
+C(s,nodes[i].x,nodes[i].y,24,nodes[i].c+'20',nodes[i].c,1.5);
+T(s,nodes[i].x,nodes[i].y+4,nodes[i].t,nodes[i].c,8,'middle');
+}
+L(s,250,144,180,176,PUR,1);L(s,250,144,320,176,PUR,1);
+L(s,180,224,130,256,AC,1);L(s,180,224,230,256,DIM,1,'3 3');
+L(s,320,224,320,256,INFO,1);L(s,320,224,410,256,DIM,1,'3 3');
+L(s,130,304,180,336,AC,1.5);
+AR(s,qX+100,qY+15,226,120,PUR);
+AR(s,180,384,760,ansY+15,WARN);
+B(s,560,120,90,20,BG,PUR,4);T(s,605,134,'15步探索',PUR,10,'middle');
+}else if(mode==='sc'){
+var paths=[
+{y:120,c:AC,r:'答案=42',v:true},
+{y:175,c:INFO,r:'答案=42',v:true},
+{y:230,c:WARN,r:'答案=38',v:false},
+{y:285,c:PUR,r:'答案=42',v:true},
+{y:340,c:ROSE,r:'答案=40',v:false}
+];
+for(var i=0;i<5;i++){
+AR(s,qX+100,qY+15,300,paths[i].y,paths[i].c);
+B(s,300,paths[i].y-14,200,28,BG,paths[i].c,4,1.5);
+T(s,400,paths[i].y+4,'采样'+(i+1)+': '+paths[i].r,paths[i].c,10,'middle');
+AR(s,500,paths[i].y,640,250,WARN);
+}
+B(s,640,230,100,40,WARN+'15',WARN,5);
+T(s,690,248,'投票',WARN,12,'middle');
+T(s,690,262,'42:3票',WARN,10,'middle');
+AR(s,740,250,760,ansY+15,WARN);
+B(s,560,380,100,20,BG,WARN,4);T(s,610,394,'5次采样',WARN,10,'middle');
+}
+var perfY=455;
+var comps={direct:1,cot:5,tot:15,sc:5};
+var accs={direct:62,cot:78,tot:85,sc:82};
+B(s,50,perfY,820,28,'#0a0c12',BD,4);
+T(s,70,perfY+18,'计算量: '+comps[mode]+'x',colors[mode],11);
+T(s,250,perfY+18,'准确率: '+accs[mode]+'%',colors[mode],11);
+T(s,450,perfY+18,'基准(直接): 62% @ 1x',DIM,10);
+T(s,650,perfY+18,'收益: +'+(accs[mode]-62)+'% (计算'+(comps[mode])+'x)',AC,10);
+var logs={
+direct:'直接回答(Direct Answer)：模型接收问题后单次前向传播直接输出答案，不生成任何中间推理步骤。计算量最小(1x)，但准确率仅62%。适合简单事实性问题，对需要多步推理的复杂问题容易出错。这是最朴素的推理方式，也是所有推理时缩放技术的基线。',
+cot:'链式思考(Chain-of-Thought)：模型先逐步生成推理过程(理解→分析→推理→验证→结论)，再输出最终答案。5步推理将计算量增至5x，准确率提升至78%(+16%)。中间步骤让模型"展示工作过程"，在数学、逻辑、常识推理任务上效果显著。CoT是推理时缩放最基础也最有效的技术。',
+tot:'思维树(Tree-of-Thoughts)：在CoT基础上引入分支探索——在每个推理步骤生成多个候选分支，评估各分支前景并选择最优路径继续。15步探索(含回溯)将计算量增至15x，准确率达85%(+23%)。ToT擅长需要规划和搜索的复杂任务(如24点游戏、创意写作)，但计算开销较大。',
+sc:'自洽投票(Self-Consistency)：对同一问题多次采样CoT推理路径(温度>0)，收集各路径的最终答案，通过多数投票选择共识答案。5次采样将计算量增至5x，准确率82%(+20%)。比单次CoT更鲁棒——即使部分推理路径出错，多数正确路径的投票仍能给出正确答案。性价比优于ToT。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M6 稀疏激活模式 ===== */
+function m6Draw(){m6View('dense');}
+function m6View(mode){
+var s=document.getElementById('svg6'),lg=document.getElementById('log6');clear(s);
+T(s,460,28,'稀疏激活：MoE专家路由架构',TXT,15,'middle');
+var titles={dense:'密集模型 · 所有参数参与计算',moe:'MoE路由 · 输入→路由器→Top-K专家',topk:'Top-K选择 · K=2时激活2/8专家',balance:'负载均衡 · 防止专家负载不均'};
+var colors={dense:DIM,moe:AC,topk:PUR,balance:WARN};
+T(s,460,52,titles[mode],colors[mode],12,'middle');
+var inX=60,inY=220;
+C(s,inX,inY,18,INFO+'20',INFO,2);
+T(s,inX,inY+5,'x',INFO,11,'middle');
+T(s,inX,inY+35,'Token',INFO,10,'middle');
+var nE=8,eW=70,eH=42,eGap=8,eStartX=340,eStartY=100;
+var routerX=200,routerY=220;
+if(mode==='dense'){
+B(s,200,120,480,220,BG,BD,8);
+T(s,440,145,'FFN (全连接前馈网络)',DIM,13,'middle');
+T(s,440,165,'所有参数参与每次计算',DIM,11,'middle');
+for(var i=0;i<4;i++){
+for(var j=0;j<6;j++){
+B(s,230+j*70,190+i*35,55,25,BG,AC,3);
+T(s,230+j*70+27,190+i*35+17,'N'+(i*6+j+1),AC,8,'middle');
+}
+}
+AR(s,inX+18,inY,200,inY,INFO);
+T(s,130,210,'全量计算',DIM,10);
+AR(s,680,inY,780,inY,AC);
+B(s,780,inY-18,100,36,AC+'15',AC,5);
+T(s,830,inY+5,'输出',AC,11,'middle');
+T(s,460,370,'参数量: 100% · 活跃参数: 100% · 计算量: 1.0x',DIM,11,'middle');
+}else{
+B(s,routerX-45,routerY-22,90,44,PUR+'15',PUR,5);
+T(s,routerX,routerY-3,'Router',PUR,11,'middle');
+T(s,routerX,routerY+13,'gate(x)',PUR,9,'middle');
+AR(s,inX+18,inY,routerX-45,inY,INFO);
+var expertLoads=[0.85,0.72,0.15,0.68,0.45,0.20,0.90,0.55];
+var topK=mode==='topk'?2:2;
+var activeIdx=[];
+if(mode==='moe'){activeIdx=[0,6];}
+else if(mode==='topk'){activeIdx=[6,0];}
+else if(mode==='balance'){activeIdx=[0,1,2,3,4,5,6,7];}
+for(var i=0;i<nE;i++){
+var col=i%4,row=Math.floor(i/4);
+var ex=eStartX+col*(eW+eGap);
+var ey=eStartY+row*(eH+eGap+20);
+var isActive=activeIdx.indexOf(i)>=0;
+var ec=isActive?AC:DIM;
+var fl=isActive?AC+'20':'none';
+var sw=isActive?2:1;
+B(s,ex,ey,eW,eH,fl,ec,4,sw);
+T(s,ex+eW/2,ey+18,'Expert '+i,ec,10,'middle');
+T(s,ex+eW/2,ey+34,'FFN'+i,ec,8,'middle');
+if(isActive){
+L(s,routerX+45,routerY,ex,ey+eH/2,AC,1.5);
+T(s,ex+eW/2,ey-5,'★',AC,10,'middle');
+}
+if(mode==='balance'){
+var lh=expertLoads[i]*30;
+B(s,ex+eW/2-15,ey+eH+3,30,4,'#0a0c12',BD,2);
+B(s,ex+eW/2-15,ey+eH+3,30*expertLoads[i],4,expertLoads[i]>0.7?WARN:AC,expertLoads[i]>0.7?WARN:AC,2);
+T(s,ex+eW/2,ey+eH+18,Math.round(expertLoads[i]*100)+'%',expertLoads[i]>0.7?WARN:DIM,8,'middle');
+}
+}
+var outX=780,outY=220;
+B(s,outX,outY-22,100,44,AC+'15',AC,5);
+T(s,outX+50,outY-3,'加权输出',AC,11,'middle');
+T(s,outX+50,outY+13,'Σ wi·Ei(x)',AC,9,'middle');
+if(mode==='moe'||mode==='topk'){
+for(var i=0;i<activeIdx.length;i++){
+var idx=activeIdx[i];
+var col=idx%4,row=Math.floor(idx/4);
+var ex=eStartX+col*(eW+eGap)+eW;
+var ey=eStartY+row*(eH+eGap+20)+eH/2;
+L(s,ex,ey,outX,outY,AC,1.5);
+T(s,(ex+outX)/2,ey-5-i*12,'w'+(i+1)+'='+['0.58','0.42'][i],AC,9,'middle');
+}
+}
+if(mode==='moe'){
+T(s,460,330,'8个专家 · 激活2个 · 活跃参数25%',AC,11,'middle');
+T(s,460,350,'总参数: 8x · 单次计算: 2x · 容量↑ 算力↓',AC,10,'middle');
+}else if(mode==='topk'){
+T(s,460,330,'Top-K=2: 选择Router得分最高的2个专家',PUR,11,'middle');
+var scores=[0.85,0.72,0.15,0.68,0.45,0.20,0.90,0.55];
+var sortedIdx=[];
+for(var i=0;i<8;i++)sortedIdx.push({i:i,s:scores[i]});
+sortedIdx.sort(function(a,b){return b.s-a.s;});
+T(s,460,350,'排名: E'+sortedIdx[0].i+'('+Math.round(sortedIdx[0].s*100)+'%) > E'+sortedIdx[1].i+'('+Math.round(sortedIdx[1].s*100)+'%) > ...',PUR,10,'middle');
+}else if(mode==='balance'){
+T(s,460,330,'负载不均! E0/E6/E1 过载, E2/E5 闲置',WARN,11,'middle');
+T(s,460,350,'辅助损失: L_aux = CV² · α → 鼓励均匀分配',WARN,10,'middle');
+}
+}
+var logs={
+dense:'密集模型(Dense Model)：传统Transformer的FFN层是全连接网络，所有参数在每次前向传播中都参与计算。无论输入是什么，都激活100%的参数。参数量大意味着计算量大，但模型容量受限于参数量。增加参数量必然增加计算量，无法解耦模型容量与计算开销。',
+moe:'MoE路由：将FFN层替换为Mixture-of-Experts结构。8个专家子网络(每个是独立FFN)并行排列，路由器根据输入为每个token选择Top-2个专家。总参数量为密集模型的8倍(容量大增)，但单次推理仅激活2/8=25%的参数(计算量仅2倍)。实现"大模型容量、小计算开销"的解耦。',
+topk:'Top-K选择：路由器输出8维概率分布，选择得分最高的K个专家(此处K=2)。Expert 6得分0.90(最高)和Expert 0得分0.85(次高)被选中，权重经Softmax归一化为0.58和0.42。其余6个专家完全不参与计算。K是关键超参：K=1最稀疏但可能信息损失，K=2是常用平衡点，K增大则更接近密集模型。',
+balance:'负载均衡：MoE训练的核心挑战是防止"赢者通吃"——路由器总把token分配给少数专家。Expert 0/6/1负载过高(>70%)，Expert 2/5近乎闲置(<25%)。解决方案是辅助损失函数L_aux = CV²·α(变异系数平方)，惩罚负载不均匀。配合容量因子和噪声注入，确保所有专家都被充分利用，维持模型整体容量。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M7 计算预算分配 ===== */
+function m7Draw(){m7View('latency');}
+function m7View(mode){
+var s=document.getElementById('svg7'),lg=document.getElementById('log7');clear(s);
+T(s,460,28,'计算预算分配：延迟·吞吐·精度三角',TXT,15,'middle');
+var titles={latency:'低延迟策略 · 优先最小化响应时间',throughput:'高吞吐策略 · 优先最大化处理量',accuracy:'高精度策略 · 优先最大化准确率',adaptive:'自适应策略 · 按场景动态切换'};
+var colors={latency:AC,throughput:INFO,accuracy:PUR,adaptive:WARN};
+T(s,460,52,titles[mode],colors[mode],12,'middle');
+var v1x=460,v1y=80;
+var v2x=120,v2y=420;
+var v3x=800,v3y=420;
+T(s,v1x,v1y-12,'精度',PUR,13,'middle');
+T(s,v2x-30,v2y+20,'延迟',AC,13,'middle');
+T(s,v3x+30,v3y+20,'吞吐',INFO,13,'middle');
+PG(s,v1x+','+v1y+' '+v2x+','+v2y+' '+v3x+','+v3y,'none',BD,1.5);
+var strategies={
+latency:{x:280,y:340,c:AC,n:'低延迟'},
+throughput:{x:620,y:340,c:INFO,n:'高吞吐'},
+accuracy:{x:460,y:170,c:PUR,n:'高精度'},
+adaptive:{x:460,y:300,c:WARN,n:'自适应'}
+};
+for(var key in strategies){
+var st=strategies[key];
+var isAct=key===mode;
+C(s,st.x,st.y,isAct?16:10,isAct?st.c+'30':'none',st.c,isAct?2.5:1.5);
+T(s,st.x,st.y-25,st.n,isAct?st.c:DIM,isAct?12:10,'middle');
+if(isAct){
+for(var i=0;i<=20;i++){
+var t=i/20;
+var px=v2x+(v1x-v2x)*t;
+var py=v2y+(v1y-v2y)*t;
+var d=Math.sqrt((px-st.x)*(px-st.x)+(py-st.y)*(py-st.y));
+if(d<40){L(s,st.x,st.y,px,py,st.c,1,'2 3');}
+}
+for(var i=0;i<=20;i++){
+var t=i/20;
+var px=v1x+(v3x-v1x)*t;
+var py=v1y+(v3y-v1y)*t;
+var d=Math.sqrt((px-st.x)*(px-st.x)+(py-st.y)*(py-st.y));
+if(d<40){L(s,st.x,st.y,px,py,st.c,1,'2 3');}
+}
+for(var i=0;i<=20;i++){
+var t=i/20;
+var px=v2x+(v3x-v2x)*t;
+var py=v2y;
+var d=Math.sqrt((px-st.x)*(px-st.x)+(py-st.y)*(py-st.y));
+if(d<40){L(s,st.x,st.y,px,py,st.c,1,'2 3');}
+}
+}
+}
+var infoX=60,infoY=455;
+B(s,infoX,infoY-5,820,30,'#0a0c12',BD,4);
+var metrics={
+latency:{lat:'<50ms',thr:'100 req/s',acc:'88%'},
+throughput:{lat:'200ms',thr:'5000 req/s',acc:'85%'},
+accuracy:{lat:'500ms',thr:'50 req/s',acc:'96%'},
+adaptive:{lat:'50-500ms',thr:'50-5000',acc:'88-96%'}
+};
+var m=metrics[mode];
+T(s,infoX+20,infoY+15,'延迟: '+m.lat,AC,11);
+T(s,infoX+250,infoY+15,'吞吐: '+m.thr,INFO,11);
+T(s,infoX+480,infoY+15,'精度: '+m.acc,PUR,11);
+T(s,infoX+680,infoY+15,'场景: '+({latency:'实时交互',throughput:'批处理',accuracy:'关键任务',adaptive:'混合负载'}[mode]),colors[mode],11);
+T(s,250,120,'高精度区',PUR,9,'middle');
+T(s,150,390,'低延迟区',AC,9);
+T(s,730,390,'高吞吐区',INFO,9);
+var logs={
+latency:'低延迟策略：优先保证响应时间<50ms。使用早退机制——90%的简单输入在3层内退出；降低batch size至1避免排队；使用更小的Top-K(K=1)减少单次计算。吞吐仅100 req/s但延迟极低。适合实时对话、自动驾驶、高频交易等对延迟敏感的场景。精度88%略低于高精度模式但满足实时性要求。',
+throughput:'高吞吐策略：优先最大化处理量至5000 req/s。使用大batch(256)摊销内核启动开销；启用KV-cache共享减少重复计算；动态深度路由让简单token跳层。延迟200ms较高但单位GPU处理量提升50倍。适合批量数据处理、离线推理、日志分析等吞吐优先场景。精度85%可接受。',
+accuracy:'高精度策略：优先最大化准确率至96%。禁用早退——所有输入跑满12层；使用ToT思维树进行多步推理；Top-K=4激活更多专家。延迟500ms、吞吐仅50 req/s，但精度最高。适合医疗诊断、法律分析、金融风控等精度至关重要的场景。计算开销大但错误代价更高。',
+adaptive:'自适应策略：根据当前负载和请求类型动态切换策略。低负载时启用高精度模式(96%)；高负载时切换高吞吐模式(5000 req/s)；紧急请求走低延迟通道(<50ms)。通过请求优先级队列和动态计算预算分配实现。在混合负载场景下整体效用最优，兼顾延迟、吞吐和精度三项指标。'
+};
+lg.textContent=logs[mode];
+}
+
+/* ===== M8 能效与精度权衡 ===== */
+function m8Draw(){m8View('energy');}
+function m8View(mode){
+var s=document.getElementById('svg8'),lg=document.getElementById('log8');clear(s);
+T(s,460,28,'能效与精度权衡：绿色AI的关键路径',TXT,15,'middle');
+var titles={energy:'能耗对比 · 固定 vs 自适应计算',accuracy:'精度保持 · 自适应几乎无损',carbon:'碳足迹 · 训练+推理全周期',optimal:'最优策略 · Pareto前沿分析'};
+var colors={energy:AC,accuracy:INFO,carbon:PUR,optimal:WARN};
+T(s,460,52,titles[mode],colors[mode],12,'middle');
+var ax=80,ay=400,aw=740,ah=280;
+L(s,ax,ay,ax+aw,ay,BD,1.5);
+L(s,ax,ay,ax,ay-ah,BD,1.5);
+T(s,ax-15,ay-ah-10,'精度',DIM,11);
+T(s,ax+aw+5,ay+5,'能耗',DIM,11);
+for(var i=0;i<=5;i++){
+var x=ax+i*aw/5;
+L(s,x,ay,x,ay-5,BD,1);
+T(s,x,ay+15,i*200+'W·h',DIM,9,'middle');
+}
+for(var i=0;i<=5;i++){
+var y=ay-i*ah/5;
+L(s,ax-5,y,ax,y,BD,1);
+T(s,ax-10,y+4,i*20+'%',DIM,9,'end');
+}
+if(mode==='energy'||mode==='optimal'){
+var fixedPts=[];
+for(var i=0;i<=20;i++){
+var t=i/20;
+fixedPts.push((ax+t*aw)+','+(ay-0.65*ah-t*0.05*ah));
+}
+PL(s,fixedPts.join(' '),'none',DIM,2);
+T(s,ax+aw*0.7,ay-0.7*ah,'固定计算',DIM,10);
+var adaptPts=[];
+for(var i=0;i<=20;i++){
+var t=i/20;
+adaptPts.push((ax+t*aw)+','+(ay-(0.45+0.4*t)*ah));
+}
+PL(s,adaptPts.join(' '),'none',AC,2.5);
+T(s,ax+aw*0.5,ay-0.6*ah,'自适应计算',AC,10);
+}
+if(mode==='accuracy'){
+B(s,ax+50,ay-ah+20,250,50,BG,AC,4,1.5);
+T(s,ax+175,ay-ah+40,'固定计算',AC,12,'middle');
+T(s,ax+175,ay-ah+58,'精度: 94.2% · 能耗: 1000W·h',AC,10,'middle');
+B(s,ax+380,ay-ah+20,250,50,BG,INFO,4,1.5);
+T(s,ax+505,ay-ah+40,'自适应计算',INFO,12,'middle');
+T(s,ax+505,ay-ah+58,'精度: 93.8% · 能耗: 620W·h',INFO,10,'middle');
+AR(s,ax+300,ay-ah+45,ax+380,ay-ah+45,DIM);
+T(s,340,ay-ah+38,'精度↓0.4%',AC,9,'middle');
+T(s,340,ay-ah+52,'能耗↓38%',AC,9,'middle');
+B(s,ax+680,ay-ah+20,120,50,WARN+'15',WARN,4);
+T(s,ax+740,ay-ah+40,'净收益',WARN,11,'middle');
+T(s,ax+740,ay-ah+58,'能效↑60%',WARN,10,'middle');
+}
+if(mode==='carbon'){
+var items=[
+{n:'固定计算\n训练',v:550,c:DIM,h:220},
+{n:'自适应\n训练',v:420,c:AC,h:168},
+{n:'固定计算\n推理',v:350,c:DIM,h:140},
+{n:'自适应\n推理',v:180,c:AC,h:72}
+];
+var bX=120,bW=120,bGap=40,bY=ay;
+for(var i=0;i<items.length;i++){
+var x=bX+i*(bW+bGap);
+B(s,x,bY-items[i].h,bW,items[i].h,items[i].c+'20',items[i].c,4,2);
+T(s,x+bW/2,bY-items[i].h-8,items[i].v+' kgCO₂',items[i].c,10,'middle');
+var lines=items[i].n.split('\n');
+for(var l=0;l<lines.length;l++)T(s,x+bW/2,bY+15+l*14,lines[l],items[i].c,10,'middle');
+}
+T(s,460,bY+60,'全周期碳排: 固定900kg → 自适应600kg (↓33%)',AC,12,'middle');
+T(s,460,bY+80,'相当于种树: 15棵 → 10棵',PUR,10,'middle');
+}
+if(mode==='optimal'){
+var paretoPts=[];
+for(var i=0;i<=15;i++){
+var t=i/15;
+var px=ax+(0.1+t*0.8)*aw;
+var py=ay-(0.5+t*0.4)*ah;
+paretoPts.push(px+','+py);
+C(s,px,py,3,WARN+'30',WARN,1.5);
+}
+PL(s,paretoPts.join(' '),'none',WARN,2);
+T(s,ax+aw*0.5,ay-ah*0.75,'Pareto前沿',WARN,11);
+var points=[
+{x:ax+aw*0.15,y:ay-ah*0.55,c:DIM,n:'固定模型'},
+{x:ax+aw*0.35,y:ay-ah*0.72,c:AC,n:'早退模型'},
+{x:ax+aw*0.50,y:ay-ah*0.80,c:INFO,n:'MoD模型'},
+{x:ax+aw*0.72,y:ay-ah*0.88,c:PUR,n:'MoE+MoD'},
+{x:ax+aw*0.85,y:ay-ah*0.92,c:ROSE,n:'全自适应'}
+];
+for(var i=0;i<points.length;i++){
+C(s,points[i].x,points[i].y,6,points[i].c+'30',points[i].c,2);
+T(s,points[i].x+10,points[i].y-8,points[i].n,points[i].c,9);
+}
+T(s,ax+aw*0.7,ay-ah*0.3,'前沿上方: 次优策略',DIM,9);
+T(s,ax+aw*0.7,ay-ah*0.3+14,'前沿上: 最优策略',WARN,9);
+}
+var logs={
+energy:'能耗对比：固定计算模型无论输入难易都消耗1000W·h满载能量，精度94.2%。自适应计算模型根据输入复杂度动态分配计算，简单输入少算、复杂输入多算，总能耗降至620W·h(↓38%)，精度93.8%仅降0.4%。能耗-精度曲线显示自适应计算在各能耗水平下均优于固定计算，能效提升约60%。',
+accuracy:'精度保持分析：自适应计算在大幅降低能耗(38%)的同时，精度仅微降0.4%(94.2%→93.8%)。这一微小差异在统计上不显著(p>0.05)。关键洞察：被跳过的计算对简单输入本就是冗余的——它们在前几层就已收敛。自适应计算的精度损失主要来自少数边界样本，可通过阈值调优进一步消除。净收益：能效提升60%，精度几乎无损。',
+carbon:'碳足迹分析：全生命周期碳排放包含训练和推理两阶段。固定计算：训练550kg+推理350kg=900kg CO₂。自适应计算：训练420kg(路由器增加少量开销但总训练FLOPs减少)+推理180kg=600kg CO₂。总减排33%，相当于少种5棵树吸收量。在大规模部署(亿级推理/天)时，推理阶段减排更为显著，自适应计算是绿色AI的核心技术。',
+optimal:'Pareto前沿分析：在能耗-精度二维空间中，Pareto前沿由不被任何其他策略支配的策略组成。固定模型位于前沿下方(次优)；早退模型、MoD模型、MoE+MoD、全自适应依次位于前沿上，精度递增、能耗也递增但幅度更小。最优策略选择取决于应用场景的精度底线和能耗预算。全自适应(精度93.8%@620W·h)在大多数场景下是最佳平衡点。'
+};
+lg.textContent=logs[mode];
+}
+
+/* 初始化调用 */
+m1Draw();m2Draw();m3Draw();m4Draw();m5Draw();m6Draw();m7Draw();m8Draw();
+</script>
+</body>
+</html>
