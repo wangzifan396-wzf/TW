@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 326 个零依赖交互式可视化项目 + 30 个配套工具，2608+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 331 个零依赖交互式可视化项目 + 30 个配套工具，2648+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-326-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2608+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-331-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2648+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 326 |
-| 可视化模块 | 2608+ |
+| 项目总数 | 331 |
+| 可视化模块 | 2648+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -400,6 +400,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 324 | AI×脑科学大模型可视化实验室 | Brainμ模型架构/神经信号解码/脑机接口BCI/认知建模与计算/神经可塑性模拟/脑疾病AI诊断/意识计算理论/类脑智能未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-brain-science-llm-viz-lab/) |
 | 325 | AI金融与量化智能可视化实验室 | AI金融全景/智能选股与因子挖掘/智能投研/风险预测模型/市场情绪分析/监管科技RegTech/AI保险定价/金融AI基础设施等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-finance-quantitative-intelligence-viz-lab/) |
 | 326 | 全双工实时AI交互可视化实验室 | 实时交互全景/流式ASR-TTS/全双工协议/延迟优化/打断处理/多模态实时融合/边缘部署/应用场景矩阵等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/full-duplex-realtime-ai-interaction-viz-lab/) |
+| 327 | 驾驭工程与AI运行框架可视化实验室 | 驾驭工程全景/外部运行容器/多智能体协同/评估与控制层/记忆管理系统/MCP工具协议/框架内化趋势/私域上下文等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/harness-engineering-ai-runtime-viz-lab/) |
+| 328 | 智联网与Agent互联网可视化实验室 | 智联网全景/Agent自主检索/垂直Agent渗透/多Agent协同/商业模式重构/Agent间通信/智联网基础设施/智联网生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agent-internet-intelligent-network-viz-lab/) |
+| 329 | 液态组织与人机混编可视化实验室 | 组织形态演进/人机混编网络/任务驱动组队/Agent员工化/雇佣契约弹性化/智能体管理者/人机配比优化/治理与权责等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/liquid-organization-human-ai-viz-lab/) |
+| 330 | 在线进化与持续学习可视化实验室 | 在线进化全景/RLVR强化学习/上下文实时学习/记忆持久化/个性化权重/评判标准转变/持续自主工作/在线进化生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/online-evolution-continuous-learning-viz-lab/) |
+| 331 | AI原生教育与人才重构可视化实验室 | 教育范式变革/岗位任务拆分/架构型人才/人机协作培养/π型交叉人才/AI编程普惠/智能体管理技能/未来教育生态等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-native-education-talent-viz-lab/) |
 
 ## 技术栈
 
