@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · MoE稀疏专家架构可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.module{display:none;padding:24px}
+.module.active{display:block}
+.module h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.module>p{font-size:13px;color:#9aa0b0;margin-bottom:16px;max-width:800px}
+.ctrl{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ctrl button{padding:6px 14px;background:#1a1d27;color:#e6e8ee;border:1px solid #2d3344;border-radius:6px;font-size:12px;cursor:pointer;transition:background .18s,border-color .18s}
+.ctrl button:hover{background:#252836;border-color:#00d4aa}
+svg{width:100%;max-width:920px;height:auto;background:#0f1117;border:1px solid #1a1d27;border-radius:8px}
+.log{margin-top:8px;padding:8px 12px;background:#0a0c12;border:1px solid #1a1d27;border-radius:6px;font-size:12px;color:#9aa0b0;font-family:monospace;min-height:24px}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>MoE稀疏专家架构可视化实验室</h1>
+</header>
+<nav class="tabs" id="tabs">
+<button class="tab active" data-m="m1">M1 MoE全景</button>
+<button class="tab" data-m="m2">M2 专家路由</button>
+<button class="tab" data-m="m3">M3 稀疏激活</button>
+<button class="tab" data-m="m4">M4 负载均衡</button>
+<button class="tab" data-m="m5">M5 K3解析</button>
+<button class="tab" data-m="m6">M6 训练策略</button>
+<button class="tab" data-m="m7">M7 推理优化</button>
+<button class="tab" data-m="m8">M8 性能对比</button>
+</nav>
+<main>
+<section class="module active" id="m1"><h2>MoE架构技术全景</h2><p>混合专家通过稀疏激活实现参数规模与计算效率的解耦,896个专家中仅激活16个。点击分层查看。</p><div class="ctrl"><button onclick="m1View('all')">全部</button><button onclick="m1View('router')">路由层</button><button onclick="m1View('experts')">专家层</button><button onclick="m1View('merge')">合并层</button></div><svg id="m1-svg" viewBox="0 0 920 500"></svg><div class="log" id="m1-log">点击按钮分层高亮</div></section>
+<section class="module" id="m2"><h2>Top-K专家路由机制</h2><p>路由网络计算输入与每个专家的亲和力分数,选择Top-K个专家处理。点击模拟路由过程。</p><div class="ctrl"><button onclick="m2Step(0)">计算分数</button><button onclick="m2Step(1)">排序选择</button><button onclick="m2Step(2)">分发执行</button><button onclick="m2Step(3)">重置</button></div><svg id="m2-svg" viewBox="0 0 920 500"></svg><div class="log" id="m2-log">点击按钮逐步演示路由</div></section>
+<section class="module" id="m3"><h2>稀疏激活:896选16</h2><p>稀疏激活率98.2%意味着模型容量巨大但每次计算极轻量。点击调整K值。</p><div class="ctrl"><button onclick="m3Set(4)">K=4</button><button onclick="m3Set(8)">K=8</button><button onclick="m3Set(16)">K=16</button><button onclick="m3Set(32)">K=32</button></div><svg id="m3-svg" viewBox="0 0 920 500"></svg><div class="log" id="m3-log">当前K=16,激活率1.8%</div></section>
+<section class="module" id="m4"><h2>专家负载均衡策略</h2><p>不均衡路由导致部分专家过载。辅助损失和容量因子确保均衡分配。</p><div class="ctrl"><button onclick="m4Mode(0)">无均衡</button><button onclick="m4Mode(1)">辅助损失</button><button onclick="m4Mode(2)">容量因子</button></div><svg id="m4-svg" viewBox="0 0 920 500"></svg><div class="log" id="m4-log">点击切换均衡策略</div></section>
+<section class="module" id="m5"><h2>Kimi K3:2.8万亿参数MoE</h2><p>2026年7月发布,896专家/16激活,2.8T参数,KDA注意力+注意力残差,100万Token上下文。</p><div class="ctrl"><button onclick="m5View('arch')">架构总览</button><button onclick="m5View('attn')">注意力机制</button><button onclick="m5View('ctx')">上下文窗口</button></div><svg id="m5-svg" viewBox="0 0 920 500"></svg><div class="log" id="m5-log">点击查看K3架构细节</div></section>
+<section class="module" id="m6"><h2>MoE训练挑战与策略</h2><p>MoE训练面临专家坍缩、路由不稳定、通信开销等挑战。</p><div class="ctrl"><button onclick="m6Topic(0)">专家坍缩</button><button onclick="m6Topic(1)">路由稳定</button><button onclick="m6Topic(2)">通信优化</button></div><svg id="m6-svg" viewBox="0 0 920 500"></svg><div class="log" id="m6-log">点击查看训练挑战</div></section>
+<section class="module" id="m7"><h2>MoE推理部署优化</h2><p>MoE推理需处理专家驻留、动态路由、显存管理等挑战。</p><div class="ctrl"><button onclick="m7View(0)">专家并行</button><button onclick="m7View(1)">缓存路由</button><button onclick="m7View(2)">动态加载</button></div><svg id="m7-svg" viewBox="0 0 920 500"></svg><div class="log" id="m7-log">点击查看推理优化策略</div></section>
+<section class="module" id="m8"><h2>MoE vs Dense模型对比</h2><p>MoE以更少计算量达到更高性能,但显存需求更大。切换指标。</p><div class="ctrl"><button onclick="m8Metric(0)">计算效率</button><button onclick="m8Metric(1)">显存需求</button><button onclick="m8Metric(2)">推理速度</button><button onclick="m8Metric(3)">性价比</button></div><svg id="m8-svg" viewBox="0 0 920 500"></svg><div class="log" id="m8-log">点击切换对比指标</div></section>
+</main>
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+
+// M1: MoE全景
+function m1Draw(){
+  var svg=document.getElementById('m1-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='MoE架构技术全景';
+  // 输入
+  el('rect',{x:40,y:220,width:80,height:60,rx:8,fill:'#1a1d27',stroke:INFO,'stroke-width':1.5},svg);
+  el('text',{x:80,y:255,'text-anchor':'middle',fill:INFO,'font-size':12},svg).textContent='输入';
+  // 路由网络
+  el('polygon',{points:'200,250 250,210 300,250 250,290',fill:'#1a1d27',stroke:WARN,'stroke-width':1.5},svg);
+  el('text',{x:250,y:255,'text-anchor':'middle',fill:WARN,'font-size':11},svg).textContent='Gate';
+  // 专家网格
+  var gx=340,gy=60,gap=13;
+  for(var i=0;i<30;i++){
+    for(var j=0;j<30;j++){
+      var idx=i*30+j;
+      var active=idx%56===0;
+      el('circle',{cx:gx+j*gap,cy:gy+i*gap,r:active?4:2,fill:active?AC:DIM,'fill-opacity':active?1:0.4},svg);
+    }
+  }
+  el('text',{x:490,y:50,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='896个专家 (16个激活)';
+  // 合并
+  el('rect',{x:800,y:220,width:80,height:60,rx:8,fill:'#1a1d27',stroke:PUR,'stroke-width':1.5},svg);
+  el('text',{x:840,y:255,'text-anchor':'middle',fill:PUR,'font-size':12},svg).textContent='合并';
+  // 箭头
+  el('line',{x1:120,y1:250,x2:195,y2:250,stroke:BD,'stroke-width':1.5,'marker-end':'url(#a1)'},svg);
+  el('line',{x1:300,y1:250,x2:335,y2:250,stroke:BD,'stroke-width':1.5},svg);
+  el('line',{x1:725,y1:250,x2:795,y2:250,stroke:BD,'stroke-width':1.5,'marker-end':'url(#a1)'},svg);
+  el('defs',{},svg).innerHTML='<marker id="a1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L0,8 L8,4 z" fill="'+BD+'"/></marker>';
+}
+function m1View(layer){
+  var svg=document.getElementById('m1-svg');clear(svg);
+  m1Draw();
+  var log=document.getElementById('m1-log');
+  if(layer==='all'){log.textContent='显示全部:输入→路由→896专家→合并';}
+  else if(layer==='router'){log.textContent='路由层:Gate计算亲和力分数,选择Top-K专家';}
+  else if(layer==='experts'){log.textContent='专家层:896个专家,仅16个被激活(高亮)';}
+  else if(layer==='merge'){log.textContent='合并层:加权求和Top-K专家输出';}
+}
+
+// M2: 专家路由
+var m2State=0;
+function m2Draw(){
+  var svg=document.getElementById('m2-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='Top-K专家路由机制';
+  // 输入向量
+  el('rect',{x:40,y:100,width:30,height:300,rx:4,fill:INFO,'fill-opacity':0.3,stroke:INFO},svg);
+  el('text',{x:55,y:80,'text-anchor':'middle',fill:INFO,'font-size':11},svg).textContent='输入';
+  // 专家点
+  for(var i=0;i<56;i++){
+    var y=60+i*7;
+    var score=Math.random();
+    var col=m2State>=1&&score>0.7?AC:DIM;
+    el('circle',{cx:300,y:y,r:m2State>=2&&score>0.7?5:2.5,fill:col,'fill-opacity':m2State>=1&&score>0.7?1:0.3},svg);
+  }
+  el('text',{x:300,y:50,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='专家池(896)';
+  // 选中区
+  if(m2State>=2){
+    el('rect',{x:480,y:80,width:180,height:340,rx:8,fill:'none',stroke:AC,'stroke-width':1,'stroke-dasharray':'4,4'},svg);
+    el('text',{x:570,y:70,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='Top-16 选中';
+    for(var k=0;k<16;k++){
+      var ky=95+k*20;
+      el('circle',{cx:520,cy:ky,r:5,fill:AC},svg);
+      el('line',{x1:325,y1:60+(k*56/16),x2:515,y2:ky,stroke:AC,'stroke-width':0.5,'stroke-opacity':0.4},svg);
+      el('text',{x:540,y:ky+4,fill:AC,'font-size':10},svg).textContent='专家#'+(k*56);
+    }
+  }
+  // 输出
+  if(m2State>=3){
+    el('rect',{x:780,y:100,width:60,height:300,rx:4,fill:PUR,'fill-opacity':0.3,stroke:PUR},svg);
+    el('text',{x:810,y:80,'text-anchor':'middle',fill:PUR,'font-size':11},svg).textContent='输出';
+    for(var o=0;o<16;o++){
+      el('line',{x1:665,y1:95+o*20,x2:775,y2:100+o*18,stroke:PUR,'stroke-width':0.5,'stroke-opacity':0.5},svg);
+    }
+  }
+}
+function m2Step(s){m2State=s;m2Draw();
+  var logs=['计算所有专家亲和力分数','排序并选择Top-16高分专家','将输入分发到16个选中专家执行','已重置'];
+  document.getElementById('m2-log').textContent=logs[s];
+}
+
+// M3: 稀疏激活
+function m3Draw(k){
+  var svg=document.getElementById('m3-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='稀疏激活: 896选'+k;
+  var gx=60,gy=50,gap=12;
+  for(var i=0;i<30;i++){
+    for(var j=0;j<30;j++){
+      var idx=i*30+j;
+      var active=idx<k*56;
+      el('rect',{x:gx+j*gap,y:gy+i*gap,width:9,height:9,rx:1,fill:active?AC:DIM,'fill-opacity':active?0.8:0.15},svg);
+    }
+  }
+  // 指标
+  var rate=(k/896*100).toFixed(1);
+  var cx=720;
+  el('text',{x:cx,y:80,fill:AC,'font-size':13,'font-weight':600},svg).textContent='关键指标';
+  el('text',{x:cx,y:120,fill:DIM,'font-size':11},svg).textContent='激活率: '+rate+'%';
+  el('text',{x:cx,y:150,fill:DIM,'font-size':11},svg).textContent='计算量: '+(rate)+'% of Dense';
+  el('text',{x:cx,y:180,fill:DIM,'font-size':11},svg).textContent='参数量: 2.8T (固定)';
+  el('text',{x:cx,y:210,fill:DIM,'font-size':11},svg).textContent='活跃参数: '+(2.8*k/16).toFixed(2)+'T';
+  // 柱状图
+  el('text',{x:cx,y:260,fill:AC,'font-size':12},svg).textContent='计算效率提升:';
+  var eff=896/k;
+  el('rect',{x:cx,y:280,width:150,height:20,rx:3,fill:'#1a1d27',stroke:BD},svg);
+  el('rect',{x:cx,y:280,width:Math.min(150,eff*4),height:20,rx:3,fill:AC,'fill-opacity':0.6},svg);
+  el('text',{x:cx+75,y:294,'text-anchor':'middle',fill:'#fff','font-size':11},svg).textContent=eff.toFixed(0)+'x 效率';
+}
+function m3Set(k){m3Draw(k);
+  document.getElementById('m3-log').textContent='K='+k+',激活率='+(k/896*100).toFixed(1)+'%,效率提升'+(896/k).toFixed(0)+'x';
+}
+
+// M4: 负载均衡
+function m4Draw(mode){
+  var svg=document.getElementById('m4-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='专家负载均衡策略';
+  var titles=['无均衡:专家负载极度不均','辅助损失:负载趋于均匀','容量因子:限制最大负载'];
+  el('text',{x:460,y:55,'text-anchor':'middle',fill:DIM,'font-size':12},svg).textContent=titles[mode];
+  var bx=80,by=100,bw=22,gap=4;
+  for(var i=0;i<32;i++){
+    var h;
+    if(mode===0){h=20+Math.pow(Math.sin(i*0.8),2)*250;}
+    else if(mode===1){h=80+Math.random()*40;}
+    else{h=60+Math.random()*80;if(h>120)h=120;}
+    var col=mode===0?(h>200?ERR:WARN):(mode===1?AC:(h>=120?ERR:AC));
+    el('rect',{x:bx+i*(bw+gap),y:420-h,width:bw,height:h,rx:2,fill:col,'fill-opacity':0.7},svg);
+    el('text',{x:bx+i*(bw+gap)+bw/2,y:435,'text-anchor':'middle',fill:DIM,'font-size':7,transform:'rotate(-45,'+(bx+i*(bw+gap)+bw/2)+',435)'},svg).textContent='E'+i;
+  }
+  // 容量线
+  if(mode===2){
+    el('line',{x1:bx,y1:300,x2:bx+32*(bw+gap),y2:300,stroke:ERR,'stroke-width':1.5,'stroke-dasharray':'5,3'},svg);
+    el('text',{x:bx+32*(bw+gap)+5,y:304,fill:ERR,'font-size':10},svg).textContent='容量上限';
+  }
+  // 方差
+  var variances=[2850,42,180];
+  el('text',{x:460,y:470,'text-anchor':'middle',fill:mode===0?ERR:AC,'font-size':12,'font-weight':600},svg).textContent='负载方差: '+variances[mode];
+}
+function m4Mode(m){m4Draw(m);
+  var logs=['无均衡:少数专家过载,大部分闲置,方差极大','辅助损失:通过额外损失项引导路由均衡','容量因子:设置每专家最大token数,溢出丢弃'];
+  document.getElementById('m4-log').textContent=logs[m];
+}
+
+// M5: Kimi K3架构
+function m5Draw(view){
+  var svg=document.getElementById('m5-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='Kimi K3架构解析';
+  if(view==='arch'){
+    // Transformer层堆叠
+    var layers=['Norm','KDA Attention','Norm','MoE (896/16)','FFN'];
+    for(var i=0;i<layers.length;i++){
+      var y=70+i*70;
+      el('rect',{x:280,y:y,width:360,height:50,rx:8,fill:'#1a1d27',stroke:i===1?INFO:i===3?WARN:BD,'stroke-width':1.5},svg);
+      el('text',{x:460,y:y+30,'text-anchor':'middle',fill:i===1?INFO:i===3?WARN:AC,'font-size':13,'font-weight':600},svg).textContent=layers[i];
+    }
+    el('text',{x:460,y:440,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='× N层 (2.8T参数)';
+    el('line',{x1:200,y1:95,x2:275,y2:95,stroke:BD,'marker-end':'url(#a5)'},svg);
+    el('line',{x1:200,y1:415,x2:275,y2:415,stroke:BD,'marker-end':'url(#a5)'},svg);
+    el('text',{x:150,y:100,'text-anchor':'middle',fill:INFO,'font-size':11},svg).textContent='输入';
+    el('text',{x:150,y:420,'text-anchor':'middle',fill:PUR,'font-size':11},svg).textContent='输出';
+    el('defs',{},svg).innerHTML='<marker id="a5" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L0,8 L8,4 z" fill="'+BD+'"/></marker>';
+  }else if(view==='attn'){
+    el('text',{x:460,y:70,'text-anchor':'middle',fill:INFO,'font-size':14},svg).textContent='KDA混合线性注意力';
+    // 标准注意力分支
+    el('rect',{x:100,y:120,width:280,height:120,rx:8,fill:'#1a1d27',stroke:INFO},svg);
+    el('text',{x:240,y:150,'text-anchor':'middle',fill:INFO,'font-size':12},svg).textContent='标准注意力分支';
+    el('text',{x:240,y:180,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='Q·K^T → Softmax → V';
+    el('text',{x:240,y:210,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='复杂度: O(n^2)';
+    // 线性注意力分支
+    el('rect',{x:540,y:120,width:280,height:120,rx:8,fill:'#1a1d27',stroke:WARN},svg);
+    el('text',{x:680,y:150,'text-anchor':'middle',fill:WARN,'font-size':12},svg).textContent='线性注意力分支';
+    el('text',{x:680,y:180,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='Delta Rule → Linear';
+    el('text',{x:680,y:210,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='复杂度: O(n)';
+    // 融合
+    el('circle',{cx:460,cy:330,r:30,fill:'#1a1d27',stroke:AC,'stroke-width':2},svg);
+    el('text',{x:460,y:335,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='融合';
+    el('line',{x1:240,y1:240,x2:440,y2:310,stroke:AC,'stroke-width':1},svg);
+    el('line',{x1:680,y1:240,x2:480,y2:310,stroke:AC,'stroke-width':1},svg);
+    el('text',{x:460,y:390,'text-anchor':'middle',fill:AC,'font-size':12},svg).textContent='注意力残差: 残差连接增强信息流动';
+    el('text',{x:460,y:420,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='兼顾长序列效率与短序列精度';
+  }else{
+    el('text',{x:460,y:70,'text-anchor':'middle',fill:PUR,'font-size':14},svg).textContent='100万Token上下文窗口';
+    var levels=[{n:'L1',cap:'4K',c:DIM,y:120},{n:'L2',cap:'32K',c:INFO,y:180},{n:'L3',cap:'128K',c:WARN,y:240},{n:'L4',cap:'1M',c:PUR,y:300}];
+    for(var i=0;i<levels.length;i++){
+      var w=100+i*150;
+      el('rect',{x:460-w/2,y:levels[i].y,width:w,height:40,rx:6,fill:'#1a1d27',stroke:levels[i].c,'stroke-width':1.5},svg);
+      el('text',{x:460,y:levels[i].y+25,'text-anchor':'middle',fill:levels[i].c,'font-size':12,'font-weight':600},svg).textContent=levels[i].n+': '+levels[i].cap+' tokens';
+    }
+    el('text',{x:460,y:380,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='分层缓存: L1常驻GPU, L2/L3在CPU内存, L4在SSD';
+    el('text',{x:460,y:410,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='100万Token ≈ 约75万汉字 ≈ 一整本书';
+  }
+}
+function m5View(v){m5Draw(v);
+  var logs=['架构总览: Norm→KDA Attn→Norm→MoE→FFN, 堆叠N层','KDA混合线性注意力: 标准O(n^2)+线性O(n)双分支融合','100万Token: L1(4K)→L2(32K)→L3(128K)→L4(1M)分层缓存'];
+  document.getElementById('m5-log').textContent=logs[v==='arch'?0:v==='attn'?1:2];
+}
+
+// M6: 训练策略
+function m6Draw(topic){
+  var svg=document.getElementById('m6-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='MoE训练挑战与策略';
+  if(topic===0){
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:ERR,'font-size':13},svg).textContent='专家坍缩: 少数专家垄断所有样本';
+    // 热力图
+    for(var i=0;i<20;i++){
+      for(var j=0;j<20;j++){
+        var idx=i*20+j;
+        var usage=idx<5?0.9:idx<15?0.3:0.05;
+        var col=usage>0.7?ERR:usage>0.2?WARN:DIM;
+        el('rect',{x:200+j*22,y:90+i*16,width:20,height:14,rx:1,fill:col,'fill-opacity':usage},svg);
+      }
+    }
+    el('text',{x:460,y:440,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='5个专家接收90%样本 → 其余891个专家闲置';
+    el('text',{x:460,y:465,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='解决方案: 辅助损失 + 专家 dropout + 路由噪声';
+  }else if(topic===1){
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:WARN,'font-size':13},svg).textContent='路由稳定: 噪声注入 + 温度退火';
+    // loss曲线
+    el('line',{x1:80,y1:400,x2:840,y2:400,stroke:BD},svg);
+    el('line',{x1:80,y1:100,x2:80,y2:400,stroke:BD},svg);
+    el('text',{x:50,y:250,fill:DIM,'font-size':10,transform:'rotate(-90,50,250)'},svg).textContent='Loss';
+    el('text',{x:460,y:430,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='训练步数';
+    // 无噪声曲线(不稳定)
+    var pts1='';var pts2='';
+    for(var i=0;i<=20;i++){
+      var x=80+i*38;
+      var y1=380-Math.exp(-i*0.15)*200+Math.sin(i)*30;
+      var y2=380-Math.exp(-i*0.15)*250;
+      pts1+=x+','+y1+' ';
+      pts2+=x+','+y2+' ';
+    }
+    el('polyline',{points:pts1,fill:'none',stroke:ERR,'stroke-width':2},svg);
+    el('polyline',{points:pts2,fill:'none',stroke:AC,'stroke-width':2},svg);
+    el('text',{x:700,y:130,fill:ERR,'font-size':11},svg).textContent='无噪声(不稳定)';
+    el('text',{x:700,y:150,fill:AC,'font-size':11},svg).textContent='有噪声(稳定)';
+  }else{
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:INFO,'font-size':13},svg).textContent='通信优化: All-to-All拓扑';
+    // GPU节点
+    var gpus=[{x:200,y:150},{x:500,y:150},{x:800,y:150},{x:200,y:350},{x:500,y:350},{x:800,y:350}];
+    for(var i=0;i<gpus.length;i++){
+      el('rect',{x:gpus[i].x-40,y:gpus[i].y-25,width:80,height:50,rx:8,fill:'#1a1d27',stroke:INFO,'stroke-width':1.5},svg);
+      el('text',{x:gpus[i].x,y:gpus[i].y,'text-anchor':'middle',fill:INFO,'font-size':11},svg).textContent='GPU'+i;
+      // 专家标签
+      el('text',{x:gpus[i].x,y:gpus[i].y+15,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='E'+(i*149)+'-E'+((i+1)*149-1);
+    }
+    // All-to-All连线
+    for(var i=0;i<gpus.length;i++){
+      for(var j=i+1;j<gpus.length;j++){
+        el('line',{x1:gpus[i].x,y1:gpus[i].y,x2:gpus[j].x,y2:gpus[j].y,stroke:AC,'stroke-width':0.5,'stroke-opacity':0.3},svg);
+      }
+    }
+    el('text',{x:460,y:440,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='896专家分布在6个GPU,All-to-All通信交换token';
+    el('text',{x:460,y:465,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='拓扑优化+梯度压缩可降低通信开销40%';
+  }
+}
+function m6Topic(t){m6Draw(t);
+  var logs=['专家坍缩: 少数专家垄断,辅助损失+dropout解决','路由稳定: 噪声注入+温度退火使训练loss曲线平滑','通信优化: All-to-All拓扑+梯度压缩降低40%开销'];
+  document.getElementById('m6-log').textContent=logs[t];
+}
+
+// M7: 推理优化
+function m7Draw(view){
+  var svg=document.getElementById('m7-svg');clear(svg);
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent='MoE推理部署优化';
+  if(view===0){
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:INFO,'font-size':13},svg).textContent='专家并行: 多GPU分布式推理';
+    var gpus=[{x:150,y:200,c:INFO},{x:380,y:200,c:WARN},{x:610,y:200,c:PUR},{x:820,y:200,c:ROSE}];
+    for(var i=0;i<gpus.length;i++){
+      el('rect',{x:gpus[i].x-60,y:gpus[i].y-60,width:120,height:120,rx:10,fill:'#1a1d27',stroke:gpus[i].c,'stroke-width':1.5},svg);
+      el('text',{x:gpus[i].x,y:gpus[i].y-30,'text-anchor':'middle',fill:gpus[i].c,'font-size':12,'font-weight':600},svg).textContent='GPU '+i;
+      for(var e=0;e<9;e++){
+        el('circle',{cx:gpus[i].x-40+(e%3)*40,cy:gpus[i].y+(Math.floor(e/3)-1)*30,r:4,fill:gpus[i].c,'fill-opacity':0.6},svg);
+      }
+      el('text',{x:gpus[i].x,y:gpus[i].y+50,'text-anchor':'middle',fill:DIM,'font-size':9},svg).textContent='224专家';
+    }
+    for(var i=0;i<3;i++){
+      el('line',{x1:gpus[i].x+60,y1:gpus[i].y,x2:gpus[i+1].x-60,y2:gpus[i+1].y,stroke:AC,'stroke-width':1,'stroke-dasharray':'4,3'},svg);
+    }
+    el('text',{x:460,y:430,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='896专家分布在4个GPU,每个GPU驻留224专家';
+    el('text',{x:460,y:455,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='All-to-All通信: token发送到目标专家所在GPU';
+  }else if(view===1){
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:WARN,'font-size':13},svg).textContent='缓存路由: 预测并缓存专家选择';
+    el('rect',{x:100,y:100,width:720,height:300,rx:10,fill:'#1a1d27',stroke:BD},svg);
+    // 路由预测表
+    el('text',{x:460,y:130,'text-anchor':'middle',fill:WARN,'font-size':12},svg).textContent='路由缓存表';
+    var entries=['token_001 → E3,E17,E42,E88','token_002 → E5,E23,E67,E91','token_003 → E3,E17,E42,E88','token_004 → E12,E45,E78,E103'];
+    for(var i=0;i<entries.length;i++){
+      el('text',{x:150,y:160+i*30,fill:DIM,'font-size':11,'font-family':'monospace'},svg).textContent=entries[i];
+    }
+    // 命中率曲线
+    el('line',{x1:100,y1:380,x2:820,y2:380,stroke:BD},svg);
+    el('line',{x1:100,y1:280,x2:100,y2:380,stroke:BD},svg);
+    var pts='';
+    for(var i=0;i<=20;i++){
+      var x=100+i*36;
+      var hit=Math.min(95,30+i*3.2);
+      var y=380-hit;
+      pts+=x+','+y+' ';
+    }
+    el('polyline',{points:pts,fill:'none',stroke:AC,'stroke-width':2},svg);
+    el('text',{x:460,y:420,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='缓存命中率随训练上升至95%+';
+    el('text',{x:460,y:445,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='命中时跳过Gate计算,直接路由到缓存专家';
+  }else{
+    el('text',{x:460,y:60,'text-anchor':'middle',fill:PUR,'font-size':13},svg).textContent='动态加载: 显存中专家换入换出';
+    // 显存框
+    el('rect',{x:80,y:100,width:760,height:200,rx:8,fill:'#1a1d27',stroke:PUR,'stroke-width':1.5},svg);
+    el('text',{x:460,y:125,'text-anchor':'middle',fill:PUR,'font-size':12},svg).textContent='GPU显存 (80GB, 可驻留~200专家)';
+    // 驻留专家
+    for(var i=0;i<20;i++){
+      var active=i<8;
+      el('rect',{x:100+i*36,y:145,width:30,height:30,rx:4,fill:active?AC:DIM,'fill-opacity':active?0.7:0.2},svg);
+    }
+    el('text',{x:460,y:200,'text-anchor':'middle',fill:DIM,'font-size':10},svg).textContent='驻留专家 (热)';
+    // LRU队列
+    el('rect',{x:80,y:230,width:760,height:50,rx:6,fill:'#0a0c12',stroke:BD},svg);
+    el('text',{x:100,y:260,fill:WARN,'font-size':11},svg).textContent='LRU队列:';
+    for(var i=0;i<10;i++){
+      el('rect',{x:200+i*55,y:240,width:45,height:30,rx:3,fill:WARN,'fill-opacity':0.3+i*0.05,stroke:WARN},svg);
+      el('text',{x:222+i*55,y:259,'text-anchor':'middle',fill:DIM,'font-size':8},svg).textContent='E'+(200+i*50);
+    }
+    el('text',{x:460,y:340,'text-anchor':'middle',fill:DIM,'font-size':11},svg).textContent='896专家 > 200显存容量 → 需动态换入换出';
+    el('text',{x:460,y:370,'text-anchor':'middle',fill:AC,'font-size':11},svg).textContent='LRU策略: 淘汰最久未用专家,加载当前需要的';
+    el('text',{x:460,y:400,'text-anchor':'middle',fill:WARN,'font-size':10},svg).textContent='换入延迟 ~2ms (PCIe), 策略性预加载可隐藏延迟';
+  }
+}
+function m7View(v){m7Draw(v);
+  var logs=['专家并行: 896专家分布在多GPU,All-to-All通信交换token','缓存路由: 预测专家选择并缓存,命中率95%+时跳过Gate计算','动态加载: LRU策略管理显存中专家,预加载隐藏换入延迟'];
+  document.getElementById('m7-log').textContent=logs[v];
+}
+
+// M8: 性能对比
+function m8Draw(metric){
+  var svg=document.getElementById('m8-svg');clear(svg);
+  var titles=['计算效率 (FLOPs/Token)','显存需求 (GB)','推理速度 (Tokens/s)','性价比 ($/百万Token)'];
+  el('text',{x:460,y:30,'text-anchor':'middle',fill:AC,'font-size':16,'font-weight':700},svg).textContent=titles[metric];
+  var data=[
+    [{n:'Dense 70B',v:140,c:DIM},{n:'MoE 2.8T',v:12,c:AC}],
+    [{n:'Dense 70B',v:140,c:DIM},{n:'MoE 2.8T',v:560,c:AC}],
+    [{n:'Dense 70B',v:80,c:DIM},{n:'MoE 2.8T',v:250,c:AC}],
+    [{n:'Dense 70B',v:15,c:DIM},{n:'MoE 2.8T',v:9,c:AC}]
+  ];
+  var d=data[metric];
+  var maxv=Math.max(d[0].v,d[1].v);
+  var units=['G','GB','/s','$/M'];
+  for(var i=0;i<2;i++){
+    var bx=200+i*340;
+    var bh=300*(d[i].v/maxv);
+    var by=420-bh;
+    el('rect',{x:bx,y:by,width:120,height:bh,rx:6,fill:d[i].c,'fill-opacity':0.7,stroke:d[i].c},svg);
+    el('text',{x:bx+60,y:by-15,'text-anchor':'middle',fill:d[i].c,'font-size':16,'font-weight':700},svg).textContent=d[i].v+units[metric];
+    el('text',{x:bx+60,y:445,'text-anchor':'middle',fill:DIM,'font-size':12},svg).textContent=d[i].n;
+  }
+  // 基线
+  el('line',{x1:150,y1:420,x2:770,y2:420,stroke:BD,'stroke-width':1.5},svg);
+  // 对比说明
+  var ratio=metric===0?(d[0].v/d[1].v).toFixed(1)+'x 减少':metric===1?(d[1].v/d[0].v).toFixed(1)+'x 增加':metric===2?(d[1].v/d[0].v).toFixed(1)+'x 提升':(d[0].v/d[1].v).toFixed(1)+'x 降低';
+  el('text',{x:460,y:480,'text-anchor':'middle',fill:AC,'font-size':13,'font-weight':600},svg).textContent='MoE相对Dense: '+ratio;
+}
+function m8Metric(m){m8Draw(m);
+  var logs=['计算效率: MoE 12G vs Dense 140G → 11.7x FLOPs减少','显存需求: MoE 560GB vs Dense 140GB → 4x增加(代价)','推理速度: MoE 250 vs Dense 80 → 3.1x提升','性价比: MoE $9 vs Dense $15 → 1.7x降低'];
+  document.getElementById('m8-log').textContent=logs[m];
+}
+
+m1Draw();m2Draw();m3Draw(16);m4Draw(0);m5Draw('arch');m6Draw(0);m7Draw(0);m8Draw(0);
+</script>
+</body>
+</html>
