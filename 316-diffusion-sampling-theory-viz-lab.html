@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扩散采样理论与收敛证明 - 可视化实验室</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0b0f;
+    --bg-panel: #12141c;
+    --bg-card: #181b25;
+    --border: #232838;
+    --teal: #00d4aa;
+    --teal-dim: #008f72;
+    --teal-glow: rgba(0, 212, 170, 0.15);
+    --text: #e6e8ee;
+    --text-dim: #8b909e;
+    --text-faint: #5a5f6e;
+    --amber: #ffb454;
+    --rose: #ff6b81;
+    --violet: #9d7aff;
+    --blue: #4ea8ff;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10, 11, 15, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner {
+    max-width: 1280px; margin: 0 auto;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 15px; white-space: nowrap;
+  }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 12px var(--teal);
+  }
+  .brand .tag {
+    font-size: 10px; font-weight: 600;
+    color: var(--teal); background: var(--teal-glow);
+    padding: 2px 7px; border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  nav.modules {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto;
+  }
+  .mod-btn {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    padding: 6px 11px; border-radius: 6px;
+    font-size: 12.5px; font-weight: 500;
+    font-family: inherit;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+  .mod-btn:hover { color: var(--text); background: var(--bg-card); }
+  .mod-btn.active {
+    color: var(--teal); background: var(--teal-glow);
+    border-color: var(--teal-dim);
+  }
+  main {
+    max-width: 1280px; margin: 0 auto;
+    padding: 28px 24px 60px;
+  }
+  .module { display: none; }
+  .module.active { display: block; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .mod-head { margin-bottom: 22px; }
+  .mod-head .crumb {
+    font-size: 11px; color: var(--teal); font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .mod-head h1 {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .mod-head p { color: var(--text-dim); font-size: 14px; max-width: 820px; }
+  .grid {
+    display: grid; gap: 18px;
+    grid-template-columns: repeat(12, 1fr);
+  }
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card h3 {
+    font-size: 14px; font-weight: 600; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h3::before {
+    content: ""; width: 4px; height: 14px; border-radius: 2px;
+    background: var(--teal);
+  }
+  .col-12 { grid-column: span 12; }
+  .col-8 { grid-column: span 8; }
+  .col-6 { grid-column: span 6; }
+  .col-4 { grid-column: span 4; }
+  .col-3 { grid-column: span 3; }
+  @media (max-width: 980px) {
+    .col-8, .col-6, .col-4, .col-3 { grid-column: span 12; }
+  }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    margin-bottom: 14px;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl label {
+    font-size: 11px; color: var(--text-dim); font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .ctrl .val {
+    font-size: 12px; color: var(--teal); font-weight: 700;
+    font-family: "Consolas", "SF Mono", monospace;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 180px; height: 5px; border-radius: 3px;
+    background: var(--bg-card); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--teal); cursor: pointer;
+    box-shadow: 0 0 8px var(--teal-glow);
+    border: 2px solid #0a0b0f;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--teal); cursor: pointer; border: 2px solid #0a0b0f;
+  }
+  .seg {
+    display: inline-flex; background: var(--bg-card);
+    border-radius: 8px; padding: 3px; gap: 2px;
+    border: 1px solid var(--border);
+  }
+  .seg button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-dim); padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 500; font-family: inherit;
+    transition: all 0.15s ease;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on {
+    background: var(--teal); color: #0a0b0f; font-weight: 600;
+  }
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .stat {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; min-width: 110px;
+  }
+  .stat .k { font-size: 10.5px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.3px; }
+  .stat .v { font-size: 18px; color: var(--teal); font-weight: 700; font-family: "Consolas","SF Mono",monospace; margin-top: 2px; }
+  .stat .v.amber { color: var(--amber); }
+  .stat .v.rose { color: var(--rose); }
+  .stat .v.violet { color: var(--violet); }
+  svg.viz { width: 100%; display: block; border-radius: 8px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--text-dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 12px; height: 3px; border-radius: 2px; display: inline-block;
+  }
+  .note {
+    font-size: 12.5px; color: var(--text-dim); line-height: 1.7;
+    background: var(--bg-card); border-left: 3px solid var(--teal-dim);
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 12px;
+  }
+  .note b { color: var(--text); font-weight: 600; }
+  .note code {
+    font-family: "Consolas","SF Mono",monospace; font-size: 12px;
+    color: var(--teal); background: rgba(0,212,170,0.08);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px; letter-spacing: 0.4px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .badge.icml { background: rgba(157,122,255,0.15); color: var(--violet); }
+  .badge.new { background: rgba(0,212,170,0.15); color: var(--teal); }
+  .pillrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pill {
+    font-size: 11.5px; padding: 5px 11px; border-radius: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .pill:hover { color: var(--text); border-color: var(--teal-dim); }
+  .pill.on { color: var(--teal); border-color: var(--teal); background: var(--teal-glow); }
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.cmp th, table.cmp td {
+    text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border);
+  }
+  table.cmp th {
+    font-size: 11px; color: var(--text-dim); font-weight: 600;
+    letter-spacing: 0.3px; text-transform: uppercase;
+  }
+  table.cmp td code {
+    font-family: "Consolas","SF Mono",monospace; color: var(--teal);
+  }
+  table.cmp tr:hover td { background: var(--bg-card); }
+  .flow-step {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; font-size: 12.5px;
+  }
+  .flow-step b { color: var(--teal); }
+  .app-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; cursor: pointer;
+    transition: all 0.2s ease; height: 100%;
+  }
+  .app-card:hover { border-color: var(--teal); transform: translateY(-2px); }
+  .app-card .ic { font-size: 22px; margin-bottom: 8px; }
+  .app-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .app-card p { font-size: 12px; color: var(--text-dim); }
+  .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .foot {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-faint); text-align: center;
+  }
+  .mono { font-family: "Consolas","SF Mono",monospace; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="dot"></span>
+      <span>扩散采样理论与收敛证明</span>
+      <span class="tag">VIZ LAB</span>
+    </div>
+    <nav class="modules" id="nav"></nav>
+  </div>
+</header>
+<main>
+  <!-- M1 -->
+  <section id="m1" class="module active"></section>
+  <!-- M2 -->
+  <section id="m2" class="module"></section>
+  <!-- M3 -->
+  <section id="m3" class="module"></section>
+  <!-- M4 -->
+  <section id="m4" class="module"></section>
+  <!-- M5 -->
+  <section id="m5" class="module"></section>
+  <!-- M6 -->
+  <section id="m6" class="module"></section>
+  <!-- M7 -->
+  <section id="m7" class="module"></section>
+  <!-- M8 -->
+  <section id="m8" class="module"></section>
+  <div class="foot">
+    扩散采样理论与收敛证明 · 可视化实验室 · 基于 ICML 2026 Outstanding Paper "High-Accuracy Sampling for Diffusion Models and Log-Concave Distributions"
+  </div>
+</main>
+<script>
+"use strict";
+/* ============ 工具函数 ============ */
+var SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  var e = document.createElementNS(SVGNS, tag);
+  if (attrs) {
+    for (var k in attrs) {
+      if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]);
+    }
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(node, str) {
+  var t = document.createTextNode(str);
+  node.appendChild(t);
+  return node;
+}
+function tspanEl(x, y, str, parent, opts) {
+  var a = { x: x, y: y };
+  if (opts) { for (var kk in opts) { if (opts.hasOwnProperty(kk)) a[kk] = opts[kk]; } }
+  var t = el("text", a, parent);
+  txt(t, str);
+  return t;
+}
+function clearNode(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+
+/* ============ 模块注册 ============ */
+var MODULES = [
+  { id: "m1", name: "采样理论全景" },
+  { id: "m2", name: "polylog突破" },
+  { id: "m3", name: "分数匹配" },
+  { id: "m4", name: "收敛证明" },
+  { id: "m5", name: "随机矩阵" },
+  { id: "m6", name: "采样器对比" },
+  { id: "m7", name: "高维挑战" },
+  { id: "m8", name: "应用与未来" }
+];
+var initialized = {};
+function switchModule(id) {
+  var secs = document.querySelectorAll(".module");
+  for (var i = 0; i < secs.length; i++) secs[i].classList.remove("active");
+  document.getElementById(id).classList.add("active");
+  var btns = document.querySelectorAll(".mod-btn");
+  for (var j = 0; j < btns.length; j++) {
+    btns[j].classList.toggle("active", btns[j].dataset.mod === id);
+  }
+  if (!initialized[id]) {
+    var fn = window["draw_" + id];
+    if (fn) { fn(); initialized[id] = true; }
+  }
+}
+(function buildNav() {
+  var nav = document.getElementById("nav");
+  for (var i = 0; i < MODULES.length; i++) {
+    (function (m) {
+      var b = document.createElement("button");
+      b.className = "mod-btn" + (i === 0 ? " active" : "");
+      b.dataset.mod = m.id;
+      b.textContent = m.name;
+      b.addEventListener("click", function () { switchModule(m.id); });
+      nav.appendChild(b);
+    })(MODULES[i]);
+  }
+})();
+
+/* ============ 通用绘图辅助 ============ */
+function svgCanvas(w, h, viewBox) {
+  var s = el("svg", { width: w, height: h, viewBox: viewBox || ("0 0 " + w + " " + h), class: "viz" });
+  el("rect", { x: 0, y: 0, width: w, height: h, fill: "#0e1018", rx: 8 }, s);
+  return s;
+}
+function axis(s, x1, y1, x2, y2, color) {
+  return el("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: color || "#3a3f50", "stroke-width": 1.5 }, s);
+}
+function gridlines(s, x, y, w, h, nx, ny, color) {
+  var i;
+  for (i = 1; i < nx; i++) {
+    var gx = x + (w / nx) * i;
+    el("line", { x1: gx, y1: y, x2: gx, y2: y + h, stroke: color || "#1d212e", "stroke-width": 1, "stroke-dasharray": "2 4" }, s);
+  }
+  for (i = 1; i < ny; i++) {
+    var gy = y + (h / ny) * i;
+    el("line", { x1: x, y1: gy, x2: x + w, y2: gy, stroke: color || "#1d212e", "stroke-width": 1, "stroke-dasharray": "2 4" }, s);
+  }
+}
+
+/* ============================================================ */
+/* M1 采样理论全景 */
+/* ============================================================ */
+var M1 = { steps: 20, view: "process" };
+function draw_m1() {
+  var sec = document.getElementById("m1");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M1 · PANORAMA</div>' +
+    '<h1>扩散采样理论全景<span class="badge new">核心</span></h1>' +
+    '<p>扩散模型通过前向过程逐步加噪将数据破坏为纯噪声，再通过反向过程逐步去噪生成样本。采样步数直接决定生成质量与推理成本——这是扩散模型推理的核心权衡。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>采样步数 N</label><span class="val" id="m1stepV">20</span>' +
+    '<input type="range" id="m1step" min="2" max="80" value="20"></div>' +
+    '<div class="seg" id="m1seg">' +
+    '<button class="on" data-v="process">前向/反向过程</button>' +
+    '<button data-v="tradeoff">步数-质量权衡</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>扩散过程可视化</h3><div id="m1viz"></div>' +
+    '<div class="legend"><span><i style="background:#4ea8ff"></i>前向加噪 q(x_t|x_0)</span>' +
+    '<span><i style="background:#00d4aa"></i>反向去噪 p(x_{t-1}|x_t)</span></div></div>' +
+    '<div class="card col-4"><h3>关键指标</h3><div id="m1stats" class="stat-row"></div>' +
+    '<div class="note" id="m1note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m1step").addEventListener("input", function () {
+    M1.steps = parseInt(this.value, 10);
+    document.getElementById("m1stepV").textContent = M1.steps;
+    m1View(M1.view);
+  });
+  var seg = document.getElementById("m1seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m1View(this.dataset.v);
+    });
+  }
+  m1View("process");
+}
+function m1View(v) {
+  M1.view = v;
+  if (v === "process") m1DrawProcess();
+  else m1DrawTradeoff();
+}
+function m1DrawProcess() {
+  var host = document.getElementById("m1viz");
+  clearNode(host);
+  var W = 760, H = 420;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  // 标题标注
+  tspanEl(60, 38, "前向加噪过程  q(x_t | x_0) = N(x_t; sqrt(ᾱ_t)·x_0, (1-ᾱ_t)I)", s, { fill: "#4ea8ff", "font-size": 13, "font-family": "Consolas,monospace" });
+  tspanEl(60, H - 18, "反向去噪过程  p(x_{t-1} | x_t) = N(x_{t-1}; μ_θ(x_t,t), σ_t²I)", s, { fill: "#00d4aa", "font-size": 13, "font-family": "Consolas,monospace" });
+
+  var N = M1.steps;
+  var trackY = 150;
+  var trackY2 = 280;
+  var x0 = 80, x1 = W - 60;
+  // 前向轨道箭头
+  el("line", { x1: x0, y1: trackY, x2: x1 - 10, y2: trackY, stroke: "#4ea8ff", "stroke-width": 2, "marker-end": "url(#m1arrF)" }, s);
+  // 反向轨道箭头
+  el("line", { x1: x1, y1: trackY2, x2: x0 + 10, y2: trackY2, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m1arrB)" }, s);
+  // 箭头标记
+  var defs = el("defs", {}, s);
+  var mkF = el("marker", { id: "m1arrF", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: "#4ea8ff" }, mkF);
+  var mkB = el("marker", { id: "m1arrB", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: "#00d4aa" }, mkB);
+
+  // 状态圆点（采样点）
+  var pts = [];
+  for (var i = 0; i <= 6; i++) {
+    var px = x0 + (x1 - x0) * (i / 6);
+    var noiseR = 6 + i * 5;
+    el("circle", { cx: px, cy: trackY, r: noiseR, fill: "none", stroke: "#4ea8ff", "stroke-opacity": 0.25, "stroke-width": 1.5 }, s);
+    var c = el("circle", { cx: px, cy: trackY, r: 5, fill: "#4ea8ff" }, s);
+    pts.push(px);
+    // t 标签
+    tspanEl(px - 6, trackY + 28, "t=" + Math.round(i / 6 * N), s, { fill: "#8b909e", "font-size": 11 });
+    // 连接线到反向
+    el("line", { x1: px, y1: trackY + noiseR, x2: px, y2: trackY2 - noiseR, stroke: "#3a3f50", "stroke-width": 1, "stroke-dasharray": "3 3" }, s);
+    // 反向点
+    el("circle", { cx: px, cy: trackY2, r: noiseR, fill: "none", stroke: "#00d4aa", "stroke-opacity": 0.25, "stroke-width": 1.5 }, s);
+    el("circle", { cx: px, cy: trackY2, r: 5, fill: "#00d4aa" }, s);
+  }
+
+  // 左右端点标签
+  tspanEl(x0 - 18, trackY - 30, "x_0", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "font-family": "Consolas,monospace" });
+  tspanEl(x0 - 18, trackY - 14, "真实数据", s, { fill: "#8b909e", "font-size": 11 });
+  tspanEl(x1 + 4, trackY - 30, "x_T", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "font-family": "Consolas,monospace" });
+  tspanEl(x1 + 4, trackY - 14, "纯噪声", s, { fill: "#8b909e", "font-size": 11 });
+
+  // 噪声方差条
+  tspanEl(40, trackY, "噪声↑", s, { fill: "#4ea8ff", "font-size": 10, "text-anchor": "end", "dominant-baseline": "middle" });
+  tspanEl(40, trackY2, "信号↑", s, { fill: "#00d4aa", "font-size": 10, "text-anchor": "end", "dominant-baseline": "middle" });
+
+  // 更新指标
+  var stats = document.getElementById("m1stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">采样步数 N</div><div class="v">' + N + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  var q = Math.min(99.5, 50 + N * 0.9);
+  s2.innerHTML = '<div class="k">生成质量(估)</div><div class="v amber">' + q.toFixed(1) + '%</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">推理相对成本</div><div class="v rose">' + (N * 0.05).toFixed(2) + 'x</div>';
+  stats.appendChild(s3);
+
+  var note = document.getElementById("m1note");
+  note.innerHTML = '<b>核心思想：</b>前向过程按方差表 <code>β_1...β_T</code> 逐步加噪，T 步后近似纯高斯噪声。反向过程学习每一步的去噪均值 <code>μ_θ</code>。步数 N 越多，每步去噪幅度越小，近似越精确，质量越高但推理越慢。';
+}
+function m1DrawTradeoff() {
+  var host = document.getElementById("m1viz");
+  clearNode(host);
+  var W = 760, H = 420;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60;
+  var pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 6);
+
+  // 双曲线：质量(上升饱和) 和 成本(线性上升)
+  var pathQ = "M ", pathC = "M ";
+  for (var i = 0; i <= 80; i++) {
+    var fx = pad + (i / 80) * pw;
+    var q = 100 * (1 - Math.exp(-i / 18));
+    var cy = (H - pad) - (q / 100) * ph;
+    var cost = (i / 80) * 100;
+    var cyC = (H - pad) - (cost / 100) * ph;
+    pathQ += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + cy.toFixed(1);
+    pathC += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + cyC.toFixed(1);
+  }
+  el("path", { d: pathQ, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+  el("path", { d: pathC, fill: "none", stroke: "#ff6b81", "stroke-width": 2.5, "stroke-dasharray": "5 4" }, s);
+
+  // 当前步数标记
+  var N = M1.steps;
+  var fxN = pad + (N / 80) * pw;
+  var qN = 100 * (1 - Math.exp(-N / 18));
+  var cyN = (H - pad) - (qN / 100) * ph;
+  el("line", { x1: fxN, y1: H - pad, x2: fxN, y2: cyN, stroke: "#00d4aa", "stroke-width": 1, "stroke-dasharray": "3 3", "stroke-opacity": 0.5 }, s);
+  el("circle", { cx: fxN, cy: cyN, r: 6, fill: "#00d4aa", stroke: "#0e1018", "stroke-width": 2 }, s);
+  el("circle", { cx: fxN, cy: (H - pad) - ((N / 80 * 100) / 100) * ph, r: 6, fill: "#ff6b81", stroke: "#0e1018", "stroke-width": 2 }, s);
+
+  // 坐标轴标签
+  tspanEl(W / 2, H - 20, "采样步数 N", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "归一化值 (%)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+
+  // 图例
+  var lg = el("g", { transform: "translate(" + (W - 170) + ",70)" }, s);
+  el("rect", { x: 0, y: 0, width: 150, height: 50, fill: "#12141c", stroke: "#232838", rx: 6 }, lg);
+  el("line", { x1: 10, y1: 18, x2: 30, y2: 18, stroke: "#00d4aa", "stroke-width": 2.5 }, lg);
+  tspanEl(36, 22, "生成质量", lg, { fill: "#e6e8ee", "font-size": 11 });
+  el("line", { x1: 10, y1: 38, x2: 30, y2: 38, stroke: "#ff6b81", "stroke-width": 2.5, "stroke-dasharray": "5 4" }, lg);
+  tspanEl(36, 42, "推理成本", lg, { fill: "#e6e8ee", "font-size": 11 });
+
+  // 注释
+  tspanEl(fxN + 8, cyN - 8, "N=" + N, s, { fill: "#00d4aa", "font-size": 12, "font-weight": 700 });
+
+  var stats = document.getElementById("m1stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">当前步数</div><div class="v">' + N + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">质量</div><div class="v amber">' + qN.toFixed(1) + '%</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">成本</div><div class="v rose">' + (N / 80 * 100).toFixed(0) + '%</div>';
+  stats.appendChild(s3);
+
+  var note = document.getElementById("m1note");
+  note.innerHTML = '<b>权衡曲线：</b>生成质量随步数呈<b>对数饱和</b>增长（边际递减），而推理成本<b>线性</b>上升。最优步数在拐点附近——这正是 ICML 2026 论文通过 <code>polylog(1/ε)</code> 理论刻画的关键：用更少步数达到同等精度。';
+}
+
+/* ============================================================ */
+/* M2 O(d·polylog(1/ε)) 突破 */
+/* ============================================================ */
+var M2 = { eps: 0.01, dim: 256 };
+function draw_m2() {
+  var sec = document.getElementById("m2");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M2 · BREAKTHROUGH</div>' +
+    '<h1>O(d·polylog(1/ε)) 复杂度突破<span class="badge icml">ICML 2026 Outstanding</span></h1>' +
+    '<p>ICML 2026 Outstanding Paper 证明：对对数凹分布与扩散模型采样，可在 <b>O(d·polylog(1/ε))</b> 步内达到 ε 误差。相比旧方法的 poly(1/ε) 步，这是<b>指数级</b>改进。拖动滑块观察对数坐标下两曲线的巨大鸿沟。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>目标误差 ε</label><span class="val mono" id="m2epsV">1.0e-2</span>' +
+    '<input type="range" id="m2eps" min="0" max="100" value="50"></div>' +
+    '<div class="ctrl"><label>维度 d</label><span class="val mono" id="m2dimV">256</span>' +
+    '<input type="range" id="m2dim" min="1" max="10000" value="256" step="1"></div>' +
+    '<div class="seg" id="m2seg">' +
+    '<button class="on" data-v="log">对数坐标对比</button>' +
+    '<button data-v="ratio">加速比</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>步数复杂度对比（对数纵轴）</h3><div id="m2viz"></div>' +
+    '<div class="legend"><span><i style="background:#ff6b81"></i>旧方法 poly(1/ε)</span>' +
+    '<span><i style="background:#00d4aa"></i>新方法 O(d·polylog(1/ε))</span></div></div>' +
+    '<div class="card col-4"><h3>步数对比</h3><div id="m2stats" class="stat-row"></div>' +
+    '<div class="note" id="m2note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m2eps").addEventListener("input", function () {
+    var v = parseInt(this.value, 10);
+    M2.eps = Math.pow(10, -(1 + (v / 100) * 5)); // 1e-1 ~ 1e-6
+    document.getElementById("m2epsV").textContent = M2.eps.toExponential(1);
+    m2View(M2.view);
+  });
+  document.getElementById("m2dim").addEventListener("input", function () {
+    M2.dim = parseInt(this.value, 10);
+    document.getElementById("m2dimV").textContent = M2.dim;
+    m2View(M2.view);
+  });
+  var seg = document.getElementById("m2seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m2View(this.dataset.v);
+    });
+  }
+  m2View("log");
+}
+function m2View(v) {
+  M2.view = v;
+  if (v === "log") m2DrawLog();
+  else m2DrawRatio();
+}
+function m2StepsOld(eps, d) { return Math.pow(1 / eps, 1.5) * Math.sqrt(d); }
+function m2StepsNew(eps, d) { return d * Math.pow(Math.log(1 / eps), 2); }
+function m2DrawLog() {
+  var host = document.getElementById("m2viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 6, 6);
+
+  // x 轴: log10(1/eps) 从 1 到 12
+  var xMin = 1, xMax = 12;
+  var pOld = "M ", pNew = "M ";
+  for (var i = 0; i <= 60; i++) {
+    var lx = xMin + (xMax - xMin) * (i / 60);
+    var eps = Math.pow(10, -lx);
+    var so = m2StepsOld(eps, M2.dim);
+    var sn = m2StepsNew(eps, M2.dim);
+    var fx = pad + (i / 60) * pw;
+    // 对数纵轴
+    var lo = Math.log10(Math.max(1, so));
+    var ln = Math.log10(Math.max(1, sn));
+    var yMax = 10;
+    var yo = (H - pad) - Math.min(1, lo / yMax) * ph;
+    var yn = (H - pad) - Math.min(1, ln / yMax) * ph;
+    pOld += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + yo.toFixed(1);
+    pNew += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + yn.toFixed(1);
+  }
+  // 填充区域
+  el("path", { d: pOld + " L " + (W - pad) + " " + (H - pad) + " L " + pad + " " + (H - pad) + " Z", fill: "#ff6b81", "fill-opacity": 0.06, stroke: "none" }, s);
+  el("path", { d: pNew, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+  el("path", { d: pOld, fill: "none", stroke: "#ff6b81", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, s);
+
+  // 当前 eps 标记
+  var curLx = Math.log10(1 / M2.eps);
+  var curFx = pad + ((curLx - xMin) / (xMax - xMin)) * pw;
+  var curSo = m2StepsOld(M2.eps, M2.dim);
+  var curSn = m2StepsNew(M2.eps, M2.dim);
+  var curYo = (H - pad) - Math.min(1, Math.log10(Math.max(1, curSo)) / 10) * ph;
+  var curYn = (H - pad) - Math.min(1, Math.log10(Math.max(1, curSn)) / 10) * ph;
+  el("line", { x1: curFx, y1: H - pad, x2: curFx, y2: pad, stroke: "#3a3f50", "stroke-width": 1, "stroke-dasharray": "3 3" }, s);
+  el("circle", { cx: curFx, cy: curYo, r: 6, fill: "#ff6b81", stroke: "#0e1018", "stroke-width": 2 }, s);
+  el("circle", { cx: curFx, cy: curYn, r: 6, fill: "#00d4aa", stroke: "#0e1018", "stroke-width": 2 }, s);
+  el("line", { x1: curFx, y1: curYo, x2: curFx, y2: curYn, stroke: "#ffb454", "stroke-width": 2 }, s);
+
+  // x 轴刻度
+  for (var k = 1; k <= 12; k += 2) {
+    var tx = pad + ((k - xMin) / (xMax - xMin)) * pw;
+    tspanEl(tx, H - pad + 16, "1e-" + k, s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+  }
+  tspanEl(W / 2, H - 8, "目标精度 1/ε （对数轴）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  // y 轴刻度
+  for (var yy = 0; yy <= 10; yy += 2) {
+    var ty = (H - pad) - (yy / 10) * ph;
+    tspanEl(pad - 8, ty + 4, "1e" + yy, s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "end" });
+  }
+  tspanEl(20, H / 2, "所需步数（对数轴）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 20 " + (H / 2) + ")" });
+
+  // 加速比标注
+  var ratio = curSo / Math.max(1, curSn);
+  tspanEl(curFx + 10, (curYo + curYn) / 2, "加速 " + ratio.toExponential(1) + "x", s, { fill: "#ffb454", "font-size": 12, "font-weight": 700 });
+
+  m2UpdateStats(curSo, curSn, ratio);
+}
+function m2UpdateStats(so, sn, ratio) {
+  var stats = document.getElementById("m2stats");
+  clearNode(stats);
+  var fmt = function (n) { return n >= 1e6 ? n.toExponential(2) : Math.round(n).toLocaleString(); };
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">旧法 poly(1/ε)</div><div class="v rose">' + fmt(so) + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">新法 polylog</div><div class="v">' + fmt(sn) + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">加速比</div><div class="v amber">' + ratio.toExponential(1) + 'x</div>';
+  stats.appendChild(s3);
+  var s4 = document.createElement("div"); s4.className = "stat";
+  s4.innerHTML = '<div class="k">维度 d</div><div class="v violet">' + M2.dim + '</div>';
+  stats.appendChild(s4);
+  var note = document.getElementById("m2note");
+  note.innerHTML = '<b>指数鸿沟：</b>当 ε→0，旧方法步数按 <code>ε^(-1.5)</code> 多项式增长，新方法仅按 <code>(log(1/ε))²</code> 增长。在 ε=1e-6、d=256 时差距可达 <b>' + ratio.toExponential(0) + ' 倍</b>。';
+}
+function m2DrawRatio() {
+  var host = document.getElementById("m2viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 6, 6);
+
+  // x: log10(1/eps) 1~12 ; y: log10(加速比)
+  var xMin = 1, xMax = 12;
+  var path = "M ";
+  for (var i = 0; i <= 60; i++) {
+    var lx = xMin + (xMax - xMin) * (i / 60);
+    var eps = Math.pow(10, -lx);
+    var so = m2StepsOld(eps, M2.dim);
+    var sn = m2StepsNew(eps, M2.dim);
+    var r = so / Math.max(1, sn);
+    var lr = Math.log10(r);
+    var fx = pad + (i / 60) * pw;
+    var fy = (H - pad) - Math.min(1, lr / 12) * ph;
+    path += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+  }
+  el("path", { d: path + " L " + (W - pad) + " " + (H - pad) + " L " + pad + " " + (H - pad) + " Z", fill: "#00d4aa", "fill-opacity": 0.08, stroke: "none" }, s);
+  el("path", { d: path, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+
+  var curLx = Math.log10(1 / M2.eps);
+  var curFx = pad + ((curLx - xMin) / (xMax - xMin)) * pw;
+  var curR = m2StepsOld(M2.eps, M2.dim) / Math.max(1, m2StepsNew(M2.eps, M2.dim));
+  var curFy = (H - pad) - Math.min(1, Math.log10(curR) / 12) * ph;
+  el("circle", { cx: curFx, cy: curFy, r: 7, fill: "#ffb454", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(curFx + 10, curFy - 6, "ε=" + M2.eps.toExponential(0) + "\n加速" + curR.toExponential(1) + "x", s, { fill: "#ffb454", "font-size": 11, "font-weight": 700 });
+
+  for (var k = 1; k <= 12; k += 2) {
+    var tx = pad + ((k - xMin) / (xMax - xMin)) * pw;
+    tspanEl(tx, H - pad + 16, "1e-" + k, s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+  }
+  tspanEl(W / 2, H - 8, "目标精度 1/ε （对数轴）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  for (var yy = 0; yy <= 12; yy += 2) {
+    var ty = (H - pad) - (yy / 12) * ph;
+    tspanEl(pad - 8, ty + 4, "1e" + yy, s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "end" });
+  }
+  tspanEl(20, H / 2, "加速比 新法→旧法 （对数轴）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 20 " + (H / 2) + ")" });
+
+  m2UpdateStats(m2StepsOld(M2.eps, M2.dim), m2StepsNew(M2.eps, M2.dim), curR);
+}
+
+/* ============================================================ */
+/* M3 分数匹配 */
+/* ============================================================ */
+var M3 = { view: "field", iter: 8 };
+function draw_m3() {
+  var sec = document.getElementById("m3");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M3 · SCORE MATCHING</div>' +
+    '<h1>分数匹配与 Langevin 动力学</h1>' +
+    '<p>分数函数 s(x) = ∇log p(x) 指向概率密度增长最快的方向。分数匹配通过学习 s_θ 近似真实分数，Langevin 动力学利用分数进行迭代采样：<code>x_{k+1} = x_k + (ε/2)·s_θ(x_k) + √ε·z</code>。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>Langevin 迭代步数</label><span class="val mono" id="m3iterV">8</span>' +
+    '<input type="range" id="m3iter" min="2" max="40" value="8"></div>' +
+    '<div class="seg" id="m3seg">' +
+    '<button class="on" data-v="field">分数场可视化</button>' +
+    '<button data-v="langevin">Langevin 采样轨迹</button>' +
+    '<button data-v="matching">分数匹配训练</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>分数场与生成过程</h3><div id="m3viz"></div>' +
+    '<div class="legend"><span><i style="background:#00d4aa"></i>分数方向 ∇log p(x)</span>' +
+    '<span><i style="background:#ffb454"></i>采样轨迹</span>' +
+    '<span><i style="background:#9d7aff"></i>高密度区域</span></div></div>' +
+    '<div class="card col-4"><h3>理论要点</h3><div id="m3stats" class="stat-row"></div>' +
+    '<div class="note" id="m3note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m3iter").addEventListener("input", function () {
+    M3.iter = parseInt(this.value, 10);
+    document.getElementById("m3iterV").textContent = M3.iter;
+    m3View(M3.view);
+  });
+  var seg = document.getElementById("m3seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m3View(this.dataset.v);
+    });
+  }
+  m3View("field");
+}
+function m3View(v) { M3.view = v; if (v === "field") m3DrawField(); else if (v === "langevin") m3DrawLangevin(); else m3DrawMatching(); }
+// 混合高斯密度 (两个 mode)
+function m3Density(x, y) {
+  var m1 = Math.exp(-((x - 2) * (x - 2) + (y - 1) * (y - 1)) * 0.6);
+  var m2 = 0.7 * Math.exp(-((x + 1.5) * (x + 1.5) + (y + 1.5) * (y + 1.5)) * 0.8);
+  return m1 + m2;
+}
+function m3Score(x, y) {
+  // 解析分数: -∇(||x-mu||²) -> 指向 mode
+  var g1x = -1.2 * (x - 2), g1y = -1.2 * (y - 1);
+  var g2x = -1.6 * 0.7 * (x + 1.5), g2y = -1.6 * 0.7 * (y + 1.5);
+  var d = m3Density(x, y) + 1e-6;
+  var sx = (g1x * Math.exp(-((x - 2) * (x - 2) + (y - 1) * (y - 1)) * 0.6) + g2x * 0.7 * Math.exp(-((x + 1.5) * (x + 1.5) + (y + 1.5) * (y + 1.5)) * 0.8)) / d;
+  var sy = (g1y * Math.exp(-((x - 2) * (x - 2) + (y - 1) * (y - 1)) * 0.6) + g2y * 0.7 * Math.exp(-((x + 1.5) * (x + 1.5) + (y + 1.5) * (y + 1.5)) * 0.8)) / d;
+  return { sx: sx, sy: sy };
+}
+function m3DrawField() {
+  var host = document.getElementById("m3viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var cx = W / 2, cy = H / 2;
+  var scale = 90; // 每单位像素
+  // 密度等高线
+  for (var lvl = 6; lvl >= 1; lvl--) {
+    var rad = lvl * 32;
+    el("ellipse", { cx: cx + 2 * scale, cy: cy - 1 * scale, rx: rad, ry: rad * 0.9, fill: "#9d7aff", "fill-opacity": 0.04 * (7 - lvl), stroke: "none" }, s);
+    el("ellipse", { cx: cx - 1.5 * scale, cy: cy + 1.5 * scale, rx: rad * 0.8, ry: rad * 0.8, fill: "#9d7aff", "fill-opacity": 0.03 * (7 - lvl), stroke: "none" }, s);
+  }
+  // 分数场箭头
+  for (var i = -3; i <= 3; i++) {
+    for (var j = -2; j <= 2; j++) {
+      var wx = i * 0.9, wy = j * 0.9;
+      var sc = m3Score(wx, wy);
+      var mag = Math.sqrt(sc.sx * sc.sx + sc.sy * sc.sy);
+      if (mag < 0.05) continue;
+      var px = cx + wx * scale, py = cy - wy * scale;
+      var ex = px + sc.sx * 18, ey = py - sc.sy * 18;
+      var op = Math.min(0.9, 0.3 + mag * 0.4);
+      el("line", { x1: px, y1: py, x2: ex, y2: ey, stroke: "#00d4aa", "stroke-width": 1.4, "stroke-opacity": op, "marker-end": "url(#m3arr)" }, s);
+      el("circle", { cx: px, cy: py, r: 1.5, fill: "#00d4aa", "fill-opacity": op }, s);
+    }
+  }
+  var defs = el("defs", {}, s);
+  var mk = el("marker", { id: "m3arr", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: "#00d4aa" }, mk);
+  // 两个 mode 标注
+  el("circle", { cx: cx + 2 * scale, cy: cy - 1 * scale, r: 5, fill: "#9d7aff", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(cx + 2 * scale + 10, cy - 1 * scale - 6, "mode 1", s, { fill: "#9d7aff", "font-size": 11 });
+  el("circle", { cx: cx - 1.5 * scale, cy: cy + 1.5 * scale, r: 5, fill: "#9d7aff", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(cx - 1.5 * scale - 50, cy + 1.5 * scale + 14, "mode 2", s, { fill: "#9d7aff", "font-size": 11 });
+
+  var stats = document.getElementById("m3stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">分布类型</div><div class="v">混合高斯</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">mode 数</div><div class="v violet">2</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">分数维度</div><div class="v">2D</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m3note");
+  note.innerHTML = '<b>分数场：</b>每个箭头表示 <code>∇log p(x)</code> 的方向，指向概率密度增长最快处。分数匹配的目标是最小化 <code>‖s_θ(x) - ∇log p(x)‖²</code>，无需知道归一化常数 Z。';
+}
+function m3DrawLangevin() {
+  var host = document.getElementById("m3viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var cx = W / 2, cy = H / 2, scale = 90;
+  // 密度背景
+  for (var lvl = 6; lvl >= 1; lvl--) {
+    var rad = lvl * 32;
+    el("ellipse", { cx: cx + 2 * scale, cy: cy - 1 * scale, rx: rad, ry: rad * 0.9, fill: "#9d7aff", "fill-opacity": 0.04 * (7 - lvl) }, s);
+    el("ellipse", { cx: cx - 1.5 * scale, cy: cy + 1.5 * scale, rx: rad * 0.8, ry: rad * 0.8, fill: "#9d7aff", "fill-opacity": 0.03 * (7 - lvl) }, s);
+  }
+  // Langevin 轨迹
+  var N = M3.iter;
+  var path = "M ";
+  var x = -3, y = 2.5;
+  var pts = [];
+  for (var i = 0; i < N; i++) {
+    var px = cx + x * scale, py = cy - y * scale;
+    pts.push({ x: px, y: py });
+    path += (i === 0 ? "" : " L ") + px.toFixed(1) + " " + py.toFixed(1);
+    var sc = m3Score(x, y);
+    var step = 0.5;
+    var z1 = (Math.sin(i * 12.9898) * 43758.5453) % 1; z1 = z1 - Math.floor(z1);
+    var z2 = (Math.sin(i * 78.233) * 43758.5453) % 1; z2 = z2 - Math.floor(z2);
+    x = x + (step / 2) * sc.sx + Math.sqrt(step) * (z1 - 0.5) * 2;
+    y = y + (step / 2) * sc.sy + Math.sqrt(step) * (z2 - 0.5) * 2;
+  }
+  el("path", { d: path, fill: "none", stroke: "#ffb454", "stroke-width": 2, "stroke-opacity": 0.8 }, s);
+  // 起点终点
+  el("circle", { cx: pts[0].x, cy: pts[0].y, r: 6, fill: "#ff6b81", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(pts[0].x + 8, pts[0].y - 8, "起点 x_0", s, { fill: "#ff6b81", "font-size": 11 });
+  var last = pts[pts.length - 1];
+  el("circle", { cx: last.x, cy: last.y, r: 6, fill: "#00d4aa", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(last.x + 8, last.y - 8, "x_K", s, { fill: "#00d4aa", "font-size": 11, "font-weight": 700 });
+  // 中间点
+  for (var m = 1; m < pts.length - 1; m++) {
+    el("circle", { cx: pts[m].x, cy: pts[m].y, r: 2.5, fill: "#ffb454", "fill-opacity": 0.6 }, s);
+  }
+  // 公式
+  tspanEl(20, 30, "x_{k+1} = x_k + (ε/2)∇log p(x_k) + √ε·z,  z~N(0,I)", s, { fill: "#8b909e", "font-size": 12, "font-family": "Consolas,monospace" });
+
+  var stats = document.getElementById("m3stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">迭代步数 K</div><div class="v">' + N + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">步长 ε</div><div class="v amber">0.50</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">收敛性</div><div class="v">KL→0</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m3note");
+  note.innerHTML = '<b>Langevin 采样：</b>从噪声出发，每步沿分数方向移动并注入随机性，逐步收敛到目标分布 p(x)。扩散模型的反向过程本质上是一组嵌套的 Langevin 步。ICML 2026 证明其收敛仅需 <code>polylog(1/ε)</code> 步。';
+}
+function m3DrawMatching() {
+  var host = document.getElementById("m3viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 6);
+  // 训练 loss 曲线（指数下降）
+  var path = "M ";
+  for (var i = 0; i <= 100; i++) {
+    var fx = pad + (i / 100) * pw;
+    var loss = Math.exp(-i / 18) + 0.02;
+    var fy = (H - pad) - Math.min(1, loss) * ph;
+    path += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+  }
+  el("path", { d: path, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+  // 当前迭代点
+  var it = M3.iter * 5;
+  var fxi = pad + (it / 500) * pw;
+  if (fxi > W - pad) fxi = W - pad;
+  var li = Math.exp(-it / 90) + 0.02;
+  var fyi = (H - pad) - Math.min(1, li) * ph;
+  el("circle", { cx: fxi, cy: fyi, r: 6, fill: "#ffb454", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(fxi + 8, fyi - 6, "loss=" + li.toFixed(3), s, { fill: "#ffb454", "font-size": 11, "font-weight": 700 });
+  tspanEl(W / 2, H - 8, "训练迭代（x100）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "去噪分数匹配损失", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+  // 公式
+  tspanEl(pad + 10, pad + 18, "L_DSM = E[ λ(t)·‖s_θ(x_t,t) + ε ‖² ]", s, { fill: "#4ea8ff", "font-size": 12, "font-family": "Consolas,monospace" });
+
+  var stats = document.getElementById("m3stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">训练迭代</div><div class="v">' + (it) + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">当前 loss</div><div class="v amber">' + li.toFixed(3) + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">损失类型</div><div class="v">DSM</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m3note");
+  note.innerHTML = '<b>去噪分数匹配 (DSM)：</b>通过加噪后的 <code>x_t = √ᾱ_t·x_0 + √(1-ᾱ_t)·ε</code> 学习预测噪声 ε，等价于学习分数 <code>s_θ(x_t,t) ≈ -ε/√(1-ᾱ_t)</code>。无需计算难解的 ∇log p(x)。</p>';
+}
+
+/* ============================================================ */
+/* M4 收敛证明 */
+/* ============================================================ */
+var M4 = { view: "flow", eps: 0.01 };
+function draw_m4() {
+  var sec = document.getElementById("m4");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M4 · CONVERGENCE PROOF</div>' +
+    '<h1>收敛性证明框架<span class="badge icml">ICML 2026</span></h1>' +
+    '<p>ICML 2026 论文的核心贡献是给出了对数凹分布下扩散采样的收敛保证：在温和条件下，KL 散度按 <code>O(ε)</code> 收敛，所需步数为 <code>O(d·polylog(1/ε))</code>。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>目标误差 ε</label><span class="val mono" id="m4epsV">1.0e-2</span>' +
+    '<input type="range" id="m4eps" min="0" max="100" value="50"></div>' +
+    '<div class="seg" id="m4seg">' +
+    '<button class="on" data-v="flow">证明流程图</button>' +
+    '<button data-v="kl">KL 散度收敛</button>' +
+    '<button data-v="stepsize">步长选择</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>收敛证明框架</h3><div id="m4viz"></div></div>' +
+    '<div class="card col-12"><div id="m4note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m4eps").addEventListener("input", function () {
+    var v = parseInt(this.value, 10);
+    M4.eps = Math.pow(10, -(1 + (v / 100) * 5));
+    document.getElementById("m4epsV").textContent = M4.eps.toExponential(1);
+    m4View(M4.view);
+  });
+  var seg = document.getElementById("m4seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m4View(this.dataset.v);
+    });
+  }
+  m4View("flow");
+}
+function m4View(v) { M4.view = v; if (v === "flow") m4DrawFlow(); else if (v === "kl") m4DrawKL(); else m4DrawStep(); }
+function m4DrawFlow() {
+  var host = document.getElementById("m4viz");
+  clearNode(host);
+  var W = 1180, H = 380, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var steps = [
+    { t: "假设", d: "目标分布 p(x) 为对数凹分布", c: "#9d7aff" },
+    { t: "分数估计", d: "学习 s_θ ≈ ∇log p(x)", c: "#4ea8ff" },
+    { t: "误差分解", d: "KL ≤ 估计误差 + 离散误差", c: "#ffb454" },
+    { t: "步长设计", d: "自适应步长 ε_t ~ polylog", c: "#00d4aa" },
+    { t: "Girsanov 界", d: "采样路径 KL 可控", c: "#00d4aa" },
+    { t: "收敛结论", d: "O(d·polylog(1/ε)) 步", c: "#00d4aa" }
+  ];
+  var bw = 160, bh = 90, gap = 24;
+  var startX = 30, y = 130;
+  for (var i = 0; i < steps.length; i++) {
+    var x = startX + i * (bw + gap);
+    var st = steps[i];
+    // 卡片
+    el("rect", { x: x, y: y, width: bw, height: bh, fill: "#181b25", stroke: st.c, "stroke-width": 1.5, rx: 10 }, s);
+    el("rect", { x: x, y: y, width: bw, height: 26, fill: st.c, "fill-opacity": 0.15, rx: 10 }, s);
+    tspanEl(x + bw / 2, y + 18, "步骤 " + (i + 1), s, { fill: st.c, "font-size": 11, "font-weight": 700, "text-anchor": "middle" });
+    tspanEl(x + bw / 2, y + 50, st.t, s, { fill: "#e6e8ee", "font-size": 13, "font-weight": 600, "text-anchor": "middle" });
+    // 描述换行
+    var words = st.d;
+    var parts = words.length > 12 ? [words.substring(0, 12), words.substring(12)] : [words];
+    for (var p = 0; p < parts.length; p++) {
+      tspanEl(x + bw / 2, y + 68 + p * 14, parts[p], s, { fill: "#8b909e", "font-size": 11, "text-anchor": "middle" });
+    }
+    // 箭头
+    if (i < steps.length - 1) {
+      var ax1 = x + bw, ax2 = x + bw + gap;
+      el("line", { x1: ax1, y1: y + bh / 2, x2: ax2, y2: y + bh / 2, stroke: st.c, "stroke-width": 2, "marker-end": "url(#m4arr)" }, s);
+    }
+  }
+  var defs = el("defs", {}, s);
+  var mk = el("marker", { id: "m4arr", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: "#00d4aa" }, mk);
+  // 底部条件
+  tspanEl(W / 2, y + bh + 50, "关键假设：对数凹性 (log p(x) 为凹函数)  →  等距性 (isoperimetry)  →  Poincaré 不等式", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  el("rect", { x: W / 2 - 320, y: y + bh + 60, width: 640, height: 40, fill: "#181b25", stroke: "#232838", rx: 8 }, s);
+  tspanEl(W / 2, y + bh + 84, "结论：对任意 ε>0，存在采样器在 " + Math.round(m2StepsNew(M4.eps, 100)) + " 步内达到 KL ≤ " + M4.eps.toExponential(1), s, { fill: "#00d4aa", "font-size": 13, "font-weight": 700, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  var note = document.getElementById("m4note");
+  note.innerHTML = '<b>证明骨架：</b>论文将收敛性拆解为<b>分数估计误差</b>（学习精度）与<b>离散误差</b>（连续 SDE 到离散链）两部分。对数凹性保证了良好的等距性质，使每步误差可控累积。Girsanov 定理将连续扩散过程的 KL 散度界为分数误差平方的积分，最终得到 polylog 依赖。';
+}
+function m4DrawKL() {
+  var host = document.getElementById("m4viz");
+  clearNode(host);
+  var W = 1180, H = 380, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 70, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 10, 6);
+  // KL 下降曲线
+  var pathN = "M ", pathO = "M ";
+  for (var i = 0; i <= 100; i++) {
+    var fx = pad + (i / 100) * pw;
+    var steps = i / 100 * 200;
+    var klN = Math.exp(-steps / 12) * 2;
+    var klO = 1 / Math.max(1, steps / 8 + 0.5);
+    var yn = (H - pad) - Math.min(1, klN / 2) * ph;
+    var yo = (H - pad) - Math.min(1, klO) * ph;
+    pathN += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + yn.toFixed(1);
+    pathO += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + yo.toFixed(1);
+  }
+  el("path", { d: pathN, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+  el("path", { d: pathO, fill: "none", stroke: "#ff6b81", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, s);
+  // 目标 ε 线
+  var ey = (H - pad) - Math.min(1, M4.eps / 2) * ph;
+  el("line", { x1: pad, y1: ey, x2: W - pad, y2: ey, stroke: "#ffb454", "stroke-width": 1.5, "stroke-dasharray": "4 3" }, s);
+  tspanEl(W - pad - 80, ey - 6, "目标 ε=" + M4.eps.toExponential(0), s, { fill: "#ffb454", "font-size": 11, "font-weight": 700 });
+  tspanEl(W / 2, H - 12, "采样步数", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(24, H / 2, "KL(q_T || p)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 24 " + (H / 2) + ")" });
+  // 图例
+  var lg = el("g", { transform: "translate(" + (W - 200) + ",40)" }, s);
+  el("rect", { x: 0, y: 0, width: 180, height: 50, fill: "#12141c", stroke: "#232838", rx: 6 }, lg);
+  el("line", { x1: 10, y1: 18, x2: 30, y2: 18, stroke: "#00d4aa", "stroke-width": 2.5 }, lg);
+  tspanEl(36, 22, "新法 polylog 步", lg, { fill: "#e6e8ee", "font-size": 11 });
+  el("line", { x1: 10, y1: 38, x2: 30, y2: 38, stroke: "#ff6b81", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, lg);
+  tspanEl(36, 42, "旧法 poly(1/ε) 步", lg, { fill: "#e6e8ee", "font-size": 11 });
+
+  var note = document.getElementById("m4note");
+  note.innerHTML = '<b>KL 散度收敛：</b>新方法的 KL 散度随步数<b>指数下降</b> <code>~exp(-c·N)</code>，而旧法仅多项式下降 <code>~1/N</code>。达到同一 ε 阈值，新法所需步数少得多——这是 polylog 改进的直观体现。';
+}
+function m4DrawStep() {
+  var host = document.getElementById("m4viz");
+  clearNode(host);
+  var W = 1180, H = 380, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 70, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 10, 6);
+  // 步长 schedule: 自适应 (大→小)
+  var path = "M ";
+  var bars = [];
+  for (var i = 0; i <= 30; i++) {
+    var fx = pad + (i / 30) * pw;
+    var t = i / 30;
+    // eta_t = c * (1-t)^2 + 小常数
+    var eta = 0.5 * (1 - t) * (1 - t) + 0.02;
+    var yh = eta * ph;
+    bars.push({ x: fx, h: yh });
+    path += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + ((H - pad) - yh).toFixed(1);
+  }
+  // 柱
+  var bw = pw / 30 * 0.6;
+  for (var b = 0; b < bars.length; b++) {
+    var bb = bars[b];
+    el("rect", { x: bb.x - bw / 2, y: (H - pad) - bb.h, width: bw, height: bb.h, fill: "#00d4aa", "fill-opacity": 0.7, rx: 2 }, s);
+  }
+  el("path", { d: path, fill: "none", stroke: "#ffb454", "stroke-width": 2 }, s);
+  tspanEl(W / 2, H - 12, "时间步 t (0=起始噪声 → 1=数据)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(24, H / 2, "步长 η_t", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 24 " + (H / 2) + ")" });
+  tspanEl(pad + 10, pad + 20, "η_t = c·(1-t)² + δ  ——  自适应步长：初期大步探索，后期小步精修", s, { fill: "#4ea8ff", "font-size": 12, "font-family": "Consolas,monospace" });
+
+  var note = document.getElementById("m4note");
+  note.innerHTML = '<b>步长设计：</b>论文采用<b>自适应步长 schedule</b>，在噪声大的早期用大步长快速去噪，在接近数据时用小步长保证精度。这种设计与 polylog 界的常数项紧密相关——精心选择步长可将总步数压缩 log 因子。';
+}
+
+/* ============================================================ */
+/* M5 随机矩阵一致性 */
+/* ============================================================ */
+var M5 = { view: "spectrum", run: 1 };
+function draw_m5() {
+  var sec = document.getElementById("m5");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M5 · RANDOM MATRIX</div>' +
+    '<h1>随机矩阵一致性理论<span class="badge icml">ICML 2026 Honorable</span></h1>' +
+    '<p>ICML 2026 Honorable Mention 论文 "A Random Matrix Perspective on the Consistency of Diffusion Models" 用随机矩阵理论解释：为何扩散模型在不同随机种子下的生成结果具有一致性——权重矩阵的谱结构决定了生成的稳定性。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>训练运行 #</label><span class="val mono" id="m5runV">1</span>' +
+    '<input type="range" id="m5run" min="1" max="8" value="1"></div>' +
+    '<div class="seg" id="m5seg">' +
+    '<button class="on" data-v="spectrum">矩阵谱可视化</button>' +
+    '<button data-v="consistency">跨运行一致性</button>' +
+    '<button data-v="mp">Marchenko-Pastur 律</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>权重矩阵谱结构</h3><div id="m5viz"></div>' +
+    '<div class="legend"><span><i style="background:#00d4aa"></i>特征值</span>' +
+    '<span><i style="background:#9d7aff"></i>MP 理论包络</span>' +
+    '<span><i style="background:#ff6b81"></i>离群谱峰</span></div></div>' +
+    '<div class="card col-4"><h3>一致性指标</h3><div id="m5stats" class="stat-row"></div>' +
+    '<div class="note" id="m5note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m5run").addEventListener("input", function () {
+    M5.run = parseInt(this.value, 10);
+    document.getElementById("m5runV").textContent = M5.run;
+    m5View(M5.view);
+  });
+  var seg = document.getElementById("m5seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m5View(this.dataset.v);
+    });
+  }
+  m5View("spectrum");
+}
+function m5View(v) { M5.view = v; if (v === "spectrum") m5DrawSpec(); else if (v === "consistency") m5DrawConsist(); else m5DrawMP(); }
+function m5SeededRand(seed) {
+  return function () {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+}
+function m5DrawSpec() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 50, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 5);
+  // 生成特征值 (伪随机，seeded by run)
+  var rnd = m5SeededRand(M5.run * 137 + 1);
+  var n = 60;
+  var evals = [];
+  for (var i = 0; i < n; i++) {
+    var u = rnd();
+    var v = rnd();
+    // Box-Muller
+    var z = Math.sqrt(-2 * Math.log(u + 1e-9)) * Math.cos(2 * Math.PI * v);
+    // MP 分布采样: x = (1+sqrt(c))^2 + 偏移
+    var c = 0.5;
+    var lambda = 1 + c * z * 0.3 + (1 - c);
+    evals.push(Math.max(0.1, lambda));
+  }
+  evals.sort(function (a, b) { return a - b; });
+  // MP 理论包络
+  var pathMP = "M ";
+  var lamMin = Math.pow(1 - Math.sqrt(0.5), 2);
+  var lamMax = Math.pow(1 + Math.sqrt(0.5), 2);
+  for (var k = 0; k <= 100; k++) {
+    var lam = lamMin + (lamMax - lamMin) * (k / 100);
+    var dens = Math.sqrt(Math.max(0, (lamMax - lam) * (lam - lamMin))) / (2 * Math.PI * 0.5 * lam);
+    var fx = pad + ((lam - 0.1) / 3.5) * pw;
+    var fy = (H - pad) - Math.min(1, dens / 0.6) * ph;
+    pathMP += (k === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+  }
+  el("path", { d: pathMP, fill: "rgba(157,122,255,0.1)", stroke: "#9d7aff", "stroke-width": 2, "stroke-dasharray": "5 3" }, s);
+  // 特征值散点
+  for (var e = 0; e < evals.length; e++) {
+    var ex = pad + ((evals[e] - 0.1) / 3.5) * pw;
+    el("circle", { cx: ex, cy: H - pad - 8 - (e % 3) * 6, r: 4, fill: "#00d4aa", "fill-opacity": 0.7 }, s);
+  }
+  // 离群特征值
+  var outX = pad + ((3.0 - 0.1) / 3.5) * pw;
+  el("circle", { cx: outX, cy: H - pad - 8, r: 6, fill: "#ff6b81", stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(outX + 8, H - pad - 14, "离群谱峰\n(信号方向)", s, { fill: "#ff6b81", "font-size": 11 });
+  tspanEl(W / 2, H - 10, "特征值 λ", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(20, H / 2, "密度", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 20 " + (H / 2) + ")" });
+
+  var stats = document.getElementById("m5stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">运行编号</div><div class="v">#' + M5.run + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">谱半径</div><div class="v violet">3.0</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">离群特征值</div><div class="v rose">1</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m5note");
+  note.innerHTML = '<b>谱结构：</b>不同训练运行的权重矩阵谱高度相似——主体服从 <code>Marchenko-Pastur 律</code>（紫色包络），仅少数离群特征值承载真实信号（红点）。这种谱一致性解释了为何不同种子生成的图像统计特性稳定。';
+}
+function m5DrawConsist() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  // 8 个运行的生成结果网格
+  var cols = 4, rows = 2;
+  var cw = 150, ch = 150, gx = 20, gy = 20;
+  var startX = (W - (cols * cw + (cols - 1) * gx)) / 2;
+  var startY = 40;
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var idx = r * cols + c + 1;
+      var x = startX + c * (cw + gx);
+      var y = startY + r * (ch + gy);
+      var rnd = m5SeededRand(idx * 257 + 3);
+      el("rect", { x: x, y: y, width: cw, height: ch, fill: "#181b25", stroke: idx === M5.run ? "#00d4aa" : "#232838", "stroke-width": idx === M5.run ? 2 : 1, rx: 8 }, s);
+      // 伪图像：色块
+      var nb = 6;
+      var bs = (cw - 20) / nb;
+      for (var bi = 0; bi < nb; bi++) {
+        for (var bj = 0; bj < nb; bj++) {
+          var v = rnd();
+          var hue = 160 + Math.floor(rnd() * 60);
+          var op = 0.2 + v * 0.6;
+          el("rect", { x: x + 10 + bi * bs, y: y + 10 + bj * bs, width: bs - 1, height: bs - 1, fill: "hsl(" + hue + ",60%," + Math.round(30 + v * 30) + "%)", "fill-opacity": op }, s);
+        }
+      }
+      tspanEl(x + cw / 2, y + ch + 14, "Run #" + idx, s, { fill: idx === M5.run ? "#00d4aa" : "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-weight": idx === M5.run ? 700 : 400 });
+    }
+  }
+  tspanEl(W / 2, H - 12, "不同随机种子下的生成样本 —— 谱一致性带来统计稳定性", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+
+  var stats = document.getElementById("m5stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">当前运行</div><div class="v">#' + M5.run + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">样本相似度</div><div class="v amber">0.92</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">FID 方差</div><div class="v violet">±0.3</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m5note");
+  note.innerHTML = '<b>跨运行一致性：</b>尽管随机种子不同，各运行生成样本在<b>统计特性</b>上高度相似（相似度 >0.9）。随机矩阵理论表明：权重谱的 MP 主体由网络宽度和数据维度决定，几乎不受种子影响——这是扩散模型可复现性的数学根源。';
+}
+function m5DrawMP() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 50, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 5);
+  // 不同 c 值的 MP 律
+  var cs = [0.2, 0.5, 0.8];
+  var colors = ["#4ea8ff", "#00d4aa", "#ffb454"];
+  var lg = el("g", { transform: "translate(" + (W - 170) + ",40)" }, s);
+  el("rect", { x: 0, y: 0, width: 150, height: 68, fill: "#12141c", stroke: "#232838", rx: 6 }, lg);
+  for (var ci = 0; ci < cs.length; ci++) {
+    var c = cs[ci];
+    var lamMin = Math.pow(1 - Math.sqrt(c), 2);
+    var lamMax = Math.pow(1 + Math.sqrt(c), 2);
+    var path = "M ";
+    for (var k = 0; k <= 100; k++) {
+      var lam = lamMin + (lamMax - lamMin) * (k / 100);
+      var dens = Math.sqrt(Math.max(0, (lamMax - lam) * (lam - lamMin))) / (2 * Math.PI * c * lam);
+      var fx = pad + (lam / 4) * pw;
+      var fy = (H - pad) - Math.min(1, dens / 1.2) * ph;
+      path += (k === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+    }
+    el("path", { d: path, fill: "none", stroke: colors[ci], "stroke-width": 2.5 }, s);
+    el("line", { x1: 10, y1: 16 + ci * 20, x2: 30, y2: 16 + ci * 20, stroke: colors[ci], "stroke-width": 2.5 }, lg);
+    tspanEl(36, 20 + ci * 20, "c = " + c, lg, { fill: "#e6e8ee", "font-size": 11 });
+  }
+  tspanEl(W / 2, H - 10, "特征值 λ", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(20, H / 2, "谱密度 ρ(λ)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 20 " + (H / 2) + ")" });
+  tspanEl(pad + 10, pad + 20, "Marchenko-Pastur 律: ρ(λ) = √((λ_+ - λ)(λ - λ_-)) / (2πcλ)", s, { fill: "#9d7aff", "font-size": 12, "font-family": "Consolas,monospace" });
+
+  var stats = document.getElementById("m5stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">理论</div><div class="v violet">MP 律</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">参数 c</div><div class="v">0.2/0.5/0.8</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">收敛</div><div class="v">n→∞</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m5note");
+  note.innerHTML = '<b>Marchenko-Pastur 律：</b>当权重矩阵为 i.i.d. 随机时，其经验谱分布收敛到 MP 律，仅依赖于宽高比 <code>c = d/n</code>。论文证明扩散模型的权重矩阵在训练后仍保持 MP 主谱结构——这是<b>谱稳定性</b>与生成一致性的理论基石。';
+}
+
+/* ============================================================ */
+/* M6 采样器对比 */
+/* ============================================================ */
+var M6 = { view: "tradeoff", sampler: "ddpm" };
+function draw_m6() {
+  var sec = document.getElementById("m6");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M6 · SAMPLERS</div>' +
+    '<h1>采样器对比与步数-质量权衡</h1>' +
+    '<p>不同采样器在步数-质量曲线上表现迥异：DDPM 需千步但质量最佳，DDIM 可少至 50 步，DPM-Solver 在 20 步内接近最优，一致性模型仅需 1-4 步。选择采样器即选择精度-速度的帕累托点。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="pillrow" id="m6pills">' +
+    '<span class="pill on" data-s="ddpm">DDPM</span>' +
+    '<span class="pill" data-s="ddim">DDIM</span>' +
+    '<span class="pill" data-s="dpm">DPM-Solver</span>' +
+    '<span class="pill" data-s="cm">一致性模型</span></div>' +
+    '<div class="seg" id="m6seg">' +
+    '<button class="on" data-v="tradeoff">步数-质量权衡</button>' +
+    '<button data-v="metrics">指标对比</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>采样器性能曲线</h3><div id="m6viz"></div>' +
+    '<div class="legend"><span><i style="background:#ff6b81"></i>DDPM</span>' +
+    '<span><i style="background:#4ea8ff"></i>DDIM</span>' +
+    '<span><i style="background:#00d4aa"></i>DPM-Solver</span>' +
+    '<span><i style="background:#9d7aff"></i>一致性模型</span></div></div>' +
+    '<div class="card col-4"><h3>当前采样器</h3><div id="m6stats" class="stat-row"></div>' +
+    '<div class="note" id="m6note"></div></div>';
+  sec.appendChild(grid);
+
+  var pills = document.getElementById("m6pills").querySelectorAll(".pill");
+  for (var i = 0; i < pills.length; i++) {
+    pills[i].addEventListener("click", function () {
+      for (var j = 0; j < pills.length; j++) pills[j].classList.remove("on");
+      this.classList.add("on");
+      M6.sampler = this.dataset.s;
+      m6View(M6.view);
+    });
+  }
+  var seg = document.getElementById("m6seg");
+  var btns = seg.querySelectorAll("button");
+  for (var k = 0; k < btns.length; k++) {
+    btns[k].addEventListener("click", function () {
+      for (var m = 0; m < btns.length; m++) btns[m].classList.remove("on");
+      this.classList.add("on");
+      m6View(this.dataset.v);
+    });
+  }
+  m6View("tradeoff");
+}
+function m6SamplerInfo(s) {
+  var map = {
+    ddpm: { name: "DDPM", steps: 1000, psnr: 32.5, is: 180, color: "#ff6b81" },
+    ddim: { name: "DDIM", steps: 50, psnr: 30.8, is: 165, color: "#4ea8ff" },
+    dpm: { name: "DPM-Solver", steps: 20, psnr: 31.2, is: 172, color: "#00d4aa" },
+    cm: { name: "一致性模型", steps: 1, psnr: 28.4, is: 140, color: "#9d7aff" }
+  };
+  return map[s];
+}
+function m6View(v) { M6.view = v; if (v === "tradeoff") m6DrawTrade(); else m6DrawMetrics(); }
+function m6Quality(s, n) {
+  // 各采样器质量随步数曲线
+  if (s === "ddpm") return 32.5 * (1 - Math.exp(-n / 300));
+  if (s === "ddim") return 30.8 * (1 - Math.exp(-n / 25));
+  if (s === "dpm") return 31.2 * (1 - Math.exp(-n / 8));
+  return 28.4 * (1 - Math.exp(-n / 1.5));
+}
+function m6DrawTrade() {
+  var host = document.getElementById("m6viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 6);
+  var sams = ["ddpm", "ddim", "dpm", "cm"];
+  var maxN = 200;
+  for (var si = 0; si < sams.length; si++) {
+    var sk = sams[si];
+    var info = m6SamplerInfo(sk);
+    var path = "M ";
+    for (var i = 0; i <= 100; i++) {
+      var n = (i / 100) * maxN;
+      var fx = pad + (i / 100) * pw;
+      var q = m6Quality(sk, n);
+      var fy = (H - pad) - ((q - 26) / 8) * ph;
+      path += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+    }
+    var op = sk === M6.sampler ? 1 : 0.3;
+    var sw = sk === M6.sampler ? 3 : 1.8;
+    el("path", { d: path, fill: "none", stroke: info.color, "stroke-width": sw, "stroke-opacity": op }, s);
+  }
+  // 标记当前采样器推荐步数
+  var cur = m6SamplerInfo(M6.sampler);
+  var nCur = cur.steps > maxN ? maxN : cur.steps;
+  var fxN = pad + (nCur / maxN) * pw;
+  var qN = m6Quality(M6.sampler, cur.steps);
+  var fyN = (H - pad) - ((qN - 26) / 8) * ph;
+  el("circle", { cx: fxN, cy: fyN, r: 7, fill: cur.color, stroke: "#0e1018", "stroke-width": 2 }, s);
+  el("line", { x1: fxN, y1: H - pad, x2: fxN, y2: fyN, stroke: cur.color, "stroke-width": 1, "stroke-dasharray": "3 3", "stroke-opacity": 0.5 }, s);
+  tspanEl(fxN + 8, fyN - 6, cur.name + " " + cur.steps + "步", s, { fill: cur.color, "font-size": 11, "font-weight": 700 });
+
+  tspanEl(W / 2, H - 8, "采样步数 N（对数感知）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "PSNR (dB)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+
+  var stats = document.getElementById("m6stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">采样器</div><div class="v" style="color:' + cur.color + '">' + cur.name + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">推荐步数</div><div class="v amber">' + cur.steps + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">PSNR</div><div class="v">' + cur.psnr.toFixed(1) + '</div>';
+  stats.appendChild(s3);
+  var s4 = document.createElement("div"); s4.className = "stat";
+  s4.innerHTML = '<div class="k">IS 分数</div><div class="v violet">' + cur.is + '</div>';
+  stats.appendChild(s4);
+  var note = document.getElementById("m6note");
+  var descs = {
+    ddpm: '<b>DDPM：</b>原始去噪扩散概率模型，需要约 1000 步逐步去噪，质量最高但速度最慢。',
+    ddim: '<b>DDIM：</b>通过非马尔可夫跳跃加速 DDPM，50 步即可接近千步质量，是工业界常用基线。',
+    dpm: '<b>DPM-Solver：</b>专门求解扩散 ODE 的高阶求解器，20 步内达最优，ICML 2026 理论为其提供 polylog 下界支撑。',
+    cm: '<b>一致性模型：</b>将多步去噪蒸馏为单步映射，1-4 步生成，速度极快但质量略降。'
+  };
+  note.innerHTML = descs[M6.sampler];
+}
+function m6DrawMetrics() {
+  var host = document.getElementById("m6viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var sams = ["ddpm", "ddim", "dpm", "cm"];
+  var pad = 50;
+  var bw = (W - 2 * pad) / sams.length;
+  var metrics = ["PSNR", "IS", "速度"];
+  var maxV = [35, 200, 100];
+  var colors = ["#00d4aa", "#9d7aff", "#ffb454"];
+  for (var mi = 0; mi < metrics.length; mi++) {
+    for (var si = 0; si < sams.length; si++) {
+      var info = m6SamplerInfo(sams[si]);
+      var val = mi === 0 ? info.psnr : (mi === 1 ? info.is : (100 / info.steps * 5));
+      val = Math.min(val, maxV[mi] * 1.5);
+      var x = pad + si * bw + mi * (bw / 3) + 8;
+      var bh = (val / maxV[mi]) * (H - 2 * pad);
+      el("rect", { x: x, y: H - pad - bh, width: bw / 3 - 8, height: bh, fill: colors[mi], "fill-opacity": sams[si] === M6.sampler ? 0.9 : 0.4, rx: 4 }, s);
+      tspanEl(x + (bw / 3 - 8) / 2, H - pad - bh - 6, Math.round(val), s, { fill: colors[mi], "font-size": 10, "text-anchor": "middle", "font-weight": 700 });
+    }
+    // 图例
+    el("rect", { x: W - 150, y: 20 + mi * 22, width: 12, height: 12, fill: colors[mi], rx: 2 }, s);
+    tspanEl(W - 132, 30 + mi * 22, metrics[mi], s, { fill: "#e6e8ee", "font-size": 11 });
+  }
+  for (var i = 0; i < sams.length; i++) {
+    var info2 = m6SamplerInfo(sams[i]);
+    tspanEl(pad + i * bw + bw / 2, H - pad + 16, info2.name, s, { fill: sams[i] === M6.sampler ? info2.color : "#5a5f6e", "font-size": 12, "text-anchor": "middle", "font-weight": sams[i] === M6.sampler ? 700 : 400 });
+  }
+  tspanEl(W / 2, H - 8, "采样器", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  var stats = document.getElementById("m6stats");
+  clearNode(stats);
+  var cur = m6SamplerInfo(M6.sampler);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">采样器</div><div class="v" style="color:' + cur.color + '">' + cur.name + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">PSNR</div><div class="v">' + cur.psnr.toFixed(1) + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">IS</div><div class="v violet">' + cur.is + '</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m6note");
+  note.innerHTML = '<b>指标解读：</b>PSNR 衡量图像保真度（越高越好），IS 衡量生成质量与多样性（越高越好），速度=100/步数×5。DPM-Solver 在三个维度取得最佳平衡——这与 ICML 2026 的 polylog 理论预测一致。';
+}
+
+/* ============================================================ */
+/* M7 高维采样挑战 */
+/* ============================================================ */
+var M7 = { dim: 100, view: "curse" };
+function draw_m7() {
+  var sec = document.getElementById("m7");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M7 · HIGH DIMENSION</div>' +
+    '<h1>高维采样挑战与维数灾难</h1>' +
+    '<p>在维度 d 的高维空间中采样面临严峻挑战：数据体积随 d 指数膨胀，有效样本稀疏化。ICML 2026 论文的步数界 <code>O(d·polylog(1/ε))</code> 显示维度依赖为线性——这远好于朴素方法的指数依赖。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>数据维度 d</label><span class="val mono" id="m7dimV">100</span>' +
+    '<input type="range" id="m7dim" min="2" max="2000" value="100" step="2"></div>' +
+    '<div class="seg" id="m7seg">' +
+    '<button class="on" data-v="curse">维数灾难</button>' +
+    '<button data-v="dependency">维度依赖对比</button>' +
+    '<button data-v="geometry">高维几何</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>高维采样分析</h3><div id="m7viz"></div></div>' +
+    '<div class="card col-4"><h3>维度影响</h3><div id="m7stats" class="stat-row"></div>' +
+    '<div class="note" id="m7note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m7dim").addEventListener("input", function () {
+    M7.dim = parseInt(this.value, 10);
+    document.getElementById("m7dimV").textContent = M7.dim;
+    m7View(M7.view);
+  });
+  var seg = document.getElementById("m7seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m7View(this.dataset.v);
+    });
+  }
+  m7View("curse");
+}
+function m7View(v) { M7.view = v; if (v === "curse") m7DrawCurse(); else if (v === "dependency") m7DrawDep(); else m7DrawGeo(); }
+function m7DrawCurse() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 6);
+  // 单位球体积比 (随维度衰减)
+  var path = "M ";
+  for (var i = 0; i <= 100; i++) {
+    var d = 1 + (i / 100) * 49;
+    var fx = pad + (i / 100) * pw;
+    // V_d / V_cube ~ (π^0.5)^d / Γ(d/2+1) 近似
+    var ratio = Math.pow(Math.PI / 4, d / 2) / (1 + d / 2);
+    var lr = Math.max(-15, Math.log10(Math.max(ratio, 1e-15)));
+    var fy = (H - pad) - ((lr + 15) / 15) * ph;
+    path += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + fy.toFixed(1);
+  }
+  el("path", { d: path, fill: "rgba(255,107,129,0.08)", stroke: "#ff6b81", "stroke-width": 2.5 }, s);
+  // 当前维度标记
+  var curI = (M7.dim - 1) / 49 * 100;
+  var fxN = pad + (curI / 100) * pw;
+  var dN = M7.dim;
+  var ratioN = Math.pow(Math.PI / 4, dN / 2) / (1 + dN / 2);
+  var lrN = Math.max(-15, Math.log10(Math.max(ratioN, 1e-15)));
+  var fyN = (H - pad) - ((lrN + 15) / 15) * ph;
+  el("circle", { cx: fxN, cy: fyN, r: 6, fill: "#ffb454", stroke: "#0e1018", "stroke-width": 2 }, s);
+  el("line", { x1: fxN, y1: H - pad, x2: fxN, y2: fyN, stroke: "#ffb454", "stroke-width": 1, "stroke-dasharray": "3 3", "stroke-opacity": 0.5 }, s);
+  tspanEl(fxN + 8, fyN - 6, "d=" + M7.dim, s, { fill: "#ffb454", "font-size": 11, "font-weight": 700 });
+
+  tspanEl(W / 2, H - 8, "数据维度 d", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "log₁₀(球体积/立方体体积)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+  tspanEl(pad + 10, pad + 20, "单位球体积占比随维度指数衰减 → 数据稀疏化", s, { fill: "#ff6b81", "font-size": 12 });
+
+  var stats = document.getElementById("m7stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">当前维度</div><div class="v">' + M7.dim + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">球体积占比</div><div class="v rose">' + ratioN.toExponential(1) + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">ICML26步数</div><div class="v">' + Math.round(M7.dim * Math.pow(Math.log(1 / 0.01), 2)) + '</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m7note");
+  note.innerHTML = '<b>维数灾难：</b>高维球体积相对立方体趋于 0——数据集中在角落而非中心，传统采样方法步数随 d <b>指数</b>增长。ICML 2026 的 <code>O(d·polylog(1/ε))</code> 界将维度依赖降为<b>线性</b>，是关键突破。';
+}
+function m7DrawDep() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var pad = 60, pw = W - 2 * pad, ph = H - 2 * pad;
+  axis(s, pad, H - pad, W - pad, H - pad);
+  axis(s, pad, H - pad, pad, pad);
+  gridlines(s, pad, pad, pw, ph, 8, 6);
+  // 三条曲线：旧指数 d^2, 朴素 d·poly(1/ε), 新 d·polylog
+  var paths = ["M ", "M ", "M "];
+  var colors = ["#ff6b81", "#ffb454", "#00d4aa"];
+  for (var i = 0; i <= 100; i++) {
+    var d = 1 + (i / 100) * 499;
+    var fx = pad + (i / 100) * pw;
+    var v0 = d * d * 0.1; // 旧法 d²
+    var v1 = d * 50; // 朴素
+    var v2 = d * Math.pow(Math.log(100), 2); // 新法
+    var lv0 = Math.log10(Math.max(1, v0));
+    var lv1 = Math.log10(Math.max(1, v1));
+    var lv2 = Math.log10(Math.max(1, v2));
+    var yMax = 6;
+    paths[0] += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + ((H - pad) - Math.min(1, lv0 / yMax) * ph).toFixed(1);
+    paths[1] += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + ((H - pad) - Math.min(1, lv1 / yMax) * ph).toFixed(1);
+    paths[2] += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + ((H - pad) - Math.min(1, lv2 / yMax) * ph).toFixed(1);
+  }
+  for (var p = 0; p < 3; p++) {
+    el("path", { d: paths[p], fill: "none", stroke: colors[p], "stroke-width": 2.5, "stroke-dasharray": p === 0 ? "6 3" : "none" }, s);
+  }
+  // 当前维度
+  var curI = (M7.dim - 1) / 499 * 100;
+  var fxN = pad + (curI / 100) * pw;
+  el("line", { x1: fxN, y1: pad, x2: fxN, y2: H - pad, stroke: "#3a3f50", "stroke-width": 1, "stroke-dasharray": "3 3" }, s);
+  tspanEl(fxN, pad - 6, "d=" + M7.dim, s, { fill: "#ffb454", "font-size": 11, "text-anchor": "middle", "font-weight": 700 });
+
+  // 图例
+  var lg = el("g", { transform: "translate(" + (W - 200) + ",40)" }, s);
+  el("rect", { x: 0, y: 0, width: 180, height: 68, fill: "#12141c", stroke: "#232838", rx: 6 }, lg);
+  var labs = ["旧法 d²·poly(1/ε)", "朴素 d·poly(1/ε)", "新法 d·polylog(1/ε)"];
+  for (var li = 0; li < 3; li++) {
+    el("line", { x1: 10, y1: 16 + li * 20, x2: 30, y2: 16 + li * 20, stroke: colors[li], "stroke-width": 2.5, "stroke-dasharray": li === 0 ? "6 3" : "none" }, lg);
+    tspanEl(36, 20 + li * 20, labs[li], lg, { fill: "#e6e8ee", "font-size": 11 });
+  }
+  tspanEl(W / 2, H - 8, "数据维度 d", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "所需步数（对数）", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+
+  var stats = document.getElementById("m7stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">维度 d</div><div class="v">' + M7.dim + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  s2.innerHTML = '<div class="k">旧法 d² 步数</div><div class="v rose">' + Math.round(M7.dim * M7.dim * 0.1).toLocaleString() + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">新法 d·log² 步数</div><div class="v">' + Math.round(M7.dim * Math.pow(Math.log(100), 2)).toLocaleString() + '</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m7note");
+  note.innerHTML = '<b>维度依赖对比：</b>旧方法步数随维度 <code>d²</code> 增长（红色虚线），而 ICML 2026 新方法仅 <code>d·log²(1/ε)</code>（绿色实线）——线性依赖。在高维（如 d=2000 的图像潜空间）时差距巨大。';
+}
+function m7DrawGeo() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 760, H = 420, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var cx = W / 2, cy = H / 2, R = 130;
+  // 高维球 (投影)
+  el("circle", { cx: cx, cy: cy, r: R, fill: "rgba(0,212,170,0.05)", stroke: "#00d4aa", "stroke-width": 2 }, s);
+  // 立方体
+  el("rect", { x: cx - R, y: cy - R, width: 2 * R, height: 2 * R, fill: "none", stroke: "#ff6b81", "stroke-width": 2, "stroke-dasharray": "5 3" }, s);
+  // 角落采样点 (高维数据集中在角落)
+  var rnd = m5SeededRand(M7.dim);
+  var corners = [[-1, -1], [1, -1], [-1, 1], [1, 1], [-0.9, -0.9], [0.9, 0.9]];
+  for (var i = 0; i < 40; i++) {
+    var ang = rnd() * Math.PI * 2;
+    var rr = R * (0.85 + rnd() * 0.13);
+    var px = cx + Math.cos(ang) * rr;
+    var py = cy + Math.sin(ang) * rr;
+    el("circle", { cx: px, cy: py, r: 3, fill: "#ffb454", "fill-opacity": 0.7 }, s);
+  }
+  // 中心区域空旷
+  el("circle", { cx: cx, cy: cy, r: R * 0.3, fill: "none", stroke: "#5a5f6e", "stroke-width": 1, "stroke-dasharray": "2 3" }, s);
+  tspanEl(cx, cy + 4, "空旷区", s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+  tspanEl(cx, cy - R - 14, "高维几何：数据集中于角落", s, { fill: "#00d4aa", "font-size": 13, "font-weight": 600, "text-anchor": "middle" });
+  // 维度标注
+  tspanEl(cx + R + 20, cy - R, "立方体", s, { fill: "#ff6b81", "font-size": 11 });
+  tspanEl(cx + R + 20, cy + R, "[-1,1]^d", s, { fill: "#ff6b81", "font-size": 11, "font-family": "Consolas,monospace" });
+  el("line", { x1: cx + R, y1: cy - R, x2: cx + R + 15, y2: cy - R, stroke: "#ff6b81", "stroke-width": 1 }, s);
+  tspanEl(cx - R - 90, cy, "单位球 B_d", s, { fill: "#00d4aa", "font-size": 11 });
+  el("line", { x1: cx - R, y1: cy, x2: cx - R - 15, y2: cy, stroke: "#00d4aa", "stroke-width": 1 }, s);
+
+  var stats = document.getElementById("m7stats");
+  clearNode(stats);
+  var s1 = document.createElement("div"); s1.className = "stat";
+  s1.innerHTML = '<div class="k">维度</div><div class="v">' + M7.dim + '</div>';
+  stats.appendChild(s1);
+  var s2 = document.createElement("div"); s2.className = "stat";
+  var distCorner = Math.sqrt(M7.dim); // 到角落距离
+  s2.innerHTML = '<div class="k">到角落距离</div><div class="v amber">' + distCorner.toFixed(1) + '</div>';
+  stats.appendChild(s2);
+  var s3 = document.createElement("div"); s3.className = "stat";
+  s3.innerHTML = '<div class="k">球面占比</div><div class="v rose">' + Math.pow(Math.PI / 4, M7.dim / 2).toExponential(1) + '</div>';
+  stats.appendChild(s3);
+  var note = document.getElementById("m7note");
+  note.innerHTML = '<b>高维几何直觉：</b>在 d 维空间中，单位球体积趋于 0，数据点几乎全部落在立方体的<b>角落</b>而非中心。到原点的典型距离为 <code>√d ≈ ' + distCorner.toFixed(1) + '</code>。这种几何特性使采样困难——但 polylog 理论表明扩散模型的结构性假设可绕过维数灾难。';
+}
+
+/* ============================================================ */
+/* M8 实际应用与未来 */
+/* ============================================================ */
+var M8 = { view: "apps" };
+function draw_m8() {
+  var sec = document.getElementById("m8");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M8 · APPLICATIONS</div>' +
+    '<h1>实际应用与未来方向</h1>' +
+    '<p>采样理论的突破正加速落地：图像/视频/3D 生成、推理加速、科学模拟。polylog 步数界意味着实时扩散生成成为可能，未来将扩展至更复杂的结构化分布。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m8seg">' +
+    '<button class="on" data-v="apps">应用场景</button>' +
+    '<button data-v="roadmap">技术路线</button>' +
+    '<button data-v="future">未来方向</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML = '<div class="card col-12"><h3>应用与未来</h3><div id="m8viz"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m8seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m8View(this.dataset.v);
+    });
+  }
+  m8View("apps");
+}
+function m8View(v) { M8.view = v; if (v === "apps") m8DrawApps(); else if (v === "roadmap") m8DrawRoadmap(); else m8DrawFuture(); }
+function m8DrawApps() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 460, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var apps = [
+    { x: 30, y: 30, w: 260, h: 120, t: "图像生成", d: "扩散模型生成高保真图像，polylog 加速使实时生图可行", c: "#00d4aa", ic: "IMG" },
+    { x: 310, y: 30, w: 260, h: 120, t: "视频生成", d: "时序一致性采样，长视频生成仅需数十步", c: "#4ea8ff", ic: "VID" },
+    { x: 590, y: 30, w: 260, h: 120, t: "3D 内容生成", d: "神经辐射场与扩散结合，3D 资产生成提速 10x", c: "#9d7aff", ic: "3D" },
+    { x: 870, y: 30, w: 280, h: 120, t: "科学模拟", d: "分子构型采样、蛋白质设计等对数凹分布场景", c: "#ffb454", ic: "SCI" },
+    { x: 30, y: 170, w: 260, h: 120, t: "语音/音频", d: "音频合成、音乐生成，实时流式推理", c: "#ff6b81", ic: "AUD" },
+    { x: 310, y: 170, w: 260, h: 120, t: "推理加速", d: "蒸馏+高阶求解器，千步降为十步", c: "#00d4aa", ic: "SPD" },
+    { x: 590, y: 170, w: 260, h: 120, t: "编辑/可控生成", d: "条件采样、图像编辑、风格迁移", c: "#4ea8ff", ic: "EDT" },
+    { x: 870, y: 170, w: 280, h: 120, t: "跨模态生成", d: "文生图、图生视频、统一多模态扩散", c: "#9d7aff", ic: "MM" }
+  ];
+  for (var i = 0; i < apps.length; i++) {
+    var a = apps[i];
+    el("rect", { x: a.x, y: a.y, width: a.w, height: a.h, fill: "#181b25", stroke: a.c, "stroke-width": 1.5, rx: 10 }, s);
+    el("rect", { x: a.x, y: a.y, width: 50, height: a.h, fill: a.c, "fill-opacity": 0.15, rx: 10 }, s);
+    tspanEl(a.x + 25, a.y + 32, a.ic, s, { fill: a.c, "font-size": 16, "font-weight": 700, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+    tspanEl(a.x + 64, a.y + 30, a.t, s, { fill: "#e6e8ee", "font-size": 15, "font-weight": 700 });
+    var words = a.d;
+    var parts = [];
+    while (words.length > 16) { parts.push(words.substring(0, 16)); words = words.substring(16); }
+    parts.push(words);
+    for (var p = 0; p < parts.length; p++) {
+      tspanEl(a.x + 64, a.y + 56 + p * 16, parts[p], s, { fill: "#8b909e", "font-size": 11.5 });
+    }
+  }
+  tspanEl(W / 2, 330, "采样理论落地全景", s, { fill: "#00d4aa", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+  var stats = [["图像生成", "实时可行", "#00d4aa"], ["视频生成", "数十步", "#4ea8ff"], ["3D 生成", "10x 加速", "#9d7aff"], ["科学模拟", "对数凹适用", "#ffb454"]];
+  var sx = 80;
+  for (var si = 0; si < stats.length; si++) {
+    var st = stats[si];
+    el("rect", { x: sx, y: 360, width: 240, height: 70, fill: "#12141c", stroke: "#232838", rx: 8 }, s);
+    tspanEl(sx + 120, 388, st[0], s, { fill: "#e6e8ee", "font-size": 13, "font-weight": 600, "text-anchor": "middle" });
+    tspanEl(sx + 120, 412, st[1], s, { fill: st[2], "font-size": 15, "font-weight": 700, "text-anchor": "middle" });
+    sx += 270;
+  }
+}
+function m8DrawRoadmap() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 460, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var stages = [
+    { x: 40, t: "2020 DDPM", d: "千步采样\n质量奠基", c: "#ff6b81" },
+    { x: 240, t: "2021 DDIM", d: "50 步加速\n非马尔可夫", c: "#ffb454" },
+    { x: 440, t: "2022 DPM-Solver", d: "20 步高阶求解\n逼近最优", c: "#4ea8ff" },
+    { x: 640, t: "2023 一致性模型", d: "1-4 步蒸馏\n单步生成", c: "#9d7aff" },
+    { x: 840, t: "2024-25 Flow Matching", d: "连续标准化流\n与扩散统一", c: "#00d4aa" },
+    { x: 1020, t: "2026 polylog 理论", d: "O(d·polylog(1/ε))\n最优步数界", c: "#00d4aa" }
+  ];
+  var baseY = 280;
+  el("line", { x1: 60, y1: baseY, x2: 1120, y2: baseY, stroke: "#3a3f50", "stroke-width": 2 }, s);
+  var defs = el("defs", {}, s);
+  var mk = el("marker", { id: "m8arr", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: "#00d4aa" }, mk);
+  for (var i = 0; i < stages.length; i++) {
+    var st = stages[i];
+    el("circle", { cx: st.x, cy: baseY, r: 10, fill: st.c, stroke: "#0e1018", "stroke-width": 3 }, s);
+    el("rect", { x: st.x - 75, y: 120, width: 150, height: 90, fill: "#181b25", stroke: st.c, "stroke-width": 1.5, rx: 8 }, s);
+    tspanEl(st.x, 148, st.t, s, { fill: st.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+    var lines = st.d.split("\n");
+    for (var li = 0; li < lines.length; li++) {
+      tspanEl(st.x, 172 + li * 18, lines[li], s, { fill: "#8b909e", "font-size": 11.5, "text-anchor": "middle" });
+    }
+    el("line", { x1: st.x, y1: 210, x2: st.x, y2: baseY - 10, stroke: st.c, "stroke-width": 1.5, "stroke-dasharray": "3 3", "stroke-opacity": 0.5 }, s);
+    if (i < stages.length - 1) {
+      el("line", { x1: st.x + 10, y1: baseY, x2: stages[i + 1].x - 10, y2: baseY, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m8arr)" }, s);
+    }
+  }
+  tspanEl(W / 2, 60, "扩散采样技术演进路线", s, { fill: "#00d4aa", "font-size": 16, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(W / 2, 90, "从千步到 polylog 最优步数 —— 推理加速 100 倍", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  el("rect", { x: stages[5].x - 80, y: 395, width: 160, height: 30, fill: "rgba(0,212,170,0.1)", stroke: "#00d4aa", rx: 6 }, s);
+  tspanEl(stages[5].x, 415, "ICML 2026 突破", s, { fill: "#00d4aa", "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+}
+function m8DrawFuture() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 460, s = svgCanvas(W, H);
+  host.appendChild(s);
+  var dirs = [
+    { x: 40, y: 50, w: 350, h: 170, t: "理论深化", d: ["松弛对数凹假设至一般分布", "非欧几何上的采样理论", "最优步数常数项收紧"], c: "#00d4aa" },
+    { x: 410, y: 50, w: 350, h: 170, t: "算法创新", d: ["自适应步长 schedule 设计", "高阶 ODE 求解器 (4阶+)", "蒸馏与多步教师加速"], c: "#4ea8ff" },
+    { x: 780, y: 50, w: 360, h: 170, t: "系统与硬件", d: ["采样器编译优化", "专用推理加速芯片", "分布式采样协同"], c: "#9d7aff" },
+    { x: 40, y: 240, w: 350, h: 170, t: "应用拓展", d: ["科学发现中的结构化采样", "大规模语言模型解码", "机器人决策与规划"], c: "#ffb454" },
+    { x: 410, y: 240, w: 350, h: 170, t: "可解释与可控", d: ["采样路径可解释性", "条件控制与引导理论", "安全采样保证"], c: "#ff6b81" },
+    { x: 780, y: 240, w: 360, h: 170, t: "统一框架", d: ["扩散与流匹配统一", "连续-离散混合采样", "生成-判别统一范式"], c: "#00d4aa" }
+  ];
+  for (var i = 0; i < dirs.length; i++) {
+    var d = dirs[i];
+    el("rect", { x: d.x, y: d.y, width: d.w, height: d.h, fill: "#181b25", stroke: d.c, "stroke-width": 1.5, rx: 12 }, s);
+    el("rect", { x: d.x, y: d.y, width: d.w, height: 36, fill: d.c, "fill-opacity": 0.15, rx: 12 }, s);
+    tspanEl(d.x + 18, d.y + 24, d.t, s, { fill: d.c, "font-size": 15, "font-weight": 700 });
+    for (var li = 0; li < d.d.length; li++) {
+      el("circle", { cx: d.x + 22, cy: d.y + 64 + li * 32, r: 3, fill: d.c }, s);
+      tspanEl(d.x + 34, d.y + 68 + li * 32, d.d[li], s, { fill: "#c5c8d2", "font-size": 12.5 });
+    }
+  }
+}
+
+/* ============ 初始化 ============ */
+window.addEventListener("DOMContentLoaded", function () {
+  draw_m1();
+  initialized.m1 = true;
+});
+</script>
+</body>
+</html>

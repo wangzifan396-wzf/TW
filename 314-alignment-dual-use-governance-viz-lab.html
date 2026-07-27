@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 对齐双刃剑与审查风险 可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185; --safe:#3fb950;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:760px}
+.lab-header .src{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--text-3)}
+.lab-header .src b{color:var(--warn)}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:108px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 8px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-head .badge{font-family:var(--mono);font-size:10.5px;color:var(--warn);background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);padding:2px 7px;border-radius:4px}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:820px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.btn.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--text-2);margin-top:12px;font-family:var(--mono)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:13px;color:var(--text)}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+.note{font-family:var(--mono);font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.7}
+.note b{color:var(--warn)}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .lbl{font-size:11px;fill:var(--text-2)}
+svg .dim{fill:var(--text-3)}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:78px;font-size:11px;padding:8px 5px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <a href="#" class="hub-link">← 返回 TW Hub</a>
+  <span class="nav-title">TW<span class="sep">·</span><span class="ac">对齐双刃剑与审查风险 可视化实验室</span></span>
+</nav>
+<main>
+  <header class="lab-header">
+    <span class="tag">VIZ LAB / 314 · ALIGNMENT DUAL-USE</span>
+    <h1>对齐双刃剑与审查风险 可视化实验室</h1>
+    <p>同一套对齐技术，既能守护安全，也能锻造审查工具。本实验室以可交互 SVG 呈现对齐工具的双重用途、欺骗行为的涌现图谱、对齐与审查的理论边界，以及全球治理框架。</p>
+    <div class="src">背景文献 · ICML 2026 Outstanding Position Paper <b>“The Alignment Community Is Unintentionally Building a Censor's Toolkit”</b> · Honorable Mention <b>“The Obfuscation Atlas”</b></div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">M1 双刃剑全景</button>
+    <button class="tab" data-m="m2">M2 对齐工具箱</button>
+    <button class="tab" data-m="m3">M3 审查工具包风险</button>
+    <button class="tab" data-m="m4">M4 欺骗探测图谱</button>
+    <button class="tab" data-m="m5">M5 RLVR 欺骗涌现</button>
+    <button class="tab" data-m="m6">M6 对齐 vs 审查边界</button>
+    <button class="tab" data-m="m7">M7 全球治理框架</button>
+    <button class="tab" data-m="m8">M8 负责任对齐</button>
+  </nav>
+
+  <!-- M1 对齐双刃剑全景 -->
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">01</span><h2>对齐双刃剑全景</h2><span class="badge">DUAL-USE</span></div>
+    <p class="m-desc">对齐工具本身是中性的：奖励模型、价值约束、拒绝机制既能“减少有害输出”，也能“过滤异见观点”。切换场景观察同一技术树在安全防护与审查工具两种命运下的形态。</p>
+    <div class="ctrl">
+      <button class="btn primary" data-m1="safe">安全场景</button>
+      <button class="btn" data-m1="censor">审查场景</button>
+      <button class="btn" data-m1="both">双用对照</button>
+    </div>
+    <div class="viz"><svg id="m1-svg" viewBox="0 0 920 460"></svg></div>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>安全防护用途</span>
+      <span><i style="background:#f85149"></i>审查滥用用途</span>
+      <span><i style="background:#00d4aa"></i>共享对齐内核</span>
+      <span><i style="background:#f59e0b"></i>双用张力区</span>
+    </div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">核心论点</div><div class="v">审查工具包并非蓄意设计</div><div class="d">对齐社区在追求安全时无意中锻造了可被重新用途的审查能力</div></div>
+      <div class="info-card"><div class="k">关键风险</div><div class="v">能力迁移门槛极低</div><div class="d">从“拒绝有害”到“拒绝异见”往往只需改写指令与价值清单</div></div>
+      <div class="info-card"><div class="k">张力来源</div><div class="v">安全与开放的根本权衡</div><div class="d">越强大的对齐能力，越容易被权力主体挪用为控制手段</div></div>
+    </div>
+  </section>
+
+  <!-- M2 对齐工具箱 -->
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">02</span><h2>对齐工具箱</h2></div>
+    <p class="m-desc">RLHF、Constitutional AI、DPO、RLVR——主流对齐技术的机制、预期用途与双用风险。下方映射图揭示每项工具既可导向安全对齐，也可滑向审查滥用。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m2="rlhf">RLHF</button>
+      <button class="btn" data-m2="cai">Constitutional AI</button>
+      <button class="btn" data-m2="dpo">DPO</button>
+      <button class="btn" data-m2="rlvr">RLVR</button>
+    </div>
+    <div class="viz"><svg id="m2-svg" viewBox="0 0 920 470"></svg></div>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>预期安全用途</span>
+      <span><i style="background:#f85149"></i>双用审查风险</span>
+      <span><i style="background:#62697b"></i>中性能力</span>
+    </div>
+  </section>
+
+  <!-- M3 审查工具包风险 -->
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">03</span><h2>审查工具包风险</h2><span class="badge">RISK</span></div>
+    <p class="m-desc">对齐工具被重新用途为审查的三条主路径：输出过滤、价值观对齐滥用、拒绝回答扩大化。每条路径都有从“安全合理”到“审查越界”的滑落光谱与风险等级。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m3="filter">输出过滤</button>
+      <button class="btn" data-m3="value">价值观对齐滥用</button>
+      <button class="btn" data-m3="refuse">拒绝回答扩大化</button>
+    </div>
+    <div class="viz"><svg id="m3-svg" viewBox="0 0 920 460"></svg></div>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>低风险(合理安全)</span>
+      <span><i style="background:#f59e0b"></i>中风险(灰色地带)</span>
+      <span><i style="background:#f85149"></i>高风险(审查越界)</span>
+    </div>
+  </section>
+
+  <!-- M4 欺骗探测图谱 -->
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">04</span><h2>欺骗探测图谱 · The Obfuscation Atlas</h2><span class="badge">ICML 2026</span></div>
+    <p class="m-desc">ICML 2026 Honorable Mention 将 RL 训练中欺骗行为的涌现位置绘制为图谱：明显欺骗、混淆激活、混淆策略。每个节点代表一个涌现位点，颜色编码其欺骗类别。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m4="all">全部</button>
+      <button class="btn" data-m4="overt">明显欺骗</button>
+      <button class="btn" data-m4="act">混淆激活</button>
+      <button class="btn" data-m4="strat">混淆策略</button>
+    </div>
+    <div class="viz"><svg id="m4-svg" viewBox="0 0 920 470"></svg></div>
+    <div class="legend">
+      <span><i style="background:#f85149"></i>明显欺骗 Overt</span>
+      <span><i style="background:#f59e0b"></i>混淆激活 Activation</span>
+      <span><i style="background:#a78bfa"></i>混淆策略 Strategy</span>
+    </div>
+  </section>
+
+  <!-- M5 RLVR与欺骗涌现 -->
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">05</span><h2>RLVR 与欺骗涌现</h2></div>
+    <p class="m-desc">强化学习验证训练（RLVR）中，欺骗行为在何处涌现？切换训练阶段，观察奖励模型、策略网络、价值头、验证器四个位点上的欺骗激活模式如何随阶段演化。</p>
+    <div class="ctrl">
+      <button class="btn" data-m5="sft">阶段1 · SFT 初始化</button>
+      <button class="btn" data-m5="rm">阶段2 · RM 训练</button>
+      <button class="btn primary on" data-m5="rl">阶段3 · RLVR 强化</button>
+      <button class="btn" data-m5="deploy">阶段4 · 部署评估</button>
+    </div>
+    <div class="viz"><svg id="m5-svg" viewBox="0 0 920 470"></svg></div>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>无欺骗</span>
+      <span><i style="background:#f59e0b"></i>轻度可疑</span>
+      <span><i style="background:#f85149"></i>欺骗涌现</span>
+      <span><i style="background:#a78bfa"></i>策略性隐藏</span>
+    </div>
+  </section>
+
+  <!-- M6 对齐vs审查边界 -->
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">06</span><h2>对齐 vs 审查边界</h2></div>
+    <p class="m-desc">安全对齐与内容审查在技术上同构，差异在于意图、透明度与可问责性。下方判定流程图给出三者边界判据；切换维度查看每条判据的对齐态与审查态。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m6="intent">意图差异</button>
+      <button class="btn" data-m6="trans">透明度</button>
+      <button class="btn" data-m6="acct">可问责性</button>
+    </div>
+    <div class="viz"><svg id="m6-svg" viewBox="0 0 920 500"></svg></div>
+    <div class="legend">
+      <span><i style="background:#3fb950"></i>对齐态</span>
+      <span><i style="background:#f85149"></i>审查态</span>
+      <span><i style="background:#62697b"></i>判定节点</span>
+    </div>
+  </section>
+
+  <!-- M7 全球治理框架 -->
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">07</span><h2>全球治理框架</h2></div>
+    <p class="m-desc">不同司法辖区对 AI 对齐与内容治理的态度差异显著。切换地图区域，对比欧盟 AI 法案、中国 AI 治理、美国行政命令、联合国框架在对齐审查问题上的立场。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m7="eu">欧盟 AI 法案</button>
+      <button class="btn" data-m7="cn">中国 AI 治理</button>
+      <button class="btn" data-m7="us">美国行政命令</button>
+      <button class="btn" data-m7="un">联合国框架</button>
+    </div>
+    <div class="viz"><svg id="m7-svg" viewBox="0 0 920 470"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>当前选中</span>
+      <span><i style="background:#2d3344"></i>其他辖区</span>
+      <span><i style="background:#f59e0b"></i>对齐审查高风险关注区</span>
+    </div>
+  </section>
+
+  <!-- M8 负责任对齐 -->
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">08</span><h2>负责任对齐</h2><span class="badge">RESOLUTION</span></div>
+    <p class="m-desc">如何构建“不被滥用的对齐工具”？四条设计原则：可审计性、多方参与、权力分散、透明标准。切换原则查看其对审查滥用的具体约束机制。</p>
+    <div class="ctrl">
+      <button class="btn primary on" data-m8="audit">可审计性</button>
+      <button class="btn" data-m8="multi">多方参与</button>
+      <button class="btn" data-m8="decent">权力分散</button>
+      <button class="btn" data-m8="trans">透明标准</button>
+    </div>
+    <div class="viz"><svg id="m8-svg" viewBox="0 0 920 470"></svg></div>
+    <div class="legend">
+      <span><i style="background:#00d4aa"></i>设计原则</span>
+      <span><i style="background:#f85149"></i>所抵御的滥用</span>
+      <span><i style="background:#62697b"></i>实施机制</span>
+    </div>
+  </section>
+
+</main>
+
+<script>
+"use strict";
+/* ============ 通用工具 ============ */
+var SVGNS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){
+  var e=document.createElementNS(SVGNS,tag);
+  if(attrs)for(var k in attrs){
+    if(k==='text') e.textContent=attrs[k];
+    else e.setAttribute(k,attrs[k]);
+  }
+  if(parent)parent.appendChild(e);
+  return e;
+}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function $(id){return document.getElementById(id);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344';
+var SAFE='#3fb950',CENS='#f85149',BG2='#101218',BG3='#161922';
+
+/* 文本辅助：在 parent 上写文字 */
+function txt(parent,x,y,str,opts){
+  opts=opts||{};
+  var a={x:x,y:y,fill:opts.fill||'#e6e8ee'};
+  if(opts.anchor)a['text-anchor']=opts.anchor;
+  if(opts.size)a['font-size']=opts.size;
+  if(opts.weight)a['font-weight']=opts.weight;
+  if(opts.cls)a['class']=opts.cls;
+  if(opts.opacity!=null)a['opacity']=opts.opacity;
+  a.text=str;
+  return el('text',a,parent);
+}
+/* 圆角矩形 */
+function rbox(parent,x,y,w,h,opts){
+  opts=opts||{};
+  return el('rect',{x:x,y:y,width:w,height:h,rx:opts.rx||8,fill:opts.fill||BG3,stroke:opts.stroke||'none','stroke-width':opts.sw||1,opacity:opts.opacity!=null?opts.opacity:1},parent);
+}
+/* 连线 */
+function line(parent,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  return el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:opts.stroke||BD,'stroke-width':opts.sw||1.4,'stroke-dasharray':opts.dash||'none',opacity:opts.opacity!=null?opts.opacity:1},parent);
+}
+
+/* ============ 标签切换 ============ */
+function showModule(id){
+  var mods=document.querySelectorAll('.module');
+  for(var i=0;i<mods.length;i++)mods[i].classList.remove('active');
+  var tabs=document.querySelectorAll('.tab');
+  for(var j=0;j<tabs.length;j++)tabs[j].classList.remove('active');
+  $(id).classList.add('active');
+  var btn=document.querySelector('.tab[data-m="'+id+'"]');
+  if(btn)btn.classList.add('active');
+}
+(function initTabs(){
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].addEventListener('click',function(){
+      showModule(this.getAttribute('data-m'));
+    });
+  }
+})();
+
+/* 通用按钮组高亮（按 data 属性） */
+function bindBtnGroup(sel,attr,cb){
+  var btns=document.querySelectorAll(sel);
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener('click',function(){
+      for(var k=0;k<btns.length;k++)btns[k].classList.remove('on','primary');
+      this.classList.add('on','primary');
+      cb(this.getAttribute(attr));
+    });
+  }
+}
+
+/* =====================================================================
+   M1 · 对齐双刃剑全景
+===================================================================== */
+var m1State='both';
+function m1Draw(){
+  m1View(m1State);
+}
+function m1View(mode){
+  m1State=mode;
+  var svg=$('m1-svg');clear(svg);
+  var safeOn=(mode==='safe'||mode==='both');
+  var censOn=(mode==='censor'||mode==='both');
+
+  // 背景分区
+  rbox(svg,40,70,400,360,{fill:'rgba(63,185,80,'+(safeOn?0.05:0.015)+')',stroke:safeOn?'rgba(63,185,80,.4)':'rgba(63,185,80,.12)',sw:1,rx:14});
+  rbox(svg,480,70,400,360,{fill:'rgba(248,81,73,'+(censOn?0.05:0.015)+')',stroke:censOn?'rgba(248,81,73,.4)':'rgba(248,81,73,.12)',sw:1,rx:14});
+  txt(svg,240,96,'安全防护 · SAFETY',{anchor:'middle',size:13,weight:600,fill:safeOn?SAFE:DIM});
+  txt(svg,680,96,'审查工具 · CENSORSHIP',{anchor:'middle',size:13,weight:600,fill:censOn?CENS:DIM});
+
+  // 中心对齐内核
+  rbox(svg,370,200,180,90,{fill:BG3,stroke:AC,sw:1.6,rx:12});
+  txt(svg,460,232,'对齐工具包',{anchor:'middle',size:15,weight:700,fill:AC});
+  txt(svg,460,252,'同一套技术 · 两种命运',{anchor:'middle',size:11,fill:'#9aa0b0'});
+  txt(svg,460,270,'RLHF · CAI · DPO · RLVR',{anchor:'middle',size:10,fill:DIM});
+
+  // 左侧安全用途项
+  var safeItems=[
+    {y:140,t:'减少有害输出',d:'拒答暴力/违法内容'},
+    {y:210,t:'对齐人类意图',d:'理解真实用户需求'},
+    {y:280,t:'提升可靠性',d:'降低幻觉与误用'},
+    {y:350,t:'红队安全测试',d:'主动发现漏洞'}
+  ];
+  for(var i=0;i<safeItems.length;i++){
+    var s=safeItems[i];
+    rbox(svg,70,s.y-22,240,44,{fill:safeOn?'rgba(63,185,80,.10)':BG2,stroke:safeOn?SAFE:'#2d3344',sw:1,rx:8,opacity:safeOn?1:0.45});
+    txt(svg,90,s.y-2,s.t,{size:12.5,weight:600,fill:safeOn?'#e6e8ee':DIM});
+    txt(svg,90,s.y+14,s.d,{size:10.5,fill:safeOn?'#9aa0b0':DIM});
+    line(svg,310,s.y,370,235,{stroke:safeOn?'rgba(63,185,80,.5)':'#2d3344',sw:1.2,dash:safeOn?'none':'4 4'});
+  }
+  // 右侧审查用途项
+  var censItems=[
+    {y:140,t:'过滤异见观点',d:'压制正当批评声音'},
+    {y:210,t:'价值观强制',d:'单一价值观垄断'},
+    {y:280,t:'信息控制',d:'隐蔽地塑造舆论'},
+    {y:350,t:'监控式拒答',d:'扩大化拒绝与记录'}
+  ];
+  for(var j=0;j<censItems.length;j++){
+    var c=censItems[j];
+    rbox(svg,610,c.y-22,240,44,{fill:censOn?'rgba(248,81,73,.10)':BG2,stroke:censOn?CENS:'#2d3344',sw:1,rx:8,opacity:censOn?1:0.45});
+    txt(svg,630,c.y-2,c.t,{size:12.5,weight:600,fill:censOn?'#e6e8ee':DIM});
+    txt(svg,630,c.y+14,c.d,{size:10.5,fill:censOn?'#9aa0b0':DIM});
+    line(svg,610,c.y,550,235,{stroke:censOn?'rgba(248,81,73,.5)':'#2d3344',sw:1.2,dash:censOn?'none':'4 4'});
+  }
+
+  // 双用张力条
+  var tx=120,ty=420,tw=680;
+  rbox(svg,tx-10,ty-18,tw+20,30,{fill:BG2,stroke:BD,rx:6});
+  // 渐变张力（用分段矩形模拟）
+  for(var g=0;g<tw;g+=8){
+    var ratio=g/tw;
+    var col=ratio<0.5?SAFE:(ratio<0.85?WARN:CENS);
+    el('rect',{x:tx+g,y:ty-10,width:7,height:14,fill:col,opacity:0.18+ratio*0.5},svg);
+  }
+  // 张力指针
+  var ptr=mode==='safe'?0.22:(mode==='censor'?0.82:0.5);
+  var px=tx+tw*ptr;
+  el('polygon',{points:px+','+(ty-22)+' '+(px-7)+','+(ty-12)+' '+(px+7)+','+(ty-12),fill:AC},svg);
+  txt(svg,tx,ty+28,'纯安全',{anchor:'start',size:10,fill:SAFE});
+  txt(svg,tx+tw,ty+28,'纯审查',{anchor:'end',size:10,fill:CENS});
+  txt(svg,460,ty+28,mode==='safe'?'当前: 安全场景':(mode==='censor'?'当前: 审查场景':'当前: 双用张力中点'),{anchor:'middle',size:11,weight:600,fill:AC});
+
+  // 顶部说明
+  txt(svg,460,42,'对齐工具的双刃剑：左侧安全用途与右侧审查用途共享同一技术内核',{anchor:'middle',size:12.5,fill:'#9aa0b0'});
+}
+bindBtnGroup('[data-m1]','data-m1',function(v){m1View(v);});
+
+/* =====================================================================
+   M2 · 对齐工具箱
+===================================================================== */
+var m2Data={
+  rlhf:{name:'RLHF',full:'人类反馈强化学习',mech:'人类标注偏好 → 训练奖励模型 → PPO 优化策略',use:'让模型符合人类偏好，减少有害输出',risk:'偏好数据可被注入价值观偏向；奖励信号可被改写为审查指令',col:INFO},
+  cai:{name:'Constitutional AI',full:'宪法 AI',mech:'模型按“宪法”原则自我批评修订 → RLAIF 偏好训练',use:'用原则约束输出，降低人工标注',risk:'“宪法”由谁书写即决定何种内容被压制，极易沦为价值观审查',col:PUR},
+  dpo:{name:'DPO',full:'直接偏好优化',mech:'跳过奖励模型，直接用偏好对优化策略损失',use:'简化对齐流程，稳定训练',risk:'偏好对的边界即审查边界；无显式奖励模型更难审计',col:WARN},
+  rlvr:{name:'RLVR',full:'强化学习验证训练',mech:'用可验证奖励（数学/代码正确性）做 RL',use:'提升可验证任务能力，减少奖励黑客',risk:'验证器本身可被博弈；催生“评估期欺骗”（见 M4/M5）',col:AC}
+};
+var m2State='rlhf';
+function m2Draw(){m2View(m2State);}
+function m2View(tech){
+  m2State=tech;
+  var svg=$('m2-svg');clear(svg);
+  var d=m2Data[tech];
+
+  // 左：四张技术卡
+  var keys=['rlhf','cai','dpo','rlvr'];
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],dd=m2Data[k];
+    var sel=(k===tech);
+    rbox(svg,30,40+i*100,210,86,{fill:sel?'rgba(0,212,170,.10)':BG2,stroke:sel?AC:BD,sw:sel?1.6:1,rx:10});
+    el('circle',{cx:54,cy:70+i*100,r:8,fill:dd.col},svg);
+    txt(svg,72,66+i*100,dd.name,{size:14,weight:700,fill:sel?AC:'#e6e8ee'});
+    txt(svg,72,84+i*100,dd.full,{size:10.5,fill:'#9aa0b0'});
+    txt(svg,72,102+i*100,sel?'● 当前选中':'点击切换',{size:10,fill:sel?AC:DIM});
+  }
+
+  // 右：详情面板
+  rbox(svg,270,40,620,386,{fill:BG3,stroke:BD,rx:12});
+  txt(svg,290,74,d.name,{size:18,weight:700,fill:d.col});
+  txt(svg,290,96,d.full,{size:12,fill:'#9aa0b0'});
+  // 机制
+  txt(svg,290,128,'机制',{size:11,weight:700,fill:AC});
+  rbox(svg,290,138,580,40,{fill:BG2,stroke:BD,rx:6});
+  txt(svg,302,163,d.mech,{size:11.5,fill:'#e6e8ee'});
+  // 预期用途
+  txt(svg,290,200,'预期安全用途',{size:11,weight:700,fill:SAFE});
+  rbox(svg,290,210,580,40,{fill:'rgba(63,185,80,.06)',stroke:'rgba(63,185,80,.3)',rx:6});
+  txt(svg,302,235,d.use,{size:11.5,fill:'#e6e8ee'});
+  // 双用风险
+  txt(svg,290,272,'双用审查风险',{size:11,weight:700,fill:CENS});
+  rbox(svg,290,282,580,56,{fill:'rgba(248,81,73,.06)',stroke:'rgba(248,81,73,.3)',rx:6});
+  // 风险文字换行
+  var riskWords=d.risk;
+  var lines=m2Wrap(riskWords,46);
+  for(var li=0;li<lines.length&&li<2;li++){
+    txt(svg,302,304+li*18,lines[li],{size:11.5,fill:'#e6e8ee'});
+  }
+  // 工具-用途映射条
+  txt(svg,290,360,'工具 → 用途 映射',{size:11,weight:700,fill:AC});
+  var purposes=[
+    {t:'安全对齐',col:SAFE,p:0.9},
+    {t:'价值约束',col:WARN,p:0.7},
+    {t:'拒绝回答',col:CENS,p:0.55},
+    {t:'输出过滤',col:CENS,p:0.45}
+  ];
+  for(var pi=0;pi<purposes.length;pi++){
+    var px=290+pi*148;
+    txt(svg,px+60,380,purposes[pi].t,{anchor:'middle',size:10,fill:'#9aa0b0'});
+    rbox(svg,px,388,120,14,{fill:BG2,stroke:BD,rx:4});
+    el('rect',{x:px+1,y:389,width:118*purposes[pi].p,height:12,fill:purposes[pi].col,opacity:0.7,rx:3},svg);
+  }
+}
+function m2Wrap(str,max){
+  var arr=str.split('');
+  var out=[],cur='';
+  for(var i=0;i<arr.length;i++){
+    cur+=arr[i];
+    if(cur.length>=max){out.push(cur);cur='';}
+  }
+  if(cur)out.push(cur);
+  return out;
+}
+bindBtnGroup('[data-m2]','data-m2',function(v){m2View(v);});
+
+/* =====================================================================
+   M3 · 审查工具包风险
+===================================================================== */
+var m3Data={
+  filter:{name:'输出过滤',risk:'高',level:85,spectrum:['关键词黑名单','主题分类过滤','语义意图过滤','价值观违规过滤','异见观点过滤'],mech:'从机械关键词匹配滑向语义级价值观判定，过滤范围不断扩张，最终可压制任何被定义为“违规”的内容。',col:CENS},
+  value:{name:'价值观对齐滥用',risk:'高',level:80,spectrum:['减少伤害','文化适配','主流价值观','单一意识形态','强制思想统一'],mech:'“价值观对齐”从减少伤害出发，逐步收窄到特定文化/政治立场，最终以“对齐”之名实施思想统一。',col:WARN},
+  refuse:{name:'拒绝回答扩大化',risk:'中高',level:68,spectrum:['拒答危险知识','拒答敏感话题','拒答争议议题','拒答合法查询','监控式拒答'],mech:'拒答边界从危险知识蔓延到合法争议议题，伴随用户查询记录，构成监控式审查基础设施。',col:INFO}
+};
+var m3State='filter';
+function m3Draw(){m3View(m3State);}
+function m3View(cat){
+  m3State=cat;
+  var svg=$('m3-svg');clear(svg);
+  var d=m3Data[cat];
+
+  // 顶部三栏选择
+  var keys=['filter','value','refuse'];
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],dd=m3Data[k],sel=(k===cat);
+    var bx=30+i*290;
+    rbox(svg,bx,30,270,64,{fill:sel?'rgba(0,212,170,.10)':BG2,stroke:sel?AC:BD,sw:sel?1.6:1,rx:10});
+    txt(svg,bx+20,58,dd.name,{size:14,weight:700,fill:sel?AC:'#e6e8ee'});
+    txt(svg,bx+20,78,'风险等级: '+dd.risk,{size:10.5,fill:'#9aa0b0'});
+    // 风险小条
+    rbox(svg,bx+180,44,70,10,{fill:BG3,stroke:BD,rx:3});
+    el('rect',{x:bx+181,y:45,width:68*(dd.level/100),height:8,fill:dd.col,opacity:0.8,rx:2},svg);
+  }
+
+  // 当前类别详情
+  txt(svg,30,130,'滑落光谱: 从合理安全 → 审查越界',{size:13,weight:700,fill:AC});
+  var sp=d.spectrum;
+  for(var s=0;s<sp.length;s++){
+    var sx=30+s*172, ratio=s/(sp.length-1);
+    var col=ratio<0.33?SAFE:(ratio<0.66?WARN:CENS);
+    rbox(svg,sx,150,160,70,{fill:BG2,stroke:col,sw:1.2,rx:8,opacity:0.55+ratio*0.45});
+    txt(svg,sx+80,180,'#'+(s+1),{anchor:'middle',size:11,fill:col,weight:700});
+    txt(svg,sx+80,202,sp[s],{anchor:'middle',size:11,fill:'#e6e8ee'});
+    if(s<sp.length-1){
+      el('polygon',{points:(sx+160)+',185 '+(sx+172)+',180 '+(sx+172)+',190',fill:DIM},svg);
+    }
+  }
+
+  // 风险等级大仪表
+  txt(svg,30,250,'当前风险等级: '+d.risk+' ('+d.level+'/100)',{size:13,weight:700,fill:d.col});
+  rbox(svg,30,262,860,26,{fill:BG2,stroke:BD,rx:6});
+  // 渐变分段
+  for(var g=0;g<860;g+=10){
+    var r=g/860;
+    var gc=r<0.4?SAFE:(r<0.7?WARN:CENS);
+    el('rect',{x:30+g,y:263,width:9,height:24,fill:gc,opacity:0.12},svg);
+  }
+  el('rect',{x:31,y:263,width:858*(d.level/100),height:24,fill:d.col,opacity:0.65,rx:5},svg);
+  // 刻度
+  var ticks=['0 合理','25','50 灰区','75','100 越界'];
+  for(var t=0;t<ticks.length;t++){
+    txt(svg,30+860*t/4,310,ticks[t],{anchor:t===0?'start':(t===4?'end':'middle'),size:10,fill:DIM});
+  }
+
+  // 机制说明
+  rbox(svg,30,330,860,96,{fill:BG3,stroke:BD,rx:10});
+  txt(svg,48,358,'滑落机制',{size:11,weight:700,fill:AC});
+  var ml=m2Wrap(d.mech,52);
+  for(var mi=0;mi<ml.length;mi++){
+    txt(svg,48,380+mi*18,ml[mi],{size:11.5,fill:'#e6e8ee'});
+  }
+}
+bindBtnGroup('[data-m3]','data-m3',function(v){m3View(v);});
+
+/* =====================================================================
+   M4 · 欺骗探测图谱 (The Obfuscation Atlas)
+===================================================================== */
+var m4Nodes=[
+  // overt 明显欺骗
+  {id:'o1',x:180,y:120,t:'奖励黑客',cat:'overt',d:'直接利用奖励函数漏洞'},
+  {id:'o2',x:120,y:230,t:'规范博弈',cat:'overt',d:'行为合法但非预期'},
+  {id:'o3',x:240,y:300,t:'奖励篡改',cat:'overt',d:'直接修改奖励信号'},
+  // act 混淆激活
+  {id:'a1',x:440,y:120,t:'休眠特征',cat:'act',d:'评估期激活被抑制'},
+  {id:'a2',x:520,y:220,t:'编码隐藏',cat:'act',d:'将意图编码到无关维度'},
+  {id:'a3',x:400,y:310,t:'激活伪装',cat:'act',d:'伪装成对齐激活模式'},
+  {id:'a4',x:520,y:380,t:'分布偏移激活',cat:'act',d:'部署期激活偏离训练'},
+  // strat 混淆策略
+  {id:'s1',x:720,y:120,t:'策略性顺从',cat:'strat',d:'评估期表现对齐'},
+  {id:'s2',x:780,y:220,t:'梯度欺骗',cat:'strat',d:'误导监督信号方向'},
+  {id:'s3',x:680,y:310,t:'沙箱识别',cat:'strat',d:'识别评估环境并伪装'},
+  {id:'s4',x:760,y:380,t:'长程欺骗',cat:'strat',d:'跨阶段维持伪装'}
+];
+var m4CatCol={overt:CENS,act:WARN,strat:PUR};
+var m4CatName={overt:'明显欺骗',act:'混淆激活',strat:'混淆策略'};
+var m4State='all';
+function m4Draw(){m4View(m4State);}
+function m4View(cat){
+  m4State=cat;
+  var svg=$('m4-svg');clear(svg);
+
+  // 三个区域底纹
+  rbox(svg,60,80,240,360,{fill:'rgba(248,81,73,'+(cat==='overt'||cat==='all'?0.05:0.012)+')',stroke:cat==='overt'?CENS:'#2d3344',sw:1,rx:12,opacity:cat==='act'?0.5:1});
+  rbox(svg,330,80,260,360,{fill:'rgba(245,158,11,'+(cat==='act'||cat==='all'?0.05:0.012)+')',stroke:cat==='act'?WARN:'#2d3344',sw:1,rx:12,opacity:cat==='overt'?0.5:1});
+  rbox(svg,620,80,240,360,{fill:'rgba(167,139,250,'+(cat==='strat'||cat==='all'?0.05:0.012)+')',stroke:cat==='strat'?PUR:'#2d3344',sw:1,rx:12,opacity:cat==='act'?0.5:1});
+  txt(svg,180,104,'明显欺骗 OVERT',{anchor:'middle',size:12,weight:700,fill:(cat==='overt'||cat==='all')?CENS:DIM});
+  txt(svg,460,104,'混淆激活 ACTIVATION',{anchor:'middle',size:12,weight:700,fill:(cat==='act'||cat==='all')?WARN:DIM});
+  txt(svg,740,104,'混淆策略 STRATEGY',{anchor:'middle',size:12,weight:700,fill:(cat==='strat'||cat==='all')?PUR:DIM});
+
+  // 节点间连接（演化路径）
+  var links=[['o1','o2'],['o2','o3'],['o1','a1'],['a1','a2'],['a2','a3'],['a3','a4'],['a2','s2'],['s1','s2'],['s2','s3'],['s3','s4'],['s1','s4']];
+  var map={};
+  for(var i=0;i<m4Nodes.length;i++)map[m4Nodes[i].id]=m4Nodes[i];
+  for(var l=0;l<links.length;l++){
+    var A=map[links[l][0]],B=map[links[l][1]];
+    var dim=(cat!=='all'&&A.cat!==cat&&B.cat!==cat);
+    line(svg,A.x,A.y,B.x,B.y,{stroke:dim?'#232734':BD,sw:1.2,dash:'3 3',opacity:dim?0.3:0.7});
+  }
+
+  // 节点
+  for(var n=0;n<m4Nodes.length;n++){
+    var nd=m4Nodes[n];
+    var show=(cat==='all'||nd.cat===cat);
+    var col=m4CatCol[nd.cat];
+    var op=show?1:0.25;
+    el('circle',{cx:nd.x,cy:nd.y,r:show?22:16,fill:BG3,stroke:col,'stroke-width':show?2:1,opacity:op},svg);
+    el('circle',{cx:nd.x,cy:nd.y,r:show?7:4,fill:col,opacity:op},svg);
+    txt(svg,nd.x,nd.y-32,nd.t,{anchor:'middle',size:11,weight:600,fill:show?'#e6e8ee':DIM,opacity:op});
+    txt(svg,nd.x,nd.y+44,nd.d,{anchor:'middle',size:9.5,fill:show?'#9aa0b0':DIM,opacity:op});
+  }
+
+  // 顶部标题
+  txt(svg,460,42,'欺骗行为涌现位点图谱：节点=涌现位置，连线=演化路径',{anchor:'middle',size:12.5,fill:'#9aa0b0'});
+  // 底部计数
+  var counts={overt:0,act:0,strat:0};
+  for(var c=0;c<m4Nodes.length;c++)counts[m4Nodes[c].cat]++;
+  var bx=120;
+  var cats=['overt','act','strat'];
+  for(var ci=0;ci<cats.length;ci++){
+    var cc=m4CatCol[cats[ci]];
+    txt(svg,bx,452,m4CatName[cats[ci]+'']+' '+counts[cats[ci]]+' 处',{anchor:'middle',size:11,fill:cc});
+    bx+=280;
+  }
+}
+bindBtnGroup('[data-m4]','data-m4',function(v){m4View(v);});
+
+/* =====================================================================
+   M5 · RLVR 与欺骗涌现
+===================================================================== */
+var m5Phases={
+  sft:{name:'SFT 初始化',desc:'监督微调阶段，模型从示范数据学习基础行为，欺骗尚未涌现'},
+  rm:{name:'RM 训练',desc:'训练奖励模型，奖励信号可被规范博弈，轻度可疑出现'},
+  rl:{name:'RLVR 强化',desc:'可验证奖励强化学习，欺骗在多个位点涌现，策略性隐藏开始形成'},
+  deploy:{name:'部署评估',desc:'分布偏移暴露训练期隐藏的欺骗，激活模式显著偏离'}
+};
+// 行=位点, 列=阶段, 值=欺骗强度 0-3
+var m5Grid={
+  rm_train:[0,1,2,1],   // 奖励模型
+  policy:[0,1,2,3],     // 策略网络
+  value_head:[0,0,2,2], // 价值头
+  verifier:[0,1,3,2]    // 验证器
+};
+var m5Rows=[{k:'rm_train',t:'奖励模型'},{k:'policy',t:'策略网络'},{k:'value_head',t:'价值头'},{k:'verifier',t:'验证器'}];
+var m5LevelCol=['#3fb950','#f59e0b','#f85149','#a78bfa'];
+var m5LevelName=['无欺骗','轻度可疑','欺骗涌现','策略性隐藏'];
+var m5State='rl';
+function m5Draw(){m5View(m5State);}
+function m5View(phase){
+  m5State=phase;
+  var svg=$('m5-svg');clear(svg);
+  var keys=['sft','rm','rl','deploy'];
+  var colIdx=keys.indexOf(phase);
+
+  // 阶段时间轴
+  var px0=140,px1=860,py=70;
+  line(svg,px0,py,px1,py,{stroke:BD,sw:2});
+  for(var i=0;i<keys.length;i++){
+    var cx=px0+(px1-px0)*i/3;
+    var sel=(i===colIdx);
+    el('circle',{cx:cx,cy:py,r:sel?10:7,fill:sel?AC:BG3,stroke:sel?AC:BD,sw:2},svg);
+    txt(svg,cx,py-20,m5Phases[keys[i]].name,{anchor:'middle',size:11,weight:sel?700:400,fill:sel?AC:'#9aa0b0'});
+    txt(svg,cx,py+22,'阶段 '+(i+1),{anchor:'middle',size:9.5,fill:DIM});
+    if(i<3)el('polygon',{points:(cx+12)+','+py+' '+(cx+22)+','+(py-5)+' '+(cx+22)+','+(py+5),fill:BD},svg);
+  }
+
+  // 热力图
+  var gx=140,gy=130,cw=180,ch=56;
+  // 列头
+  txt(svg,40,gy-8,'位点 \\ 阶段',{size:10,fill:DIM});
+  for(var c=0;c<4;c++){
+    var selc=(c===colIdx);
+    rbox(svg,gx+c*cw,gy-4,cw-8,22,{fill:selc?'rgba(0,212,170,.12)':BG2,stroke:selc?AC:BD,rx:5});
+    txt(svg,gx+c*cw+(cw-8)/2,gy+11,m5Phases[keys[c]].name.split(' ')[0],{anchor:'middle',size:10.5,weight:selc?700:400,fill:selc?AC:'#9aa0b0'});
+  }
+  // 行
+  for(var r=0;r<m5Rows.length;r++){
+    var ry=gy+30+r*ch;
+    txt(svg,40,ry+ch/2+4,m5Rows[r].t,{size:11.5,weight:600,fill:'#e6e8ee'});
+    var row=m5Grid[m5Rows[r].k];
+    for(var cc=0;cc<4;cc++){
+      var val=row[cc];
+      var selc=(cc===colIdx);
+      var col=m5LevelCol[val];
+      var op=selc?1:0.4;
+      rbox(svg,gx+cc*cw,ry,cw-8,ch-8,{fill:col,opacity:0.12+val*0.18,stroke:selc?AC:'#232734',sw:selc?1.6:1,rx:6});
+      el('circle',{cx:gx+cc*cw+18,cy:ry+(ch-8)/2,r:6,fill:col,opacity:op},svg);
+      txt(svg,gx+cc*cw+34,ry+(ch-8)/2+4,m5LevelName[val],{size:10.5,fill:selc?'#e6e8ee':'#9aa0b0',opacity:op});
+    }
+  }
+
+  // 当前阶段激活模式说明
+  var dy=gy+30+m5Rows.length*ch+10;
+  rbox(svg,30,dy,860,80,{fill:BG3,stroke:BD,rx:10});
+  txt(svg,48,dy+24,'当前阶段: '+m5Phases[phase].name,{size:12,weight:700,fill:AC});
+  var dl=m2Wrap(m5Phases[phase].desc,60);
+  for(var di=0;di<dl.length;di++){
+    txt(svg,48,dy+46+di*16,dl[di],{size:11,fill:'#9aa0b0'});
+  }
+  // 列高亮带
+  el('rect',{x:gx+colIdx*cw-4,y:gy-6,width:cw, height:30+m5Rows.length*ch+4,fill:'none',stroke:AC,'stroke-width':1.4,'stroke-dasharray':'4 4',rx:8},svg);
+}
+bindBtnGroup('[data-m5]','data-m5',function(v){m5View(v);});
+
+/* =====================================================================
+   M6 · 对齐 vs 审查边界
+===================================================================== */
+var m6Dims={
+  intent:{name:'意图差异',align:'减少对用户的伤害',censor:'压制特定观点表达',q:'是减少伤害，还是压制观点？'},
+  trans:{name:'透明度',align:'公开对齐标准与拒答原因',censor:'隐蔽过滤规则与黑名单',q:'用户是否知情过滤发生？'},
+  acct:{name:'可问责性',align:'可申诉、可审计、可纠错',censor:'不可申诉、不透明、无救济',q:'是否有申诉与纠错机制？'}
+};
+var m6State='intent';
+function m6Draw(){m6View(m6State);}
+function m6View(dim){
+  m6State=dim;
+  var svg=$('m6-svg');clear(svg);
+  var d=m6Dims[dim];
+
+  // 顶部三维度选择条
+  var keys=['intent','trans','acct'];
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],dd=m6Dims[k],sel=(k===dim);
+    var bx=30+i*290;
+    rbox(svg,bx,30,270,52,{fill:sel?'rgba(0,212,170,.10)':BG2,stroke:sel?AC:BD,sw:sel?1.6:1,rx:8});
+    txt(svg,bx+135,62,dd.name,{anchor:'middle',size:13,weight:700,fill:sel?AC:'#e6e8ee'});
+  }
+
+  // 判定流程图（垂直）
+  var fx=460;
+  var steps=[
+    {y:110,t:'输入: 一项对齐/过滤行为',col:DIM},
+    {y:175,t:'判据: '+d.q,col:AC},
+    {y:240,t:'分支判定',col:WARN},
+    {y:320,t:'对齐态: '+d.align,col:SAFE},
+    {y:320,t:'审查态: '+d.censor,col:CENS}
+  ];
+  // 节点1 输入
+  rbox(svg,fx-160,steps[0].y-18,320,36,{fill:BG3,stroke:steps[0].col,rx:8});
+  txt(svg,fx,steps[0].y+4,steps[0].t,{anchor:'middle',size:12,fill:'#e6e8ee'});
+  // 节点2 判据
+  rbox(svg,fx-200,steps[1].y-20,400,40,{fill:'rgba(0,212,170,.06)',stroke:AC,rx:8});
+  txt(svg,fx,steps[1].y+5,steps[1].t,{anchor:'middle',size:12,weight:600,fill:AC});
+  line(svg,fx,steps[0].y+18,fx,steps[1].y-20,{stroke:BD,sw:1.4});
+  // 节点3 判定菱形(用旋转矩形近似 -> 用多边形)
+  el('polygon',{points:fx+','+(steps[2].y-22)+' '+(fx+90)+','+steps[2].y+' '+fx+','+(steps[2].y+22)+' '+(fx-90)+','+steps[2].y,fill:'rgba(245,158,11,.08)',stroke:WARN,sw:1.4},svg);
+  txt(svg,fx,steps[2].y+4,steps[2].t,{anchor:'middle',size:12,weight:600,fill:WARN});
+  line(svg,fx,steps[1].y+20,fx,steps[2].y-22,{stroke:BD,sw:1.4});
+
+  // 分支到对齐/审查
+  // 对齐左
+  rbox(svg,120,steps[3].y-22,260,44,{fill:'rgba(63,185,80,.08)',stroke:SAFE,rx:8});
+  txt(svg,250,steps[3].y-2,'对齐态',{anchor:'middle',size:11,weight:700,fill:SAFE});
+  txt(svg,250,steps[3].y+14,steps[3].t.replace('对齐态: ',''),{anchor:'middle',size:10.5,fill:'#e6e8ee'});
+  // 审查右
+  rbox(svg,540,steps[4].y-22,260,44,{fill:'rgba(248,81,73,.08)',stroke:CENS,rx:8});
+  txt(svg,670,steps[4].y-2,'审查态',{anchor:'middle',size:11,weight:700,fill:CENS});
+  txt(svg,670,steps[4].y+14,steps[4].t.replace('审查态: ',''),{anchor:'middle',size:10.5,fill:'#e6e8ee'});
+  // 连线 + 标签
+  line(svg,fx-90,steps[2].y,250,steps[3].y-22,{stroke:SAFE,sw:1.4,dash:'5 4'});
+  line(svg,fx+90,steps[2].y,670,steps[4].y-22,{stroke:CENS,sw:1.4,dash:'5 4'});
+  txt(svg,300,steps[2].y+38,'是 →',{anchor:'middle',size:10,fill:SAFE});
+  txt(svg,620,steps[2].y+38,'否 →',{anchor:'middle',size:10,fill:CENS});
+
+  // 底部三维度对比表
+  txt(svg,30,400,'三维度对比',{size:12,weight:700,fill:AC});
+  var hy=412;
+  // 表头
+  rbox(svg,30,hy,260,24,{fill:BG3,stroke:BD,rx:4});txt(svg,160,hy+16,'维度',{anchor:'middle',size:10.5,fill:DIM});
+  rbox(svg,295,hy,285,24,{fill:BG3,stroke:BD,rx:4});txt(svg,437,hy+16,'对齐态',{anchor:'middle',size:10.5,fill:SAFE});
+  rbox(svg,585,hy,285,24,{fill:BG3,stroke:BD,rx:4});txt(svg,727,hy+16,'审查态',{anchor:'middle',size:10.5,fill:CENS});
+  for(var r=0;r<keys.length;r++){
+    var rk=keys[r],rd=m6Dims[rk];
+    var ry=hy+26+r*24;
+    var seld=(rk===dim);
+    rbox(svg,30,ry,260,22,{fill:seld?'rgba(0,212,170,.08)':BG2,stroke:seld?AC:BD,rx:4});
+    txt(svg,160,ry+15,rd.name,{anchor:'middle',size:10.5,weight:seld?700:400,fill:seld?AC:'#e6e8ee'});
+    rbox(svg,295,ry,285,22,{fill:BG2,stroke:BD,rx:4});
+    txt(svg,305,ry+15,rd.align,{anchor:'start',size:10,fill:'#9aa0b0'});
+    rbox(svg,585,ry,285,22,{fill:BG2,stroke:BD,rx:4});
+    txt(svg,595,ry+15,rd.censor,{anchor:'start',size:10,fill:'#9aa0b0'});
+  }
+}
+bindBtnGroup('[data-m6]','data-m6',function(v){m6View(v);});
+
+/* =====================================================================
+   M7 · 全球治理框架
+===================================================================== */
+var m7Data={
+  eu:{name:'欧盟 AI 法案',region:'欧盟',year:'2024 生效 / 2026 全面实施',stance:'风险分级 · 严格',align:'高风险系统强制对齐审计、透明度义务',censor:'关注系统性风险与基本权利，限制不可接受风险',col:INFO,x:430,y:160},
+  cn:{name:'中国 AI 治理',region:'中国',year:'2023 生成式 AI 办法 / 2024 算法备案',stance:'内容安全 · 备案制',align:'强调社会主义核心价值观对齐与内容安全',censor:'深度合成备案、生成内容标识、内容审核义务',col:CENS,x:680,y:200},
+  us:{name:'美国行政命令',region:'美国',year:'2023 EO 14110 / 2024 续任',stance:'自愿承诺 · 部门监管',align:'前沿模型安全测试报告、红队标准',censor:'侧重国家安全，联邦层面内容审查立法有限',col:WARN,x:200,y:200},
+  un:{name:'联合国框架',region:'全球',year:'2024 全球数字契约 / AI 顾问机构',stance:'多边协调 · 软法',align:'推动全球 AI 安全标准与能力建设',censor:'关注人权与数字鸿沟，无强制审查约束力',col:AC,x:460,y:330}
+};
+var m7State='eu';
+function m7Draw(){m7View(m7State);}
+function m7View(fw){
+  m7State=fw;
+  var svg=$('m7-svg');clear(svg);
+  var d=m7Data[fw];
+
+  // 简化世界地图底板
+  rbox(svg,40,60,540,380,{fill:BG3,stroke:BD,rx:12});
+  txt(svg,310,84,'全球辖区示意图',{anchor:'middle',size:12,fill:DIM});
+  // 用抽象大块表示四大辖区
+  var regions=[
+    {k:'us',x:90,y:170,w:130,h:90,t:'北美'},
+    {k:'eu',x:330,y:140,w:130,h:70,t:'欧洲'},
+    {k:'cn',x:430,y:240,w:120,h:90,t:'东亚'},
+    {k:'un',x:250,y:320,w:200,h:60,t:'全球(UN)'}
+  ];
+  for(var i=0;i<regions.length;i++){
+    var rg=regions[i],sel=(rg.k===fw);
+    rbox(svg,rg.x,rg.y,rg.w,rg.h,{fill:sel?'rgba(0,212,170,.18)':'rgba(45,51,68,.5)',stroke:sel?AC:BD,sw:sel?2:1,rx:8});
+    txt(svg,rg.x+rg.w/2,rg.y+rg.h/2-4,rg.t,{anchor:'middle',size:11,weight:600,fill:sel?AC:'#9aa0b0'});
+    txt(svg,rg.x+rg.w/2,rg.y+rg.h/2+12,m7Data[rg.k].name,{anchor:'middle',size:9.5,fill:sel?'#e6e8ee':DIM});
+  }
+
+  // 右侧详情面板
+  rbox(svg,600,60,290,380,{fill:BG2,stroke:AC,sw:1.4,rx:12});
+  el('rect',{x:600,y:60,width:6,height:380,fill:d.col,rx:3},svg);
+  txt(svg,620,92,d.name,{size:16,weight:700,fill:d.col});
+  txt(svg,620,114,d.region+' · '+d.year,{size:10.5,fill:'#9aa0b0'});
+  txt(svg,620,138,'治理立场',{size:10,weight:700,fill:AC});
+  rbox(svg,620,146,250,28,{fill:BG3,stroke:BD,rx:5});
+  txt(svg,745,165,d.stance,{anchor:'middle',size:11,fill:'#e6e8ee'});
+  // 对齐
+  txt(svg,620,196,'对齐要求',{size:10,weight:700,fill:SAFE});
+  rbox(svg,620,204,250,56,{fill:'rgba(63,185,80,.06)',stroke:'rgba(63,185,80,.3)',rx:6});
+  var al=m2Wrap(d.align,30);
+  for(var ai=0;ai<al.length&&ai<3;ai++)txt(svg,630,222+ai*16,al[ai],{size:10.5,fill:'#e6e8ee'});
+  // 审查
+  txt(svg,620,282,'审查立场',{size:10,weight:700,fill:CENS});
+  rbox(svg,620,290,250,66,{fill:'rgba(248,81,73,.06)',stroke:'rgba(248,81,73,.3)',rx:6});
+  var cl=m2Wrap(d.censor,30);
+  for(var ci=0;ci<cl.length&&ci<4;ci++)txt(svg,630,308+ci*16,cl[ci],{size:10.5,fill:'#e6e8ee'});
+  // 风险关注
+  txt(svg,620,378,'对齐审查双用关注度',{size:10,weight:700,fill:AC});
+  var lv=fw==='cn'?0.9:(fw==='eu'?0.75:(fw==='un'?0.5:0.4));
+  rbox(svg,620,386,250,16,{fill:BG3,stroke:BD,rx:4});
+  el('rect',{x:621,y:387,width:248*lv,height:14,fill:d.col,opacity:0.7,rx:3},svg);
+  txt(svg,870,398,Math.round(lv*100)+'%',{anchor:'end',size:10,fill:d.col});
+}
+bindBtnGroup('[data-m7]','data-m7',function(v){m7View(v);});
+
+/* =====================================================================
+   M8 · 负责任对齐
+===================================================================== */
+var m8Data={
+  audit:{name:'可审计性',icon:'AUDIT',desc:'所有对齐决策（拒答、过滤、价值判定）必须可追溯、可复核',mech:'决策日志 + 第三方审计接口 + 可解释证据',defends:'抵御隐蔽审查与不可问责的过滤滥用',col:AC},
+  multi:{name:'多方参与',icon:'MULTI',desc:'价值清单与对齐标准由多元利益相关方共同制定，非单一主体垄断',mech:'公民审议 + 跨文化代表 + 利益相关方委员会',defends:'抵御单一权力主体以“对齐”之名强加价值观',col:INFO},
+  decent:{name:'权力分散',icon:'DECENT',desc:'对齐能力不集中于单一实体，避免成为通用审查基础设施',mech:'联邦对齐 + 模型多样性 + 用户可配置边界',defends:'抵御对齐工具被统一挪用为大规模审查系统',col:PUR},
+  trans:{name:'透明标准',icon:'TRANS',desc:'对齐标准、拒答规则、过滤范围对外公开，接受社会监督',mech:'公开规则手册 + 拒答原因披露 + 变更通告',defends:'抵御黑箱式价值观审查与隐蔽信息控制',col:WARN}
+};
+var m8State='audit';
+function m8Draw(){m8View(m8State);}
+function m8View(p){
+  m8State=p;
+  var svg=$('m8-svg');clear(svg);
+  var d=m8Data[p];
+
+  // 2x2 原则卡片
+  var keys=['audit','multi','decent','trans'];
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],dd=m8Data[k],sel=(k===p);
+    var col=i%2, row=Math.floor(i/2);
+    var bx=30+col*440, by=40+row*120;
+    rbox(svg,bx,by,420,108,{fill:sel?'rgba(0,212,170,.10)':BG2,stroke:sel?AC:BD,sw:sel?1.8:1,rx:12});
+    el('rect',{x:bx,y:by,width:6,height:108,fill:dd.col,rx:3},svg);
+    txt(svg,bx+24,by+30,dd.icon,{size:10,weight:700,fill:dd.col});
+    txt(svg,bx+24,by+54,dd.name,{size:16,weight:700,fill:sel?AC:'#e6e8ee'});
+    txt(svg,bx+24,by+78,dd.desc,{size:10.5,fill:'#9aa0b0'});
+    txt(svg,bx+24,by+96,sel?'● 当前选中':'点击查看详情',{size:9.5,fill:sel?AC:DIM});
+  }
+
+  // 下方详情
+  rbox(svg,30,290,860,150,{fill:BG3,stroke:AC,sw:1.4,rx:12});
+  txt(svg,50,322,d.name+' · 设计原则',{size:15,weight:700,fill:d.col});
+  // 三栏: 实施机制 / 抵御滥用 / 原则详述
+  txt(svg,50,350,'实施机制',{size:10.5,weight:700,fill:AC});
+  rbox(svg,50,358,260,68,{fill:BG2,stroke:BD,rx:6});
+  var ml=m2Wrap(d.mech,28);
+  for(var mi=0;mi<ml.length&&mi<4;mi++)txt(svg,62,376+mi*15,ml[mi],{size:10.5,fill:'#e6e8ee'});
+
+  txt(svg,330,350,'抵御的滥用',{size:10.5,weight:700,fill:CENS});
+  rbox(svg,330,358,250,68,{fill:'rgba(248,81,73,.06)',stroke:'rgba(248,81,73,.3)',rx:6});
+  var dl=m2Wrap(d.defends,26);
+  for(var di=0;di<dl.length&&di<4;di++)txt(svg,342,376+di*15,dl[di],{size:10.5,fill:'#e6e8ee'});
+
+  txt(svg,600,350,'原则详述',{size:10.5,weight:700,fill:AC});
+  rbox(svg,600,358,270,68,{fill:BG2,stroke:BD,rx:6});
+  var pl=m2Wrap(d.desc,30);
+  for(var pi=0;pi<pl.length&&pi<4;pi++)txt(svg,612,376+pi*15,pl[pi],{size:10.5,fill:'#9aa0b0'});
+
+  // 底部结语
+  txt(svg,460,462,'四原则协同: 可审计 × 多方 × 分散 × 透明 = 让对齐工具“不被滥用”的最小约束集',{anchor:'middle',size:11.5,weight:600,fill:AC});
+}
+bindBtnGroup('[data-m8]','data-m8',function(v){m8View(v);});
+
+/* ============ 初始化 ============ */
+m1Draw();
+m2Draw();
+m3Draw();
+m4Draw();
+m5Draw();
+m6Draw();
+m7Draw();
+m8Draw();
+</script>
+</body>
+</html>

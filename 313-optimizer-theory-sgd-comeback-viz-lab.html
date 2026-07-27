@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>优化器理论与SGD回归 - 可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0a0b0f;--card:#13151a;--border:#2a2d35;--teal:#00d4aa;--teal-dim:#008f73;
+  --text:#e0e0e0;--muted:#8a8f9c;--accent:#7c5cff;--warn:#ffb84d;--red:#ff5c5c;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;line-height:1.5;}
+header{position:sticky;top:0;z-index:100;background:rgba(10,11,15,0.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+.nav-wrap{max-width:1440px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:17px;font-weight:700;color:var(--teal);white-space:nowrap;letter-spacing:0.3px;}
+.nav{display:flex;gap:4px;flex-wrap:wrap;}
+.nav-btn{background:transparent;border:1px solid transparent;color:var(--muted);padding:7px 12px;border-radius:7px;cursor:pointer;font-size:13px;transition:all .18s;font-family:inherit;}
+.nav-btn:hover{color:var(--text);background:rgba(255,255,255,0.04);}
+.nav-btn.active{color:var(--teal);border-color:var(--teal-dim);background:rgba(0,212,170,0.08);}
+main{max-width:1440px;margin:0 auto;padding:26px 24px 60px;}
+.module{display:none;animation:fade .3s ease;}
+.module.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.module-title{font-size:26px;font-weight:700;margin-bottom:6px;color:var(--text);}
+.module-title .accent{color:var(--teal);}
+.module-sub{color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.7;max-width:900px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.card+.card{margin-top:16px;}
+.card-title{font-size:15px;font-weight:600;color:var(--teal);margin-bottom:14px;display:flex;align-items:center;gap:9px;}
+.card-title .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px rgba(0,212,170,0.6);}
+svg{display:block;width:100%;height:auto;}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+label b{color:var(--teal);font-weight:600;}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border-radius:2px;outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid var(--bg);}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid var(--bg);}
+.btn{background:var(--card);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;cursor:pointer;font-size:13px;transition:all .18s;font-family:inherit;}
+.btn:hover{border-color:var(--teal-dim);color:var(--teal);}
+.btn.active{background:rgba(0,212,170,0.12);border-color:var(--teal);color:var(--teal);}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+.stat-value{font-size:22px;font-weight:700;color:var(--teal);}
+.stat-label{font-size:12px;color:var(--muted);margin-top:4px;}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:10px 18px;font-size:13px;}
+.kv .k{color:var(--muted);}
+.kv .v{color:var(--text);}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px;}
+.legend-item{display:flex;align-items:center;gap:7px;}
+.legend-swatch{width:16px;height:3px;border-radius:2px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--border);}
+th{color:var(--teal);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+td{color:var(--text);}
+tr:hover td{background:rgba(255,255,255,0.02);}
+.tag{display:inline-block;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:600;}
+.tag-teal{background:rgba(0,212,170,0.15);color:var(--teal);}
+.tag-warn{background:rgba(255,184,77,0.15);color:var(--warn);}
+.tag-purple{background:rgba(124,92,255,0.15);color:var(--accent);}
+.tag-red{background:rgba(255,92,92,0.15);color:var(--red);}
+.note{background:rgba(0,212,170,0.06);border-left:3px solid var(--teal);padding:11px 15px;border-radius:0 7px 7px 0;font-size:13px;color:var(--text);line-height:1.7;}
+.note b{color:var(--teal);}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.mono{font-family:'Consolas','SF Mono',monospace;}
+.formula{font-family:'Consolas','SF Mono',monospace;line-height:2.1;font-size:14px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 18px;}
+.reason-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.reason{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:14px;}
+.reason-h{color:var(--teal);font-weight:600;margin-bottom:6px;font-size:14px;}
+.reason-b{color:var(--text);font-size:13px;line-height:1.65;}
+@media(max-width:920px){.cols2,.cols3,.stat-grid,.reason-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+<div class="nav-wrap">
+<div class="logo">优化器理论与SGD回归 <span style="color:var(--muted);font-weight:400">· Viz Lab</span></div>
+<nav class="nav" id="nav"></nav>
+</div>
+</header>
+<main id="main"></main>
+<script>
+(function(){
+'use strict';
+var SVGNS='http://www.w3.org/2000/svg';
+var C={bg:'#13151a',border:'#2a2d35',teal:'#00d4aa',tealDim:'#008f73',text:'#e0e0e0',muted:'#8a8f9c',purple:'#7c5cff',warn:'#ffb84d',red:'#ff5c5c',grid:'#1d2026',panel:'#0d0f13'};
+
+/* el(): 创建SVG元素的辅助函数 */
+function el(tag,attrs,parent){
+  var e=document.createElementNS(SVGNS,tag);
+  if(attrs){for(var k in attrs){
+    if(k==='text'){e.textContent=attrs[k];}
+    else{e.setAttribute(k,attrs[k]);}
+  }}
+  if(parent){parent.appendChild(e);}
+  return e;
+}
+function setText(node,txt){if(node){node.textContent=txt;}}
+function clearNode(node){while(node&&node.firstChild){node.removeChild(node.firstChild);}}
+function getBody(id){return document.getElementById(id+'-body');}
+function card(title,inner){return '<div class="card"><div class="card-title"><span class="dot"></span>'+title+'</div>'+inner+'</div>';}
+function gap(n){return '<div style="height:'+(n||16)+'px"></div>';}
+function statCard(label,val,color){return '<div class="stat"><div class="stat-value" style="color:'+(color||C.teal)+'">'+val+'</div><div class="stat-label">'+label+'</div></div>';}
+
+function svgPanel(w,h){
+  return el('svg',{viewBox:'0 0 '+w+' '+h,preserveAspectRatio:'xMidYMid meet',style:'background:'+C.panel+';border-radius:8px'});
+}
+function axes(svg,x,y,w,h,opts){
+  opts=opts||{};
+  var gy=opts.gridy||4,gx=opts.gridx||4;
+  for(var i=1;i<gy;i++){var yy=y+h*i/gy;el('line',{x1:x,y1:yy,x2:x+w,y2:yy,stroke:C.grid,'stroke-width':1},svg);}
+  for(var j=1;j<gx;j++){var xx=x+w*j/gx;el('line',{x1:xx,y1:y,x2:xx,y2:y+h,stroke:C.grid,'stroke-width':1},svg);}
+  el('line',{x1:x,y1:y+h,x2:x+w,y2:y+h,stroke:C.border,'stroke-width':1},svg);
+  el('line',{x1:x,y1:y,x2:x,y2:y+h,stroke:C.border,'stroke-width':1},svg);
+}
+function line(svg,pts,color,width){
+  var d=[];
+  for(var i=0;i<pts.length;i++){d.push(pts[i][0]+','+pts[i][1]);}
+  el('polyline',{points:d.join(' '),fill:'none',stroke:color,'stroke-width':width||2,'stroke-linejoin':'round','stroke-linecap':'round'},svg);
+}
+function lgItem(g,i,label,color){
+  var y=16+i*18;
+  el('line',{x1:10,y1:y,x2:28,y2:y,stroke:color,'stroke-width':2.5},g);
+  el('text',{x:34,y:y+4,fill:C.text,'font-size':12,'text':label},g);
+}
+
+var MODULES=[
+  {id:'m1',label:'M1 优化器全景',title:'优化器发展史',sub:'从1951年SGD到2023年Lion/Sophia，优化器演进六十余年。本模块以交互式时间线展示八大主流优化器的诞生背景、更新规则与适用场景。'},
+  {id:'m2',label:'M2 SGD vs AdamW',title:'SGD vs AdamW 对比',sub:'ICML 2026 Oral核心发现：在LLM的RL微调阶段，纯SGD匹配甚至超越AdamW，且仅更新不到0.02%的参数（比AdamW少1000倍）。本模块并排对比两者的训练曲线、参数更新量与内存占用。'},
+  {id:'m3',label:'M3 Adam机制',title:'Adam优化机制',sub:'Adam = Momentum + RMSProp。本模块展示一阶矩 m_t、二阶矩 v_t 估计、偏差校正与自适应学习率，可通过β1/β2滑块观察矩估计的平滑效果。'},
+  {id:'m4',label:'M4 参数高效',title:'参数高效更新',sub:'《Do We Need Adam?》的核心发现：SGD仅更新0.02%参数即可匹配AdamW，参数更新量减少1000倍。本模块可视化更新密度并解释RL阶段梯度稀疏的根源。'},
+  {id:'m5',label:'M5 Lion/Sophia',title:'Lion与Sophia优化器',sub:'新一代优化器：Lion用符号操作省内存，Sophia用对角海森矩阵加速收敛。本模块展示两者机制与综合对比。'},
+  {id:'m6',label:'M6 学习率调度',title:'学习率调度策略',sub:'Cosine退火、Warmup、OneCycle、阶梯衰减与恒定学习率。本模块可切换调度策略并观察学习率曲线形态。'},
+  {id:'m7',label:'M7 RL微调',title:'RL微调优化',sub:'RLHF/RLAIF中的优化器选择、PPO梯度特性与奖励模型训练。本模块可视化RL训练管线并解释SGD在RL阶段回归的根源。'},
+  {id:'m8',label:'M8 训练管线',title:'训练管线架构',sub:'预训练→SFT→RLHF完整LLM训练管线中各阶段的优化器选择策略。本模块用流程图展示从AdamW到SGD的优化器演变。'}
+];
+
+/* ================= M1 优化器全景 ================= */
+var m1Sel=5;
+var m1Data=[
+  {year:1951,name:'SGD',color:C.teal,full:'Stochastic Gradient Descent',desc:'随机梯度下降由Robbins & Monro提出。每次迭代用一个小批量估计梯度并更新参数：θ←θ-η·∇L。最简单稳定的优化器，但收敛慢、对学习率敏感、易陷鞍点。',rule:'θ ← θ - η · ∇L',mem:'0（无额外状态）',scene:'传统ML、凸优化'},
+  {year:1964,name:'Momentum',color:C.teal,full:'Heavy Ball Momentum',desc:'Polyak提出动量法。引入历史速度项累积梯度方向：v←γv+η∇L；θ←θ-v。加速在一致方向上的收敛，抑制震荡，模拟物理动量。',rule:'v ← γv + η∇L；θ ← θ - v',mem:'1（速度 v）',scene:'深度学习早期训练'},
+  {year:2011,name:'AdaGrad',color:C.purple,full:'Adaptive Gradient',desc:'Duchi等提出AdaGrad。为每个参数维护累计梯度平方和，学习率按 1/√(累计) 自适应缩放。稀疏特征受益，但累计单调增长导致学习率最终趋零。',rule:'θ ← θ - η/(√G+ε) · ∇L',mem:'1（累计梯度平方 G）',scene:'稀疏数据、NLP早期'},
+  {year:2012,name:'RMSProp',color:C.purple,full:'Root Mean Square Propagation',desc:'Hinton提出RMSProp。用指数移动平均 E[g²] 替代全量累加，学习率按 1/√E[g²] 缩放，解决AdaGrad学习率过早衰减问题，适合非平稳目标。',rule:'θ ← θ - η/(√E[g²]+ε) · ∇L',mem:'1（E[g²]）',scene:'非平稳目标、RNN'},
+  {year:2014,name:'Adam',color:C.warn,full:'Adaptive Moment Estimation',desc:'Kingma & Ba提出Adam。结合Momentum与RMSProp：维护一阶矩 m_t 与二阶矩 v_t，并做偏差校正。自适应每个参数的学习率，成为深度学习默认优化器。',rule:'m_t=β1m+(1-β1)g；v_t=β2v+(1-β2)g²；θ←θ-η·m̂/(√v̂+ε)',mem:'2（m, v）',scene:'CV/NLP通用训练'},
+  {year:2017,name:'AdamW',color:C.warn,full:'Adam with Decoupled Weight Decay',desc:'Loshchilov & Hutter提出AdamW。将权重衰减从梯度中解耦，修正Adam中L2正则化实现偏差，显著提升泛化，成为LLM训练主流默认优化器。',rule:'θ ← θ - η·(m̂/(√v̂+ε) + λ·θ)',mem:'2（m, v）',scene:'LLM预训练/微调默认'},
+  {year:2023,name:'Lion',color:C.red,full:'EvoLved Sign Momentum',desc:'Google通过程序化符号搜索发现的优化器。更新仅依赖梯度符号 sign(g) 与动量插值，比Adam少一个状态量，内存更省，在大模型上表现优异。',rule:'u←sign(β1m+(1-β1)g)；θ←θ-η(u+λθ)；m←β2m+(1-β2)g',mem:'1（动量 m）',scene:'大模型高效训练'},
+  {year:2023,name:'Sophia',color:C.red,full:'Second-order Clipped Stochastic Optimization',desc:'斯坦福提出Sophia。用对角海森矩阵 H 估计损失曲率，按 H⁻¹ 缩放梯度更新。比Adam的一阶近似更准确，LLM预训练步数减少约2倍。',rule:'θ ← θ - η · clip(m/Ĥ, ±τ)',mem:'2（m, Ĥ）',scene:'LLM预训练加速'}
+];
+function m1Draw(){
+  var body=getBody('m1');
+  body.innerHTML=card('优化器演进时间线（点击节点查看详情）','<div id="m1-tl"></div>')+gap()+card('选中优化器详情','<div id="m1-detail"></div>');
+  m1RenderTimeline();
+  m1RenderDetail();
+}
+function m1RenderTimeline(){
+  var host=document.getElementById('m1-tl');clearNode(host);
+  var w=900,h=280;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  el('line',{x1:50,y1:150,x2:850,y2:150,stroke:C.border,'stroke-width':2},svg);
+  el('text',{x:180,y:34,fill:C.muted,'font-size':12,'text':'— 经典优化 era —'},svg);
+  el('text',{x:480,y:34,fill:C.purple,'font-size':12,'text':'— 自适应优化 era —'},svg);
+  el('text',{x:760,y:34,fill:C.red,'font-size':12,'text':'— 新一代优化 era —'},svg);
+  for(var i=0;i<m1Data.length;i++){
+    var t=m1Data[i];var x=50+(800/(m1Data.length-1))*i;var sel=(i===m1Sel);
+    var g=el('g',{transform:'translate('+x+',150)'},svg);
+    g.style.cursor='pointer';
+    if(sel){el('circle',{cx:0,cy:0,r:15,fill:'none',stroke:t.color,'stroke-width':1,opacity:0.5},g);}
+    el('circle',{cx:0,cy:0,r:sel?9:6,fill:t.color,stroke:C.panel,'stroke-width':2},g);
+    el('text',{x:0,y:-24,'text-anchor':'middle',fill:t.color,'font-size':12,'font-weight':'bold','text':String(t.year)},g);
+    el('text',{x:0,y:36,'text-anchor':'middle',fill:sel?C.text:C.muted,'font-size':12,'font-weight':sel?'bold':'normal','text':t.name},g);
+    (function(idx){g.addEventListener('click',function(){m1Sel=idx;m1RenderTimeline();m1RenderDetail();});})(i);
+  }
+  el('text',{x:450,y:260,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'横轴为时间（年），节点可点击；下方显示当前选中优化器的更新规则与适用场景'},svg);
+}
+function m1RenderDetail(){
+  var host=document.getElementById('m1-detail');clearNode(host);
+  var t=m1Data[m1Sel];
+  var d=document.createElement('div');
+  d.innerHTML='<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">'+
+    '<span style="font-size:30px;font-weight:700;color:'+t.color+'">'+t.name+'</span>'+
+    '<span class="tag tag-teal">'+t.year+'</span>'+
+    '<span style="color:'+C.muted+';font-size:13px">'+t.full+'</span></div>'+
+    '<div style="color:'+C.text+';line-height:1.75;font-size:14px;margin-bottom:14px">'+t.desc+'</div>'+
+    '<div class="kv">'+
+    '<span class="k">更新规则</span><span class="v mono">'+t.rule+'</span>'+
+    '<span class="k">内存状态</span><span class="v">'+t.mem+'</span>'+
+    '<span class="k">典型场景</span><span class="v">'+t.scene+'</span>'+
+    '</div>';
+  host.appendChild(d);
+}
+function m1View(){m1RenderTimeline();}
+
+/* ================= M2 SGD vs AdamW 对比 ================= */
+var m2Step=500;
+function m2Reward(type,t){
+  if(type==='adamw'){return 0.95*(1-Math.exp(-t*5.0));}
+  return 0.94*(1-Math.exp(-t*3.2));
+}
+function m2Draw(){
+  var body=getBody('m2');
+  body.innerHTML=
+    card('ICML 2026 核心发现：RL微调中 SGD vs AdamW',
+      '<div class="note">ICML 2026 Oral论文《Do We Need Adam?》发现：在LLM的RL微调阶段，纯<b>SGD匹配甚至超越AdamW</b>，且仅更新不到<b>0.02%</b>的参数（比AdamW少<b>1000倍</b>）。这对训练管线架构有重大影响。</div>'+
+      '<div style="margin-top:16px"><div class="controls"><label>训练步数：<b id="m2-stepval">500</b></label><input type="range" id="m2-slider" min="0" max="1000" value="500" style="width:320px"></div><div id="m2-curve"></div></div>'
+    )+gap()+
+    '<div class="cols2">'+
+    card('参数更新量对比','<div id="m2-updates"></div>')+
+    card('优化器内存占用对比','<div id="m2-mem"></div>')+
+    '</div>'+gap()+
+    card('关键指标对比（随训练步数动态变化）','<div id="m2-stats"></div>');
+  document.getElementById('m2-slider').addEventListener('input',function(){
+    m2Step=parseInt(this.value,10);
+    setText(document.getElementById('m2-stepval'),m2Step);
+    m2RenderCurve();m2RenderStats();
+  });
+  m2RenderCurve();m2RenderUpdates();m2RenderMem();m2RenderStats();
+}
+function m2RenderCurve(){
+  var host=document.getElementById('m2-curve');clearNode(host);
+  var w=860,h=360;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var padL=62,padR=30,padT=34,padB=52;var cw=w-padL-padR,ch=h-padT-padB;
+  axes(svg,padL,padT,cw,ch,{gridy:5,gridx:5});
+  for(var i=0;i<=5;i++){var yy=padT+ch*(1-i/5);el('text',{x:padL-9,y:yy+4,'text-anchor':'end',fill:C.muted,'font-size':11,'text':(i*0.2).toFixed(1)},svg);}
+  el('text',{x:18,y:padT+ch/2,fill:C.muted,'font-size':11,transform:'rotate(-90 18,'+(padT+ch/2)+')','text':'奖励 (Reward)'},svg);
+  for(var j=0;j<=5;j++){var xx=padL+cw*j/5;el('text',{x:xx,y:padT+ch+18,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':String(j*200)},svg);}
+  el('text',{x:padL+cw/2,y:padT+ch+40,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'训练步数'},svg);
+  var N=100,adamPts=[],sgdPts=[];
+  for(var k=0;k<=N;k++){
+    var t=k/N;var x=padL+cw*t;
+    adamPts.push([x,padT+ch*(1-m2Reward('adamw',t))]);
+    sgdPts.push([x,padT+ch*(1-m2Reward('sgd',t))]);
+  }
+  line(svg,adamPts,C.warn,2.5);
+  line(svg,sgdPts,C.teal,2.5);
+  var tt=m2Step/1000;var mx=padL+cw*tt;
+  el('line',{x1:mx,y1:padT,x2:mx,y2:padT+ch,stroke:C.purple,'stroke-width':1,'stroke-dasharray':'4 3',opacity:0.7},svg);
+  el('circle',{cx:mx,cy:padT+ch*(1-m2Reward('adamw',tt)),r:5,fill:C.warn,stroke:C.panel,'stroke-width':2},svg);
+  el('circle',{cx:mx,cy:padT+ch*(1-m2Reward('sgd',tt)),r:5,fill:C.teal,stroke:C.panel,'stroke-width':2},svg);
+  el('text',{x:mx,y:padT-10,'text-anchor':'middle',fill:C.purple,'font-size':11,'text':'步 '+m2Step},svg);
+  var lg=el('g',{transform:'translate('+(w-210)+',22)'},svg);
+  el('rect',{x:0,y:0,width:190,height:48,fill:C.bg,opacity:0.7,rx:6},lg);
+  lgItem(lg,0,'AdamW',C.warn);
+  lgItem(lg,1,'SGD (RL微调)',C.teal);
+}
+function m2RenderUpdates(){
+  var host=document.getElementById('m2-updates');clearNode(host);
+  var w=420,h=230;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var bx=120,bw=250;
+  el('text',{x:20,y:72,fill:C.warn,'font-size':13,'font-weight':'bold','text':'AdamW'},svg);
+  el('rect',{x:bx,y:60,width:bw,height:24,fill:C.warn,rx:3},svg);
+  el('text',{x:bx+bw+8,y:76,fill:C.text,'font-size':12,'text':'100% 参数'},svg);
+  el('text',{x:20,y:138,fill:C.teal,'font-size':13,'font-weight':'bold','text':'SGD'},svg);
+  el('rect',{x:bx,y:126,width:bw,height:24,fill:C.teal,opacity:0.15,rx:3},svg);
+  el('rect',{x:bx,y:126,width:Math.max(3,bw*0.0002),height:24,fill:C.teal,rx:3},svg);
+  el('text',{x:bx+12,y:142,fill:C.teal,'font-size':12,'text':'0.02% 参数'},svg);
+  el('line',{x1:bx+3,y1:118,x2:bx+3,y2:126,stroke:C.muted,'stroke-width':1},svg);
+  el('text',{x:bx+18,y:112,fill:C.muted,'font-size':10,'text':'放大显示'},svg);
+  el('text',{x:20,y:195,fill:C.purple,'font-size':13,'font-weight':'bold','text':'更新参数比例减少 1000×'},svg);
+  el('text',{x:20,y:214,fill:C.muted,'font-size':11,'text':'SGD仅更新梯度足够大的稀疏参数子集'},svg);
+}
+function m2RenderMem(){
+  var host=document.getElementById('m2-mem');clearNode(host);
+  var w=420,h=230;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  el('text',{x:20,y:30,fill:C.muted,'font-size':12,'text':'7B模型优化器状态显存（fp32）'},svg);
+  var bx=120,bw=240;
+  el('text',{x:20,y:78,fill:C.warn,'font-size':13,'font-weight':'bold','text':'AdamW'},svg);
+  el('rect',{x:bx,y:66,width:bw,height:22,fill:C.warn,rx:3},svg);
+  el('text',{x:bx+bw+8,y:82,fill:C.warn,'font-size':12,'text':'56 GB'},svg);
+  el('text',{x:bx,y:104,fill:C.muted,'font-size':10,'text':'(m, v 各一份 fp32 状态)'},svg);
+  el('text',{x:20,y:148,fill:C.teal,'font-size':13,'font-weight':'bold','text':'SGD'},svg);
+  el('rect',{x:bx,y:136,width:3,height:22,fill:C.teal,rx:3},svg);
+  el('text',{x:bx+12,y:152,fill:C.teal,'font-size':12,'text':'≈ 0 GB（无优化器状态）'},svg);
+  el('text',{x:20,y:198,fill:C.purple,'font-size':13,'font-weight':'bold','text':'优化器显存节省 ~98%'},svg);
+  el('text',{x:20,y:217,fill:C.muted,'font-size':11,'text':'RL微调SGD默认无动量 → 状态显存近零'},svg);
+}
+function m2RenderStats(){
+  var host=document.getElementById('m2-stats');clearNode(host);
+  var tt=m2Step/1000;var ra=m2Reward('adamw',tt),rs=m2Reward('sgd',tt);
+  var d=document.createElement('div');d.className='stat-grid';
+  d.innerHTML=
+    statCard('AdamW 奖励',ra.toFixed(3),C.warn)+
+    statCard('SGD 奖励',rs.toFixed(3),C.teal)+
+    statCard('奖励差距',(ra-rs).toFixed(3),C.muted)+
+    statCard('参数更新比','1000×',C.teal)+
+    statCard('显存节省','~98%',C.teal)+
+    statCard('收敛差距','< 2%',C.warn);
+  host.appendChild(d);
+}
+function m2View(){m2RenderCurve();m2RenderStats();}
+
+/* ================= M3 Adam 优化机制 ================= */
+var m3Beta1=0.9,m3Beta2=0.999;
+function m3Draw(){
+  var body=getBody('m3');
+  body.innerHTML=
+    card('Adam更新公式与机制','<div id="m3-formula"></div>')+gap()+
+    card('矩估计演化（调整 β₁/β₂ 观察平滑效果）',
+      '<div class="controls">'+
+      '<label>β₁（一阶矩）= <b id="m3-b1">0.90</b></label><input type="range" id="m3-s1" min="0" max="0.99" step="0.01" value="0.9" style="width:200px">'+
+      '<label>β₂（二阶矩）= <b id="m3-b2">0.9990</b></label><input type="range" id="m3-s2" min="0.5" max="0.9999" step="0.0001" value="0.999" style="width:200px">'+
+      '</div><div id="m3-chart"></div>')+gap()+
+    card('自适应有效学习率 η|m̂|/√v̂','<div id="m3-adaptive"></div>');
+  document.getElementById('m3-s1').addEventListener('input',function(){
+    m3Beta1=parseFloat(this.value);
+    setText(document.getElementById('m3-b1'),m3Beta1.toFixed(2));
+    m3RenderChart();m3RenderAdaptive();
+  });
+  document.getElementById('m3-s2').addEventListener('input',function(){
+    m3Beta2=parseFloat(this.value);
+    setText(document.getElementById('m3-b2'),m3Beta2.toFixed(4));
+    m3RenderChart();m3RenderAdaptive();
+  });
+  m3RenderFormula();m3RenderChart();m3RenderAdaptive();
+}
+function m3RenderFormula(){
+  var host=document.getElementById('m3-formula');clearNode(host);
+  host.innerHTML='<div class="formula">'+
+    '<div><span style="color:'+C.warn+'">m_t</span> = β₁ · m_{t-1} + (1 - β₁) · g_t &nbsp;&nbsp;<span style="color:'+C.muted+'">// 一阶矩（动量估计）</span></div>'+
+    '<div><span style="color:'+C.teal+'">v_t</span> = β₂ · v_{t-1} + (1 - β₂) · g_t² &nbsp;&nbsp;<span style="color:'+C.muted+'">// 二阶矩（梯度平方估计）</span></div>'+
+    '<div><span style="color:'+C.purple+'">m̂_t</span> = m_t / (1 - β₁ᵗ) &nbsp;&nbsp; <span style="color:'+C.purple+'">v̂_t</span> = v_t / (1 - β₂ᵗ) &nbsp;&nbsp;<span style="color:'+C.muted+'">// 偏差校正（消除初始零偏差）</span></div>'+
+    '<div><span style="color:'+C.text+'">θ</span> ← θ - η · m̂_t / (√v̂_t + ε) &nbsp;&nbsp;<span style="color:'+C.muted+'">// 参数更新</span></div>'+
+    '</div>'+
+    '<div class="note" style="margin-top:12px">每个参数拥有独立的有效学习率 η/√v̂_t：梯度大的参数学习率自动<b>减小</b>，梯度小的参数学习率自动<b>增大</b>，实现自适应。偏差校正确保训练初期估计无偏。</div>';
+}
+function m3GenGrad(){
+  var gs=[];for(var i=0;i<60;i++){var t=i/60;var g=Math.sin(t*Math.PI*4)*Math.exp(-Math.abs(t-0.5)*2)+(Math.random()-0.5)*0.3;gs.push(g);}
+  return gs;
+}
+function m3RenderChart(){
+  var host=document.getElementById('m3-chart');clearNode(host);
+  var w=860,h=340;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var padL=54,padR=20,padT=30,padB=42;var cw=w-padL-padR,ch=h-padT-padB;
+  axes(svg,padL,padT,cw,ch,{gridy:4,gridx:5});
+  var N=60;var gs=m3GenGrad();
+  var m=0,v=0,ms=[],vs=[];
+  for(var i=0;i<N;i++){
+    m=m3Beta1*m+(1-m3Beta1)*gs[i];
+    v=m3Beta2*v+(1-m3Beta2)*gs[i]*gs[i];
+    ms.push(m);vs.push(v);
+  }
+  var R=1.5;
+  function ys(val){return padT+ch*(1-(val+R)/(2*R));}
+  var gPts=[],mPts=[],vPts=[];
+  for(var j=0;j<N;j++){
+    var x=padL+cw*j/(N-1);
+    gPts.push([x,ys(gs[j])]);
+    mPts.push([x,ys(ms[j])]);
+    vPts.push([x,ys(vs[j]*1.5-0.3)]);
+  }
+  line(svg,gPts,C.muted,1.2);
+  line(svg,mPts,C.warn,2.2);
+  line(svg,vPts,C.teal,2.2);
+  el('text',{x:padL+cw/2,y:padT+ch+32,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'训练步 t'},svg);
+  el('text',{x:14,y:padT+ch/2,fill:C.muted,'font-size':11,transform:'rotate(-90 14,'+(padT+ch/2)+')','text':'幅值'},svg);
+  var lg=el('g',{transform:'translate('+(w-230)+',18)'},svg);
+  el('rect',{x:0,y:0,width:210,height:62,fill:C.bg,opacity:0.7,rx:6},lg);
+  lgItem(lg,0,'g_t（原始梯度）',C.muted);
+  lgItem(lg,1,'m_t（一阶矩）',C.warn);
+  lgItem(lg,2,'v_t（二阶矩·缩放显示）',C.teal);
+}
+function m3RenderAdaptive(){
+  var host=document.getElementById('m3-adaptive');clearNode(host);
+  var w=860,h=200;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var padL=60,padR=20,padT=22,padB=38;var cw=w-padL-padR,ch=h-padT-padB;
+  axes(svg,padL,padT,cw,ch,{gridy:4,gridx:5});
+  var N=60;var gs=m3GenGrad();
+  var m=0,v=0,lr=[];var eta=0.1,eps=1e-8;
+  for(var i=0;i<N;i++){
+    m=m3Beta1*m+(1-m3Beta1)*gs[i];
+    v=m3Beta2*v+(1-m3Beta2)*gs[i]*gs[i];
+    var mhat=m/(1-Math.pow(m3Beta1,i+1));
+    var vhat=v/(1-Math.pow(m3Beta2,i+1));
+    lr.push(eta*Math.abs(mhat)/(Math.sqrt(vhat)+eps));
+  }
+  var maxL=0;for(var k=0;k<lr.length;k++){if(lr[k]>maxL){maxL=lr[k];}}
+  if(maxL===0){maxL=1;}
+  var pts=[];for(var j=0;j<N;j++){pts.push([padL+cw*j/(N-1),padT+ch*(1-lr[j]/maxL)]);}
+  var grad=el('linearGradient',{id:'m3grad',x1:0,y1:0,x2:0,y2:1},svg);
+  el('stop',{offset:'0%','stop-color':C.purple,'stop-opacity':0.35},grad);
+  el('stop',{offset:'100%','stop-color':C.purple,'stop-opacity':0},grad);
+  var areaPts=pts.slice();
+  areaPts.unshift([pts[0][0],padT+ch]);
+  areaPts.push([pts[pts.length-1][0],padT+ch]);
+  var ad=[];for(var a=0;a<areaPts.length;a++){ad.push(areaPts[a][0]+','+areaPts[a][1]);}
+  el('polygon',{points:ad.join(' '),fill:'url(#m3grad)'},svg);
+  line(svg,pts,C.purple,2.5);
+  el('text',{x:padL+cw/2,y:padT+ch+30,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'训练步 t'},svg);
+  el('text',{x:14,y:padT+ch/2,fill:C.muted,'font-size':11,transform:'rotate(-90 14,'+(padT+ch/2)+')','text':'有效学习率'},svg);
+}
+function m3View(){m3RenderChart();m3RenderAdaptive();}
+
+/* ================= M4 参数高效更新 ================= */
+function m4Draw(){
+  var body=getBody('m4');
+  body.innerHTML=
+    card('《Do We Need Adam?》核心发现',
+      '<div class="note">在RL微调阶段，纯SGD仅更新 <b>0.02%</b> 的参数即可匹配AdamW。这意味着RL阶段的有效梯度极其稀疏——绝大多数参数在该阶段几乎不需要改变。</div>')+gap()+
+    '<div class="cols2">'+
+    card('参数更新密度可视化','<div id="m4-grid"></div>')+
+    card('更新量与性能对比','<div id="m4-compare"></div>')+
+    '</div>'+gap()+
+    card('为什么SGD在RL阶段足够？','<div id="m4-why"></div>');
+  m4RenderGrid();m4RenderCompare();m4RenderWhy();
+}
+function m4RenderGrid(){
+  var host=document.getElementById('m4-grid');clearNode(host);
+  var w=460,h=300;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var gx=30,gy=44,gw=180,gh=210,cols=24,rows=24;
+  el('text',{x:gx+gw/2,y:32,'text-anchor':'middle',fill:C.warn,'font-size':13,'font-weight':'bold','text':'AdamW'},svg);
+  for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){
+    el('rect',{x:gx+c*(gw/cols),y:gy+r*(gh/rows),width:gw/cols-1,height:gh/rows-1,fill:C.warn,opacity:0.7},svg);
+  }
+  el('text',{x:gx+gw/2,y:gy+gh+18,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'更新 100% 参数'},svg);
+  var gx2=250;
+  el('text',{x:gx2+gw/2,y:32,'text-anchor':'middle',fill:C.teal,'font-size':13,'font-weight':'bold','text':'SGD'},svg);
+  for(var r2=0;r2<rows;r2++)for(var c2=0;c2<cols;c2++){
+    el('rect',{x:gx2+c2*(gw/cols),y:gy+r2*(gh/rows),width:gw/cols-1,height:gh/rows-1,fill:C.border,opacity:0.5},svg);
+  }
+  el('rect',{x:gx2+2*(gw/cols),y:gy+3*(gh/rows),width:gw/cols-1,height:gh/rows-1,fill:C.teal},svg);
+  el('rect',{x:gx2+3*(gw/cols),y:gy+3*(gh/rows),width:gw/cols-1,height:gh/rows-1,fill:C.teal},svg);
+  el('circle',{cx:gx2+gw/2,cy:gy+gh/2,r:46,fill:'none',stroke:C.teal,'stroke-width':1.5,'stroke-dasharray':'3 2'},svg);
+  el('text',{x:gx2+gw/2,y:gy+gh+18,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'更新 ~0.02% 参数'},svg);
+  el('text',{x:w/2,y:h-12,'text-anchor':'middle',fill:C.purple,'font-size':12,'font-weight':'bold','text':'参数更新量减少 1000×'},svg);
+}
+function m4RenderCompare(){
+  var host=document.getElementById('m4-compare');clearNode(host);
+  var w=460,h=300;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  el('text',{x:20,y:28,fill:C.teal,'font-size':13,'font-weight':'bold','text':'最终奖励（越接近1越好）'},svg);
+  var ya=54;
+  el('rect',{x:120,y:ya,width:280*0.95,height:24,fill:C.warn,rx:3},svg);
+  el('text',{x:30,y:ya+17,fill:C.text,'font-size':12,'text':'AdamW'},svg);
+  el('text',{x:120+280*0.95+8,y:ya+17,fill:C.warn,'font-size':12,'text':'0.95'},svg);
+  el('rect',{x:120,y:ya+34,width:280*0.94,height:24,fill:C.teal,rx:3},svg);
+  el('text',{x:30,y:ya+51,fill:C.text,'font-size':12,'text':'SGD'},svg);
+  el('text',{x:120+280*0.94+8,y:ya+51,fill:C.teal,'font-size':12,'text':'0.94'},svg);
+  el('text',{x:20,y:158,fill:C.teal,'font-size':13,'font-weight':'bold','text':'参数更新总数（对数轴）'},svg);
+  var yb=184;
+  el('rect',{x:120,y:yb,width:280,height:22,fill:C.warn,rx:3},svg);
+  el('text',{x:30,y:yb+16,fill:C.text,'font-size':12,'text':'AdamW'},svg);
+  el('text',{x:120+288,y:yb+16,fill:C.warn,'font-size':12,'text':'~10⁹'},svg);
+  var sgw=280*5.3/9;
+  el('rect',{x:120,y:yb+30,width:sgw,height:22,fill:C.teal,rx:3},svg);
+  el('text',{x:30,y:yb+46,fill:C.text,'font-size':12,'text':'SGD'},svg);
+  el('text',{x:120+sgw+8,y:yb+46,fill:C.teal,'font-size':12,'text':'~2×10⁵'},svg);
+  el('text',{x:w/2,y:h-12,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'奖励差距 < 2%，更新量减少 1000×'},svg);
+}
+function m4RenderWhy(){
+  var host=document.getElementById('m4-why');clearNode(host);
+  var items=[
+    ['RL梯度稀疏','PPO的策略梯度 ∇log π·A 仅在采样到的token/动作上有显著信号，绝大多数参数梯度近零。'],
+    ['预训练已收敛','RL微调起点是已充分预训练+SFT的模型，参数已处于良好basin，无需大幅调整。'],
+    ['奖励信号局部','奖励主要影响少量"决策"相关参数（如价值头、策略头），基础表示层几乎不变。'],
+    ['二阶矩冗余','AdamW的自适应二阶矩在稀疏梯度下信息量低，SGD的统一学习率已足够。']
+  ];
+  var h='<div class="reason-grid">';
+  for(var i=0;i<items.length;i++){
+    h+='<div class="reason"><div class="reason-h">'+items[i][0]+'</div><div class="reason-b">'+items[i][1]+'</div></div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+function m4View(){m4RenderGrid();m4RenderCompare();}
+
+/* ================= M5 Lion 与 Sophia ================= */
+function m5Draw(){
+  var body=getBody('m5');
+  body.innerHTML=
+    '<div class="cols2">'+
+    card('Lion：符号优化器','<div id="m5-lion"></div>')+
+    card('Sophia：海森近似优化器','<div id="m5-sophia"></div>')+
+    '</div>'+gap()+
+    card('优化器综合对比','<div id="m5-table"></div>');
+  m5RenderLion();m5RenderSophia();m5RenderTable();
+}
+function m5RenderLion(){
+  var host=document.getElementById('m5-lion');clearNode(host);
+  host.innerHTML='<div class="formula">'+
+    '<div><span style="color:'+C.red+'">u_t</span> = sign( β₁·m + (1-β₁)·g_t )</div>'+
+    '<div><span style="color:'+C.text+'">θ</span> ← θ - η·( u_t + λ·θ )</div>'+
+    '<div><span style="color:'+C.red+'">m</span> ← β₂·m + (1-β₂)·g_t</div>'+
+    '</div>'+
+    '<div class="note" style="margin-top:11px">关键：更新方向仅取梯度符号 sign(·)，丢弃幅值。仅需<b>1个状态量</b>（动量 m），比Adam省一半优化器内存。</div>'+
+    '<div id="m5-lion-viz"></div>';
+  var w=400,h=120;var svg=svgPanel(w,h);document.getElementById('m5-lion-viz').appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var gPts=[],sPts=[];
+  for(var i=0;i<=40;i++){
+    var x=20+i*9;var g=Math.sin(i*0.5)*30;
+    gPts.push([x,60-g]);
+    sPts.push([x,60-Math.sign(Math.sin(i*0.5))*25]);
+  }
+  line(svg,gPts,C.muted,1.5);
+  line(svg,sPts,C.red,2.5);
+  el('text',{x:10,y:18,fill:C.muted,'font-size':11,'text':'g_t（梯度）'},svg);
+  el('text',{x:10,y:h-6,fill:C.red,'font-size':11,'text':'sign(g)（更新方向）'},svg);
+}
+function m5RenderSophia(){
+  var host=document.getElementById('m5-sophia');clearNode(host);
+  host.innerHTML='<div class="formula">'+
+    '<div><span style="color:'+C.red+'">m_t</span> = β₁·m + (1-β₁)·g_t</div>'+
+    '<div><span style="color:'+C.red+'">ĥ_t</span> = max( |g_tᵀ Ĥ g_t| / g_tᵀg_t , ε ) <span style="color:'+C.muted+'">// 对角海森估计</span></div>'+
+    '<div><span style="color:'+C.text+'">θ</span> ← θ - η · clip( m_t / ĥ_t , ±τ )</div>'+
+    '</div>'+
+    '<div class="note" style="margin-top:11px">用对角海森矩阵按曲率缩放梯度：曲率大的方向步长小，曲率小方向步长大。比Adam的一阶近似更准确，LLM预训练步数减少约<b>2倍</b>。</div>'+
+    '<div id="m5-sophia-viz"></div>';
+  var w=400,h=120;var svg=svgPanel(w,h);document.getElementById('m5-sophia-viz').appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var p1=[],p2=[];
+  for(var i=0;i<=60;i++){
+    var t=i/60;var x=10+t*380;
+    var u1=(t-0.3)*5;p1.push([x,30+u1*u1*6]);
+    var u2=(t-0.72)*5;p2.push([x,55+u2*u2*1.3]);
+  }
+  line(svg,p1,C.warn,2);
+  line(svg,p2,C.teal,2);
+  el('text',{x:120,y:24,fill:C.warn,'font-size':10,'text':'高曲率 → 小步'},svg);
+  el('text',{x:255,y:50,fill:C.teal,'font-size':10,'text':'低曲率 → 大步'},svg);
+  el('text',{x:10,y:h-6,fill:C.muted,'font-size':10,'text':'损失曲面曲率差异'},svg);
+}
+function m5RenderTable(){
+  var host=document.getElementById('m5-table');clearNode(host);
+  var rows=[
+    ['优化器','状态量','内存(相对)','更新依赖','二阶信息','典型优势'],
+    ['SGD','0','1×','g_t','否','稳定、省内存'],
+    ['Momentum','1','1.5×','v_t','否','加速收敛'],
+    ['AdamW','2','2×','m̂/√v̂','否(一阶矩)','自适应、通用默认'],
+    ['Lion','1','1.5×','sign(m+g)','否','省内存、大模型友好'],
+    ['Sophia','2','2×','m/ĥ','是(对角海森)','收敛快约2×']
+  ];
+  var h='<table>';
+  for(var i=0;i<rows.length;i++){
+    h+='<tr>';
+    for(var j=0;j<rows[i].length;j++){
+      h+=(i===0?'<th>':'<td>')+rows[i][j]+(i===0?'</th>':'</td>');
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  host.innerHTML=h;
+}
+function m5View(){}
+
+/* ================= M6 学习率调度 ================= */
+var m6Sch='warmcos';
+function m6LR(sch,t){
+  var etaMax=1.0;
+  if(sch==='constant'){return etaMax*0.7;}
+  if(sch==='cosine'){return etaMax*0.5*(1+Math.cos(Math.PI*t));}
+  if(sch==='warmcos'){var warm=0.1;if(t<warm){return etaMax*(t/warm);}var tt=(t-warm)/(1-warm);return etaMax*0.5*(1+Math.cos(Math.PI*tt));}
+  if(sch==='onecycle'){var p=0.3;if(t<p){return etaMax*t/p;}return etaMax*(0.05+0.95*(1-(t-p)/(1-p)));}
+  if(sch==='step'){if(t<0.3){return etaMax;}if(t<0.6){return etaMax*0.1;}if(t<0.85){return etaMax*0.01;}return etaMax*0.001;}
+  return etaMax;
+}
+function m6Draw(){
+  var body=getBody('m6');
+  body.innerHTML=
+    card('学习率调度策略对比',
+      '<div class="controls" id="m6-btns"></div><div id="m6-chart"></div>')+gap()+
+    card('策略说明','<div id="m6-desc"></div>');
+  var btns=document.getElementById('m6-btns');
+  var opts=[['cosine','Cosine退火'],['warmcos','Warmup+Cosine'],['onecycle','OneCycle'],['step','阶梯衰减'],['constant','恒定学习率']];
+  for(var i=0;i<opts.length;i++){
+    var b=document.createElement('button');
+    b.className='btn'+(opts[i][0]===m6Sch?' active':'');
+    b.textContent=opts[i][1];
+    b.setAttribute('data-s',opts[i][0]);
+    (function(key){b.onclick=function(){m6Sch=key;m6RenderChart();m6RenderDesc();var all=document.querySelectorAll('#m6-btns .btn');for(var k=0;k<all.length;k++){all[k].classList.toggle('active',all[k].getAttribute('data-s')===key);}};})(opts[i][0]);
+    btns.appendChild(b);
+  }
+  m6RenderChart();m6RenderDesc();
+}
+function m6RenderChart(){
+  var host=document.getElementById('m6-chart');clearNode(host);
+  var w=860,h=320;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var padL=62,padR=30,padT=30,padB=48;var cw=w-padL-padR,ch=h-padT-padB;
+  axes(svg,padL,padT,cw,ch,{gridy:5,gridx:5});
+  for(var i=0;i<=5;i++){var yy=padT+ch*(1-i/5);el('text',{x:padL-9,y:yy+4,'text-anchor':'end',fill:C.muted,'font-size':11,'text':(i*0.2).toFixed(1)},svg);}
+  el('text',{x:18,y:padT+ch/2,fill:C.muted,'font-size':11,transform:'rotate(-90 18,'+(padT+ch/2)+')','text':'学习率 (相对)'},svg);
+  for(var j=0;j<=5;j++){var xx=padL+cw*j/5;el('text',{x:xx,y:padT+ch+18,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':(j*20)+'%'},svg);}
+  el('text',{x:padL+cw/2,y:padT+ch+40,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':'训练进度'},svg);
+  var pts=[];
+  for(var k=0;k<=100;k++){var t=k/100;var lr=m6LR(m6Sch,t);pts.push([padL+cw*t,padT+ch*(1-lr)]);}
+  var grad=el('linearGradient',{id:'m6grad',x1:0,y1:0,x2:0,y2:1},svg);
+  el('stop',{offset:'0%','stop-color':C.teal,'stop-opacity':0.32},grad);
+  el('stop',{offset:'100%','stop-color':C.teal,'stop-opacity':0},grad);
+  var areaPts=pts.slice();
+  areaPts.unshift([pts[0][0],padT+ch]);
+  areaPts.push([pts[pts.length-1][0],padT+ch]);
+  var ad=[];for(var a=0;a<areaPts.length;a++){ad.push(areaPts[a][0]+','+areaPts[a][1]);}
+  el('polygon',{points:ad.join(' '),fill:'url(#m6grad)'},svg);
+  line(svg,pts,C.teal,2.5);
+}
+function m6RenderDesc(){
+  var host=document.getElementById('m6-desc');clearNode(host);
+  var D={
+    'cosine':['Cosine退火','lr(t) = η_max · ½(1 + cos(πt/T))。从最大学习率按余弦曲线平滑降至0，避免阶梯衰减的突变，是LLM训练最常用的调度策略。'],
+    'warmcos':['Warmup + Cosine','前warmup步线性升温至 η_max，再按余弦退火。warmup稳定早期训练（梯度方差大、优化器状态未热），是LLM预训练的标准配置。'],
+    'onecycle':['OneCycle','先升温至峰值再退火至极小值，一个周期完成训练。超参数少、收敛快，常用于CV与迁移学习场景。'],
+    'step':['阶梯衰减','在预设里程碑将学习率乘以 γ（如0.1）。简单直接，但突变可能造成loss抖动，传统CV常用。'],
+    'constant':['恒定学习率','全程保持固定学习率。最简单，适合RL微调等需要稳定探索的阶段，也是SGD回归论文中RL阶段的默认配置。']
+  };
+  var d=D[m6Sch];
+  host.innerHTML='<div style="color:'+C.teal+';font-weight:600;font-size:15px;margin-bottom:7px">'+d[0]+'</div><div class="formula" style="margin-bottom:10px">'+d[1].split('。')[0]+'</div><div style="color:'+C.text+';line-height:1.75;font-size:14px">'+d[1]+'</div>';
+}
+function m6View(){m6RenderChart();}
+
+/* ================= M7 RL微调优化 ================= */
+function m7Draw(){
+  var body=getBody('m7');
+  body.innerHTML=
+    card('RLHF / PPO 训练管线','<div id="m7-pipeline"></div>')+gap()+
+    '<div class="cols2">'+
+    card('PPO梯度特性','<div id="m7-ppo"></div>')+
+    card('各阶段优化器选择建议','<div id="m7-choice"></div>')+
+    '</div>';
+  m7RenderPipeline();m7RenderPPO();m7RenderChoice();
+}
+function m7RenderPipeline(){
+  var host=document.getElementById('m7-pipeline');clearNode(host);
+  var w=860,h=370;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var def=el('defs',{},svg);
+  var m1m=el('marker',{id:'m7arr',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},def);
+  el('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:C.muted},m1m);
+  var m2m=el('marker',{id:'m7arr2',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},def);
+  el('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:C.red},m2m);
+  function box(x,y,bw,bh,title,sub,color){
+    el('rect',{x:x,y:y,width:bw,height:bh,fill:C.bg,stroke:color,'stroke-width':1.5,rx:8},svg);
+    el('text',{x:x+bw/2,y:y+24,'text-anchor':'middle',fill:color,'font-size':13,'font-weight':'bold','text':title},svg);
+    if(sub){el('text',{x:x+bw/2,y:y+42,'text-anchor':'middle',fill:C.muted,'font-size':10,'text':sub},svg);}
+  }
+  el('text',{x:430,y:34,'text-anchor':'middle',fill:C.teal,'font-size':14,'font-weight':'bold','text':'RLHF / PPO 训练循环'},svg);
+  box(30,150,130,64,'SFT模型','策略起点 π_θ',C.warn);
+  box(225,70,150,60,'奖励模型','r_φ(x,y)',C.purple);
+  box(225,230,150,60,'价值模型','V_ψ(x)',C.warn);
+  box(440,140,170,84,'PPO更新','clip(ratio)·A - β·KL',C.teal);
+  box(680,150,150,60,'更新后策略','π_θ (新)',C.teal);
+  el('line',{x1:160,y1:165,x2:225,y2:105,stroke:C.muted,'stroke-width':1.5,'marker-end':'url(#m7arr)'},svg);
+  el('line',{x1:375,y1:105,x2:440,y2:165,stroke:C.purple,'stroke-width':1.5,'marker-end':'url(#m7arr)'},svg);
+  el('line',{x1:160,y1:195,x2:225,y2:255,stroke:C.muted,'stroke-width':1.5,'marker-end':'url(#m7arr)'},svg);
+  el('line',{x1:375,y1:255,x2:440,y2:200,stroke:C.warn,'stroke-width':1.5,'marker-end':'url(#m7arr)'},svg);
+  el('line',{x1:610,y1:182,x2:680,y2:180,stroke:C.teal,'stroke-width':1.5,'marker-end':'url(#m7arr)'},svg);
+  el('path',{d:'M 755 210 Q 755 330 430 330 Q 200 330 160 210',fill:'none',stroke:C.red,'stroke-width':1.5,'stroke-dasharray':'5 3','marker-end':'url(#m7arr2)'},svg);
+  el('text',{x:430,y:350,'text-anchor':'middle',fill:C.red,'font-size':11,'text':'KL惩罚回路（防止策略偏离参考模型）'},svg);
+}
+function m7RenderPPO(){
+  var host=document.getElementById('m7-ppo');clearNode(host);
+  host.innerHTML='<div style="color:'+C.text+';line-height:1.85;font-size:13px">'+
+    '<div style="margin-bottom:9px"><span style="color:'+C.teal+';font-weight:600">梯度稀疏性：</span>PPO策略梯度 ∇log π·A 仅在采样到的动作上有信号，绝大多数参数梯度近零。</div>'+
+    '<div style="margin-bottom:9px"><span style="color:'+C.teal+';font-weight:600">高方差：</span>优势估计 A 噪声大，梯度方差远高于监督学习，需GAE与多步累积。</div>'+
+    '<div style="margin-bottom:9px"><span style="color:'+C.teal+';font-weight:600">非平稳：</span>策略随训练变化，数据分布非平稳，二阶矩估计可能滞后。</div>'+
+    '<div><span style="color:'+C.teal+';font-weight:600">KL约束：</span>需保持与参考策略接近，更新幅度受限，本身倾向小幅稀疏更新。</div>'+
+    '</div>'+
+    '<div class="note" style="margin-top:11px">这些特性使SGD的统一学习率在RL阶段足够，AdamW的自适应优势被稀疏梯度抵消——这正是<b>SGD回归</b>的根源。</div>';
+}
+function m7RenderChoice(){
+  var host=document.getElementById('m7-choice');clearNode(host);
+  var rows=[
+    ['阶段','推荐优化器','原因'],
+    ['奖励模型训练','AdamW','监督学习，梯度密集，自适应有利'],
+    ['策略PPO更新','SGD','梯度稀疏、更新局部，SGD足够且省内存'],
+    ['价值模型训练','AdamW','回归任务，梯度较密集'],
+    ['DPO直接偏好','AdamW','类似监督学习的偏好损失']
+  ];
+  var h='<table>';
+  for(var i=0;i<rows.length;i++){
+    h+='<tr>';
+    for(var j=0;j<rows[i].length;j++){
+      h+=(i===0?'<th>':'<td>')+rows[i][j]+(i===0?'</th>':'</td>');
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  host.innerHTML=h;
+}
+function m7View(){m7RenderPipeline();}
+
+/* ================= M8 训练管线架构 ================= */
+function m8Draw(){
+  var body=getBody('m8');
+  body.innerHTML=
+    card('完整LLM训练管线与优化器选择','<div id="m8-flow"></div>')+gap()+
+    card('各阶段优化器配置详解','<div id="m8-detail"></div>');
+  m8RenderFlow();m8RenderDetail();
+}
+function m8RenderFlow(){
+  var host=document.getElementById('m8-flow');clearNode(host);
+  var w=860,h=300;var svg=svgPanel(w,h);host.appendChild(svg);
+  el('rect',{x:0,y:0,width:w,height:h,fill:C.panel},svg);
+  var def=el('defs',{},svg);
+  var m=el('marker',{id:'m8arr',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:8,markerHeight:8,orient:'auto-start-reverse'},def);
+  el('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:C.teal},m);
+  var stages=[
+    {x:40,title:'预训练',sub:'Pretrain',opt:'AdamW',lr:'2e-4',color:C.warn,desc:'海量无监督语料'},
+    {x:320,title:'监督微调',sub:'SFT',opt:'AdamW',lr:'1e-5',color:C.purple,desc:'指令数据对'},
+    {x:600,title:'RL微调',sub:'RLHF / PPO',opt:'SGD',lr:'1e-6',color:C.teal,desc:'偏好优化'}
+  ];
+  el('text',{x:430,y:44,'text-anchor':'middle',fill:C.teal,'font-size':15,'font-weight':'bold','text':'LLM 三阶段训练管线'},svg);
+  for(var i=0;i<stages.length;i++){
+    var s=stages[i];var x=s.x;
+    el('rect',{x:x,y:84,width:220,height:124,fill:C.bg,stroke:s.color,'stroke-width':2,rx:10},svg);
+    el('text',{x:x+110,y:114,'text-anchor':'middle',fill:s.color,'font-size':16,'font-weight':'bold','text':s.title},svg);
+    el('text',{x:x+110,y:134,'text-anchor':'middle',fill:C.muted,'font-size':11,'text':s.sub+' · '+s.desc},svg);
+    el('rect',{x:x+30,y:148,width:160,height:26,fill:s.color,opacity:0.12,rx:5},svg);
+    el('text',{x:x+110,y:166,'text-anchor':'middle',fill:s.color,'font-size':13,'font-weight':'bold','text':'优化器: '+s.opt},svg);
+    el('text',{x:x+110,y:192,'text-anchor':'middle',fill:C.text,'font-size':12,'text':'学习率: '+s.lr},svg);
+    if(i<2){el('line',{x1:x+220,y1:146,x2:x+280,y2:146,stroke:C.teal,'stroke-width':2,'marker-end':'url(#m8arr)'},svg);}
+  }
+  el('text',{x:430,y:250,'text-anchor':'middle',fill:C.muted,'font-size':12,'text':'优化器选择从 AdamW → AdamW → SGD 的演变，对应梯度从密集 → 稀疏的变化'},svg);
+  el('text',{x:430,y:274,'text-anchor':'middle',fill:C.purple,'font-size':12,'font-weight':'bold','text':'RL阶段切换SGD可节省~98%优化器显存，支持更大模型/更长上下文'},svg);
+}
+function m8RenderDetail(){
+  var host=document.getElementById('m8-detail');clearNode(host);
+  var rows=[
+    ['阶段','优化器','学习率','批量','典型步数','关键点'],
+    ['预训练','AdamW(β1=0.9,β2=0.95)','2e-4 ~ 5e-4','数百万token','10⁵ ~ 10⁶','梯度密集、需自适应；warmup+cosine'],
+    ['SFT','AdamW','1e-5 ~ 2e-5','数万~数十万','10³ ~ 10⁴','梯度较密集；短warmup+cosine'],
+    ['RLHF(PPO)','SGD','1e-6 ~ 5e-6','rollout批次','10³ ~ 10⁵','梯度稀疏；SGD足够且省1000×内存'],
+    ['DPO','AdamW','5e-7 ~ 1e-6','偏好对','10³ ~ 10⁴','偏好损失较密集；AdamW自适应']
+  ];
+  var h='<table>';
+  for(var i=0;i<rows.length;i++){
+    h+='<tr>';
+    for(var j=0;j<rows[i].length;j++){
+      h+=(i===0?'<th>':'<td>')+rows[i][j]+(i===0?'</th>':'</td>');
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  host.innerHTML=h+'<div class="note" style="margin-top:13px">核心洞察：管线后段（RL）梯度越稀疏，越适合简单优化器。ICML 2026的SGD回归发现，促使训练架构在RL阶段采用SGD，以大幅降低显存与通信开销，支持<b>更大模型</b>与<b>更长上下文</b>的RL训练。</div>';
+}
+function m8View(){m8RenderFlow();}
+
+/* ================= 模块系统与初始化 ================= */
+var DRAW={m1:m1Draw,m2:m2Draw,m3:m3Draw,m4:m4Draw,m5:m5Draw,m6:m6Draw,m7:m7Draw,m8:m8Draw};
+var VIEW={m1:m1View,m2:m2View,m3:m3View,m4:m4View,m5:m5View,m6:m6View,m7:m7View,m8:m8View};
+var drawn={};
+function showModule(id){
+  for(var i=0;i<MODULES.length;i++){
+    var sec=document.getElementById(MODULES[i].id);
+    if(sec){sec.style.display=(MODULES[i].id===id)?'block':'none';}
+  }
+  var btns=document.querySelectorAll('.nav-btn');
+  for(var j=0;j<btns.length;j++){btns[j].classList.toggle('active',btns[j].getAttribute('data-id')===id);}
+  if(!drawn[id]){DRAW[id]();drawn[id]=true;}
+  if(VIEW[id]){VIEW[id]();}
+}
+function buildShell(){
+  var nav=document.getElementById('nav');
+  for(var i=0;i<MODULES.length;i++){
+    var b=document.createElement('button');
+    b.className='nav-btn';
+    b.textContent=MODULES[i].label;
+    b.setAttribute('data-id',MODULES[i].id);
+    (function(mid){b.addEventListener('click',function(){showModule(mid);});})(MODULES[i].id);
+    nav.appendChild(b);
+  }
+  var main=document.getElementById('main');
+  for(var k=0;k<MODULES.length;k++){
+    var sec=document.createElement('section');
+    sec.className='module';
+    sec.id=MODULES[k].id;
+    sec.innerHTML='<div class="module-title">'+MODULES[k].title+'</div><div class="module-sub">'+MODULES[k].sub+'</div><div id="'+MODULES[k].id+'-body"></div>';
+    main.appendChild(sec);
+  }
+}
+buildShell();
+showModule('m1');
+})();
+</script>
+</body>
+</html>

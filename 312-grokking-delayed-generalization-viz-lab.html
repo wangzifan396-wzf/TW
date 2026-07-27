@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · Grokking现象与延迟泛化可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f; --bg-2:#101218; --bg-3:#161922; --border:#232734; --border-2:#2d3344;
+  --text:#e6e8ee; --text-2:#9aa0b0; --text-3:#62697b;
+  --accent:#00d4aa; --accent-dim:rgba(0,212,170,.14); --accent-soft:rgba(0,212,170,.08);
+  --warn:#f59e0b; --err:#ef4444; --info:#38bdf8; --pur:#a78bfa; --rose:#fb7185; --em:#34d399; --org:#ff7a45;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:rgba(10,11,15,.92);border-bottom:1px solid var(--border)}
+.hub-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);padding:6px 10px;border:1px solid var(--border);border-radius:6px;transition:.2s}
+.hub-link:hover{color:var(--accent);border-color:var(--accent)}
+.nav-title{font-size:13px;font-weight:600;letter-spacing:.02em}
+.nav-title .sep{color:var(--text-3);margin:0 6px}
+.nav-title .ac{color:var(--accent)}
+main{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+.lab-header{margin-bottom:24px}
+.lab-header .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:3px 8px;border-radius:4px;margin-bottom:12px;text-transform:uppercase}
+.lab-header h1{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin-bottom:8px}
+.lab-header p{color:var(--text-2);font-size:14px;max-width:780px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;margin-bottom:22px;position:sticky;top:52px;z-index:40}
+.tab{flex:1 1 auto;min-width:108px;font-size:12.5px;font-weight:500;color:var(--text-2);background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 10px;cursor:pointer;transition:.18s;text-align:center;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg-3)}
+.tab.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-dim);font-weight:600}
+.module{display:none;animation:fade .35s ease}
+.module.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.m-head .num{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-dim);padding:2px 7px;border-radius:4px}
+.m-head h2{font-size:18px;font-weight:650}
+.m-desc{color:var(--text-2);font-size:13px;margin-bottom:16px;max-width:820px}
+.viz{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;overflow:hidden}
+.viz svg{display:block;width:100%;height:auto}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center}
+.btn{font-family:var(--sans);font-size:12.5px;font-weight:500;color:var(--text);background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:8px 14px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent)}
+.btn.primary:hover{background:var(--accent-dim)}
+.btn.active{background:var(--accent-soft);border-color:var(--accent-dim);color:var(--accent);font-weight:600}
+.slider-wrap{display:flex;align-items:center;gap:10px;background:var(--bg-3);border:1px solid var(--border-2);border-radius:7px;padding:7px 12px}
+.slabel{font-size:12px;color:var(--text-2);white-space:nowrap}
+.sval{font-family:var(--mono);font-size:13px;color:var(--accent);min-width:46px;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;width:200px;background:var(--border-2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #0a0b0f;box-shadow:0 0 0 1px var(--accent)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #0a0b0f}
+.logbar{font-family:var(--mono);font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:14px;min-height:34px;display:flex;align-items:center;gap:8px}
+.logbar .lab{color:var(--accent)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.info-card{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:14px}
+.info-card .k{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-card .v{font-size:14px;color:var(--text);font-weight:600}
+.info-card .d{font-size:12px;color:var(--text-3);margin-top:4px}
+svg text{fill:var(--text);font-family:var(--sans)}
+svg .dim{fill:var(--text-3)}
+svg .muted{fill:var(--text-2)}
+.footer{text-align:center;color:var(--text-3);font-size:12px;padding:24px 0;border-top:1px solid var(--border);margin-top:30px}
+@media(max-width:720px){.tabs{position:static;top:auto}.lab-header h1{font-size:21px}.tab{min-width:84px;font-size:11px;padding:8px 6px}input[type=range]{width:130px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a class="hub-link" href="index.html">◂ TW Lab</a>
+  <div class="nav-title">Grokking 与延迟泛化<span class="sep">/</span><span class="ac">Grokking &amp; Delayed Generalization</span></div>
+</div>
+<main>
+  <div class="lab-header">
+    <span class="tag">GROK · DG · 312</span>
+    <h1>Grokking 现象与延迟泛化 · 可视化实验室</h1>
+    <p>ICML 2026 荣誉提名论文《To Grok Grokking: Provable Grokking in Ridge Regression》首次为 grokking 现象给出全局收敛证明。本实验室通过八个交互式 SVG 模块，全景解析模型在长时间过拟合后突然泛化的相变机制——从训练曲线突变、双下降、隐式正则化、数据效率，到 Ridge 回归可证明理论、记忆-泛化相变与算法学习应用。</p>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-m="m1">M1 全景</button>
+    <button class="tab" data-m="m2">M2 训练测试</button>
+    <button class="tab" data-m="m3">M3 双下降</button>
+    <button class="tab" data-m="m4">M4 隐式正则</button>
+    <button class="tab" data-m="m5">M5 数据效率</button>
+    <button class="tab" data-m="m6">M6 Ridge证明</button>
+    <button class="tab" data-m="m7">M7 记忆泛化</button>
+    <button class="tab" data-m="m8">M8 应用未来</button>
+  </div>
+
+  <!-- M1 -->
+  <section class="module active" id="m1">
+    <div class="m-head"><span class="num">M1</span><h2>Grokking 全景</h2></div>
+    <p class="m-desc">Grokking 指模型在长时间过拟合（训练损失极低、测试损失高位）后，测试损失突然急剧下降、实现泛化的相变现象。下方可切换“现象概述”与“发现历程”两种视图。</p>
+    <div class="ctrl">
+      <button class="btn primary active" data-v="ov" onclick="m1View('ov')">现象概述</button>
+      <button class="btn" data-v="tl" onclick="m1View('tl')">发现历程</button>
+    </div>
+    <div class="logbar" id="m1-log"><span class="lab">提示</span>Grokking = 长时过拟合后的突然泛化，本质是隐式正则驱动的相变。</div>
+    <div class="viz"><svg id="m1-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M2 -->
+  <section class="module" id="m2">
+    <div class="m-head"><span class="num">M2</span><h2>训练 vs 测试曲线</h2></div>
+    <p class="m-desc">核心可视化：训练损失在数十步内迅速降至近零（过拟合），而测试损失长时间停留在高位，直到某临界步数后才“骤降”——这就是 grokking。拖动训练步数滑块，实时观察当前状态与所处阶段。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">训练步数</span>
+        <input type="range" id="m2-slider" min="0" max="1000" value="500" step="5">
+        <span class="sval" id="m2-sval">500</span>
+      </div>
+      <button class="btn" onclick="m2Anim()">▶ 自动播放</button>
+      <button class="btn primary active" data-v="curve" onclick="m2View('curve')">曲线视图</button>
+      <button class="btn" data-v="phase" onclick="m2View('phase')">阶段分析</button>
+    </div>
+    <div class="logbar" id="m2-log"><span class="lab">状态</span>步数 500 · 处于过渡阶段，测试损失即将骤降。</div>
+    <div class="viz"><svg id="m2-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M3 -->
+  <section class="module" id="m3">
+    <div class="m-head"><span class="num">M3</span><h2>双下降现象</h2></div>
+    <p class="m-desc">模型规模增大时，测试误差先降后升（过拟合峰），到达插值阈值后又二次下降——即双下降（Double Descent）。它与 grokking 共享同一根源：过参数化 + 隐式偏好最小范数解。拖动模型规模滑块观察误差变化。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">模型规模</span>
+        <input type="range" id="m3-slider" min="0" max="1000" value="500" step="2">
+        <span class="sval" id="m3-sval">0.50</span>
+      </div>
+      <button class="btn primary active" data-v="double" onclick="m3View('double')">双下降曲线</button>
+      <button class="btn" data-v="grok" onclick="m3View('grok')">与 Grokking 关系</button>
+    </div>
+    <div class="logbar" id="m3-log"><span class="lab">规模</span>当前模型规模 0.50 · 接近插值阈值，误差处于峰值区。</div>
+    <div class="viz"><svg id="m3-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M4 -->
+  <section class="module" id="m4">
+    <div class="m-head"><span class="num">M4</span><h2>隐式正则化</h2></div>
+    <p class="m-desc">权重衰减、Dropout、早停等正则化手段通过抑制权重范数增长，引导模型从“记忆”转向“最小范数泛化解”，从而加速甚至决定 grokking 的发生。调节正则化强度，观察权重范数演化曲线。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">正则化强度</span>
+        <input type="range" id="m4-slider" min="0" max="100" value="30" step="1">
+        <span class="sval" id="m4-sval">0.30</span>
+      </div>
+      <button class="btn primary active" data-v="weight" onclick="m4View('weight')">权重范数演化</button>
+      <button class="btn" data-v="compare" onclick="m4View('compare')">正则化对比</button>
+    </div>
+    <div class="logbar" id="m4-log"><span class="lab">强度</span>正则化 λ=0.30 · 权重范数受控，grokking 提前发生。</div>
+    <div class="viz"><svg id="m4-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M5 -->
+  <section class="module" id="m5">
+    <div class="m-head"><span class="num">M5</span><h2>数据效率与 Grokking</h2></div>
+    <p class="m-desc">Grokking 并非在任意数据量下都会发生：存在一个临界数据比例，仅当训练数据占比超过该阈值时，模型才能从记忆相跃迁至泛化相。调节数据比例滑块，观察最终测试损失与 grokking 是否发生。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">数据比例</span>
+        <input type="range" id="m5-slider" min="5" max="100" value="40" step="1">
+        <span class="sval" id="m5-sval">40%</span>
+      </div>
+      <button class="btn primary active" data-v="ratio" onclick="m5View('ratio')">数据比例曲线</button>
+      <button class="btn" data-v="critical" onclick="m5View('critical')">临界分析</button>
+    </div>
+    <div class="logbar" id="m5-log"><span class="lab">比例</span>数据比例 40% · 接近临界值，grokking 处于边缘。</div>
+    <div class="viz"><svg id="m5-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M6 -->
+  <section class="module" id="m6">
+    <div class="m-head"><span class="num">M6</span><h2>Ridge 回归可证明 Grokking</h2></div>
+    <p class="m-desc">ICML 2026 荣誉提名论文《To Grok Grokking》首次在 Ridge 回归中给出 grokking 的全局收敛证明：损失景观存在快收敛方向（大特征值，记忆训练数据）与慢收敛方向（小特征值，编码最小范数泛化解），慢模式最终收敛即 grokking。调节 λ 观察特征谱与收敛过程。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">正则化 λ</span>
+        <input type="range" id="m6-slider" min="1" max="100" value="20" step="1">
+        <span class="sval" id="m6-sval">0.020</span>
+      </div>
+      <button class="btn primary active" data-v="spectrum" onclick="m6View('spectrum')">特征值谱</button>
+      <button class="btn" data-v="converge" onclick="m6View('converge')">收敛过程</button>
+    </div>
+    <div class="logbar" id="m6-log"><span class="lab">理论</span>λ=0.020 · 快慢模式分离，慢模式收敛需更长时间 → 延迟泛化。</div>
+    <div class="viz"><svg id="m6-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M7 -->
+  <section class="module" id="m7">
+    <div class="m-head"><span class="num">M7</span><h2>记忆 vs 泛化相变</h2></div>
+    <p class="m-desc">Grokking 的本质是从“记忆相”（高复杂度、拟合训练点）到“泛化相”（低有效复杂度、最小范数结构）的相变。下方相图展示模型在训练过程中的轨迹穿越两相边界，切换视图观察特征学习如何从杂乱走向结构化。</p>
+    <div class="ctrl">
+      <div class="slider-wrap">
+        <span class="slabel">训练进度</span>
+        <input type="range" id="m7-slider" min="0" max="1000" value="450" step="5">
+        <span class="sval" id="m7-sval">45%</span>
+      </div>
+      <button class="btn primary active" data-v="phase" onclick="m7View('phase')">相变图</button>
+      <button class="btn" data-v="feature" onclick="m7View('feature')">特征学习</button>
+    </div>
+    <div class="logbar" id="m7-log"><span class="lab">相态</span>进度 45% · 处于相变临界区，记忆解尚未完全让位于泛化解。</div>
+    <div class="viz"><svg id="m7-svg" viewBox="0 0 980 560"></svg></div>
+  </section>
+
+  <!-- M8 -->
+  <section class="module" id="m8">
+    <div class="m-head"><span class="num">M8</span><h2>应用与未来方向</h2></div>
+    <p class="m-desc">Grokking 最早在算法学习任务（模运算、群论）中被发现，现已扩展至电路发现、合成数据可学习性、推理涌现等领域。点击任务卡片切换，查看各任务中 grokking 的表现与意义。</p>
+    <div class="ctrl">
+      <button class="btn primary active" data-t="mod" onclick="m8Sel('mod')">模运算</button>
+      <button class="btn" data-t="grp" onclick="m8Sel('grp')">群论运算</button>
+      <button class="btn" data-t="algo" onclick="m8Sel('algo')">算法学习</button>
+      <button class="btn" data-t="circ" onclick="m8Sel('circ')">电路发现</button>
+      <button class="btn" data-t="fut" onclick="m8Sel('fut')">未来方向</button>
+    </div>
+    <div class="logbar" id="m8-log"><span class="lab">任务</span>模运算 · grokking 的经典验证任务（Power et al. 2021）。</div>
+    <div class="viz"><svg id="m8-svg" viewBox="0 0 980 560"></svg></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="k">关键论文</div><div class="v">Power et al. 2021</div><div class="d">首次命名 grokking · 模运算 p=a·b mod n</div></div>
+      <div class="info-card"><div class="k">理论突破</div><div class="v">ICML 2026 Honorable</div><div class="d">Ridge 回归全局收敛可证明 grokking</div></div>
+      <div class="info-card"><div class="k">核心机制</div><div class="v">隐式正则 + 相变</div><div class="d">最小范数偏好驱动的延迟泛化</div></div>
+      <div class="info-card"><div class="k">应用前沿</div><div class="v">算法 / 推理涌现</div><div class="d">电路发现与可学习性理论</div></div>
+    </div>
+  </section>
+</main>
+<div class="footer">Grokking 现象与延迟泛化 · 可视化实验室 · 单文件自包含 · 纯 HTML / CSS / JS + SVG</div>
+
+<script>
+window.addEventListener('error',function(e){if(e.error){console.warn('Caught:',e.message);e.preventDefault();}},true);
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){
+  tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');
+  mods.forEach(function(m){m.classList.remove('active')});
+  document.getElementById(t.dataset.m).classList.add('active');
+});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function gid(id){return document.getElementById(id);}
+function setLog(id,lab,txt){var b=gid(id);b.innerHTML='<span class="lab">'+lab+'</span>'+txt;}
+function wrap(str,max){var lines=[],line='';for(var i=0;i<str.length;i++){line+=str[i];if(line.length>=max){lines.push(line);line='';}}if(line)lines.push(line);return lines;}
+function path(pts){var d='';for(var i=0;i<pts.length;i++){d+=(i?'L':'M')+pts[i][0].toFixed(1)+','+pts[i][1].toFixed(1);}return d;}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',EM='#34d399',ORG='#ff7a45',DIM='#62697b',DIM2='#9aa0b0',BD='#2d3344',BD2='#232734',BG='#161922';
+
+/* ============ M1 Grokking 全景 ============ */
+var m1Data={
+  feat:[
+    {k:'延迟性',c:WARN,icon:'T',t:'长时间过拟合',d:'训练损失早已趋零，测试损失却在数百倍训练步后才骤降，延迟可达 3 个数量级。'},
+    {k:'突变性',c:ROSE,icon:'!',t:'相变式骤降',d:'测试损失在狭窄步数窗口内从高位跌至近零，呈现典型一阶相变特征。'},
+    {k:'正则依赖',c:INFO,icon:'λ',t:'隐式正则驱动',d:'权重衰减等正则化可大幅提前甚至决定 grokking，揭示最小范数偏好是根因。'},
+    {k:'数据临界',c:EM,icon:'D',t:'临界数据比例',d:'仅当训练数据占比超过临界阈值时 grokking 才发生，过少数据则永久记忆。'}
+  ],
+  tl:[
+    {y:'2021',t:'Power et al.',d:'首次命名 grokking · 模运算',c:AC},
+    {y:'2022',t:'Liu et al.',d:' grokking = 偏好平坦极小',c:INFO},
+    {y:'2023',t:'Nanda et al.',d:'模运算电路机制可解释',c:PUR},
+    {y:'2023',t:'Varma et al.',d:'数据效率与临界比例',c:EM},
+    {y:'2024',t:'Double Descent',d:'与双下降统一理解',c:WARN},
+    {y:'2025',t:'Lyapunov 理论',d:'局部稳定性刻画相变',c:ORG},
+    {y:'2026',t:'ICML 2026',d:'Ridge 回归可证明 grokking',c:ROSE}
+  ]
+};
+function m1Draw(){
+  var svg=gid('m1-svg');clear(svg);
+  // overview group
+  var og=el('g',{id:'m1g-ov'},svg);
+  el('text',{x:40,y:36,fill:'#e6e8ee','font-size':17,'font-weight':650},og).textContent='Grokking 现象概述';
+  el('text',{x:40,y:56,fill:DIM2,'font-size':12},og).textContent='长时过拟合后测试损失骤降 · 四大关键特征';
+  // mini grokking curve
+  var px=40,py=80,pw=420,ph=260;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:8,fill:'#0e131c',stroke:BD,'stroke-width':1},og);
+  el('text',{x:px+14,y:py+22,fill:'#e6e8ee','font-size':13,'font-weight':600},og).textContent='典型 Grokking 曲线';
+  // axes
+  var ax=px+50,ay=py+ph-38,aw=pw-70,ah=ph-70;
+  el('line',{x1:ax,y1:ay,x2:ax+aw,y2:ay,stroke:BD2,'stroke-width':1},og);
+  el('line',{x1:ax,y1:ay,x2:ax,y2:ay-ah,stroke:BD2,'stroke-width':1},og);
+  el('text',{x:ax+aw/2,y:ay+24,fill:DIM,'font-size':10,'text-anchor':'middle'},og).textContent='训练步数 →';
+  el('text',{x:ax-32,y:ay-ah/2,fill:DIM,'font-size':10,'text-anchor':'middle',transform:'rotate(-90 '+(ax-32)+' '+(ay-ah/2)+')'},og).textContent='损失';
+  // train curve (fast drop)
+  var tpts=[];for(var s=0;s<=100;s++){var x=ax+aw*s/100;var y=ay-ah*(2.3*Math.exp(-s/8)+0.08)/2.4;tpts.push([x,y]);}
+  el('path',{d:path(tpts),fill:'none',stroke:ORG,'stroke-width':2.2,'stroke-opacity':.9},og);
+  // test curve (grok)
+  var spts=[];for(var s=0;s<=100;s++){var x=ax+aw*s/100;var v=2.2;if(s>45){v=0.1+2.1/(1+Math.exp((s-55)/6));}var y=ay-ah*v/2.4;spts.push([x,y]);}
+  el('path',{d:path(spts),fill:'none',stroke:AC,'stroke-width':2.4},og);
+  // grok zone
+  el('rect',{x:ax+aw*0.45,y:ay-ah,width:aw*0.12,height:ah,fill:AC,'fill-opacity':.08},og);
+  el('text',{x:ax+aw*0.51,y:ay-ah+14,fill:AC,'font-size':9.5,'text-anchor':'middle','font-weight':600},og).textContent='grok';
+  el('text',{x:ax+aw-6,y:ay-ah+18,fill:ORG,'font-size':10,'text-anchor':'end'},og).textContent='训练损失';
+  el('text',{x:ax+aw-6,y:ay-ah+32,fill:AC,'font-size':10,'text-anchor':'end'},og).textContent='测试损失';
+  // feature cards
+  var cw=235,ch=120,gx=490,gy=80,gap=14;
+  var pos=[[gx,gy],[gx+cw+gap,gy],[gx,gy+ch+gap],[gx+cw+gap,gy+ch+gap]];
+  m1Data.feat.forEach(function(d,i){
+    var x=pos[i][0],y=pos[i][1];
+    var g=el('g',{transform:'translate('+x+','+y+')'},og);
+    el('rect',{x:0,y:0,width:cw,height:ch,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:4,height:ch,rx:2,fill:d.c},g);
+    el('circle',{cx:30,cy:28,r:14,fill:d.c,'fill-opacity':.16},g);
+    el('text',{x:30,y:33,fill:d.c,'font-size':14,'font-weight':700,'text-anchor':'middle'},g).textContent=d.icon;
+    el('text',{x:54,y:25,fill:d.c,'font-size':11,'font-weight':600},g).textContent=d.k;
+    el('text',{x:54,y:40,fill:'#e6e8ee','font-size':12.5,'font-weight':650},g).textContent=d.t;
+    wrap(d.d,22).forEach(function(ln,j){el('text',{x:14,y:64+j*15,fill:DIM2,'font-size':11},g).textContent=ln;});
+  });
+  // timeline group
+  var tg=el('g',{id:'m1g-tl',display:'none'},svg);
+  el('text',{x:40,y:36,fill:'#e6e8ee','font-size':17,'font-weight':650},tg).textContent='Grokking 发现历程';
+  el('text',{x:40,y:56,fill:DIM2,'font-size':12},tg).textContent='从 2021 首次命名到 2026 可证明理论 · 五年演进';
+  var baseY=300,x0=80,x1=920;
+  el('line',{x1:x0,y1:baseY,x2:x1,y2:baseY,stroke:BD,'stroke-width':2},tg);
+  el('polygon',{points:(x1+6)+','+(baseY-5)+' '+x1+','+baseY+' '+(x1+6)+','+(baseY+5),fill:BD},tg);
+  var n=m1Data.tl.length;
+  m1Data.tl.forEach(function(d,i){
+    var x=x0+(x1-x0)*(i/(n-1));
+    var up=i%2===0;
+    el('circle',{cx:x,cy:baseY,r:7,fill:d.c},tg);
+    el('circle',{cx:x,cy:baseY,r:13,fill:'none',stroke:d.c,'stroke-width':1,'stroke-opacity':.4},tg);
+    var ty=up?baseY-30:baseY+30;
+    el('line',{x1:x,y1:baseY,x2:x,y2:ty,stroke:d.c,'stroke-width':1,'stroke-opacity':.5},tg);
+    el('text',{x:x,y:ty,fill:d.c,'font-size':14,'font-weight':700,'text-anchor':'middle'},tg).textContent=d.y;
+    var dir=up?-1:1;
+    el('text',{x:x,y:ty+dir*17,fill:'#e6e8ee','font-size':12,'font-weight':600,'text-anchor':'middle'},tg).textContent=d.t;
+    wrap(d.d,12).forEach(function(ln,j){el('text',{x:x,y:ty+dir*(34+j*14),fill:DIM,'font-size':10,'text-anchor':'middle'},tg).textContent=ln;});
+  });
+  // theory highlight box
+  var bx=80,by=440,bw=840,bh=80;
+  el('rect',{x:bx,y:by,width:bw,height:bh,rx:10,fill:ROSE,'fill-opacity':.06,stroke:ROSE,'stroke-opacity':.3},tg);
+  el('text',{x:bx+18,y:by+26,fill:ROSE,'font-size':13,'font-weight':700},tg).textContent='ICML 2026 荣誉提名 · To Grok Grokking';
+  el('text',{x:bx+18,y:by+48,fill:DIM2,'font-size':11.5},tg).textContent='首次为 grokking 提供全局收敛证明：在 Ridge 回归中，快/慢收敛特征方向分离导致延迟泛化，慢模式收敛即 grokking。';
+  el('text',{x:bx+18,y:by+66,fill:DIM,'font-size':11},tg).textContent='将经验现象提升为可证明理论 · 为深度学习泛化相变提供数学基础。';
+}
+function m1View(v){
+  var og=gid('m1g-ov'),tg=gid('m1g-tl');
+  og.setAttribute('display',v==='ov'?'inline':'none');
+  tg.setAttribute('display',v==='tl'?'inline':'none');
+  gid('m1').querySelectorAll('.btn').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  setLog('m1-log','视图',v==='ov'?'现象概述 · 四大关键特征与典型曲线。':'发现历程 · 2021–2026 五年理论演进时间轴。');
+}
+
+/* ============ M2 训练 vs 测试曲线 ============ */
+function m2TrainLoss(s){return 2.3*Math.exp(-s/55)+0.08;}
+function m2TestLoss(s){
+  var base=2.16+0.03*Math.sin(s/45);
+  if(s<390) return base;
+  var t=(s-390)/80;
+  return 0.1+2.06/(1+Math.exp(t*3.0));
+}
+function m2Phase(s){if(s<120) return 0;if(s<390) return 1;if(s<560) return 2;return 3;}
+var m2PN=['快速拟合','过拟合/记忆','相变过渡','稳定泛化'];
+function m2Draw(){
+  var svg=gid('m2-svg');clear(svg);
+  var cg=el('g',{id:'m2g-curve'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},cg).textContent='Grokking 核心曲线：训练 vs 测试损失';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},cg).textContent='训练损失骤降 · 测试损失延迟骤降 = grokking';
+  // plot area
+  var px=70,py=80,pw=840,ph=340;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},cg);
+  // grid
+  for(var i=0;i<=5;i++){var yy=py+ph*i/5;el('line',{x1:px,y1:yy,x2:px+pw,y2:yy,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},cg);}
+  for(var j=0;j<=5;j++){var xx=px+pw*j/5;el('line',{x1:xx,y1:py,x2:xx,y2:py+ph,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},cg);}
+  // axes labels
+  el('text',{x:px-14,y:py+8,fill:DIM,'font-size':10,'text-anchor':'end'},cg).textContent='2.4';
+  el('text',{x:px-14,y:py+ph+4,fill:DIM,'font-size':10,'text-anchor':'end'},cg).textContent='0';
+  el('text',{x:px+pw/2,y:py+ph+30,fill:DIM,'font-size':11,'text-anchor':'middle'},cg).textContent='训练步数 (0 → 1000)';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},cg).textContent='损失值';
+  // map functions
+  var sx=function(s){return px+pw*s/1000;};
+  var sy=function(l){return py+ph-ph*l/2.5;};
+  // phase background bands
+  var bands=[[0,120,ORG,.05],[120,390,ERR,.04],[390,560,AC,.06],[560,1000,EM,.04]];
+  bands.forEach(function(b){el('rect',{x:sx(b[0]),y:py,width:sx(b[1])-sx(b[0]),height:ph,fill:b[2],'fill-opacity':b[3]},cg);});
+  // train curve
+  var tpts=[];for(var s=0;s<=1000;s+=4){tpts.push([sx(s),sy(m2TrainLoss(s))]);}
+  el('path',{d:path(tpts),fill:'none',stroke:ORG,'stroke-width':2.4},cg);
+  // test curve
+  var spts=[];for(var s=0;s<=1000;s+=4){spts.push([sx(s),sy(m2TestLoss(s))]);}
+  el('path',{d:path(spts),fill:'none',stroke:AC,'stroke-width':2.6},cg);
+  // grok zone
+  el('rect',{x:sx(390),y:py,width:sx(560)-sx(390),height:ph,fill:AC,'fill-opacity':.07},cg);
+  el('text',{x:sx(475),y:py+18,fill:AC,'font-size':11,'text-anchor':'middle','font-weight':700},cg).textContent='GROKKING 骤降区';
+  // legend
+  el('line',{x1:px+pw-200,y1:py+18,x2:px+pw-176,y2:py+18,stroke:ORG,'stroke-width':2.4},cg);
+  el('text',{x:px+pw-170,y:py+22,fill:ORG,'font-size':11},cg).textContent='训练损失 (train)';
+  el('line',{x1:px+pw-200,y1:py+38,x2:px+pw-176,y2:py+38,stroke:AC,'stroke-width':2.6},cg);
+  el('text',{x:px+pw-170,y:py+42,fill:AC,'font-size':11},cg).textContent='测试损失 (test)';
+  // marker group (dynamic)
+  el('g',{id:'m2-marker'},cg);
+  // phase view group
+  var pg=el('g',{id:'m2g-phase',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},pg).textContent='Grokking 四阶段分析';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},pg).textContent='从快速拟合到稳定泛化的相变全程';
+  var phases=[
+    {n:'01',c:ORG,t:'快速拟合',r:'0–120 步',d:'训练损失指数级下降，模型迅速降低训练误差，但测试损失几乎不变，处于欠拟合到记忆的过渡。'},
+    {n:'02',c:ERR,t:'过拟合/记忆',r:'120–390 步',d:'训练损失趋近零，模型已记忆训练样本；测试损失维持高位，表现为经典过拟合，传统视角应在此停止。'},
+    {n:'03',c:AC,t:'相变过渡',r:'390–560 步',d:'测试损失在窄窗口内骤降数个数量级，权重范数被隐式正则压缩，模型从记忆解跃迁至最小范数泛化解。'},
+    {n:'04',c:EM,t:'稳定泛化',r:'560–1000 步',d:'测试损失稳定在低位，模型学到真正结构化规律，训练与测试损失均接近零，泛化完成。'}
+  ];
+  var cx=40,cw2=222,ch2=300,gap=10;
+  phases.forEach(function(d,i){
+    var x=cx+i*(cw2+gap);
+    var g=el('g',{transform:'translate('+x+',80)'},pg);
+    el('rect',{x:0,y:0,width:cw2,height:ch2,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:cw2,height:4,rx:2,fill:d.c},g);
+    el('text',{x:16,y:40,fill:d.c,'font-size':24,'font-weight':700,'font-family':'monospace'},g).textContent=d.n;
+    el('text',{x:16,y:68,fill:'#e6e8ee','font-size':15,'font-weight':650},g).textContent=d.t;
+    el('text',{x:16,y:88,fill:d.c,'font-size':11.5,'font-family':'monospace'},g).textContent=d.r;
+    wrap(d.d,20).forEach(function(ln,j){el('text',{x:16,y:118+j*16,fill:DIM2,'font-size':11.5},g).textContent=ln;});
+    if(i<3){el('text',{x:cw2-2,y:ch2/2,fill:d.c,'font-size':20,'text-anchor':'middle'},g).textContent='→';}
+  });
+  m2Update(500);
+}
+function m2Update(step){
+  var mk=gid('m2-marker');if(!mk)return;clear(mk);
+  var cg=gid('m2g-curve');if(!cg||cg.getAttribute('display')==='none')return;
+  var px=70,py=80,pw=840,ph=340;
+  var sx=function(s){return px+pw*s/1000;};
+  var sy=function(l){return py+ph-ph*l/2.5;};
+  // marker line
+  el('line',{x1:sx(step),y1:py,x2:sx(step),y2:py+ph,stroke:'#e6e8ee','stroke-width':1.2,'stroke-dasharray':'4 3','stroke-opacity':.7},mk);
+  // train point
+  var tl=m2TrainLoss(step),sl=m2TestLoss(step);
+  el('circle',{cx:sx(step),cy:sy(tl),r:5,fill:ORG,stroke:'#0a0b0f','stroke-width':2},mk);
+  el('circle',{cx:sx(step),cy:sy(sl),r:5.5,fill:AC,stroke:'#0a0b0f','stroke-width':2},mk);
+  // value labels
+  el('rect',{x:sx(step)+8,y:sy(tl)-26,width:96,height:20,rx:4,fill:ORG,'fill-opacity':.16,stroke:ORG,'stroke-opacity':.4},mk);
+  el('text',{x:sx(step)+14,y:sy(tl)-12,fill:ORG,'font-size':10.5,'font-family':'monospace'},mk).textContent='train '+tl.toFixed(3);
+  el('rect',{x:sx(step)+8,y:sy(sl)-26,width:96,height:20,rx:4,fill:AC,'fill-opacity':.16,stroke:AC,'stroke-opacity':.4},mk);
+  el('text',{x:sx(step)+14,y:sy(sl)-12,fill:AC,'font-size':10.5,'font-family':'monospace'},mk).textContent='test  '+sl.toFixed(3);
+  // update log + sval
+  gid('m2-sval').textContent=step;
+  var ph_i=m2Phase(step);
+  setLog('m2-log','状态','步数 '+step+' · 训练损失 '+tl.toFixed(3)+' · 测试损失 '+sl.toFixed(3)+' · 阶段：'+m2PN[ph_i]+'。');
+}
+function m2View(v){
+  var cg=gid('m2g-curve'),pg=gid('m2g-phase');
+  cg.setAttribute('display',v==='curve'?'inline':'none');
+  pg.setAttribute('display',v==='phase'?'inline':'none');
+  gid('m2').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  if(v==='curve')m2Update(parseInt(gid('m2-slider').value));
+  setLog('m2-log','视图',v==='curve'?'曲线视图 · 拖动滑块实时观察损失轨迹。':'阶段分析 · grokking 四阶段详解。');
+}
+var m2Timer=null;
+function m2Anim(){
+  if(m2Timer){clearInterval(m2Timer);m2Timer=null;setLog('m2-log','播放','已暂停。');return;}
+  var s=parseInt(gid('m2-slider').value);
+  m2Timer=setInterval(function(){
+    s+=8;if(s>1000){s=0;}gid('m2-slider').value=s;m2Update(s);
+  },40);
+  setLog('m2-log','播放','自动播放中 · 再次点击暂停。');
+}
+
+/* ============ M3 双下降 ============ */
+function m3Err(c){
+  // c: 0..1 model capacity; threshold 0.5
+  var thr=0.5;
+  if(c<=thr){var u=c/thr;var valley=0.12+0.5*Math.pow(1-u,2.2);var rise=0.35*Math.pow(u,3);return valley+rise;}
+  var o=(c-thr)/(1-thr);return 0.12+0.4*Math.exp(-o*4.5)+0.02*o;
+}
+function m3Draw(){
+  var svg=gid('m3-svg');clear(svg);
+  var dg=el('g',{id:'m3g-double'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},dg).textContent='模型规模双下降曲线';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},dg).textContent='插值阈值处误差达峰 · 过参数化后二次下降';
+  var px=80,py=80,pw=820,ph=340;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},dg);
+  for(var i=0;i<=5;i++){var yy=py+ph*i/5;el('line',{x1:px,y1:yy,x2:px+pw,y2:yy,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},dg);}
+  for(var j=0;j<=5;j++){var xx=px+pw*j/5;el('line',{x1:xx,y1:py,x2:xx,y2:py+ph,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},dg);}
+  var sx=function(c){return px+pw*c;};
+  var sy=function(e){return py+ph-ph*e/0.95;};
+  // interpolation threshold line
+  el('line',{x1:sx(0.5),y1:py,x2:sx(0.5),y2:py+ph,stroke:ERR,'stroke-width':1.4,'stroke-dasharray':'5 3','stroke-opacity':.6},dg);
+  el('text',{x:sx(0.5),y:py-8,fill:ERR,'font-size':11,'text-anchor':'middle','font-weight':600},dg).textContent='插值阈值';
+  // curve
+  var pts=[];for(var c=0;c<=1;c+=0.01){pts.push([sx(c),sy(m3Err(c))]);}
+  el('path',{d:path(pts),fill:'none',stroke:INFO,'stroke-width':2.6},dg);
+  // region labels
+  el('text',{x:sx(0.22),y:py+ph-20,fill:EM,'font-size':11,'text-anchor':'middle'},dg).textContent='经典区间';
+  el('text',{x:sx(0.5),y:py+ph+22,fill:ERR,'font-size':10.5,'text-anchor':'middle'},dg).textContent='过拟合峰';
+  el('text',{x:sx(0.78),y:py+ph-20,fill:AC,'font-size':11,'text-anchor':'middle'},dg).textContent='现代过参数区间';
+  el('text',{x:px+pw/2,y:py+ph+40,fill:DIM,'font-size':11,'text-anchor':'middle'},dg).textContent='模型规模 / 参数量 →';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},dg).textContent='测试误差';
+  el('line',{x1:px+pw-180,y1:py+18,x2:px+pw-156,y2:py+18,stroke:INFO,'stroke-width':2.6},dg);
+  el('text',{x:px+pw-150,y:py+22,fill:INFO,'font-size':11},dg).textContent='测试误差双下降';
+  el('g',{id:'m3-marker'},dg);
+  // grok relation group
+  var gg=el('g',{id:'m3g-grok',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},gg).textContent='双下降与 Grokking 的统一关系';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},gg).textContent='同一硬币的两面 · 过参数化 + 隐式最小范数偏好';
+  var rels=[
+    {c:AC,t:'共享根因',d:'两者都源于过参数化模型对最小范数解的隐式偏好：双下降是“规模轴”上的体现，grokking 是“时间轴”上的体现。'},
+    {c:INFO,t:'时间 vs 规模',d:'双下降固定时间、变化模型规模；grokking 固定规模、变化训练时间。二者刻画同一泛化相变的不同切片。'},
+    {c:PUR,t:'插值阈值',d:'双下降的峰值对应插值阈值（参数=数据）；grokking 的骤降对应训练越过记忆相、进入过参数泛化相。'},
+    {c:WARN,t:'正则化桥梁',d:'权重衰减同时压低双下降峰值、提前 grokking 时点，证明二者受同一隐式正则机制调控。'}
+  ];
+  rels.forEach(function(r,i){
+    var x=40+(i%2)*460,y=80+Math.floor(i/2)*180;
+    var g=el('g',{transform:'translate('+x+','+y+')'},gg);
+    el('rect',{x:0,y:0,width:440,height:160,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:4,height:160,rx:2,fill:r.c},g);
+    el('text',{x:18,y:32,fill:r.c,'font-size':14,'font-weight':700},g).textContent=r.t;
+    wrap(r.d,34).forEach(function(ln,j){el('text',{x:18,y:60+j*18,fill:DIM2,'font-size':12},g).textContent=ln;});
+  });
+  m3Update(500);
+}
+function m3Update(v){
+  var mk=gid('m3-marker');if(!mk)return;clear(mk);
+  var dg=gid('m3g-double');if(!dg||dg.getAttribute('display')==='none')return;
+  var px=80,py=80,pw=820,ph=340;
+  var c=v/1000;
+  var sx=function(c){return px+pw*c;};
+  var sy=function(e){return py+ph-ph*e/0.95;};
+  var e=m3Err(c);
+  el('line',{x1:sx(c),y1:py,x2:sx(c),y2:py+ph,stroke:'#e6e8ee','stroke-width':1.2,'stroke-dasharray':'4 3','stroke-opacity':.6},mk);
+  el('circle',{cx:sx(c),cy:sy(e),r:6,fill:AC,stroke:'#0a0b0f','stroke-width':2},mk);
+  el('rect',{x:sx(c)+8,y:sy(e)-24,width:84,height:20,rx:4,fill:AC,'fill-opacity':.16,stroke:AC,'stroke-opacity':.4},mk);
+  el('text',{x:sx(c)+14,y:sy(e)-10,fill:AC,'font-size':10.5,'font-family':'monospace'},mk).textContent='err '+e.toFixed(3);
+  gid('m3-sval').textContent=c.toFixed(2);
+  var reg=c<0.5?(c<0.25?'欠参数·经典下降':'近阈值·误差攀升'):(c<0.7?'刚过阈值·二次下降':'过参数·稳定低误差');
+  setLog('m3-log','规模','当前模型规模 '+c.toFixed(2)+' · 测试误差 '+e.toFixed(3)+' · '+reg+'。');
+}
+function m3View(v){
+  var dg=gid('m3g-double'),gg=gid('m3g-grok');
+  dg.setAttribute('display',v==='double'?'inline':'none');
+  gg.setAttribute('display',v==='grok'?'inline':'none');
+  gid('m3').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  if(v==='double')m3Update(parseInt(gid('m3-slider').value));
+  setLog('m3-log','视图',v==='double'?'双下降曲线 · 拖动滑块观察误差。':'与 Grokking 关系 · 四维统一理解。');
+}
+
+/* ============ M4 隐式正则化 ============ */
+function m4WeightNorm(t,r){
+  // t: 0..1000 step, r: 0..1 reg strength
+  // without reg: grows large then plateaus high (memorization)
+  // with reg: bounded lower, earlier grok
+  var base=6.0*(1-Math.exp(-t/120));
+  if(r<=0)return base;
+  var bound=5.2-4.0*r;
+  var dyn=bound*(1-Math.exp(-t/(90+r*60)));
+  return Math.min(dyn,base)*(1)+Math.max(0,base-dyn)*Math.exp(-r*3);
+}
+function m4TestLoss(t,r){
+  // grok step depends on r: higher r -> earlier grok
+  var grokStep=560-380*r;
+  var base=2.1;
+  if(t<grokStep)return base+0.03*Math.sin(t/40);
+  var u=(t-grokStep)/70;
+  return 0.1+2.0/(1+Math.exp(u*3));
+}
+function m4Draw(){
+  var svg=gid('m4-svg');clear(svg);
+  var wg=el('g',{id:'m4g-weight'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},wg).textContent='权重范数演化与正则化';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},wg).textContent='正则化抑制权重范数 · 压缩记忆解空间';
+  var px=80,py=80,pw=820,ph=300;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},wg);
+  for(var i=0;i<=5;i++){el('line',{x1:px,y1:py+ph*i/5,x2:px+pw,y2:py+ph*i/5,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},wg);}
+  var sx=function(t){return px+pw*t/1000;};
+  var sy=function(w){return py+ph-ph*w/7;};
+  // multiple reg strength curves
+  var levels=[{r:0,c:ERR,l:'λ=0 (无正则)'},{r:0.15,c:WARN,l:'λ=0.15'},{r:0.3,c:INFO,l:'λ=0.30'},{r:0.6,c:AC,l:'λ=0.60'}];
+  levels.forEach(function(d){
+    var pts=[];for(var t=0;t<=1000;t+=8){pts.push([sx(t),sy(m4WeightNorm(t,d.r))]);}
+    el('path',{d:path(pts),fill:'none',stroke:d.c,'stroke-width':1.8,'stroke-opacity':.85},wg);
+    el('text',{x:sx(1000)+4,y:sy(m4WeightNorm(1000,d.r))+3,fill:d.c,'font-size':10},wg).textContent=d.l;
+  });
+  // current curve highlight
+  el('path',{id:'m4-hl',fill:'none',stroke:'#fff','stroke-width':0},wg);
+  el('text',{x:px+pw/2,y:py+ph+24,fill:DIM,'font-size':11,'text-anchor':'middle'},wg).textContent='训练步数 →';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},wg).textContent='权重 L2 范数';
+  // bottom: test loss with current reg
+  el('text',{x:40,y:412,fill:'#e6e8ee','font-size':13,'font-weight':600},wg).textContent='当前正则化下的测试损失曲线';
+  var py2=420,ph2=110;
+  el('rect',{x:px,y:py2,width:pw,height:ph2,rx:6,fill:'#0c0f17',stroke:BD},wg);
+  var sy2=function(l){return py2+ph2-ph2*l/2.3;};
+  el('path',{id:'m4-test',fill:'none',stroke:AC,'stroke-width':2.2},wg);
+  el('g',{id:'m4-marker'},wg);
+  // compare group
+  var cg=el('g',{id:'m4g-compare',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},cg).textContent='正则化对比：有无 Grokking';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},cg).textContent='左侧无正则永不 grok · 右侧有正则延迟后骤降';
+  var cmp=[
+    {x:40,c:ERR,t:'无正则化 (λ=0)',sub:'权重范数持续增长 · 记忆解锁定',lines:['训练损失 → 0','测试损失 → 高位 (≈2.1)','权重范数 → 6.0 (记忆)','结论：永不 grokking']},
+    {x:500,c:AC,t:'有权重衰减 (λ=0.3)',sub:'范数受控 · 最小范数解被偏好',lines:['训练损失 → 0','测试损失 → 骤降至 0.1','权重范数 → 3.5 (受控)','结论：步 440 处 grokking']}
+  ];
+  cmp.forEach(function(d){
+    var g=el('g',{transform:'translate('+d.x+',80)'},cg);
+    el('rect',{x:0,y:0,width:440,height:300,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:440,height:4,rx:2,fill:d.c},g);
+    el('text',{x:18,y:36,fill:d.c,'font-size':15,'font-weight':700},g).textContent=d.t;
+    el('text',{x:18,y:56,fill:DIM2,'font-size':11.5},g).textContent=d.sub;
+    // mini curve
+    var mx=18,my=72,mw=404,mh=130;
+    el('rect',{x:mx,y:my,width:mw,height:mh,rx:4,fill:'#080b12',stroke:BD2},g);
+    var isReg=d.c===AC;
+    var tp=[];for(var s=0;s<=100;s+=2){var x=mx+mw*s/100;var y=my+mh-mh*(2.3*Math.exp(-s/8)+0.08)/2.4;tp.push([x,y]);}
+    el('path',{d:path(tp),fill:'none',stroke:ORG,'stroke-width':1.8},g);
+    var sp=[];for(var s=0;s<=100;s+=2){var x=mx+mw*s/100;var v=2.1;if(isReg&&s>44){v=0.1+2.0/(1+Math.exp((s-54)/6));}sp.push([x,my+mh-mh*v/2.4]);}
+    el('path',{d:path(sp),fill:'none',stroke:d.c,'stroke-width':2.2},g);
+    d.lines.forEach(function(ln,j){el('text',{x:18,y:226+j*20,fill:j===3?d.c:DIM2,'font-size':12,'font-weight':j===3?600:400},g).textContent='• '+ln;});
+  });
+  m4Update(30);
+}
+function m4Update(v){
+  var r=v/100;
+  gid('m4-sval').textContent=r.toFixed(2);
+  // update highlighted weight curve
+  var hl=gid('m4-hl');if(hl){
+    var px=80,py=80,pw=820,ph=300;
+    var sx=function(t){return px+pw*t/1000;};
+    var sy=function(w){return py+ph-ph*w/7;};
+    var pts=[];for(var t=0;t<=1000;t+=6){pts.push([sx(t),sy(m4WeightNorm(t,r))]);}
+    hl.setAttribute('d',path(pts));hl.setAttribute('stroke',AC);hl.setAttribute('stroke-width',3);hl.setAttribute('stroke-opacity',1);
+  }
+  // update test loss curve
+  var tc=gid('m4-test');if(tc){
+    var px2=80,py2=420,pw2=820,ph2=110;
+    var sx2=function(t){return px2+pw2*t/1000;};
+    var sy2=function(l){return py2+ph2-ph2*l/2.3;};
+    var pts=[];for(var t=0;t<=1000;t+=6){pts.push([sx2(t),sy2(m4TestLoss(t,r))]);}
+    tc.setAttribute('d',path(pts));
+  }
+  // marker grok point
+  var mk=gid('m4-marker');if(mk){clear(mk);
+    var grokStep=Math.round(560-380*r);
+    var px3=80,pw3=820;
+    el('line',{x1:px3+pw3*grokStep/1000,y1:420,x2:px3+pw3*grokStep/1000,y2:530,stroke:AC,'stroke-width':1.4,'stroke-dasharray':'4 3'},mk);
+    el('text',{x:px3+pw3*grokStep/1000,y:412,fill:AC,'font-size':10,'text-anchor':'middle'},mk).textContent='grok@'+grokStep;
+  }
+  setLog('m4-log','强度','正则化 λ='+r.toFixed(2)+' · grokking 步数 ≈ '+Math.round(560-380*r)+' · 强度越高泛化越早。');
+}
+function m4View(v){
+  var wg=gid('m4g-weight'),cg=gid('m4g-compare');
+  wg.setAttribute('display',v==='weight'?'inline':'none');
+  cg.setAttribute('display',v==='compare'?'inline':'none');
+  gid('m4').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  setLog('m4-log','视图',v==='weight'?'权重范数演化 · 调节滑块对比多强度曲线。':'正则化对比 · 有无正则的 grokking 差异。');
+}
+
+/* ============ M5 数据效率与 Grokking ============ */
+var m5Crit=0.4;
+function m5FinalLoss(f){
+  // f: 0.05..1.0 data fraction
+  var u=(f-m5Crit)/0.12;
+  var low=0.12,high=2.0;
+  return low+(high-low)/(1+Math.exp(u*5));
+}
+function m5Draw(){
+  var svg=gid('m5-svg');clear(svg);
+  var rg=el('g',{id:'m5g-ratio'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},rg).textContent='数据比例与最终测试损失';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},rg).textContent='临界数据比例以下永不 grok · 以上骤降至泛化';
+  var px=80,py=80,pw=820,ph=340;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},rg);
+  for(var i=0;i<=5;i++){el('line',{x1:px,y1:py+ph*i/5,x2:px+pw,y2:py+ph*i/5,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},rg);}
+  var sx=function(f){return px+pw*(f-0.05)/0.95;};
+  var sy=function(l){return py+ph-ph*l/2.2;};
+  // critical threshold
+  el('rect',{x:px,y:py,width:sx(m5Crit)-px,height:ph,fill:ERR,'fill-opacity':.05},rg);
+  el('rect',{x:sx(m5Crit),y:py,width:px+pw-sx(m5Crit),height:ph,fill:EM,'fill-opacity':.05},rg);
+  el('line',{x1:sx(m5Crit),y1:py,x2:sx(m5Crit),y2:py+ph,stroke:WARN,'stroke-width':1.6,'stroke-dasharray':'5 3'},rg);
+  el('text',{x:sx(m5Crit),y:py-8,fill:WARN,'font-size':11.5,'text-anchor':'middle','font-weight':600},rg).textContent='临界比例 '+m5Crit;
+  // curve
+  var pts=[];for(var f=0.05;f<=1;f+=0.01){pts.push([sx(f),sy(m5FinalLoss(f))]);}
+  el('path',{d:path(pts),fill:'none',stroke:INFO,'stroke-width':2.6},rg);
+  el('text',{x:sx(0.2),y:py+ph-20,fill:ERR,'font-size':11,'text-anchor':'middle'},rg).textContent='记忆区 · 不发生 grokking';
+  el('text',{x:sx(0.72),y:py+30,fill:EM,'font-size':11,'text-anchor':'middle'},rg).textContent='泛化区 · grokking 发生';
+  el('text',{x:px+pw/2,y:py+ph+24,fill:DIM,'font-size':11,'text-anchor':'middle'},rg).textContent='训练数据比例 →';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},rg).textContent='最终测试损失';
+  el('g',{id:'m5-marker'},rg);
+  // critical group
+  var cg=el('g',{id:'m5g-critical',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},cg).textContent='临界数据比例分析';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},cg).textContent='为何存在临界点 · 三个维度解析';
+  var cd=[
+    {c:ERR,t:'记忆阈值',d:'数据量低于临界时，模型容量远超数据复杂度，可零误差记忆全部样本，无需学习结构 → 永久停留在记忆相。'},
+    {c:WARN,t:'结构可学',d:'数据量越过临界后，记忆解不再唯一，损失景观中存在一族泛化解；隐式正则从中选出最小范数者 → 触发 grokking。'},
+    {c:EM,t:'相变锐度',d:'临界点附近测试损失呈 sigmoid 骤降，过渡区间窄；数据越多骤降越早，但临界比例本身由任务结构决定。'}
+  ];
+  cd.forEach(function(d,i){
+    var x=40+i*312;
+    var g=el('g',{transform:'translate('+x+',80)'},cg);
+    el('rect',{x:0,y:0,width:292,height:300,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:292,height:4,rx:2,fill:d.c},g);
+    el('text',{x:16,y:38,fill:d.c,'font-size':15,'font-weight':700},g).textContent=d.t;
+    wrap(d.d,24).forEach(function(ln,j){el('text',{x:16,y:70+j*18,fill:DIM2,'font-size':12},g).textContent=ln;});
+  });
+  m5Update(40);
+}
+function m5Update(v){
+  var f=v/100;
+  gid('m5-sval').textContent=Math.round(f*100)+'%';
+  var mk=gid('m5-marker');if(!mk)return;clear(mk);
+  var rg=gid('m5g-ratio');if(!rg||rg.getAttribute('display')==='none')return;
+  var px=80,py=80,pw=820,ph=340;
+  var sx=function(f){return px+pw*(f-0.05)/0.95;};
+  var sy=function(l){return py+ph-ph*l/2.2;};
+  var l=m5FinalLoss(f);
+  el('line',{x1:sx(f),y1:py,x2:sx(f),y2:py+ph,stroke:'#e6e8ee','stroke-width':1.2,'stroke-dasharray':'4 3','stroke-opacity':.6},mk);
+  el('circle',{cx:sx(f),cy:sy(l),r:6,fill:AC,stroke:'#0a0b0f','stroke-width':2},mk);
+  el('rect',{x:sx(f)+8,y:sy(l)-24,width:90,height:20,rx:4,fill:AC,'fill-opacity':.16,stroke:AC,'stroke-opacity':.4},mk);
+  el('text',{x:sx(f)+14,y:sy(l)-10,fill:AC,'font-size':10.5,'font-family':'monospace'},mk).textContent='loss '+l.toFixed(3);
+  var grok=f>=m5Crit;
+  setLog('m5-log','比例','数据比例 '+Math.round(f*100)+'% · 最终测试损失 '+l.toFixed(3)+' · '+(grok?'已越过临界，grokking 发生。':'低于临界，仅记忆不泛化。'));
+}
+function m5View(v){
+  var rg=gid('m5g-ratio'),cg=gid('m5g-critical');
+  rg.setAttribute('display',v==='ratio'?'inline':'none');
+  cg.setAttribute('display',v==='critical'?'inline':'none');
+  gid('m5').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  if(v==='ratio')m5Update(parseInt(gid('m5-slider').value));
+  setLog('m5-log','视图',v==='ratio'?'数据比例曲线 · 拖动滑块观察临界相变。':'临界分析 · 三维解析临界数据比例。');
+}
+
+/* ============ M6 Ridge 回归可证明 Grokking ============ */
+var m6Eig=[3.2,2.1,1.4,0.9,0.55,0.32,0.18,0.10,0.055,0.03,0.018,0.01]; // eigenvalues
+function m6ModeConv(eig,t,lambda){
+  // mode convergence factor: how much of this mode has converged by time t
+  var rate=eig+lambda;
+  return 1-Math.exp(-rate*t/40);
+}
+function m6TrainLoss(t,lambda){
+  var s=0;for(var i=0;i<m6Eig.length;i++){var c=m6ModeConv(m6Eig[i],t,lambda);s+=m6Eig[i]*(1-c)*(1-c);}
+  return 0.05+0.9*s/m6Eig.length;
+}
+function m6TestLoss(t,lambda){
+  // slow modes (small eig) carry generalization; test loss drops when slow modes converge
+  var slow=[m6Eig[8],m6Eig[9],m6Eig[10],m6Eig[11]];
+  var s=0;for(var i=0;i<slow.length;i++){var c=m6ModeConv(slow[i],t,lambda);s+=(1-c)*(1-c);}
+  return 0.08+0.95*s/slow.length;
+}
+function m6Draw(){
+  var svg=gid('m6-svg');clear(svg);
+  var sg=el('g',{id:'m6g-spectrum'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},sg).textContent='Ridge 回归特征值谱 · 快慢模式分离';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},sg).textContent='大特征值快收敛(记忆) · 小特征值慢收敛(泛化)';
+  var px=80,py=80,pw=820,ph=300;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},sg);
+  for(var i=0;i<=4;i++){el('line',{x1:px,y1:py+ph*i/4,x2:px+pw,y2:py+ph*i/4,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},sg);}
+  var bw=pw/m6Eig.length-10;
+  m6Eig.forEach(function(e,i){
+    var x=px+5+i*(bw+10);
+    var h=ph*e/3.3;
+    var isFast=e>0.5;var c=isFast?ORG:AC;
+    el('rect',{x:x,y:py+ph-h,width:bw,height:h,rx:3,fill:c,'fill-opacity':.7},sg);
+    el('text',{x:x+bw/2,y:py+ph+16,fill:DIM,'font-size':9,'text-anchor':'middle'},sg).textContent=(''+e);
+    el('text',{x:x+bw/2,y:py+ph-h-6,fill:c,'font-size':9,'text-anchor':'middle'},sg).textContent=(isFast?'快':'慢');
+  });
+  el('text',{x:px+pw/2,y:py+ph+34,fill:DIM,'font-size':11,'text-anchor':'middle'},sg).textContent='特征值 λᵢ（降序）→';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},sg).textContent='特征值大小';
+  // legend
+  el('rect',{x:px+pw-200,y:py+10,width:12,height:12,rx:2,fill:ORG,'fill-opacity':.7},sg);
+  el('text',{x:px+pw-182,y:py+20,fill:ORG,'font-size':11},sg).textContent='快模式 · 记忆训练数据';
+  el('rect',{x:px+pw-200,y:py+30,width:12,height:12,rx:2,fill:AC,'fill-opacity':.7},sg);
+  el('text',{x:px+pw-182,y:py+40,fill:AC,'font-size':11},sg).textContent='慢模式 · 编码泛化解';
+  // convergence group
+  var cg=el('g',{id:'m6g-converge',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},cg).textContent='收敛过程 · 双时间尺度导致延迟泛化';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},cg).textContent='快模式瞬态收敛 → 慢模式长尾收敛 = grokking';
+  var cpx=80,cpy=80,cpw=820,cph=340;
+  el('rect',{x:cpx,y:cpy,width:cpw,height:cph,rx:6,fill:'#0c0f17',stroke:BD},cg);
+  for(var i=0;i<=5;i++){el('line',{x1:cpx,y1:cpy+cph*i/5,x2:cpx+cpw,y2:cpy+cph*i/5,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},cg);}
+  for(var j=0;j<=5;j++){el('line',{x1:cpx+cpw*j/5,y1:cpy,x2:cpx+cpw*j/5,y2:cpy+cph,stroke:BD2,'stroke-opacity':.5,'stroke-dasharray':'2 4'},cg);}
+  var sx=function(t){return cpx+cpw*t/1000;};
+  var sy=function(l){return cpy+cph-cph*l/1.0;};
+  el('path',{id:'m6-train',fill:'none',stroke:ORG,'stroke-width':2.4},cg);
+  el('path',{id:'m6-test',fill:'none',stroke:AC,'stroke-width':2.6},cg);
+  el('line',{x1:cpx+cpw-180,y1:cpy+18,x2:cpx+cpw-156,y2:cpy+18,stroke:ORG,'stroke-width':2.4},cg);
+  el('text',{x:cpx+cpw-150,y:cpy+22,fill:ORG,'font-size':11},cg).textContent='训练损失 (快模式主导)';
+  el('line',{x1:cpx+cpw-180,y1:cpy+38,x2:cpx+cpw-156,y2:cpy+38,stroke:AC,'stroke-width':2.6},cg);
+  el('text',{x:cpx+cpw-150,y:cpy+42,fill:AC,'font-size':11},cg).textContent='测试损失 (慢模式主导)';
+  el('text',{x:cpx+cpw/2,y:cpy+cph+24,fill:DIM,'font-size':11,'text-anchor':'middle'},cg).textContent='训练步数 / 时间 →';
+  el('text',{x:cpx-40,y:cpy+cph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(cpx-40)+' '+(cpy+cph/2)+')'},cg).textContent='归一化损失';
+  el('g',{id:'m6-anno'},cg);
+  m6Update(20);
+}
+function m6Update(v){
+  var lambda=v/1000;
+  gid('m6-sval').textContent=lambda.toFixed(3);
+  // update convergence curves
+  var tr=gid('m6-train'),te=gid('m6-test');
+  if(tr&&te){
+    var cpx=80,cpy=80,cpw=820,cph=340;
+    var sx=function(t){return cpx+cpw*t/1000;};
+    var sy=function(l){return cpy+cph-cph*l/1.0;};
+    var tp=[];for(var t=0;t<=1000;t+=6){tp.push([sx(t),sy(m6TrainLoss(t,lambda))]);}
+    tr.setAttribute('d',path(tp));
+    var sp=[];for(var t=0;t<=1000;t+=6){sp.push([sx(t),sy(m6TestLoss(t,lambda))]);}
+    te.setAttribute('d',path(sp));
+  }
+  // annotation: grok step (where test loss crosses 0.3)
+  var anno=gid('m6-anno');if(anno){clear(anno);
+    var grok=0;for(var t=0;t<=1000;t+=2){if(m6TestLoss(t,lambda)<0.3){grok=t;break;}}
+    var cpx2=80,cpw2=820,cpy2=80,cph2=340;
+    el('line',{x1:cpx2+cpw2*grok/1000,y1:cpy2,x2:cpx2+cpw2*grok/1000,y2:cpy2+cph2,stroke:ROSE,'stroke-width':1.4,'stroke-dasharray':'4 3'},anno);
+    el('text',{x:cpx2+cpw2*grok/1000,y:cpy2-6,fill:ROSE,'font-size':10.5,'text-anchor':'middle','font-weight':600},anno).textContent='grok@'+grok;
+  }
+  var grok=0;for(var t=0;t<=1000;t+=2){if(m6TestLoss(t,lambda)<0.3){grok=t;break;}}
+  setLog('m6-log','理论','λ='+lambda.toFixed(3)+' · 慢模式收敛时点(grok)≈'+grok+' · λ 越大快慢分离越弱、grok 越早。');
+}
+function m6View(v){
+  var sg=gid('m6g-spectrum'),cg=gid('m6g-converge');
+  sg.setAttribute('display',v==='spectrum'?'inline':'none');
+  cg.setAttribute('display',v==='converge'?'inline':'none');
+  gid('m6').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  if(v==='converge')m6Update(parseInt(gid('m6-slider').value));
+  setLog('m6-log','视图',v==='spectrum'?'特征值谱 · 快慢模式分离可视化。':'收敛过程 · 双时间尺度导致延迟泛化。');
+}
+
+/* ============ M7 记忆 vs 泛化相变 ============ */
+function m7Complexity(p){
+  // p: 0..1 training progress; complexity high early (memorization), drops at phase transition
+  var base=0.85-0.7*p;
+  if(p>0.4&&p<0.6){var u=(p-0.4)/0.2;base=0.6-0.45*u;}
+  return Math.max(0.08,base+0.03*Math.sin(p*20));
+}
+function m7Acc(p){
+  var test=0.18;if(p>0.45){var u=(p-0.45)/0.12;test=0.18+0.78/(1+Math.exp(-u*6));}
+  return test;
+}
+function m7Draw(){
+  var svg=gid('m7-svg');clear(svg);
+  var pg=el('g',{id:'m7g-phase'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},pg).textContent='记忆-泛化相变图';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},pg).textContent='训练进度 vs 有效复杂度 · 轨迹穿越相边界';
+  var px=80,py=80,pw=820,ph=360;
+  el('rect',{x:px,y:py,width:pw,height:ph,rx:6,fill:'#0c0f17',stroke:BD},pg);
+  // memorization region (high complexity)
+  el('rect',{x:px,y:py,width:pw,height:ph*0.5,fill:ERR,'fill-opacity':.05},pg);
+  el('text',{x:px+pw-130,y:py+24,fill:ERR,'font-size':12,'font-weight':600},pg).textContent='记忆相 (高复杂度)';
+  // generalization region (low complexity)
+  el('rect',{x:px,y:py+ph*0.62,width:pw,height:ph*0.38,fill:EM,'fill-opacity':.05},pg);
+  el('text',{x:px+pw-140,y:py+ph-12,fill:EM,'font-size':12,'font-weight':600},pg).textContent='泛化相 (低复杂度)';
+  // phase boundary
+  el('line',{x1:px,y1:py+ph*0.56,x2:px+pw,y2:py+ph*0.56,stroke:WARN,'stroke-width':1.6,'stroke-dasharray':'6 4','stroke-opacity':.6},pg);
+  el('text',{x:px+8,y:py+ph*0.56-6,fill:WARN,'font-size':10.5},pg).textContent='相变边界';
+  // axes
+  for(var i=0;i<=5;i++){el('line',{x1:px+pw*i/5,y1:py,x2:px+pw*i/5,y2:py+ph,stroke:BD2,'stroke-opacity':.4,'stroke-dasharray':'2 4'},pg);}
+  var sx=function(p){return px+pw*p;};
+  var sy=function(c){return py+ph-ph*c/1.0;};
+  // trajectory
+  var pts=[];for(var p=0;p<=1;p+=0.01){pts.push([sx(p),sy(m7Complexity(p))]);}
+  el('path',{d:path(pts),fill:'none',stroke:INFO,'stroke-width':2.2,'stroke-opacity':.85},pg);
+  el('text',{x:px+pw/2,y:py+ph+24,fill:DIM,'font-size':11,'text-anchor':'middle'},pg).textContent='训练进度 →';
+  el('text',{x:px-40,y:py+ph/2,fill:DIM,'font-size':11,'text-anchor':'middle',transform:'rotate(-90 '+(px-40)+' '+(py+ph/2)+')'},pg).textContent='有效复杂度 / 权重范数';
+  // dynamic marker
+  el('g',{id:'m7-marker'},pg);
+  // accuracy mini-plot
+  el('text',{x:40,y:476,fill:'#e6e8ee','font-size':12,'font-weight':600},pg).textContent='测试准确率';
+  var ax=80,ay=464,aw=820,ah=70;
+  el('rect',{x:ax,y:ay,width:aw,height:ah,rx:4,fill:'#080b12',stroke:BD2},pg);
+  var asx=function(p){return ax+aw*p;};
+  var asy=function(a){return ay+ah-ah*a;};
+  var apts=[];for(var p=0;p<=1;p+=0.01){apts.push([asx(p),asy(m7Acc(p))]);}
+  el('path',{d:path(apts),fill:'none',stroke:AC,'stroke-width':2},pg);
+  el('g',{id:'m7-amarker'},pg);
+  // feature view group
+  var fg=el('g',{id:'m7g-feature',display:'none'},svg);
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},fg).textContent='特征学习：从杂乱到结构化';
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},fg).textContent='记忆相特征无结构 · 泛化相特征涌现几何结构';
+  var stages=[
+    {p:0.1,c:ERR,t:'早期 · 记忆',d:'特征空间杂乱，每个训练点独立编码，决策边界高度曲折，测试点无法被正确分类。'},
+    {p:0.45,c:WARN,t:'过渡 · 临界',d:'部分特征开始聚集，决策边界简化中，测试准确率处于骤降前夜，权重范数被压缩。'},
+    {p:0.8,c:EM,t:'晚期 · 泛化',d:'特征形成清晰几何簇（如模运算的圆环结构），决策边界平滑规则，泛化完成。'}
+  ];
+  stages.forEach(function(s,i){
+    var x=40+i*312;
+    var g=el('g',{transform:'translate('+x+',80)'},fg);
+    el('rect',{x:0,y:0,width:292,height:420,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+    el('rect',{x:0,y:0,width:292,height:4,rx:2,fill:s.c},g);
+    el('text',{x:16,y:32,fill:s.c,'font-size':14,'font-weight':700},g).textContent=s.t;
+    // feature scatter
+    var fx=16,fy=48,fw=260,fh=260;
+    el('rect',{x:fx,y:fy,width:fw,height:fh,rx:6,fill:'#080b12',stroke:BD2},g);
+    var seed=i*100;
+    var rng=function(n){var x=Math.sin(seed+n*12.9898)*43758.5453;return x-Math.floor(x);};
+    for(var k=0;k<60;k++){
+      var px2,py2;
+      if(i===0){px2=fx+fw*rng(k);py2=fy+fh*rng(k+1);}
+      else if(i===1){var ang=k/60*6.28;var rr=0.3+0.2*rng(k);px2=fx+fw*(0.5+rr*Math.cos(ang));py2=fy+fh*(0.5+rr*Math.sin(ang));}
+      else{var cls=k%3;var ang=(k/60)*6.28+cls*2.09;var rr=0.32;px2=fx+fw*(0.5+rr*Math.cos(ang));py2=fy+fh*(0.5+rr*Math.sin(ang));}
+      var col=i===0?ERR:(i===1?WARN:EM);
+      el('circle',{cx:px2,cy:py2,r:3,fill:col,'fill-opacity':.8},g);
+    }
+    el('text',{x:16,y:fy+fh+22,fill:s.c,'font-size':11,'font-family':'monospace'},g).textContent='进度 '+(s.p*100).toFixed(0)+'%';
+    wrap(s.d,26).forEach(function(ln,j){el('text',{x:16,y:fy+fh+44+j*16,fill:DIM2,'font-size':11.5},g).textContent=ln;});
+  });
+  m7Update(450);
+}
+function m7Update(v){
+  var p=v/1000;
+  gid('m7-sval').textContent=Math.round(p*100)+'%';
+  var mk=gid('m7-marker');if(mk){clear(mk);
+    var px=80,py=80,pw=820,ph=360;
+    var sx=function(p){return px+pw*p;};
+    var sy=function(c){return py+ph-ph*c/1.0;};
+    var c=m7Complexity(p);
+    el('line',{x1:sx(p),y1:py,x2:sx(p),y2:py+ph,stroke:'#e6e8ee','stroke-width':1.2,'stroke-dasharray':'4 3','stroke-opacity':.6},mk);
+    el('circle',{cx:sx(p),cy:sy(c),r:7,fill:AC,stroke:'#0a0b0f','stroke-width':2},mk);
+    var phase=p<0.45?'记忆相':(p<0.6?'相变临界':'泛化相');
+    el('text',{x:sx(p)+10,y:sy(c)-10,fill:AC,'font-size':11,'font-weight':600},mk).textContent=phase;
+  }
+  var amk=gid('m7-amarker');if(amk){clear(amk);
+    var ax=80,ay=464,aw=820,ah=70;
+    var asx=function(p){return ax+aw*p;};
+    var asy=function(a){return ay+ah-ah*a;};
+    var a=m7Acc(p);
+    el('circle',{cx:asx(p),cy:asy(a),r:5,fill:AC,stroke:'#0a0b0f','stroke-width':2},amk);
+  }
+  var phase=p<0.45?'记忆相（高复杂度，仅拟合训练点）':(p<0.6?'相变临界区（复杂度骤降）':'泛化相（低复杂度，结构化规律）');
+  setLog('m7-log','相态','进度 '+Math.round(p*100)+'% · 复杂度 '+m7Complexity(p).toFixed(3)+' · 测试准确率 '+m7Acc(p).toFixed(3)+' · '+phase+'。');
+}
+function m7View(v){
+  var pg=gid('m7g-phase'),fg=gid('m7g-feature');
+  pg.setAttribute('display',v==='phase'?'inline':'none');
+  fg.setAttribute('display',v==='feature'?'inline':'none');
+  gid('m7').querySelectorAll('.btn[data-v]').forEach(function(b){b.classList.toggle('active',b.dataset.v===v);});
+  if(v==='phase')m7Update(parseInt(gid('m7-slider').value));
+  setLog('m7-log','视图',v==='phase'?'相变图 · 拖动滑块观察轨迹穿越相边界。':'特征学习 · 三阶段特征结构演化。');
+}
+
+/* ============ M8 应用与未来 ============ */
+var m8Data={
+  mod:{c:AC,t:'模运算',en:'Modular Arithmetic',icon:'%',sub:'p = a · b mod n · grokking 经典任务',
+    lines:['2021 Power et al. 首次发现并命名 grokking','任务：给定 (a,b) 预测 a·b mod 97','训练 99% 数据后测试仍随机，步 ~1e5 后骤降至 100%','Nanda et al. 2023 发现模型学到离散傅里叶电路','结论：grokking = 学到群结构而非记忆乘法表'],
+    viz:'mod'},
+  grp:{c:PUR,t:'群论运算',en:'Group Theory',icon:'G',sub:'置换群 / 二面体群 · 结构化泛化',
+    lines:['任务：群内元素的二元运算（如置换复合）','不同群结构 grokking 难度差异显著','阿贝尔群比非阿贝尔群更易 grok','学到的电路对应群的表示论结构','揭示模型可发现抽象代数规律'],
+    viz:'grp'},
+  algo:{c:INFO,t:'算法学习',en:'Algorithm Learning',icon:'A',sub:'排序 / 最短路 · 程序合成',
+    lines:['任务：从输入输出对归纳算法（排序、最短路）','小规模可记忆 → 大规模需真算法才泛化','grokking 后模型泛化到任意输入规模','与神经符号程序合成密切相关','推动“模型可发明算法”的研究方向'],
+    viz:'algo'},
+  circ:{c:WARN,t:'电路发现',en:'Circuit Discovery',icon:'⎔',sub:'逆向工程学到的计算电路',
+    lines:['grokking 后模型内部形成可解释电路','模运算 → 离散傅里叶变换 + 稀疏组合','为机制可解释性提供理想研究对象','电路复杂度与泛化能力强相关','连接 grokking 与机械可解释性'],
+    viz:'circ'},
+  fut:{c:EM,t:'未来方向',en:'Future Directions',icon:'→',sub:'理论 · 工程 · 安全',
+    lines:['理论：扩展可证明 grokking 至深度网络与 SGD','工程：主动诱导 grokking 加速泛化、降低数据需求','数据：临界比例指导高效课程学习设计','安全：理解相变避免训练中“看似收敛实则记忆”','愿景：统一深度学习泛化的相变理论'],
+    viz:'fut'}
+};
+var m8Current='mod';
+function m8Draw(){
+  m8Render(m8Current);
+}
+function m8Render(key){
+  var svg=gid('m8-svg');clear(svg);
+  var d=m8Data[key];
+  el('text',{x:40,y:34,fill:'#e6e8ee','font-size':17,'font-weight':650},svg).textContent=d.t+' · '+d.en;
+  el('text',{x:40,y:54,fill:DIM2,'font-size':12},svg).textContent=d.sub;
+  // left: detail lines
+  var g=el('g',{transform:'translate(40,80)'},svg);
+  el('rect',{x:0,y:0,width:420,height:440,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},g);
+  el('rect',{x:0,y:0,width:420,height:4,rx:2,fill:d.c},g);
+  el('circle',{cx:36,cy:40,r:18,fill:d.c,'fill-opacity':.16},g);
+  el('text',{x:36,y:46,fill:d.c,'font-size':18,'font-weight':700,'text-anchor':'middle'},g).textContent=d.icon;
+  el('text',{x:66,y:36,fill:d.c,'font-size':11,'font-family':'monospace'},g).textContent=d.en;
+  el('text',{x:66,y:52,fill:'#e6e8ee','font-size':15,'font-weight':650},g).textContent=d.t;
+  d.lines.forEach(function(ln,i){
+    el('circle',{cx:18,cy:92+i*52,r:2.5,fill:d.c},g);
+    wrap(ln,32).forEach(function(wl,j){el('text',{x:28,y:96+i*52+j*16,fill:DIM2,'font-size':11.5},g).textContent=wl;});
+  });
+  // right: task-specific mini viz
+  var rx=500;
+  var rg=el('g',{transform:'translate('+rx+',80)'},svg);
+  el('rect',{x:0,y:0,width:440,height:440,rx:10,fill:'#0e131c',stroke:BD,'stroke-width':1.2},rg);
+  el('text',{x:16,y:28,fill:'#e6e8ee','font-size':13,'font-weight':600},rg).textContent='可视化';
+  if(d.viz==='mod'){
+    // modular multiplication table as heatmap
+    el('text',{x:16,y:52,fill:DIM2,'font-size':11},rg).textContent='模 97 乘法表热图 (a·b mod 97)';
+    var n=12,cell=28,ox=60,oy=70;
+    for(var a=1;a<=n;a++){for(var b=1;b<=n;b++){
+      var v=(a*b)%97;var op=v/97;
+      el('rect',{x:ox+(a-1)*cell,y:oy+(b-1)*cell,width:cell-1,height:cell-1,rx:2,fill:d.c,'fill-opacity':(0.15+0.7*op)},rg);
+      el('text',{x:ox+(a-1)*cell+cell/2,y:oy+(b-1)*cell+cell/2+3,fill:'#e6e8ee','font-size':8,'text-anchor':'middle'},rg).textContent=v;
+    }}
+    el('text',{x:ox,y:oy+n*cell+18,fill:DIM,'font-size':10},rg).textContent='grokking 后模型学到此结构而非记忆。';
+  }else if(d.viz==='grp'){
+    // group structure - dihedral
+    el('text',{x:16,y:52,fill:DIM2,'font-size':11},rg).textContent='二面体群 D₆ 凯莱图（旋转+反射）';
+    var cx=220,cy=230,r=110;
+    for(var k=0;k<6;k++){
+      var ang=k/6*6.28;var x=cx+r*Math.cos(ang);var y=cy+r*Math.sin(ang);
+      el('circle',{cx:x,cy:y,r:16,fill:d.c,'fill-opacity':.2,stroke:d.c},rg);
+      el('text',{x:x,y:y+4,fill:'#e6e8ee','font-size':10,'text-anchor':'middle'},rg).textContent='r'+k;
+    }
+    for(var k=0;k<6;k++){
+      var a1=k/6*6.28,a2=((k+1)%6)/6*6.28;
+      el('line',{x1:cx+r*Math.cos(a1),y1:cy+r*Math.sin(a1),x2:cx+r*Math.cos(a2),y2:cy+r*Math.sin(a2),stroke:d.c,'stroke-width':1.5,'stroke-opacity':.6},rg);
+    }
+    el('text',{x:16,y:400,fill:DIM,'font-size':10},rg).textContent='模型 grokking 后发现群的对称结构。';
+  }else if(d.viz==='algo'){
+    // algorithm generalization
+    el('text',{x:16,y:52,fill:DIM2,'font-size':11},rg).textContent='算法学习：训练规模 vs 泛化规模';
+    var px=50,py=80,pw=380,ph=280;
+    el('rect',{x:px,y:py,width:pw,height:ph,rx:4,fill:'#080b12',stroke:BD2},rg);
+    el('line',{x1:px,y1:py+ph,x2:px+pw,y2:py+ph,stroke:BD2},rg);
+    el('line',{x1:px,y1:py,x2:px,y2:py+ph,stroke:BD2},rg);
+    // memorization (flat low then fails)
+    var mp=[];for(var s=0;s<=10;s++){var x=px+pw*s/10;var y=py+ph-ph*(s<6?0.9-0.7*s/6:0.1);mp.push([x,y]);}
+    el('path',{d:path(mp),fill:'none',stroke:ERR,'stroke-width':2},rg);
+    // generalization after grok
+    var gp=[];for(var s=0;s<=10;s++){var x=px+pw*s/10;var y=py+ph-ph*(0.95-0.85*(1-Math.exp(-s/2)));gp.push([x,y]);}
+    el('path',{d:path(gp),fill:'none',stroke:d.c,'stroke-width':2.2},rg);
+    el('text',{x:px+pw-6,y:py+ph-30,fill:ERR,'font-size':10,'text-anchor':'end'},rg).textContent='记忆 · 大规模失效';
+    el('text',{x:px+pw-6,y:py+ph-14,fill:d.c,'font-size':10,'text-anchor':'end'},rg).textContent='grok · 任意规模泛化';
+    el('text',{x:px+pw/2,y:py+ph+18,fill:DIM,'font-size':10,'text-anchor':'middle'},rg).textContent='输入规模 →';
+  }else if(d.viz==='circ'){
+    // circuit diagram
+    el('text',{x:16,y:52,fill:DIM2,'font-size':11},rg).textContent='模运算电路：傅里叶变换 + 稀疏组合';
+    var nodes=[{x:80,y:110,l:'输入 a,b'},{x:200,y:110,l:'嵌入'},{x:320,y:110,l:'DFT'}];
+    nodes.forEach(function(n,i){el('rect',{x:n.x-30,y:n.y-14,width:60,height:28,rx:5,fill:d.c,'fill-opacity':.16,stroke:d.c},rg);el('text',{x:n.x,y:n.y+4,fill:'#e6e8ee','font-size':9.5,'text-anchor':'middle'},rg).textContent=n.l;if(i<2)el('line',{x1:n.x+30,y1:n.y,x2:nodes[i+1].x-30,y2:nodes[i+1].y,stroke:d.c,'stroke-width':1.5},rg);});
+    el('text',{x:200,y:160,fill:DIM,'font-size':10,'text-anchor':'middle'},rg).textContent='频率域表示';
+    var fnodes=[{x:100,y:210},{x:170,y:210},{x:240,y:210},{x:310,y:210}];
+    fnodes.forEach(function(n,i){el('circle',{cx:n.x,cy:n.y,r:12,fill:INFO,'fill-opacity':.2,stroke:INFO},rg);el('text',{x:n.x,y:n.y+3,fill:INFO,'font-size':8,'text-anchor':'middle'},rg).textContent='f'+i;});
+    el('line',{x1:200,y1:124,x2:200,y2:180,stroke:d.c,'stroke-width':1.5},rg);
+    el('line',{x1:200,y1:198,x2:100,y2:198},rg);
+    el('text',{x:200,y:250,fill:DIM,'font-size':10,'text-anchor':'middle'},rg).textContent='稀疏线性组合';
+    el('rect',{x:170,y:270,width:60,height:28,rx:5,fill:d.c,'fill-opacity':.16,stroke:d.c},rg);
+    el('text',{x:200,y:288,fill:'#e6e8ee','font-size':9.5,'text-anchor':'middle'},rg).textContent='输出 mod n';
+    el('line',{x1:100,y1:222,x2:170,y2:270,stroke:d.c,'stroke-width':1,'stroke-opacity':.5},rg);
+    el('line',{x1:310,y1:222,x2:230,y2:270,stroke:d.c,'stroke-width':1,'stroke-opacity':.5},rg);
+    el('text',{x:16,y:330,fill:DIM,'font-size':10},rg).textContent='grokking 后涌现的可解释计算电路。';
+  }else if(d.viz==='fut'){
+    // future directions radar-ish
+    el('text',{x:16,y:52,fill:DIM2,'font-size':11},rg).textContent='五大未来方向成熟度展望';
+    var dirs=[{l:'理论扩展',v:0.4},{l:'工程诱导',v:0.55},{l:'数据设计',v:0.6},{l:'安全理解',v:0.45},{l:'统一理论',v:0.3}];
+    var cx=220,cy=230,R=130;
+    el('circle',{cx:cx,cy:cy,r:R,fill:'none',stroke:BD,'stroke-dasharray':'3 4'},rg);
+    el('circle',{cx:cx,cy:cy,r:R*0.66,fill:'none',stroke:BD,'stroke-dasharray':'3 4'},rg);
+    el('circle',{cx:cx,cy:cy,r:R*0.33,fill:'none',stroke:BD,'stroke-dasharray':'3 4'},rg);
+    var poly=[];dirs.forEach(function(dd,i){var ang=-1.57+i*6.28/dirs.length;poly.push([cx+R*Math.cos(ang),cy+R*Math.sin(ang)]);el('text',{x:cx+(R+18)*Math.cos(ang),y:cy+(R+18)*Math.sin(ang)+4,fill:'#e6e8ee','font-size':10,'text-anchor':'middle'},rg).textContent=dd.l;});
+    el('polygon',{points:poly.map(function(p){return p[0]+','+p[1];}).join(' '),fill:'none',stroke:BD2},rg);
+    var dpoly=[];dirs.forEach(function(dd,i){var ang=-1.57+i*6.28/dirs.length;dpoly.push([cx+R*dd.v*Math.cos(ang),cy+R*dd.v*Math.sin(ang)]);});
+    el('polygon',{points:dpoly.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '),fill:d.c,'fill-opacity':.18,stroke:d.c,'stroke-width':2},rg);
+    dpoly.forEach(function(p){el('circle',{cx:p[0],cy:p[1],r:4,fill:d.c},rg);});
+  }
+  setLog('m8-log','任务',d.t+' · '+d.sub);
+}
+function m8Sel(key){
+  m8Current=key;
+  gid('m8').querySelectorAll('.btn[data-t]').forEach(function(b){b.classList.toggle('active',b.dataset.t===key);});
+  m8Render(key);
+}
+
+/* ============ 初始化 ============ */
+function init(){
+  m1Draw();m2Draw();m3Draw();m4Draw();m5Draw();m6Draw();m7Draw();m8Draw();
+  gid('m2-slider').addEventListener('input',function(){m2Update(parseInt(this.value));});
+  gid('m3-slider').addEventListener('input',function(){m3Update(parseInt(this.value));});
+  gid('m4-slider').addEventListener('input',function(){m4Update(parseInt(this.value));});
+  gid('m5-slider').addEventListener('input',function(){m5Update(parseInt(this.value));});
+  gid('m6-slider').addEventListener('input',function(){m6Update(parseInt(this.value));});
+  gid('m7-slider').addEventListener('input',function(){m7Update(parseInt(this.value));});
+}
+init();
+</script>
+</body>
+</html>

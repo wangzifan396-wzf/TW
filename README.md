@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 311 个零依赖交互式可视化项目 + 30 个配套工具，2488+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 316 个零依赖交互式可视化项目 + 30 个配套工具，2528+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-311-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2488+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-316-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2528+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 311 |
-| 可视化模块 | 2488+ |
+| 项目总数 | 316 |
+| 可视化模块 | 2528+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -385,6 +385,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 309 | 推理芯片与加速架构可视化实验室 | 推理芯片全景/Groq LPU架构/Cerebras晶圆级引擎/定制ASIC推理/vLLM推理框架/TensorRT-LLM优化/内存带宽优化/推理vs训练算力等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/inference-chip-acceleration-viz-lab/) |
 | 310 | HBM内存与近存计算可视化实验室 | 内存墙问题/HBM4技术演进/CXL互连协议/近存计算架构/存内计算/MoE内存挑战/带宽优化技术/未来内存技术等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/hbm-memory-near-compute-viz-lab/) |
 | 311 | 知识蒸馏与推理迁移可视化实验室 | 蒸馏全景/推理过程蒸馏/跨模型迁移/小模型推理能力/蒸馏策略对比/多教师蒸馏/自蒸馏与在线蒸馏/端侧部署应用等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/knowledge-distillation-reasoning-viz-lab/) |
+| 312 | Grokking现象与延迟泛化可视化实验室 | Grokking全景/训练vs测试曲线/双下降现象/隐式正则化/数据效率/Ridge回归证明/记忆vs泛化相变/应用与未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/grokking-delayed-generalization-viz-lab/) |
+| 313 | 优化器理论与SGD回归可视化实验室 | 优化器全景/SGD vs AdamW对比/Adam优化机制/参数高效更新/Lion与Sophia/学习率调度/RL微调优化/训练管线架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/optimizer-theory-sgd-comeback-viz-lab/) |
+| 314 | 对齐双刃剑与审查风险可视化实验室 | 对齐双刃剑全景/对齐工具箱/审查工具包风险/欺骗探测图谱/RLVR与欺骗涌现/对齐vs审查边界/全球治理框架/负责任对齐等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/alignment-dual-use-governance-viz-lab/) |
+| 315 | 模型记忆容量与信息论可视化实验室 | 记忆容量全景/3.6比特参数/Kolmogorov复杂度/记忆vs泛化/数据提取攻击/影响函数追踪/去记忆技术/容量标度律等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/model-memorization-capacity-viz-lab/) |
+| 316 | 扩散采样理论与收敛证明可视化实验室 | 采样理论全景/polylog突破/分数匹配/收敛证明/随机矩阵一致性/采样器对比/高维采样挑战/应用与未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/diffusion-sampling-theory-viz-lab/) |
 
 ## 技术栈
 
