@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 稀疏自编码器与叠加态可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;padding:0 0 40px}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto;flex-wrap:wrap}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+main{padding:20px 24px;max-width:1000px;margin:0 auto}
+.module{display:none}
+.module.active{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.module h2{font-size:19px;font-weight:600;margin-bottom:6px;color:#e6e8ee}
+.module p{color:#8a93a8;font-size:13px;margin-bottom:14px;max-width:880px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ctrl{padding:7px 14px;background:#151823;border:1px solid #2d3344;color:#9aa3b8;border-radius:6px;cursor:pointer;font-size:13px;transition:all .15s}
+.ctrl:hover{border-color:#00d4aa;color:#e6e8ee}
+.ctrl.active{background:rgba(0,212,170,.14);border-color:#00d4aa;color:#00d4aa}
+.viz{background:#151823;border:1px solid #2d3344;border-radius:10px;padding:10px;margin-bottom:12px;overflow-x:auto}
+svg{display:block;width:100%;height:auto;max-width:920px}
+.log{background:#0f1117;border:1px solid #2d3344;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#8a93a8;font-family:'Consolas','SF Mono',Monaco,monospace;min-height:56px;line-height:1.7}
+.log .k{color:#00d4aa}.log .i{color:#38bdf8}.log .p{color:#a78bfa}.log .w{color:#f59e0b}.log .e{color:#ef4444}.log .r{color:#fb7185}.log .d{color:#62697b}
+.log b{color:#e6e8ee;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>稀疏自编码器与叠加态可视化实验室</h1>
+</header>
+<nav class="tabs">
+<button class="tab active" data-tab="m1">M1 SAE全景</button>
+<button class="tab" data-tab="m2">M2 叠加原理</button>
+<button class="tab" data-tab="m3">M3 SAE训练</button>
+<button class="tab" data-tab="m4">M4 单义特征</button>
+<button class="tab" data-tab="m5">M5 特征电路</button>
+<button class="tab" data-tab="m6">M6 SAE变体</button>
+<button class="tab" data-tab="m7">M7 评估指标</button>
+<button class="tab" data-tab="m8">M8 应用场景</button>
+</nav>
+<main>
+
+<section id="m1" class="module active">
+<h2>M1 · 稀疏自编码器全景</h2>
+<p>稀疏自编码器(Sparse Autoencoder, SAE)将神经网络中多义的叠加态激活分解为单义、稀疏、可解释的特征方向。当特征数 N 远大于神经元数 M 时，模型将特征以近正交方向"叠加"存储在权重矩阵中，SAE 通过过完备字典学习还原这些特征，是机械可解释性的核心工具。</p>
+<div class="controls" data-mod="m1">
+<button class="ctrl active" data-act="all">全部</button>
+<button class="ctrl" data-act="super">叠加问题</button>
+<button class="ctrl" data-act="arch">SAE架构</button>
+<button class="ctrl" data-act="decomp">特征分解</button>
+</div>
+<div class="viz"><svg id="svg1" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log1"></div>
+</section>
+
+<section id="m2" class="module">
+<h2>M2 · 叠加原理</h2>
+<p>叠加态(Superposition)解释了为何少量神经元能表示大量特征：在稀疏激活条件下，模型将特征编码为高维空间中近正交的方向而非独立神经元，代价是特征间存在干扰。理解叠加的几何与容量边界，是设计 SAE 的理论基础。</p>
+<div class="controls" data-mod="m2">
+<button class="ctrl active" data-act="poly">多义神经元</button>
+<button class="ctrl" data-act="interf">特征干扰</button>
+<button class="ctrl" data-act="geom">叠加几何</button>
+<button class="ctrl" data-act="cap">容量分析</button>
+</div>
+<div class="viz"><svg id="svg2" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log2"></div>
+</section>
+
+<section id="m3" class="module">
+<h2>M3 · SAE 训练流程</h2>
+<p>SAE 训练目标是在重构输入的同时保持隐层激活稀疏。编码器将激活 h 映射为稀疏潜在码 z，解码器从 z 重构 h。损失由重构项(L2)与稀疏项(L1 或 TopK)组成。训练良好的 SAE 能学到单义特征字典，使每个潜在维度对应一个可解释的概念。</p>
+<div class="controls" data-mod="m3">
+<button class="ctrl active" data-act="encdec">编码器-解码器</button>
+<button class="ctrl" data-act="l1">L1稀疏</button>
+<button class="ctrl" data-act="recon">重构损失</button>
+<button class="ctrl" data-act="topk">Top-K激活</button>
+</div>
+<div class="viz"><svg id="svg3" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log3"></div>
+</section>
+
+<section id="m4" class="module">
+<h2>M4 · 单义特征提取</h2>
+<p>叠加态使单个神经元多义，SAE 通过过完备字典学习将多义激活分解为单义特征。每个 SAE 潜在维度应只对单一概念响应，从而实现可解释性。字典学习、特征提取与可视化共同验证单义性假设。</p>
+<div class="controls" data-mod="m4">
+<button class="ctrl active" data-act="extract">特征提取</button>
+<button class="ctrl" data-act="dict">字典学习</button>
+<button class="ctrl" data-act="interp">可解释性</button>
+<button class="ctrl" data-act="viz">特征可视化</button>
+</div>
+<div class="viz"><svg id="svg4" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log4"></div>
+</section>
+
+<section id="m5" class="module">
+<h2>M5 · 特征电路分析</h2>
+<p>单义特征是理解模型的"词汇"，电路则是"语法"。特征电路分析追溯特征如何跨层组合、归因与因果交互，揭示模型从输入到输出的计算路径。通过因果追踪与电路可视化，可定位关键计算节点。</p>
+<div class="controls" data-mod="m5">
+<button class="ctrl active" data-act="attrib">特征归因</button>
+<button class="ctrl" data-act="circuit">电路分析</button>
+<button class="ctrl" data-act="causal">因果追踪</button>
+<button class="ctrl" data-act="viz">电路可视化</button>
+</div>
+<div class="viz"><svg id="svg5" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log5"></div>
+</section>
+
+<section id="m6" class="module">
+<h2>M6 · SAE 变体演进</h2>
+<p>标准 ReLU+L1 SAE 存在 shrinkage、死特征与特征吸收问题。TopK-SAE 用硬稀疏替代 L1，JumpReLU 引入可学习阈值，BatchTopK 在批次级选 TopK，Gated SAE 分离门控与幅值。每种变体在稀疏性、重构与可解释性上有不同权衡。</p>
+<div class="controls" data-mod="m6">
+<button class="ctrl active" data-act="topk">TopK-SAE</button>
+<button class="ctrl" data-act="jumprelu">JumpReLU</button>
+<button class="ctrl" data-act="batchtopk">BatchTopK</button>
+<button class="ctrl" data-act="gated">Gated-SAE</button>
+</div>
+<div class="viz"><svg id="svg6" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log6"></div>
+</section>
+
+<section id="m7" class="module">
+<h2>M7 · SAE 评估指标</h2>
+<p>SAE 评估是多维度的：重构质量衡量信息保留，稀疏度衡量压缩效率，可解释性衡量人类可读性，忠实度衡量因果有效性。四者存在张力——更稀疏往往牺牲重构，需在应用场景下找到帕累托最优点。</p>
+<div class="controls" data-mod="m7">
+<button class="ctrl active" data-act="recon">重构质量</button>
+<button class="ctrl" data-act="sparse">稀疏度</button>
+<button class="ctrl" data-act="interp">可解释性</button>
+<button class="ctrl" data-act="faith">忠实度</button>
+</div>
+<div class="viz"><svg id="svg7" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log7"></div>
+</section>
+
+<section id="m8" class="module">
+<h2>M8 · 应用场景</h2>
+<p>SAE 衍生的单义特征为模型可解释性、模型引导、安全检测与对齐辅助提供基础能力。从理解模型行为到主动引导输出，从检测欺骗与后门到辅助对齐，特征级工具正成为可信 AI 的关键基础设施。</p>
+<div class="controls" data-mod="m8">
+<button class="ctrl active" data-act="interp">可解释性</button>
+<button class="ctrl" data-act="steer">模型引导</button>
+<button class="ctrl" data-act="safety">安全检测</button>
+<button class="ctrl" data-act="align">对齐辅助</button>
+</div>
+<div class="viz"><svg id="svg8" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log8"></div>
+</section>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+// ===== color constants =====
+var AC='#00d4aa', INFO='#38bdf8', PUR='#a78bfa', WARN='#f59e0b', ERR='#ef4444', ROSE='#fb7185', DIM='#62697b', BD='#2d3344';
+var NS='http://www.w3.org/2000/svg';
+
+// ===== core helpers =====
+function el(tag, attrs, parent){
+  var n=document.createElementNS(NS, tag);
+  if(attrs){ for(var k in attrs){ if(attrs[k]!==undefined) n.setAttribute(k, attrs[k]); } }
+  if(parent) parent.appendChild(n);
+  return n;
+}
+function clear(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+function svg(id){ return document.getElementById(id); }
+function log(id, html){ document.getElementById(id).innerHTML=html; }
+
+// ===== drawing helpers =====
+function addDefs(s){
+  var defs=el('defs',{},s);
+  var map={'ac':AC,'info':INFO,'pur':PUR,'warn':WARN,'err':ERR,'rose':ROSE,'dim':DIM};
+  for(var key in map){
+    var m=el('marker',{id:'ar-'+key,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},defs);
+    el('path',{d:'M0,0 L10,5 L0,10 z',fill:map[key]},m);
+  }
+}
+function mk(color){
+  var map={};map[AC]='ac';map[INFO]='info';map[PUR]='pur';map[WARN]='warn';map[ERR]='err';map[ROSE]='rose';map[DIM]='dim';
+  return 'url(#ar-'+(map[color]||'dim')+')';
+}
+function txt(s,x,y,str,fill,size,anchor,weight){
+  var n=el('text',{x:x,y:y,fill:fill,'font-size':size,'font-family':'sans-serif','text-anchor':anchor||'middle','font-weight':weight||'normal'},s);
+  n.textContent=str;
+  return n;
+}
+function tleft(s,x,y,str,fill,size){
+  var n=el('text',{x:x,y:y,fill:fill,'font-size':size,'font-family':'sans-serif','text-anchor':'start'},s);
+  n.textContent=str;
+  return n;
+}
+function box(s,x,y,w,h,fill,stroke,r,lw){
+  return el('rect',{x:x,y:y,width:w,height:h,rx:r||8,fill:fill,stroke:stroke||'none','stroke-width':lw||1.5},s);
+}
+function node(s,x,y,w,h,label,fill,stroke,sub,subFill){
+  box(s,x-w/2,y-h/2,w,h,fill,stroke,8,1.5);
+  if(sub){
+    txt(s,x,y-3,label,stroke,12,'middle','600');
+    txt(s,x,y+13,sub,subFill||DIM,9);
+  }else{
+    txt(s,x,y+h/2-5,label,stroke,12,'middle','600');
+  }
+}
+function line(s,x1,y1,x2,y2,stroke,lw,dash,opacity){
+  el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke,'stroke-width':lw||1.5,'stroke-dasharray':dash||'none','stroke-opacity':opacity==null?1:opacity},s);
+}
+function arrow(s,x1,y1,x2,y2,stroke,lw){
+  el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke,'stroke-width':lw||1.6,'marker-end':mk(stroke)},s);
+}
+function circle(s,cx,cy,r,fill,stroke,lw){
+  return el('circle',{cx:cx,cy:cy,r:r,fill:fill,stroke:stroke,'stroke-width':lw||1.5},s);
+}
+function title(s,x,y,str,color,size){
+  txt(s,x,y,str,color||AC,size||17,'middle','700');
+}
+function panel(s,x,y,w,h,label){
+  box(s,x,y,w,h,'rgba(255,255,255,0.015)',BD,10,1);
+  txt(s,x+12,y+20,label,DIM,11,'start','600');
+}
+
+// ============================================================
+// M1 — SAE 全景
+// ============================================================
+function M1(act){
+  var s=svg('svg1'); clear(s); addDefs(s);
+  if(act==='all'){
+    title(s,460,34,'稀疏自编码器(SAE)与叠加态全景',AC,18);
+    // three pillars
+    var cols=[{x:170,t:'叠加问题',c:WARN,sub:'N特征 > M神经元'},{x:460,t:'SAE架构',c:AC,sub:'编码-解码-稀疏'},{x:750,t:'特征分解',c:PUR,sub:'多义→单义'}];
+    cols.forEach(function(c){
+      panel(s,c.x-135,60,270,150,'');
+      txt(s,c.x,90,c.t,c.c,15,'middle','700');
+      txt(s,c.x,112,c.sub,DIM,11);
+    });
+    // col1: superposition - 6 features into 3 neurons
+    var fcols=[WARN,INFO,PUR,ROSE,AC,ERR];
+    for(var i=0;i<6;i++){
+      var a=i*Math.PI/3;
+      el('line',{x1:170,y1:155,x2:170+Math.cos(a)*30,y2:155+Math.sin(a)*30,stroke:fcols[i],'stroke-width':2.5},s);
+      circle(s,170+Math.cos(a)*30,155+Math.sin(a)*30,4,fcols[i],fcols[i],1);
+    }
+    txt(s,170,200,'3 神经元 ⊃ 6 特征',WARN,10);
+    // col2: SAE architecture
+    line(s,400,155,420,155,AC,2); box(s,420,135,40,40,'rgba(0,212,170,0.12)',AC,6,1.5);
+    txt(s,440,159,'W_e',AC,10,'middle','600');
+    line(s,460,155,480,155,AC,2); circle(s,500,155,16,'rgba(0,212,170,0.12)',AC,1.5);
+    txt(s,500,159,'z',AC,10,'middle','600');
+    line(s,516,155,536,155,AC,2); box(s,536,135,40,40,'rgba(0,212,170,0.12)',AC,6,1.5);
+    txt(s,556,159,'W_d',AC,10,'middle','600');
+    txt(s,460,200,'稀疏潜在码 z',AC,10);
+    // col3: decomposition
+    var dcols=[AC,INFO,PUR];
+    for(var j=0;j<3;j++){
+      box(s,690+j*40,140,30,30,dcols[j]+'22',dcols[j],4,1);
+      if(j<2) txt(s,724+j*40,160,'+',DIM,11);
+    }
+    txt(s,750,200,'Σ 单义特征',PUR,10);
+    // bottom pipeline
+    panel(s,60,250,800,200,'SAE 工作流：从叠加态到可解释特征');
+    var steps=[['模型激活 h','多义/叠加',INFO],['编码器 W_e','h → z',AC],['稀疏约束','L1 / TopK',WARN],['潜在码 z','单义特征',PUR],['解码器 W_d','z → h_hat',AC],['可解释分析','概念映射',ROSE]];
+    var sx=120, gap=130;
+    steps.forEach(function(st,i){
+      var x=sx+i*gap;
+      box(s,x-55,300,110,52,'rgba(255,255,255,0.03)',st[2],6,1.3);
+      txt(s,x,320,st[0],st[2],11,'middle','600');
+      txt(s,x,340,st[1],DIM,9);
+      if(i<steps.length-1) arrow(s,x+57,326,x+gap-57,326,DIM,1.4);
+    });
+    // key equation
+    box(s,140,380,640,46,'rgba(0,212,170,0.06)',AC,8,1);
+    txt(s,460,400,'z = ReLU(W_e · h + b_e)',AC,13,'middle','600');
+    txt(s,460,418,'h_hat = W_d · z + b_d    损失 = ||h - h_hat||² + λ||z||₁',DIM,11,'middle');
+    log('log1','<span class="k">[全景]</span> <b>三大支柱</b>：叠加问题(特征数>神经元数) → SAE架构(编码-稀疏-解码) → 特征分解(多义→单义)。\n<span class="d">SAE 是机械可解释性的核心工具：将黑箱激活还原为人类可读的单义特征字典。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='super'){
+    title(s,460,34,'叠加问题：N 个特征挤入 M 个神经元',WARN,17);
+    panel(s,60,60,800,180,'问题设定');
+    txt(s,460,92,'现实世界有海量稀疏特征(N >> M)，但模型隐藏层只有 M 个神经元',WARN,12,'middle','600');
+    // left: N features
+    txt(s,180,124,'N = 8 个特征',INFO,12,'middle','600');
+    var fcols=[WARN,INFO,PUR,ROSE,AC,ERR,'#7dd3fc','#fde68a'];
+    for(var i=0;i<8;i++){
+      circle(s,120+(i%4)*40,150+Math.floor(i/4)*30,9,fcols[i]+'33',fcols[i],1.5);
+      txt(s,120+(i%4)*40,153,(i+1),fcols[i],9,'middle','600');
+    }
+    arrow(s,300,155,360,155,WARN,2);
+    txt(s,330,145,'压缩',WARN,10);
+    // middle: M neurons
+    txt(s,460,124,'M = 3 个神经元',ERR,12,'middle','600');
+    var npos=[[440,150],[460,180],[480,150]];
+    npos.forEach(function(p,i){
+      circle(s,p[0],p[1],18,'rgba(239,68,68,0.12)',ERR,1.8);
+      txt(s,p[0],p[1]+4,'n'+(i+1),ERR,10,'middle','600');
+    });
+    arrow(s,540,155,600,155,WARN,2);
+    txt(s,570,145,'叠加',WARN,10);
+    // right: superposition result
+    txt(s,720,124,'叠加态',PUR,12,'middle','600');
+    for(var k=0;k<8;k++){
+      var ang=k*Math.PI/4;
+      el('line',{x1:720,y1:160,x2:720+Math.cos(ang)*42,y2:160+Math.sin(ang)*42,stroke:fcols[k],'stroke-width':2,'stroke-opacity':0.8},s);
+      circle(s,720+Math.cos(ang)*42,160+Math.sin(ang)*42,4,fcols[k],fcols[k],1);
+    }
+    // consequence
+    panel(s,60,260,800,200,'叠加的代价');
+    var cons=[['多义神经元','一个神经元响应多个不相关概念',ERR],['特征干扰','非正交方向产生串扰',WARN],['可解释性丧失','无法直接读出概念',PUR],['稀疏性补偿','稀疏激活降低干扰概率',AC]];
+    cons.forEach(function(c,i){
+      var y=300+i*38;
+      box(s,80,y-14,150,28,'rgba(255,255,255,0.03)',c[2],6,1.2);
+      txt(s,155,y+4,c[0],c[2],11,'middle','600');
+      txt(s,250,y+4,c[1],DIM,11,'start');
+    });
+    txt(s,460,460,'核心洞察：稀疏性使叠加可行 —— 同时活跃的特征少，干扰可容忍',AC,12,'middle','700');
+    log('log1','<span class="w">[叠加问题]</span> <b>N 个特征挤入 M 个神经元</b>，模型用近正交方向叠加存储，代价是多义与干扰。\n<span class="d">稀疏性是叠加可行的前提：若同时活跃特征少，干扰可被容忍。SAE 的任务正是从叠加态中还原 N 个单义特征。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='arch'){
+    title(s,460,34,'SAE 架构：编码器 → 稀疏潜在码 → 解码器',AC,17);
+    panel(s,60,60,800,360,'前馈结构');
+    var ymid=200;
+    // input h
+    var inX=120;
+    box(s,inX-40,ymid-70,80,150,'rgba(56,189,248,0.10)',INFO,8,1.5);
+    for(var i=0;i<6;i++){ circle(s,inX,ymid-60+i*24,7,'rgba(56,189,248,0.15)',INFO,1.2); }
+    txt(s,inX,ymid+96,'激活 h',INFO,12,'middle','700');
+    txt(s,inX,ymid+112,'d 维',DIM,10);
+    // encoder
+    arrow(s,inX+42,ymid,210,ymid,AC,2);
+    box(s,210,ymid-50,70,100,'rgba(0,212,170,0.10)',AC,8,1.5);
+    txt(s,245,ymid-12,'编码器',AC,11,'middle','600');
+    txt(s,245,ymid+8,'W_e, b_e',AC,10);
+    txt(s,245,ymid+62,'d→m',DIM,9);
+    // pre-activation
+    arrow(s,282,ymid,330,ymid,AC,2);
+    box(s,330,ymid-30,50,60,'rgba(245,158,11,0.10)',WARN,6,1.5);
+    txt(s,355,ymid-4,'ReLU',WARN,10,'middle','600');
+    txt(s,355,ymid+12,'σ',WARN,9);
+    // sparse latent z
+    arrow(s,382,ymid,440,ymid,AC,2);
+    var zX=480;
+    box(s,zX-40,ymid-90,80,180,'rgba(167,139,250,0.10)',PUR,8,1.5);
+    for(var j=0;j<8;j++){
+      var active=j===2||j===5;
+      circle(s,zX,ymid-78+j*22,7,active?'rgba(167,139,250,0.5)':'rgba(167,139,250,0.06)',PUR,1.2);
+      if(active) txt(s,zX,ymid-75+j*22,'',PUR,8);
+    }
+    txt(s,zX,ymid+106,'潜在码 z',PUR,12,'middle','700');
+    txt(s,zX,ymid+122,'m 维 (稀疏)',DIM,10);
+    // decoder
+    arrow(s,zX+42,ymid,610,ymid,AC,2);
+    box(s,610,ymid-50,70,100,'rgba(0,212,170,0.10)',AC,8,1.5);
+    txt(s,645,ymid-12,'解码器',AC,11,'middle','600');
+    txt(s,645,ymid+8,'W_d, b_d',AC,10);
+    txt(s,645,ymid+62,'m→d',DIM,9);
+    // output h_hat
+    arrow(s,682,ymid,740,ymid,AC,2);
+    var outX=780;
+    box(s,outX-40,ymid-70,80,150,'rgba(56,189,248,0.10)',INFO,8,1.5);
+    for(var k=0;k<6;k++){ circle(s,outX,ymid-60+k*24,7,'rgba(56,189,248,0.15)',INFO,1.2); }
+    txt(s,outX,ymid+96,'重构 h_hat',INFO,12,'middle','700');
+    txt(s,outX,ymid+112,'d 维',DIM,10);
+    // reconstruction error arrow
+    el('path',{d:'M 820 '+ymid+' Q 860 '+ymid+' 860 '+(ymid-120)+' Q 860 100 480 100 Q 120 100 120 '+(ymid-70),fill:'none',stroke:ERR,'stroke-width':1.4,'stroke-dasharray':'4,3','marker-end':mk(ERR)},s);
+    txt(s,460,90,'重构误差 ||h - h_hat||²',ERR,11,'middle','600');
+    // sparsity note
+    box(s,330,310,330,40,'rgba(167,139,250,0.08)',PUR,6,1);
+    txt(s,495,335,'z 中大部分为 0，仅少数维度活跃 → 单义特征',PUR,11,'middle');
+    log('log1','<span class="k">[SAE架构]</span> <b>编码器-解码器</b>结构：h → W_e·h+b_e → ReLU → 稀疏 z → W_d·z+b_d → h_hat。\n<span class="d">关键：潜在维度 m > 输入维度 d（过完备），稀疏约束迫使 z 大部分为零。每个活跃 z 维 = 一个单义特征方向。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'特征分解：多义激活 → 单义特征',PUR,17);
+    panel(s,60,60,800,380,'字典分解');
+    // original polysemantic activation
+    txt(s,180,100,'原始激活 h',ERR,12,'middle','700');
+    box(s,120,115,120,80,'rgba(239,68,68,0.08)',ERR,8,1.5);
+    for(var i=0;i<3;i++){
+      circle(s,160,135+i*20,6,'rgba(239,68,68,0.3)',ERR,1);
+      txt(s,160,138+i*20,'n'+(i+1),ERR,8,'middle');
+    }
+    txt(s,180,215,'(多义/叠加)',DIM,10);
+    // arrow down to decomposition
+    arrow(s,180,225,180,260,PUR,2);
+    txt(s,200,245,'SAE 分解',PUR,10,'start');
+    // decomposed features
+    var feats=[['猫耳',AC,0.9],['圆形',INFO,0.6],['皮毛',PUR,0.75],['眼睛',ROSE,0.5],['背景',DIM,0.0],['天空',WARN,0.0]];
+    feats.forEach(function(f,i){
+      var x=80+i*130, y=290;
+      var active=f[2]>0;
+      box(s,x,y,110,56,active?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.01)',active?f[1]:DIM,6,1.3);
+      txt(s,x+55,y+20,f[0],active?f[1]:DIM,11,'middle','600');
+      // activation bar
+      box(s,x+15,y+30,80,8,'rgba(255,255,255,0.05)',BD,2,1);
+      if(active) box(s,x+15,y+30,80*f[2],8,f[1]+'44',f[1],2,1);
+      txt(s,x+55,y+52,f[2].toFixed(2),active?f[1]:DIM,9);
+    });
+    // reconstruction equation
+    box(s,140,370,640,46,'rgba(167,139,250,0.06)',PUR,8,1);
+    txt(s,460,390,'h ≈ Σ z_i · d_i',PUR,13,'middle','600');
+    txt(s,460,408,'(稀疏系数 × 字典方向 = 重构)',DIM,11,'middle');
+    txt(s,460,448,'只有 4/6 个特征活跃 → 稀疏表示',AC,11,'middle','600');
+    log('log1','<span class="p">[特征分解]</span> <b>多义激活 → 单义特征</b>：h ≈ Σ z_i·d_i，稀疏系数 z_i 选出活跃特征方向 d_i。\n<span class="d">每个 d_i 对应一个可解释概念(如猫耳/皮毛)，z_i 表示其激活强度。稀疏性使分解可读且高效。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M2 — 叠加原理
+// ============================================================
+function M2(act){
+  var s=svg('svg2'); clear(s); addDefs(s);
+  if(act==='poly'){
+    title(s,460,34,'多义神经元：一个神经元响应多个概念',ERR,17);
+    panel(s,60,60,800,180,'多义 vs 单义');
+    // polysemantic neuron
+    txt(s,230,96,'多义神经元 n₁',ERR,13,'middle','700');
+    circle(s,230,160,40,'rgba(239,68,68,0.12)',ERR,2);
+    txt(s,230,164,'n₁',ERR,14,'middle','700');
+    var concepts=[['猫',AC,150,110],['汽车',INFO,150,210],['狗',WARN,310,110],['卡车',PUR,310,210]];
+    concepts.forEach(function(c){
+      arrow(s,c[2]+(c[2]<230?20:-20),c[3],230+(c[2]<230?-30:30),160+(c[3]<160?-20:20),c[1],1.4);
+      box(s,c[2]-30,c[3]-14,60,28,'rgba(255,255,255,0.03)',c[1],5,1.2);
+      txt(s,c[2],c[3]+4,c[0],c[1],11,'middle','600');
+    });
+    txt(s,230,225,'响应 4 个无关概念',ERR,10);
+    // monosemantic (after SAE)
+    txt(s,690,96,'SAE 后单义特征 z₁₂',AC,13,'middle','700');
+    circle(s,690,160,40,'rgba(0,212,170,0.12)',AC,2);
+    txt(s,690,164,'z₁₂',AC,14,'middle','700');
+    box(s,620,146,60,28,'rgba(255,255,255,0.03)',AC,5,1.2);
+    txt(s,650,164,'猫耳',AC,11,'middle','600');
+    arrow(s,680,160,660,160,AC,1.4);
+    txt(s,690,225,'仅响应单一概念',AC,10);
+    // center arrow
+    arrow(s,410,160,550,160,PUR,2.5);
+    txt(s,480,150,'SAE',PUR,12,'middle','700');
+    // explanation
+    panel(s,60,260,800,200,'为何产生多义性');
+    var reasons=[['特征数 N >> 神经元数 M','必须共享神经元表示',ERR],['稀疏激活','同时活跃特征少，干扰可容忍',WARN],['近正交方向','高维空间允许大量近正交向量',INFO],['容量最大化','叠加使模型表示能力远超维度',AC]];
+    reasons.forEach(function(r,i){
+      var y=300+i*38;
+      box(s,80,y-14,200,28,'rgba(255,255,255,0.03)',r[2],6,1.2);
+      txt(s,180,y+4,r[0],r[2],11,'middle','600');
+      txt(s,300,y+4,r[1],DIM,11,'start');
+    });
+    log('log2','<span class="e">[多义神经元]</span> <b>一个神经元响应多个无关概念</b>，是叠加的直接后果。\n<span class="d">SAE 将多义神经元分解为多个单义潜在维度，每个只对一个概念响应。这是机械可解释性从"不可读"到"可读"的关键转换。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='interf'){
+    title(s,460,34,'特征干扰：非正交方向的串扰',WARN,17);
+    panel(s,60,60,400,380,'两个特征的几何');
+    var cx=260, cy=240;
+    // axes
+    line(s,cx-140,cy,cx+140,cy,DIM,1,'3,3'); line(s,cx,cy-140,cx,cy+140,DIM,1,'3,3');
+    txt(s,cx+145,cy+4,'d₁',DIM,10,'start'); txt(s,cx,cy-145,'d₂',DIM,10,'middle');
+    // feature directions (not orthogonal)
+    var ang1=-0.35, ang2=0.55;
+    el('line',{x1:cx,y1:cy,x2:cx+Math.cos(ang1)*120,y2:cy+Math.sin(ang1)*120,stroke:AC,'stroke-width':3},s);
+    circle(s,cx+Math.cos(ang1)*120,cy+Math.sin(ang1)*120,5,AC,AC,1);
+    txt(s,cx+Math.cos(ang1)*130,cy+Math.sin(ang1)*130+4,'f₁ 猫',AC,11,'start','600');
+    el('line',{x1:cx,y1:cy,x2:cx+Math.cos(ang2)*120,y2:cy+Math.sin(ang2)*120,stroke:INFO,'stroke-width':3},s);
+    circle(s,cx+Math.cos(ang2)*120,cy+Math.sin(ang2)*120,5,INFO,INFO,1);
+    txt(s,cx+Math.cos(ang2)*130,cy+Math.sin(ang2)*130+4,'f₂ 狗',INFO,11,'start','600');
+    // angle arc
+    el('path',{d:'M '+(cx+50)+' '+(cy-15)+' A 52 52 0 0 1 '+(cx+42)+' '+(cy+26),fill:'none',stroke:WARN,'stroke-width':1.5},s);
+    txt(s,cx+65,cy+18,'θ',WARN,12,'middle','600');
+    // interference = cos(theta)
+    panel(s,490,60,370,380,'干扰分析');
+    txt(s,520,100,'当 f₁ 激活时，f₂ 方向产生投影',WARN,12,'start','600');
+    // projection
+    var proj=Math.cos(ang2-ang1)*100;
+    box(s,520,120,340,40,'rgba(245,158,11,0.08)',WARN,6,1);
+    txt(s,540,145,'干扰 = cos(θ) ≈ 0.76',WARN,12,'start','600');
+    txt(s,520,185,'θ 越小 → 干扰越大',ERR,11,'start');
+    txt(s,520,205,'θ = 90° → 正交，零干扰',AC,11,'start');
+    txt(s,520,225,'θ = 0° → 重合，完全干扰',ERR,11,'start');
+    // bar chart of interference vs angle
+    txt(s,520,260,'干扰随角度变化',DIM,11,'start','600');
+    var angles=[0,30,60,90];
+    var colors=[ERR,WARN,INFO,AC];
+    angles.forEach(function(a,i){
+      var y=280+i*36;
+      var interf=Math.cos(a*Math.PI/180);
+      box(s,540,y,24,20,'rgba(255,255,255,0.03)',colors[i],4,1);
+      txt(s,552,y+14,a+'°',colors[i],9,'middle','600');
+      box(s,575,y+5,200,12,'rgba(255,255,255,0.05)',BD,2,1);
+      box(s,575,y+5,200*interf,12,colors[i]+'55',colors[i],2,1);
+      txt(s,785,y+14,interf.toFixed(2),colors[i],10,'start','600');
+    });
+    txt(s,520,440,'稀疏性降低同时活跃概率 → 间接降低干扰',AC,11,'start','600');
+    log('log2','<span class="w">[特征干扰]</span> <b>非正交方向产生串扰</b>：干扰 = cos(θ)，θ 越小干扰越大。\n<span class="d">叠加态中特征方向非严格正交，激活一个特征会在其他特征方向产生投影(串扰)。稀疏性通过减少同时活跃的特征数来降低实际干扰概率。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='geom'){
+    title(s,460,34,'叠加几何：高维空间中的近正交方向',INFO,17);
+    panel(s,60,60,400,380,'2D 投影：8 个近正交方向');
+    var cx=260, cy=240;
+    circle(s,cx,cy,3,DIM,DIM,1);
+    line(s,cx-160,cy,cx+160,cy,DIM,1,'3,3'); line(s,cx,cy-160,cx,cy+160,DIM,1,'3,3');
+    var dirs=[[AC,'猫'],[INFO,'狗'],[PUR,'车'],[ROSE,'树'],[WARN,'书'],[ERR,'球'],['#7dd3fc','船'],['#fde68a','鸟']];
+    dirs.forEach(function(d,i){
+      var a=i*Math.PI/4+0.2;
+      var len=120+Math.sin(i)*15;
+      el('line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*len,y2:cy+Math.sin(a)*len,stroke:d[0],'stroke-width':2.5,'stroke-opacity':0.85},s);
+      circle(s,cx+Math.cos(a)*len,cy+Math.sin(a)*len,5,d[0],d[0],1);
+      txt(s,cx+Math.cos(a)*(len+18),cy+Math.sin(a)*(len+18)+4,d[1],d[0],10,'middle','600');
+    });
+    txt(s,cx,cy-170,'2D 中最大正交方向仅 2 个',WARN,10,'middle');
+    txt(s,cx,cy+175,'但 2D 可容纳 ~8 个近正交方向(叠加)',AC,10,'middle','600');
+    // right: high-dim
+    panel(s,490,60,370,380,'高维容量：近正交向量数指数增长');
+    var dims=[2,5,10,20,50,100];
+    var maxc=[3,15,80,400,2500,10000];
+    txt(s,520,100,'维度 d 下可容纳的近正交方向数',DIM,11,'start','600');
+    var bx=560, by=130, bw=260, bh=240;
+    line(s,bx,by+bh,bx+bw,by+bh,DIM,1.3); line(s,bx,by,bx,by+bh,DIM,1.3);
+    txt(s,bx+bw/2,by+bh+22,'维度 d',DIM,10,'middle');
+    txt(s,bx-30,by+bh/2,'近正交方向数',DIM,10,'middle');
+    var maxlog=Math.log(10000);
+    dims.forEach(function(d,i){
+      var x=bx+i*bw/(dims.length-1);
+      var h=Math.log(maxc[i])/maxlog*bh;
+      box(s,x-16,by+bh-h,32,h,'rgba(56,189,248,0.25)',INFO,3,1.5);
+      txt(s,x,by+bh-h-6,maxc[i],INFO,9,'middle','600');
+      txt(s,x,by+bh+12,d,INFO,9,'middle');
+    });
+    txt(s,520,400,'Johnson-Lindenstrauss：',AC,11,'start','600');
+    txt(s,520,418,'高维空间可容纳指数级多近正交向量',DIM,10,'start');
+    txt(s,520,436,'→ 叠加的数学基础',AC,10,'start','600');
+    log('log2','<span class="i">[叠加几何]</span> <b>高维空间可容纳指数级多近正交方向</b>，这是叠加的数学基础。\n<span class="d">2D 中正交方向仅 2 个，但近正交方向可有多个；100 维空间可容纳上万近正交向量。模型利用此性质将 N>>M 个特征叠加存储在 M 维空间。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'容量分析：稀疏特征数 vs 维度',PUR,17);
+    panel(s,60,60,800,380,'叠加容量公式');
+    // formula
+    box(s,180,90,560,56,'rgba(167,139,250,0.08)',PUR,8,1.5);
+    txt(s,460,116,'容量 ≈ d × k',PUR,16,'middle','700');
+    txt(s,460,136,'d = 维度,  k = 稀疏度(同时活跃特征数)',DIM,11,'middle');
+    // chart: capacity vs sparsity
+    var cx=130, cy=400, cw=340, ch=280;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+26,'稀疏度 k (同时活跃数)',DIM,10,'middle');
+    txt(s,cx-34,cy-ch/2,'可存特征数',DIM,10,'middle');
+    var dval=10;
+    for(var g=0;g<=5;g++){ var yy=cy-g*ch/5; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,g*20,DIM,9,'end'); }
+    // capacity line d*k
+    var pts=[];
+    for(var i=1;i<=10;i++){ var x=cx+i*cw/10; var cap=dval*i; var y=cy-Math.min(cap,100)/100*ch; pts.push(x+','+y); circle(s,x,y,3,AC,AC,1); }
+    el('polyline',{points:pts.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // neuron limit line (d)
+    line(s,cx,cy-ch/2*0.5,cx+cw,cy-ch/2*0.5,ERR,1.5,'4,3');
+    txt(s,cx+cw-10,cy-ch/2*0.5-6,'神经元数 d='+dval,ERR,10,'end');
+    // legend
+    box(s,cx,90,14,4,AC,AC,2); tleft(s,cx+20,96,'容量 d×k (叠加)',AC,11);
+    box(s,cx,108,14,4,ERR,ERR,2); tleft(s,cx+20,114,'无叠加上限 = d',ERR,11);
+    // right panel: tradeoff
+    panel(s,540,90,300,330,'稀疏-容量权衡');
+    var rows=[['k=1','正交，无叠加','1×d',AC],['k=2','轻度叠加','2×d',INFO],['k=4','中度叠加','4×d',WARN],['k=8','重度叠加','8×d',ERR],['k→0','超稀疏','→∞',PUR]];
+    rows.forEach(function(r,i){
+      var y=140+i*44;
+      box(s,560,y-16,52,30,'rgba(255,255,255,0.03)',r[3],5,1.2);
+      txt(s,586,y+2,r[0],r[3],11,'middle','600');
+      txt(s,625,y-2,r[1],DIM,10,'start');
+      txt(s,625,y+12,r[2],r[3],10,'start','600');
+    });
+    txt(s,560,380,'k 越小 → 容量越大，但需更强稀疏',AC,10,'start','600');
+    log('log2','<span class="p">[容量分析]</span> <b>容量 ≈ d × k</b>：维度 d 与稀疏度 k 共同决定可存储的特征数。\n<span class="d">k=1 时退化为正交表示(无叠加)；k 越小(越稀疏)容量越大，但需更强的稀疏约束。SAE 正是通过学习稀疏码来"解码"这些叠加特征。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M3 — SAE 训练流程
+// ============================================================
+function M3(act){
+  var s=svg('svg3'); clear(s); addDefs(s);
+  if(act==='encdec'){
+    title(s,460,34,'编码器-解码器：前向数据流',AC,17);
+    panel(s,60,60,800,380,'前向传播');
+    var ymid=200;
+    // input vector
+    txt(s,120,100,'输入 h (d=8)',INFO,12,'middle','700');
+    var invals=[0.8,0.3,0.6,0.1,0.9,0.2,0.5,0.4];
+    invals.forEach(function(v,i){
+      box(s,80,115+i*26,80,22,'rgba(56,189,248,0.12)',INFO,4,1);
+      txt(s,92,131+i*26,'h'+i,DIM,9,'middle');
+      box(s,108,121+i*26,44,10,'rgba(56,189,248,0.05)',BD,2,1);
+      box(s,108,121+i*26,44*v,10,INFO+'66',INFO,2,1);
+    });
+    // encoder matrix
+    arrow(s,165,ymid,225,ymid,AC,2);
+    box(s,225,110,90,200,'rgba(0,212,170,0.08)',AC,6,1.5);
+    txt(s,270,130,'W_e (m×d)',AC,11,'middle','600');
+    txt(s,270,150,'m=16, d=8',DIM,10);
+    // draw mini matrix
+    for(var r=0;r<6;r++){ for(var c=0;c<4;c++){
+      var v=Math.random();
+      box(s,238+c*16,165+r*16,14,14,'rgba(0,212,170,'+(v*0.3+0.05)+')','none',2,0);
+    }}
+    txt(s,270,275,'编码',AC,10,'middle','600');
+    // pre-activation + ReLU
+    arrow(s,318,ymid,360,ymid,AC,2);
+    box(s,360,160,60,80,'rgba(245,158,11,0.10)',WARN,6,1.5);
+    txt(s,390,195,'ReLU',WARN,11,'middle','600');
+    txt(s,390,212,'max(0,·)',WARN,9);
+    // sparse z
+    arrow(s,422,ymid,470,ymid,AC,2);
+    var zvals=[0,0,0.7,0,0,0.5,0,0,0,0,0.3,0,0,0,0,0];
+    txt(s,530,100,'潜在码 z (m=16)',PUR,12,'middle','700');
+    zvals.forEach(function(v,i){
+      var active=v>0;
+      box(s,485,115+i*16,90,14,active?'rgba(167,139,250,0.25)':'rgba(255,255,255,0.02)',active?PUR:BD,3,1);
+      txt(s,498,126+i*16,'z'+i,DIM,8,'middle');
+      if(active){ box(s,515,118+i*16,55,8,'rgba(167,139,250,0.1)',BD,1,1); box(s,515,118+i*16,55*v,8,PUR,PUR,1,1); }
+    });
+    // decoder
+    arrow(s,580,ymid,625,ymid,AC,2);
+    box(s,625,110,90,200,'rgba(0,212,170,0.08)',AC,6,1.5);
+    txt(s,670,130,'W_d (d×m)',AC,11,'middle','600');
+    txt(s,670,150,'d=8, m=16',DIM,10);
+    for(var r2=0;r2<4;r2++){ for(var c2=0;c2<6;c2++){
+      var v2=Math.random();
+      box(s,638+c2*16,165+r2*16,14,14,'rgba(0,212,170,'+(v2*0.3+0.05)+')','none',2,0);
+    }}
+    txt(s,670,275,'解码',AC,10,'middle','600');
+    // output
+    arrow(s,718,ymid,760,ymid,AC,2);
+    txt(s,800,100,'重构 h_hat',INFO,12,'middle','700');
+    invals.forEach(function(v,i){
+      var rv=v+(Math.random()-0.5)*0.1;
+      box(s,760,115+i*26,80,22,'rgba(56,189,248,0.12)',INFO,4,1);
+      txt(s,772,131+i*26,'h'+i,DIM,9,'middle');
+      box(s,788,121+i*26,44,10,'rgba(56,189,248,0.05)',BD,2,1);
+      box(s,788,121+i*26,44*rv,10,INFO+'66',INFO,2,1);
+    });
+    txt(s,460,440,'z = ReLU(W_e·h + b_e)    h_hat = W_d·z + b_d',AC,13,'middle','600');
+    log('log3','<span class="k">[编码器-解码器]</span> <b>前向数据流</b>：h → W_e·h+b_e → ReLU → 稀疏 z → W_d·z+b_d → h_hat。\n<span class="d">编码器将 8 维输入映射到 16 维过完备潜在空间，ReLU+稀疏使大部分 z 为零；解码器从稀疏 z 重构输入。重构质量决定 SAE 的信息保留能力。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='l1'){
+    title(s,460,34,'L1 稀疏：拉格朗日约束推动稀疏',WARN,17);
+    panel(s,60,60,400,380,'L1 约束几何');
+    var cx=260, cy=230;
+    // axes
+    line(s,cx-140,cy,cx+140,cy,DIM,1,'3,3'); line(s,cx,cy-140,cx,cy+140,DIM,1,'3,3');
+    txt(s,cx+145,cy+4,'z₁',DIM,10,'start'); txt(s,cx,cy-145,'z₂',DIM,10,'middle');
+    // L1 diamond constraint
+    el('path',{d:'M '+(cx-90)+' '+cy+' L '+cx+' '+(cy-90)+' L '+(cx+90)+' '+cy+' L '+cx+' '+(cy+90)+' z',fill:'rgba(245,158,11,0.10)',stroke:WARN,'stroke-width':1.8,'stroke-dasharray':'4,3'},s);
+    txt(s,cx+95,cy-85,'L1 球',WARN,10,'start','600');
+    // L2 circle constraint
+    el('circle',{cx:cx,cy:cy,r:90,fill:'none',stroke:INFO,'stroke-width':1.5,'stroke-dasharray':'4,3','stroke-opacity':0.5},s);
+    txt(s,cx-100,cy-80,'L2 球',INFO,10,'end','600');
+    // optimal point at diamond corner (sparse)
+    circle(s,cx+90,cy,6,AC,AC,2);
+    txt(s,cx+100,cy-8,'最优(稀疏)',AC,10,'start','700');
+    el('line',{x1:cx,y1:cy,x2:cx+90,y2:cy,stroke:AC,'stroke-width':1.5,'stroke-dasharray':'2,2'},s);
+    // loss contours
+    circle(s,cx-30,cy-30,30,'none',ERR,1);
+    circle(s,cx-30,cy-30,50,'none',ERR,0.8);
+    txt(s,cx-80,cy-60,'损失等高线',ERR,9,'middle');
+    // right: effect
+    panel(s,490,60,370,380,'L1 对激活的影响');
+    txt(s,520,100,'损失 = ||h-h_hat||² + λ·||z||₁',WARN,12,'start','600');
+    txt(s,520,124,'L1 = Σ|z_i|',DIM,11,'start');
+    // bar chart: before/after L1
+    txt(s,520,160,'激活值分布',DIM,11,'start','600');
+    var bars=[0.9,0.7,0.5,0.3,0.2,0.15,0.1,0.05];
+    bars.forEach(function(v,i){
+      var y=175+i*22;
+      // before L1
+      box(s,540,y,30,16,'rgba(239,68,68,0.15)',ERR,3,1);
+      box(s,540,y,30*v,16,ERR+'66',ERR,3,1);
+      txt(s,535,y+12,(i+1),DIM,8,'end');
+      // arrow
+      txt(s,585,y+12,'→',DIM,9,'middle');
+      // after L1
+      var after=v<0.25?0:v-0.2;
+      box(s,610,y,60,16,after>0?'rgba(0,212,170,0.15)':'rgba(255,255,255,0.02)',after>0?AC:DIM,3,1);
+      if(after>0) box(s,610,y,60*after,16,AC+'66',AC,3,1);
+      else txt(s,640,y+12,'0',DIM,8,'middle');
+    });
+    box(s,540,360,12,12,ERR,ERR,2); tleft(s,558,370,'L1 前',ERR,10);
+    box(s,610,360,12,12,AC,AC,2); tleft(s,628,370,'L1 后',AC,10);
+    txt(s,520,400,'L1 将小激活压为 0 → 稀疏',AC,11,'start','600');
+    txt(s,520,420,'代价：大激活被 shrinkage(收缩)',WARN,10,'start');
+    log('log3','<span class="w">[L1稀疏]</span> <b>L1 约束 = Σ|z_i|</b>，其菱形几何使最优解落在坐标轴上(稀疏)。\n<span class="d">损失 = 重构² + λ·||z||₁。L1 将小激活压为 0 实现稀疏，但会对大激活产生 shrinkage(系统性低估)，这是 TopK 等变体改进的动机。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='recon'){
+    title(s,460,34,'重构损失：训练过程中的误差下降',INFO,17);
+    panel(s,60,60,800,200,'损失曲线');
+    var cx=100, cy=230, cw=760, ch=150;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+24,'训练步数',DIM,10,'middle');
+    txt(s,cx-30,cy-ch/2,'损失',DIM,10,'middle');
+    for(var g=0;g<=4;g++){ var yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(1-g/4).toFixed(2),DIM,9,'end'); }
+    // reconstruction loss (decreasing)
+    var rpts=[];
+    for(var i=0;i<=50;i++){ var x=cx+i*cw/50; var loss=0.9*Math.exp(-i/12)+0.05+Math.sin(i)*0.01; rpts.push(x+','+(cy-loss*ch)); }
+    el('polyline',{points:rpts.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // L1 loss (decreasing slower)
+    var lpts=[];
+    for(var i=0;i<=50;i++){ var x=cx+i*cw/50; var loss=0.5*Math.exp(-i/20)+0.1; lpts.push(x+','+(cy-loss*ch)); }
+    el('polyline',{points:lpts.join(' '),fill:'none',stroke:WARN,'stroke-width':2,'stroke-dasharray':'5,3'},s);
+    // total
+    var tpts=[];
+    for(var i=0;i<=50;i++){ var x=cx+i*cw/50; var loss=0.9*Math.exp(-i/12)+0.05+0.5*Math.exp(-i/20)+0.1; tpts.push(x+','+(cy-loss*ch*0.5)); }
+    el('polyline',{points:tpts.join(' '),fill:'none',stroke:INFO,'stroke-width':2.4},s);
+    // legend
+    box(s,650,80,14,4,AC,AC,2); tleft(s,670,86,'重构 MSE',AC,11);
+    box(s,650,98,14,4,WARN,WARN,2); tleft(s,670,104,'L1 稀疏项',WARN,11);
+    box(s,750,80,14,4,INFO,INFO,2); tleft(s,770,86,'总损失',INFO,11);
+    // metrics table
+    panel(s,60,280,800,180,'训练指标');
+    var metrics=[['重构 MSE','0.02','良好',AC],['L1 损失','0.15','稀疏',WARN],['方差解释率','97.3%','优秀',INFO],['L0 稀疏度','32/4096','0.8%',PUR],['死特征率','2.1%','可接受',ROSE]];
+    metrics.forEach(function(m,i){
+      var x=100+i*150;
+      box(s,x,310,130,70,'rgba(255,255,255,0.03)',m[3],6,1.2);
+      txt(s,x+65,334,m[0],m[3],10,'middle','600');
+      txt(s,x+65,356,m[1],'#e6e8ee',15,'middle','700');
+      txt(s,x+65,372,m[2],m[3],9);
+    });
+    log('log3','<span class="i">[重构损失]</span> <b>训练过程</b>：重构 MSE 与 L1 稀疏项共同下降，总损失收敛。\n<span class="d">方差解释率 97.3% 意味着 SAE 几乎无损重构输入；L0=32/4096 表示仅 0.8% 维度活跃。死特征率 2.1% 需监控——死特征浪费容量。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'Top-K 激活：硬稀疏替代 L1',PUR,17);
+    panel(s,60,60,800,180,'Top-K 选择过程');
+    // all activations
+    txt(s,460,96,'编码器输出 → TopK 选择 → 仅保留 K 个最大值',PUR,12,'middle','600');
+    var acts=[0.8,0.15,0.6,0.05,0.9,0.2,0.45,0.1,0.7,0.3];
+    var K=3;
+    var sorted=acts.map(function(v,i){return [v,i];}).sort(function(a,b){return b[0]-a[0];});
+    var topIdx={}; for(var t=0;t<K;t++) topIdx[sorted[t][1]]=true;
+    acts.forEach(function(v,i){
+      var x=100+i*76;
+      var isTop=topIdx[i];
+      box(s,x,115,60,90,'rgba(255,255,255,0.02)',BD,4,1);
+      box(s,x+10,115+(1-v)*90,40,v*90,isTop?'rgba(167,139,250,0.4)':'rgba(255,255,255,0.05)',isTop?PUR:DIM,3,1);
+      txt(s,x+30,220,'z'+i,isTop?PUR:DIM,10,'middle','600');
+      txt(s,x+30,234,v.toFixed(2),isTop?PUR:DIM,9);
+      if(isTop){ txt(s,x+30,108,'TOP',PUR,8,'middle','700'); }
+    });
+    arrow(s,100,250,820,250,PUR,1.5,'5,3');
+    txt(s,460,246,'K=3：仅保留 3 个最大激活，其余置 0',PUR,11,'middle','600');
+    // comparison
+    panel(s,60,280,800,180,'TopK vs L1 对比');
+    var comp=[['稀疏方式','硬(K个)','软(L1惩罚)',PUR],['稀疏保证','精确 K 个','近似，需调 λ',AC],['Shrinkage','无','有(系统性低估)',WARN],['死特征','较少','较多',INFO],['梯度','仅Top-K有','所有非零有',ROSE]];
+    comp.forEach(function(c,i){
+      var y=315+i*26;
+      txt(s,90,y,c[0],DIM,11,'start','600');
+      box(s,230,y-12,180,24,'rgba(0,212,170,0.06)',AC,4,1);
+      txt(s,320,y+4,c[1],AC,11,'middle','600');
+      box(s,440,y-12,180,24,'rgba(245,158,11,0.06)',WARN,4,1);
+      txt(s,530,y+4,c[2],WARN,11,'middle','600');
+      txt(s,640,y+4,c[3],c[3]===AC?AC:WARN,10,'start');
+    });
+    txt(s,460,452,'TopK 消除 shrinkage 且稀疏精确，是当前最优 SAE 变体之一',AC,11,'middle','600');
+    log('log3','<span class="p">[Top-K激活]</span> <b>硬稀疏</b>：仅保留 K 个最大激活，其余置 0，无需 L1 超参。\n<span class="d">TopK 消除 L1 的 shrinkage 问题，稀疏度精确可控(K)，死特征更少。代价：梯度仅流向 Top-K 位置，但实践中表现优于 L1 SAE。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M4 — 单义特征提取
+// ============================================================
+function M4(act){
+  var s=svg('svg4'); clear(s); addDefs(s);
+  if(act==='extract'){
+    title(s,460,34,'特征提取：从多义激活到单义特征',AC,17);
+    panel(s,60,60,800,380,'提取流水线');
+    var ymid=200;
+    // model activation (polysemantic)
+    txt(s,150,96,'模型激活层',ERR,12,'middle','700');
+    box(s,90,110,120,60,'rgba(239,68,68,0.08)',ERR,8,1.5);
+    for(var i=0;i<4;i++){ circle(s,115+i*28,140,8,'rgba(239,68,68,0.2)',ERR,1.2); }
+    txt(s,150,185,'多义神经元',ERR,10);
+    arrow(s,210,ymid,260,ymid,AC,2);
+    // SAE
+    box(s,260,120,120,70,'rgba(0,212,170,0.10)',AC,8,1.5);
+    txt(s,320,150,'SAE',AC,14,'middle','700');
+    txt(s,320,170,'编码+稀疏',AC,10);
+    arrow(s,382,ymid,430,ymid,AC,2);
+    // single monosemantic features
+    txt(s,620,96,'单义特征字典',AC,12,'middle','700');
+    var feats=[['z₁₂','猫耳',AC],['z₄₇','圆形',INFO],['z₈₉','皮毛纹理',PUR],['z₁₀₃','眼睛',ROSE],['z₂₀₁','背景',WARN]];
+    feats.forEach(function(f,i){
+      var x=480+i*80;
+      box(s,x,120,70,60,'rgba(0,212,170,0.06)',f[2],5,1.2);
+      txt(s,x+35,144,f[0],f[2],10,'middle','600');
+      txt(s,x+35,162,f[1],f[2],9);
+    });
+    arrow(s,620,190,620,210,PUR,2);
+    // verification
+    panel(s,90,230,740,180,'单义性验证');
+    var checks=[['概念一致性','每个 z 只对一个语义概念响应',AC],['稀疏激活','单个输入仅激活少数 z',INFO],['可复现性','相似输入激活相同 z',PUR],['因果验证','抑制 z 改变对应概念输出',ROSE]];
+    checks.forEach(function(c,i){
+      var x=110+(i%2)*360, y=270+Math.floor(i/2)*60;
+      circle(s,x+10,y,8,'rgba(0,212,170,0.15)',AC,1.5);
+      txt(s,x+10,y+4,'✓',AC,11,'middle','700');
+      txt(s,x+28,y-2,c[0],c[2],11,'start','600');
+      txt(s,x+28,y+14,c[1],DIM,10,'start');
+    });
+    log('log4','<span class="k">[特征提取]</span> <b>多义激活 → 单义特征</b>：SAE 编码将多义神经元分解为单义潜在维度。\n<span class="d">验证单义性需四步：概念一致性、稀疏激活、可复现性、因果验证。只有通过全部验证的特征才可信地对应单一概念。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='dict'){
+    title(s,460,34,'字典学习：过完备特征字典',INFO,17);
+    panel(s,60,60,800,380,'字典矩阵 D (m×d)');
+    // dictionary as grid of column vectors
+    txt(s,460,96,'每列 = 一个特征方向 d_i (d 维单位向量)',INFO,11,'middle','600');
+    var dcols=[AC,INFO,PUR,ROSE,WARN,ERR,'#7dd3fc','#fde68a'];
+    var dlabels=['猫耳','圆形','皮毛','眼睛','背景','天空','草地','文字'];
+    var startX=110, startY=120, cellW=80, cellH=240;
+    dcols.forEach(function(c,i){
+      var x=startX+i*88;
+      // column header
+      box(s,x,startY,cellW,cellH,'rgba(255,255,255,0.02)',BD,4,1);
+      txt(s,x+cellW/2,startY-6,'d'+(i+1),c,9,'middle','600');
+      // vector bars
+      for(var r=0;r<8;r++){
+        var v=Math.abs(Math.sin(i*1.3+r*0.7));
+        var active=v>0.4;
+        box(s,x+8,startY+8+r*28,cellW-16,22,active?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.01)',active?c:DIM,3,1);
+        if(active) box(s,x+8,startY+8+r*28,(cellW-16)*v,22,c+'44','none',3,0);
+        txt(s,x+cellW/2,startY+24+r*28,v.toFixed(2),active?c:DIM,8,'middle');
+      }
+    });
+    // equation
+    box(s,140,400,640,40,'rgba(56,189,248,0.06)',INFO,8,1);
+    txt(s,460,418,'h = D · z = Σ z_i · d_i   (字典 × 稀疏码 = 重构)',INFO,13,'middle','600');
+    txt(s,460,460,'m=8 特征方向 × d=8 维 → 过完备(实际 m >> d)',DIM,11,'middle');
+    log('log4','<span class="i">[字典学习]</span> <b>字典 D (m×d)</b>：每列是一个特征方向，稀疏码 z 选择并加权组合。\n<span class="d">h = D·z = Σ z_i·d_i。字典过完备(m>>d)使其能表示比维度更多的特征。训练目标：学到的字典列应对应可解释的语义方向。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='interp'){
+    title(s,460,34,'可解释性：特征到概念的映射',PUR,17);
+    panel(s,60,60,800,380,'自动可解释性流程');
+    var ymid=130;
+    // pipeline
+    var steps=[['SAE 特征 z_i',AC],['最大化激活输入',INFO],['概念聚类',PUR],['LLM 自动标注',ROSE],['人类验证',WARN]];
+    steps.forEach(function(st,i){
+      var x=110+i*160;
+      box(s,x-65,ymid-25,130,50,'rgba(255,255,255,0.03)',st[1],6,1.3);
+      txt(s,x,ymid,st[0],st[1],10,'middle','600');
+      if(i<steps.length-1) arrow(s,x+67,ymid,x+93,ymid,DIM,1.4);
+    });
+    // feature concept table
+    panel(s,60,200,800,240,'特征 → 概念映射示例');
+    var rows=[['z₁₂','猫耳 / 尖三角形','0.92',AC],['z₄₇','圆形 / 椭圆轮廓','0.88',INFO],['z₈₉','皮毛纹理 / 高频','0.85',PUR],['z₁₀₃','眼睛 / 虹膜','0.79',ROSE],['z₂₀₁','天空 / 蓝色区域','0.73',WARN]];
+    txt(s,90,232,'特征',DIM,10,'start','600'); txt(s,200,232,'概念标签',DIM,10,'start','600'); txt(s,480,232,'一致性分数',DIM,10,'start','600'); txt(s,640,232,'激活示例',DIM,10,'start','600');
+    rows.forEach(function(r,i){
+      var y=255+i*36;
+      box(s,80,y-14,70,28,'rgba(255,255,255,0.03)',r[3],5,1.2);
+      txt(s,115,y+4,r[0],r[3],11,'middle','600');
+      txt(s,200,y+4,r[1],'#e6e8ee',11,'start');
+      // score bar
+      box(s,480,y-8,120,14,'rgba(255,255,255,0.05)',BD,3,1);
+      box(s,480,y-8,120*parseFloat(r[2]),14,r[3]+'55',r[3],3,1);
+      txt(s,610,y+4,r[2],r[3],10,'start','600');
+      // mini example grid
+      for(var g=0;g<4;g++){ box(s,640+g*22,y-10,18,18,'rgba('+(g===0?'0,212,170':'255,255,255')+','+(g===0?'0.4':'0.04')+')',g===0?r[3]:DIM,2,1); }
+    });
+    log('log4','<span class="p">[可解释性]</span> <b>特征→概念映射</b>：通过最大化激活输入聚类 + LLM 自动标注 + 人类验证。\n<span class="d">一致性分数衡量标注与实际激活模式的匹配度。自动化流程使大规模特征标注可行，人类验证确保质量。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'特征可视化：最大化激活输入',ROSE,17);
+    panel(s,60,60,800,380,'特征激活可视化');
+    var feats=[['z₁₂','猫耳',AC,0.95],['z₄₇','圆形',INFO,0.88],['z₈₉','皮毛',PUR,0.82],['z₁₀₃','眼睛',ROSE,0.79],['z₂₀₁','天空',WARN,0.73],['z₃₃','边缘',ERR,0.91]];
+    feats.forEach(function(f,i){
+      var x=100+(i%3)*260, y=110+Math.floor(i/3)*180;
+      // feature card
+      box(s,x,y,230,150,'rgba(255,255,255,0.02)',f[2],6,1.2);
+      txt(s,x+115,y+20,f[0]+' · '+f[1],f[2],12,'middle','700');
+      // visualization grid (maximally activating patches)
+      for(var r=0;r<4;r++){ for(var c=0;c<6;c++){
+        var v=Math.abs(Math.sin(i*2+r*1.3+c*0.7));
+        var on=v>0.45;
+        box(s,x+15+c*32,y+35+r*24,28,20,on?f[2]+'44':'rgba(255,255,255,0.03)',on?f[2]:BD,2,0.8);
+      }}
+      // activation bar
+      box(s,x+15,y+135,200,8,'rgba(255,255,255,0.05)',BD,2,1);
+      box(s,x+15,y+135,200*f[3],8,f[2]+'66',f[2],2,1);
+      txt(s,x+115,y+130,'激活 '+f[3].toFixed(2),f[2],9,'middle');
+    });
+    log('log4','<span class="r">[特征可视化]</span> <b>最大化激活输入</b>：找到使某特征 z_i 激活最大的输入模式。\n<span class="d">可视化揭示特征"看到"了什么：z₁₂ 对猫耳形状响应、z₄₇ 对圆形响应。激活强度反映特征与输入的匹配度，是验证单义性的直观证据。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M5 — 特征电路分析
+// ============================================================
+function M5(act){
+  var s=svg('svg5'); clear(s); addDefs(s);
+  if(act==='attrib'){
+    title(s,460,34,'特征归因：输出由哪些特征驱动',AC,17);
+    panel(s,60,60,800,380,'归因分析');
+    // output
+    txt(s,460,96,'模型输出: "这是一只猫"',AC,13,'middle','700');
+    box(s,360,108,200,40,'rgba(0,212,170,0.10)',AC,8,1.5);
+    txt(s,460,133,'logit: cat = 8.7',AC,12,'middle','600');
+    // attribution bars
+    txt(s,460,180,'贡献特征归因',DIM,12,'middle','600');
+    var attribs=[['z₁₂ 猫耳',0.32,AC],['z₁₀₃ 眼睛',0.24,ROSE],['z₈₉ 皮毛',0.18,PUR],['z₄₇ 圆形',0.12,INFO],['z₂₀₁ 背景',0.08,WARN],['z₃₃ 边缘',0.06,ERR]];
+    attribs.forEach(function(a,i){
+      var y=200+i*32;
+      txt(s,90,y+4,a[0],a[2],11,'start','600');
+      box(s,250,y,400,18,'rgba(255,255,255,0.04)',BD,3,1);
+      box(s,250,y,400*a[1],18,a[2]+'55',a[2],3,1);
+      txt(s,665,y+4,(a[1]*100).toFixed(0)+'%',a[2],10,'start','700');
+    });
+    // summary
+    panel(s,60,410,800,40,'');
+    txt(s,460,435,'Top-3 特征(猫耳+眼睛+皮毛)贡献 74% → 可解释的决策路径',AC,12,'middle','600');
+    log('log5','<span class="k">[特征归因]</span> <b>输出由哪些特征驱动</b>：量化每个 SAE 特征对最终输出的贡献。\n<span class="d">"这是一只猫"的决策 74% 由猫耳+眼睛+皮毛三个特征驱动，说明模型使用了语义合理的证据。归因揭示决策路径，是可解释性的核心应用。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='circuit'){
+    title(s,460,34,'电路分析：特征跨层组合',INFO,17);
+    panel(s,60,60,800,380,'特征电路图');
+    // three layers
+    var layers=[{y:130,l:'Layer 5',c:INFO},{y:230,l:'Layer 12',c:PUR},{y:330,l:'Layer 20',c:AC}];
+    layers.forEach(function(la){
+      txt(s,90,la.y,la.l,la.c,11,'middle','700');
+    });
+    // nodes per layer
+    var n1=[{x:200,id:'z₅ 边缘',c:ERR},{x:340,id:'z₁₂ 猫耳',c:AC},{x:480,id:'z₈ 纹理',c:PUR}];
+    var n2=[{x:240,id:'z₄₇ 头部',c:INFO},{x:400,id:'z₃₁ 耳簇',c:WARN}];
+    var n3=[{x:340,id:'z₁₀₃ 猫脸',c:ROSE},{x:520,id:'输出: 猫',c:AC}];
+    n1.forEach(function(n){ circle(s,n.x,130,22,'rgba(255,255,255,0.04)',n.c,1.8); txt(s,n.x,134,n.id,n.c,9,'middle','600'); });
+    n2.forEach(function(n){ circle(s,n.x,230,22,'rgba(255,255,255,0.04)',n.c,1.8); txt(s,n.x,234,n.id,n.c,9,'middle','600'); });
+    n3.forEach(function(n){ circle(s,n.x,330,24,'rgba(255,255,255,0.04)',n.c,1.8); txt(s,n.x,334,n.id,n.c,9,'middle','600'); });
+    // edges with weights
+    var edges=[[200,130,240,230,0.7,AC],[340,130,240,230,0.9,AC],[340,130,400,230,0.6,PUR],[480,130,400,230,0.5,PUR],[240,230,340,330,0.85,INFO],[400,230,340,330,0.7,WARN],[340,330,520,330,0.9,ROSE]];
+    edges.forEach(function(e){
+      el('line',{x1:e[0],y1:e[1],x2:e[2],y2:e[3],stroke:e[5],'stroke-width':1+e[4]*3,'stroke-opacity':0.3+e[4]*0.5},s);
+    });
+    // weight legend
+    txt(s,640,130,'边宽 = 权重',DIM,10,'start','600');
+    line(s,640,150,700,150,AC,1.5); txt(s,710,154,'弱',DIM,9,'start');
+    line(s,640,170,700,170,AC,4); txt(s,710,174,'强',DIM,9,'start');
+    txt(s,640,210,'电路：边缘+猫耳 →',INFO,10,'start');
+    txt(s,640,228,'耳簇/头部 → 猫脸',INFO,10,'start');
+    txt(s,640,246,'→ 输出"猫"',AC,10,'start','600');
+    txt(s,640,290,'低层特征组合成',DIM,10,'start');
+    txt(s,640,308,'高层语义概念',DIM,10,'start');
+    log('log5','<span class="i">[电路分析]</span> <b>特征跨层组合</b>：低层特征(边缘/猫耳)组合成中层(耳簇/头部)，再汇聚成高层语义(猫脸)。\n<span class="d">电路是特征的"语法"：揭示模型如何从基础特征逐步构建抽象概念。边权重反映特征间的因果强度。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='causal'){
+    title(s,460,34,'因果追踪：干预验证特征因果性',WARN,17);
+    panel(s,60,60,800,380,'因果干预实验');
+    // baseline
+    txt(s,180,100,'基线(无干预)',AC,12,'middle','700');
+    box(s,100,115,160,90,'rgba(0,212,170,0.08)',AC,8,1.5);
+    txt(s,180,145,'输入: 猫图',AC,11,'middle');
+    txt(s,180,165,'输出: cat (8.7)',AC,12,'middle','700');
+    txt(s,180,188,'置信度: 96%',AC,10);
+    arrow(s,265,160,360,160,WARN,2);
+    txt(s,312,150,'抑制 z₁₂',WARN,10,'middle','600');
+    // intervention
+    txt(s,490,100,'干预(抑制猫耳特征)',ERR,12,'middle','700');
+    box(s,410,115,160,90,'rgba(239,68,68,0.08)',ERR,8,1.5);
+    txt(s,490,145,'z₁₂ → 0',ERR,11,'middle');
+    txt(s,490,165,'输出: dog (3.2)',ERR,12,'middle','700');
+    txt(s,490,188,'置信度: 41%',ERR,10);
+    arrow(s,575,160,670,160,PUR,2);
+    txt(s,622,150,'恢复 z₁₂',AC,10,'middle','600');
+    // restore
+    txt(s,780,100,'恢复干预',AC,12,'middle','700');
+    box(s,700,115,160,90,'rgba(0,212,170,0.08)',AC,8,1.5);
+    txt(s,780,145,'z₁₂ 恢复',AC,11,'middle');
+    txt(s,780,165,'输出: cat (8.5)',AC,12,'middle','700');
+    txt(s,780,188,'置信度: 95%',AC,10);
+    // logit change chart
+    panel(s,60,230,800,200,'logit 变化追踪');
+    var cx=120, cy=400, cw=700, ch=130;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+22,'干预阶段',DIM,10,'middle');
+    txt(s,cx-30,cy-ch/2,'cat logit',DIM,10,'middle');
+    var stages=[['基线',8.7,AC],['抑制z₁₂',3.2,ERR],['抑制z₁₀₃',5.1,WARN],['抑制z₈₉',6.3,INFO],['恢复全部',8.5,AC]];
+    stages.forEach(function(st,i){
+      var x=cx+40+i*150;
+      var h=st[1]/10*ch;
+      box(s,x-30,cy-h,60,h,'rgba(255,255,255,0.04)',st[2],4,1.5);
+      box(s,x-30,cy-h,60,h,st[2]+'33','none',4,0);
+      txt(s,x,cy-h-6,st[1].toFixed(1),st[2],11,'middle','700');
+      txt(s,x,cy+14,st[0],st[2],9,'middle','600');
+    });
+    log('log5','<span class="w">[因果追踪]</span> <b>干预验证因果性</b>：抑制猫耳特征 z₁₂ 后，cat logit 从 8.7 降至 3.2，输出变为 dog。\n<span class="d">因果干预(抑制/增强特征)是验证特征因果性的金标准。z₁₂ 对"猫"判断贡献最大，z₁₀₃(眼睛)次之。可逆性(恢复后还原)确认因果而非相关。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'电路可视化：完整计算路径',PUR,17);
+    panel(s,60,60,800,380,'端到端特征电路');
+    // input
+    box(s,80,210,100,50,'rgba(56,189,248,0.10)',INFO,6,1.5);
+    txt(s,130,240,'输入图像',INFO,11,'middle','600');
+    arrow(s,182,235,230,235,DIM,1.5);
+    // layer 1: low-level
+    txt(s,330,110,'低层特征 (L5)',ERR,11,'middle','700');
+    var l1=[['边缘',ERR,270],['颜色',WARN,330],['纹理',PUR,390]];
+    l1.forEach(function(n){ circle(s,n[2],150,24,'rgba(255,255,255,0.04)',n[1],1.5); txt(s,n[2],154,n[0],n[1],9,'middle','600'); arrow(s,230,235,n[2],175,n[1],1.2); });
+    // layer 2: mid-level
+    txt(s,330,225,'中层特征 (L12)',WARN,11,'middle','700');
+    var l2=[['猫耳',AC,270],['眼睛',ROSE,330],['皮毛',INFO,390]];
+    l2.forEach(function(n,i){ circle(s,n[2],265,24,'rgba(255,255,255,0.04)',n[1],1.5); txt(s,n[2],269,n[0],n[1],9,'middle','600');
+      arrow(s,270,175,n[2],242,n[1],1); arrow(s,330,175,n[2],242,n[1],1); });
+    // layer 3: high-level
+    txt(s,550,290,'高层概念 (L20)',AC,11,'middle','700');
+    var l3=[['猫脸',AC,520],['动物',PUR,580]];
+    l3.forEach(function(n){ circle(s,n[2],330,26,'rgba(255,255,255,0.04)',n[1],1.5); txt(s,n[2],334,n[0],n[1],9,'middle','600');
+      arrow(s,300,290,n[2],306,n[1],1.2); arrow(s,360,290,n[2],306,n[1],1.2); });
+    // output
+    box(s,730,305,110,50,'rgba(0,212,170,0.10)',AC,6,1.5);
+    txt(s,785,335,'输出: 猫',AC,12,'middle','700');
+    arrow(s,650,330,728,330,AC,2);
+    // circuit summary box
+    panel(s,500,110,330,100,'电路摘要');
+    txt(s,520,140,'节点: 8 个特征 + 1 输出',DIM,10,'start');
+    txt(s,520,160,'边: 11 条(加权)',DIM,10,'start');
+    txt(s,520,180,'关键路径: 边缘→猫耳→猫脸→猫',AC,10,'start','600');
+    txt(s,520,200,'电路复杂度: 中等',PUR,10,'start');
+    log('log5','<span class="p">[电路可视化]</span> <b>完整计算路径</b>：输入→低层(边缘/颜色/纹理)→中层(猫耳/眼睛/皮毛)→高层(猫脸/动物)→输出。\n<span class="d">电路可视化揭示模型从像素到概念的完整抽象层次。关键路径"边缘→猫耳→猫脸→猫"是决策主干，可用于调试、剪枝与安全审计。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M6 — SAE 变体演进
+// ============================================================
+function M6(act){
+  var s=svg('svg6'); clear(s); addDefs(s);
+  var ymid=200;
+  if(act==='topk'){
+    title(s,460,34,'TopK-SAE：硬稀疏替代 L1',AC,17);
+    panel(s,60,60,400,380,'TopK-SAE 结构');
+    // input
+    box(s,80,180,60,50,'rgba(56,189,248,0.10)',INFO,6,1.5);
+    txt(s,110,210,'h',INFO,12,'middle','700');
+    arrow(s,142,205,170,205,AC,2);
+    // encoder
+    box(s,170,170,70,70,'rgba(0,212,170,0.10)',AC,6,1.5);
+    txt(s,205,200,'W_e',AC,11,'middle','600'); txt(s,205,218,'编码',AC,9);
+    arrow(s,242,205,270,205,AC,2);
+    // pre-activation
+    box(s,270,180,50,50,'rgba(245,158,11,0.10)',WARN,6,1.5);
+    txt(s,295,210,'pre',WARN,10,'middle');
+    arrow(s,322,205,350,205,PUR,2);
+    // TopK selection
+    box(s,350,160,80,90,'rgba(167,139,250,0.12)',PUR,6,1.5);
+    txt(s,390,195,'TopK',PUR,11,'middle','700');
+    txt(s,390,213,'选 K 个',PUR,9);
+    txt(s,390,230,'最大值',PUR,9);
+    arrow(s,432,205,460,205,PUR,2);
+    // sparse z
+    box(s,460,170,60,70,'rgba(167,139,250,0.10)',PUR,6,1.5);
+    txt(s,490,200,'z',PUR,12,'middle','700'); txt(s,490,218,'(K 稀疏)',PUR,9);
+    // right: comparison chart
+    panel(s,490,60,370,380,'TopK vs ReLU+L1 性能');
+    var metrics=[['重构 MSE','0.018','0.024',AC],['L0 稀疏度','32','45',PUR],['死特征率','0.8%','5.2%',WARN],['可解释性','高','中',INFO],['Shrinkage','无','有',ERR]];
+    txt(s,520,96,'指标',DIM,10,'start','600'); txt(s,640,96,'TopK',AC,10,'middle','600'); txt(s,740,96,'L1',WARN,10,'middle','600');
+    metrics.forEach(function(m,i){
+      var y=115+i*44;
+      txt(s,520,y,m[0],DIM,10,'start');
+      box(s,615,y-14,60,28,'rgba(0,212,170,0.08)',AC,4,1);
+      txt(s,645,y+3,m[1],AC,11,'middle','700');
+      box(s,715,y-14,60,28,'rgba(245,158,11,0.08)',WARN,4,1);
+      txt(s,745,y+3,m[2],WARN,11,'middle','700');
+    });
+    txt(s,520,360,'TopK 在多数指标上优于 L1',AC,11,'start','600');
+    txt(s,520,380,'尤其死特征率显著降低',PUR,10,'start');
+    log('log6','<span class="k">[TopK-SAE]</span> <b>硬稀疏</b>：编码后直接选 Top-K，无需 L1 惩罚，稀疏度精确为 K。\n<span class="d">优势：无 shrinkage、死特征率低(0.8% vs 5.2%)、稀疏度可控。OpenAI/Matsuo 研究表明 TopK-SAE 在重构与可解释性上均优于标准 L1 SAE。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='jumprelu'){
+    title(s,460,34,'JumpReLU SAE：可学习阈值阶跃',WARN,17);
+    panel(s,60,60,400,380,'激活函数对比');
+    var cx=260, cy=220;
+    // axes
+    line(s,cx-150,cy,cx+150,cy,DIM,1.3); line(s,cx,cy-150,cx,cy+150,DIM,1.3);
+    txt(s,cx+155,cy+4,'x',DIM,10,'start'); txt(s,cx,cy-155,'f(x)',DIM,10,'middle');
+    // ReLU
+    el('polyline',{points:(cx-100)+','+cy+' '+(cx)+','+cy+' '+(cx+100)+','+(cy-100),fill:'none',stroke:INFO,'stroke-width':2.5},s);
+    // JumpReLU (step)
+    el('line',{x1:cx-100,y1:cy,x2:cx,y2:cy,stroke:WARN,'stroke-width':2.5},s);
+    el('line',{x1:cx,y1:cy,x2:cx,y2:cy-90,stroke:WARN,'stroke-width':1.5,'stroke-dasharray':'3,2'},s);
+    el('line',{x1:cx,y1:cy-90,x2:cx+100,y2:cy-90,stroke:WARN,'stroke-width':2.5},s);
+    circle(s,cx,cy,4,WARN,WARN,1.5);
+    circle(s,cx,cy-90,4,WARN,WARN,1.5);
+    // threshold marker
+    txt(s,cx-8,cy+16,'θ',WARN,12,'end','700');
+    el('line',{x1:cx,y1:cy+5,x2:cx,y2:cy+20,stroke:WARN,'stroke-width':1},s);
+    // legend
+    box(s,cx-130,cy-140,14,4,INFO,INFO,2); tleft(s,cx-110,cy-134,'ReLU: max(0,x)',INFO,11);
+    box(s,cx-130,cy-118,14,4,WARN,WARN,2); tleft(s,cx-110,cy-112,'JumpReLU: x·𝟙(x>θ)',WARN,11);
+    // right panel
+    panel(s,490,60,370,380,'JumpReLU 特性');
+    txt(s,520,100,'f(x) = x · 𝟙(x > θ)',WARN,13,'start','700');
+    txt(s,520,124,'θ 为可学习阈值(每维度独立)',DIM,11,'start');
+    var feats=[['真零区域','x<θ 时严格为 0',AC],['保留幅值','x>θ 时保留原值(无 shrinkage)',INFO],['可学习阈值','梯度可优化 θ',PUR],['稀疏自适应','θ 自动调节稀疏度',WARN],['二值门控','天然离散选择',ROSE]];
+    feats.forEach(function(f,i){
+      var y=155+i*44;
+      circle(s,530,y,6,f[1].slice(0,1)==='真'?'rgba(0,212,170,0.2)':'rgba(255,255,255,0.05)',AC,1.5);
+      txt(s,548,y-3,f[0],AC,11,'start','600');
+      txt(s,548,y+13,f[1],DIM,10,'start');
+    });
+    log('log6','<span class="w">[JumpReLU]</span> <b>可学习阈值阶跃</b>：f(x) = x·𝟙(x>θ)，θ 每维独立可学习。\n<span class="d">介于 ReLU(无阈值)与 TopK(全局选K)之间：每维独立阈值，x<θ 严格为 0，x>θ 保留原值。消除 shrinkage 且稀疏度自适应，梯度可优化阈值。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='batchtopk'){
+    title(s,460,34,'BatchTopK：批次级 TopK 选择',INFO,17);
+    panel(s,60,60,400,380,'BatchTopK vs TopK');
+    // TopK (per-sample)
+    txt(s,230,96,'TopK (逐样本)',AC,11,'middle','700');
+    var samples1=[[[0.9,0.1,0.8,0.2],[0.3,0.7,0.1,0.6]],[[0.5,0.85,0.2,0.4],[0.6,0.15,0.9,0.3]]];
+    // simplified: show 2 samples x 4 features, K=1
+    var sx=130, sy=120;
+    for(var r=0;r<2;r++){ for(var c=0;c<4;c++){
+      var v=[0.9,0.1,0.8,0.2,0.3,0.7,0.1,0.6][r*4+c];
+      var isTop=(r===0&&c===0)||(r===1&&c===3);
+      box(s,sx+c*42,sy+r*42,36,36,isTop?'rgba(0,212,170,0.3)':'rgba(255,255,255,0.03)',isTop?AC:DIM,3,1);
+      txt(s,sx+c*42+18,sy+r*42+22,v.toFixed(1),isTop?AC:DIM,9,'middle');
+    }}
+    txt(s,230,210,'每样本独立选 K=1',AC,10,'middle');
+    // BatchTopK
+    txt(s,230,250,'BatchTopK (批次级)',INFO,11,'middle','700');
+    var bx=130, by=270;
+    // flatten all and pick top across batch
+    var allv=[0.9,0.1,0.8,0.2,0.3,0.7,0.1,0.6];
+    var sortedIdx=allv.map(function(v,i){return [v,i];}).sort(function(a,b){return b[0]-a[0];});
+    var topSet={}; for(var t=0;t<2;t++) topSet[sortedIdx[t][1]]=true;
+    for(var r2=0;r2<2;r2++){ for(var c2=0;c2<4;c2++){
+      var idx=r2*4+c2;
+      var v2=allv[idx];
+      var isT=topSet[idx];
+      box(s,bx+c2*42,by+r2*42,36,36,isT?'rgba(56,189,248,0.3)':'rgba(255,255,255,0.03)',isT?INFO:DIM,3,1);
+      txt(s,bx+c2*42+18,by+r2*42+22,v2.toFixed(1),isT?INFO:DIM,9,'middle');
+    }}
+    txt(s,230,360,'整个批次合并选 TopK=2',INFO,10,'middle');
+    // right panel
+    panel(s,490,60,370,380,'BatchTopK 优势');
+    txt(s,520,100,'在批次维度合并后选 TopK',INFO,12,'start','700');
+    var adv=[['动态稀疏','不同样本稀疏度可变',AC],['利用率高','活跃维度更均匀',INFO],['死特征少','批次级选择避免维度失效',PUR],['梯度改善','更多维度获梯度',WARN],['近似 TopK','批次趋大时趋近 TopK',ROSE]];
+    adv.forEach(function(a,i){
+      var y=140+i*44;
+      box(s,510,y-15,50,30,'rgba(56,189,248,0.06)',INFO,5,1.2);
+      txt(s,535,y+3,a[0].slice(0,2),INFO,10,'middle','600');
+      txt(s,572,y-2,a[0],AC,10,'start','600');
+      txt(s,572,y+14,a[1],DIM,9,'start');
+    });
+    log('log6','<span class="i">[BatchTopK]</span> <b>批次级 TopK</b>：在批次维度合并后统一选 TopK，而非每样本独立选。\n<span class="d">优势：稀疏度可变(不同样本活跃数不同)、死特征更少、梯度分布更均匀。批次越大越接近 TopK-SAE，但训练更稳定。是 TopK 的改进变体。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'Gated SAE：门控与幅值分离',PUR,17);
+    panel(s,60,60,400,380,'Gated SAE 结构');
+    var ym=200;
+    // input
+    box(s,70,180,50,50,'rgba(56,189,248,0.10)',INFO,6,1.5);
+    txt(s,95,210,'h',INFO,12,'middle','700');
+    arrow(s,122,205,150,205,AC,2);
+    // split into two paths
+    // gate path
+    box(s,150,140,80,50,'rgba(167,139,250,0.10)',PUR,6,1.5);
+    txt(s,190,162,'门控 W_gate',PUR,10,'middle','600'); txt(s,190,180,'σ(·)>0?',PUR,9);
+    // magnitude path
+    box(s,150,220,80,50,'rgba(0,212,170,0.10)',AC,6,1.5);
+    txt(s,190,242,'幅值 W_mag',AC,10,'middle','600'); txt(s,190,260,'||·||',AC,9);
+    // gate decision
+    arrow(s,232,165,290,165,PUR,1.8);
+    box(s,290,145,50,40,'rgba(167,139,250,0.12)',PUR,5,1.5);
+    txt(s,315,170,'门',PUR,10,'middle','700');
+    // magnitude
+    arrow(s,232,245,290,245,AC,1.8);
+    box(s,290,225,50,40,'rgba(0,212,170,0.12)',AC,5,1.5);
+    txt(s,315,250,'幅',AC,10,'middle','700');
+    // multiply
+    arrow(s,342,170,370,205,PUR,1.5);
+    arrow(s,342,245,370,210,AC,1.5);
+    circle(s,380,205,14,'rgba(245,158,11,0.15)',WARN,1.8);
+    txt(s,380,209,'×',WARN,14,'middle','700');
+    arrow(s,396,205,420,205,PUR,2);
+    // output z
+    box(s,420,180,50,50,'rgba(167,139,250,0.10)',PUR,6,1.5);
+    txt(s,445,210,'z',PUR,12,'middle','700');
+    // right panel
+    panel(s,490,60,370,380,'Gated SAE 设计动机');
+    txt(s,520,100,'z = 𝟙(σ(W_gate h) > 0) ⊙ (W_mag h)',PUR,12,'start','700');
+    txt(s,520,124,'门控决定"是否激活"，幅值决定"多强"',DIM,11,'start');
+    var reasons=[['解决 shrinkage','幅值路径无 L1 偏置',AC],['分离关注点','门控/幅值各司其职',INFO],['更好稀疏','门控产生真零',PUR],['L1 仅施于门控','避免幅值低估',WARN],['重构更优','幅值无偏估计',ROSE]];
+    reasons.forEach(function(r,i){
+      var y=160+i*42;
+      circle(s,530,y,6,'rgba(167,139,250,0.2)',PUR,1.5);
+      txt(s,548,y-3,r[0],PUR,11,'start','600');
+      txt(s,548,y+13,r[1],DIM,10,'start');
+    });
+    log('log6','<span class="p">[Gated-SAE]</span> <b>门控与幅值分离</b>：z = 𝟙(门控) ⊙ (幅值)，门控决定是否激活，幅值决定强度。\n<span class="d">动机：L1 同时惩罚门控和幅值导致 shrinkage。Gated 将二者分离——L1 仅施加于门控路径，幅值路径无偏，从而消除 shrinkage 并改善重构。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M7 — 评估指标
+// ============================================================
+function M7(act){
+  var s=svg('svg7'); clear(s); addDefs(s);
+  if(act==='recon'){
+    title(s,460,34,'重构质量：信息保留度',AC,17);
+    panel(s,60,60,800,200,'重构质量指标');
+    var metrics=[['MSE','0.018',AC],['方差解释率','97.3%',INFO],['余弦相似度','0.991',PUR],['归一化 MSE','0.027',WARN]];
+    metrics.forEach(function(m,i){
+      var x=100+i*185;
+      box(s,x,90,165,80,'rgba(255,255,255,0.03)',m[2],6,1.3);
+      txt(s,x+82,118,m[0],m[2],11,'middle','600');
+      txt(s,x+82,146,m[1],'#e6e8ee',18,'middle','700');
+    });
+    // chart: variance explained vs sparsity
+    panel(s,60,280,800,180,'方差解释率 vs 稀疏度(L0)权衡');
+    var cx=120, cy=430, cw=560, ch=120;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+22,'L0 稀疏度(活跃维度数)',DIM,10,'middle');
+    txt(s,cx-30,cy-ch/2,'方差解释率',DIM,10,'middle');
+    for(var g=0;g<=4;g++){ var yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(g*25)+'%',DIM,9,'end'); }
+    // decreasing curve
+    var pts=[];
+    for(var i=0;i<=40;i++){ var x=cx+i*cw/40; var ve=0.99-0.6*(i/40)*(i/40); pts.push(x+','+(cy-ve*ch)); }
+    el('polyline',{points:pts.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // operating point
+    circle(s,cx+10*cw/40,cy-0.973*ch,6,ROSE,ROSE,2);
+    txt(s,cx+10*cw/40+10,cy-0.973*ch-8,'工作点: L0=32, 97.3%',ROSE,10,'start','600');
+    box(s,700,300,14,4,AC,AC,2); tleft(s,720,306,'方差解释率',AC,11);
+    log('log7','<span class="k">[重构质量]</span> <b>信息保留度</b>：MSE 0.018、方差解释率 97.3%、余弦相似度 0.991。\n<span class="d">重构质量随稀疏度增加而下降(权衡曲线)。工作点 L0=32 时仍保留 97.3% 方差，说明 SAE 近乎无损。目标：在可接受重构下最大化稀疏度。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='sparse'){
+    title(s,460,34,'稀疏度：压缩效率',PUR,17);
+    panel(s,60,60,400,380,'稀疏度指标');
+    txt(s,260,96,'L0 = 32 / 4096 = 0.78%',PUR,13,'middle','700');
+    // L0 distribution histogram
+    txt(s,260,124,'L0 分布直方图',DIM,11,'middle','600');
+    var cx=110, cy=340, cw=300, ch=160;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+20,'L0 值',DIM,9,'middle');
+    var hist=[0.1,0.3,0.7,1.0,0.85,0.6,0.35,0.15,0.08,0.03];
+    hist.forEach(function(v,i){
+      var x=cx+i*cw/10, h=v*ch;
+      box(s,x,cy-h,cw/10-4,h,i===3?'rgba(167,139,250,0.4)':'rgba(167,139,250,0.15)',PUR,2,1);
+    });
+    txt(s,cx+3*cw/10+cw/20,cy-ch-8,'众数=32',PUR,9,'middle','600');
+    // right: dead features
+    panel(s,490,60,370,380,'死特征分析');
+    txt(s,520,100,'死特征率: 2.1% (86/4096)',WARN,12,'start','700');
+    // pie-like representation
+    circle(s,660,200,70,'rgba(239,68,68,0.15)',ERR,2);
+    circle(s,660,200,55,'rgba(0,212,170,0.15)',AC,2);
+    txt(s,660,195,'活: 97.9%',AC,11,'middle','600');
+    txt(s,660,212,'死: 2.1%',ERR,10,'middle','600');
+    txt(s,520,300,'死特征 = 训练中从未激活的维度',DIM,11,'start');
+    txt(s,520,322,'浪费容量，需复活或剪枝',WARN,10,'start');
+    var methods=[['学习率提升','临时提高死特征 LR',AC],['重置','重新初始化死特征',INFO],['辅助损失','鼓励均匀激活',PUR]];
+    methods.forEach(function(m,i){
+      var y=350+i*30;
+      circle(s,530,y,5,'rgba(0,212,170,0.2)',AC,1.5);
+      txt(s,545,y+4,m[0],AC,10,'start','600');
+      txt(s,620,y+4,m[1],DIM,9,'start');
+    });
+    log('log7','<span class="p">[稀疏度]</span> <b>L0 = 32/4096 = 0.78%</b>，仅 0.78% 维度活跃。死特征率 2.1%。\n<span class="d">稀疏度衡量压缩效率：L0 越低越稀疏。死特征(从未激活)浪费容量，需通过学习率提升/重置/辅助损失复活。理想 SAE：高稀疏 + 低死特征。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='interp'){
+    title(s,460,34,'可解释性：特征语义可读性',INFO,17);
+    panel(s,60,60,800,200,'自动可解释性评分');
+    // scoring pipeline
+    var steps=[['SAE 特征','采集激活',AC],['Top 激活样本','找最大化输入',INFO],['LLM 标注','生成概念标签',PUR],['模拟预测','用标签预测激活',WARN],['一致性分数','相关性评分',ROSE]];
+    steps.forEach(function(st,i){
+      var x=100+i*160;
+      box(s,x-65,90,130,50,'rgba(255,255,255,0.03)',st[2],6,1.3);
+      txt(s,x,108,st[0],st[2],10,'middle','600');
+      txt(s,x,126,st[1],DIM,9);
+      if(i<steps.length-1) arrow(s,x+67,115,x+93,115,DIM,1.3);
+    });
+    // score distribution
+    panel(s,60,280,800,180,'特征一致性分数分布');
+    var cx=120, cy=420, cw=680, ch=100;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+22,'一致性分数',DIM,10,'middle'); txt(s,cx-30,cy-ch/2,'特征数',DIM,10,'middle');
+    var dist=[0.05,0.12,0.25,0.45,0.7,0.85,0.65,0.4,0.2,0.08];
+    dist.forEach(function(v,i){
+      var x=cx+i*cw/10, h=v*ch;
+      var c=v>0.6?AC:v>0.3?INFO:DIM;
+      box(s,x,cy-h,cw/10-4,h,c+'33',c,2,1);
+    });
+    // threshold line
+    var tx=cx+0.6*cw;
+    line(s,tx,cy-ch,tx,cy,WARN,1.5,'4,3');
+    txt(s,tx+6,cy-ch+12,'阈值 0.6',WARN,10,'start','600');
+    txt(s,460,470,'60% 特征通过阈值 → 可解释',AC,11,'middle','600');
+    log('log7','<span class="i">[可解释性]</span> <b>自动可解释性评分</b>：LLM 标注 + 模拟预测一致性，量化特征语义可读性。\n<span class="d">流程：采集激活→找 Top 激活样本→LLM 生成标签→用标签预测激活→算一致性分数。60% 特征通过 0.6 阈值即视为可解释。自动化使大规模评估可行。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'忠实度：因果有效性验证',ROSE,17);
+    panel(s,60,60,800,200,'忠实度评估方法');
+    var methods=[['零消融','将特征置0，测输出变化',AC],['替换测试','用 SAE 重构替换原激活',INFO],['因果中介','特征是否因果中介变量',PUR],['扫描验证','逐层验证因果链',WARN]];
+    methods.forEach(function(m,i){
+      var x=100+i*185;
+      box(s,x,90,165,80,'rgba(255,255,255,0.03)',m[2],6,1.3);
+      txt(s,x+82,118,m[0],m[2],11,'middle','600');
+      txt(s,x+82,140,m[1],DIM,9,'middle');
+      txt(s,x+82,158,'忠实度: '+(0.72+i*0.06).toFixed(2),m[2],10,'middle','700');
+    });
+    // ablation fidelity chart
+    panel(s,60,280,800,180,'消融忠实度：抑制特征后的输出保留率');
+    var cx=120, cy=420, cw=560, ch=100;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+22,'抑制特征比例',DIM,10,'middle'); txt(s,cx-30,cy-ch/2,'输出保留率',DIM,10,'middle');
+    for(var g=0;g<=4;g++){ var yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(g*25)+'%',DIM,9,'end'); }
+    // SAE ablation curve (slow decline = faithful)
+    var spts=[];
+    for(var i=0;i<=40;i++){ var x=cx+i*cw/40; var ret=1-0.3*(i/40); spts.push(x+','+(cy-ret*ch)); }
+    el('polyline',{points:spts.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // random ablation (fast decline)
+    var rpts=[];
+    for(var i=0;i<=40;i++){ var x=cx+i*cw/40; var ret=1-0.8*(i/40); rpts.push(x+','+(cy-ret*ch)); }
+    el('polyline',{points:rpts.join(' '),fill:'none',stroke:ERR,'stroke-width':2,'stroke-dasharray':'5,3'},s);
+    box(s,700,300,14,4,AC,AC,2); tleft(s,720,306,'SAE 特征消融',AC,11);
+    box(s,700,320,14,4,ERR,ERR,2); tleft(s,720,326,'随机消融',ERR,11);
+    txt(s,460,470,'SAE 特征消融下降更缓 → 特征因果有效(忠实)',AC,11,'middle','600');
+    log('log7','<span class="r">[忠实度]</span> <b>因果有效性</b>：零消融/替换测试验证 SAE 特征是否真实反映模型计算。\n<span class="d">抑制 SAE 特征后输出下降比随机消融更缓，说明特征捕获了真实因果结构。忠实度 0.72-0.94。高忠实度 = SAE 不是近似，而是模型计算的忠实表示。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M8 — 应用场景
+// ============================================================
+function M8(act){
+  var s=svg('svg8'); clear(s); addDefs(s);
+  if(act==='interp'){
+    title(s,460,34,'可解释性：理解模型内部行为',AC,17);
+    panel(s,60,60,800,380,'特征级可解释性应用');
+    // model behavior analysis
+    txt(s,460,96,'输入: "巴黎是___的首都"',INFO,12,'middle','700');
+    box(s,340,108,240,36,'rgba(56,189,248,0.10)',INFO,6,1.5);
+    txt(s,460,131,'模型输出: "法国" (logit 9.2)',INFO,11,'middle','600');
+    // feature activation trace
+    panel(s,80,165,760,180,'关键特征激活追踪');
+    var trace=[['z₁₂ 巴黎/城市',0.92,AC],['z₄₇ 首都关系',0.85,INFO],['z₈₉ 法国关联',0.88,PUR],['z₁₀₃ 地理欧洲',0.6,ROSE],['z₂₀₁ 语言法语',0.3,WARN]];
+    trace.forEach(function(t,i){
+      var y=200+i*28;
+      txt(s,110,y+4,t[0],t[2],11,'start','600');
+      box(s,300,y,400,18,'rgba(255,255,255,0.04)',BD,3,1);
+      box(s,300,y,400*t[1],18,t[2]+'55',t[2],3,1);
+      txt(s,710,y+4,t[1].toFixed(2),t[2],10,'start','700');
+    });
+    // insight
+    panel(s,80,360,760,70,'洞察');
+    txt(s,100,388,'模型通过"巴黎→首都关系→法国关联"三步推理',AC,11,'start','600');
+    txt(s,100,408,'特征级追踪揭示模型使用了地理知识而非表面模式匹配',DIM,10,'start');
+    log('log8','<span class="k">[可解释性]</span> <b>理解模型内部行为</b>：追踪"巴黎是法国首都"的关键特征激活路径。\n<span class="d">特征级可解释性揭示模型使用了"巴黎→首都关系→法国关联"的语义推理，而非表面统计模式。这使模型行为可审计、可调试、可信任。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='steer'){
+    title(s,460,34,'模型引导：特征向量转向输出',INFO,17);
+    panel(s,60,60,800,380,'特征引导(Steering)');
+    // baseline
+    txt(s,200,96,'基线(无引导)',DIM,12,'middle','700');
+    box(s,120,110,160,80,'rgba(255,255,255,0.03)',DIM,6,1.5);
+    txt(s,200,140,'输入: "今天天气"',DIM,11,'middle');
+    txt(s,200,165,'输出: "很好"',DIM,11,'middle');
+    // steering vector
+    arrow(s,285,150,370,150,INFO,2.5);
+    box(s,370,120,120,60,'rgba(56,189,248,0.12)',INFO,6,1.5);
+    txt(s,430,145,'+ α·z_sad',INFO,12,'middle','700');
+    txt(s,430,165,'(悲伤特征)',INFO,9);
+    arrow(s,492,150,560,150,INFO,2);
+    // steered
+    txt(s,680,96,'引导后(+悲伤)',INFO,12,'middle','700');
+    box(s,600,110,160,80,'rgba(56,189,248,0.10)',INFO,6,1.5);
+    txt(s,680,140,'输入: "今天天气"',INFO,11,'middle');
+    txt(s,680,165,'输出: "阴沉压抑"',INFO,11,'middle','600');
+    // effect chart
+    panel(s,60,210,800,230,'引导强度 α 对输出情感的影响');
+    var cx=120, cy=410, cw=600, ch=160;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+22,'引导强度 α',DIM,10,'middle'); txt(s,cx-30,cy-ch/2,'情感分值',DIM,10,'middle');
+    for(var g=0;g<=4;g++){ var yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(g*0.25-0.5).toFixed(2),DIM,9,'end'); }
+    // positive steering (happy)
+    var hpts=[];
+    for(var i=0;i<=40;i++){ var x=cx+i*cw/40; var v=0.5+i/40*0.5; hpts.push(x+','+(cy-v*ch)); }
+    el('polyline',{points:hpts.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // negative steering (sad)
+    var spts=[];
+    for(var i=0;i<=40;i++){ var x=cx+i*cw/40; var v=0.5-i/40*0.5; spts.push(x+','+(cy-v*ch)); }
+    el('polyline',{points:spts.join(' '),fill:'none',stroke:ERR,'stroke-width':2.4},s);
+    box(s,650,235,14,4,AC,AC,2); tleft(s,670,241,'+α·z_happy',AC,11);
+    box(s,650,255,14,4,ERR,ERR,2); tleft(s,670,261,'+α·z_sad',ERR,11);
+    log('log8','<span class="i">[模型引导]</span> <b>特征向量转向输出</b>：在激活中加减特征方向，主动改变模型行为。\n<span class="d">加 α·z_sad 使"今天天气"输出从"很好"变为"阴沉压抑"。引导强度 α 线性控制情感分值。应用：可控生成、风格迁移、去偏见。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='safety'){
+    title(s,460,34,'安全检测：识别欺骗与后门特征',ERR,17);
+    panel(s,60,60,800,380,'特征级安全分析');
+    // deception detection
+    txt(s,230,96,'欺骗特征检测',ERR,12,'middle','700');
+    box(s,90,110,280,140,'rgba(239,68,68,0.06)',ERR,6,1.5);
+    var dec=[['z₅₅₂ 虚假陈述','0.91',ERR],['z₇₈₁ 隐瞒信息','0.78',WARN],['z₉₂₃ 表面配合','0.65',PUR]];
+    dec.forEach(function(d,i){
+      var y=135+i*36;
+      txt(s,110,y+4,d[0],d[2],10,'start','600');
+      box(s,250,y,100,16,'rgba(255,255,255,0.04)',BD,2,1);
+      box(s,250,y,100*parseFloat(d[1]),16,d[2]+'55',d[2],2,1);
+      txt(s,360,y+4,d[1],d[2],9,'start','700');
+    });
+    // backdoor detection
+    txt(s,690,96,'后门特征检测',WARN,12,'middle','700');
+    box(s,550,110,280,140,'rgba(245,158,11,0.06)',WARN,6,1.5);
+    var bd=[['z₃₃₃ 触发词响应','异常',ERR],['z₄₄₄ 后门通路','激活',WARN],['正常特征','沉默',DIM]];
+    bd.forEach(function(b,i){
+      var y=135+i*36;
+      circle(s,575,y+2,6,b[1]==='异常'?'rgba(239,68,68,0.3)':b[1]==='激活'?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)',b[1]==='异常'?ERR:b[1]==='激活'?WARN:DIM,1.5);
+      txt(s,590,y+5,b[0],b[1]==='异常'?ERR:b[1]==='激活'?WARN:DIM,10,'start','600');
+      txt(s,750,y+5,b[1],b[1]==='异常'?ERR:b[1]==='激活'?WARN:DIM,10,'start','700');
+    });
+    // safety score
+    panel(s,80,270,760,160,'安全评估报告');
+    var scores=[['欺骗风险','高 (0.82)',ERR],['后门检测','发现 2 个',WARN],['对齐偏离','中等',PUR],['可信度','需审查',ROSE]];
+    scores.forEach(function(sc,i){
+      var x=110+i*175;
+      box(s,x,290,150,60,'rgba(255,255,255,0.03)',sc[2],6,1.2);
+      txt(s,x+75,314,sc[0],sc[2],10,'middle','600');
+      txt(s,x+75,338,sc[1],sc[2],12,'middle','700');
+    });
+    txt(s,460,400,'SAE 特征可暴露隐藏在激活中的欺骗与后门模式',ERR,11,'middle','600');
+    log('log8','<span class="e">[安全检测]</span> <b>识别欺骗与后门特征</b>：欺骗特征(z₅₅₂虚假陈述)和后门特征(z₃₃₃触发词)在激活中暴露。\n<span class="d">传统方法难检测的欺骗(表面配合但隐瞒信息)和后门(特定触发词激活异常通路)在特征级清晰可见。欺骗风险 0.82 → 需审查。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'对齐辅助：监控与修正偏离',PUR,17);
+    panel(s,60,60,800,380,'对齐监控流水线');
+    var ymid=130;
+    // pipeline
+    var steps=[['模型激活',AC],['SAE 特征',INFO],['对齐监控',PUR],['偏离检测',WARN],['修正引导',ROSE]];
+    steps.forEach(function(st,i){
+      var x=110+i*160;
+      box(s,x-65,ymid-25,130,50,'rgba(255,255,255,0.03)',st[1],6,1.3);
+      txt(s,x,ymid,st[0],st[1],10,'middle','600');
+      if(i<steps.length-1) arrow(s,x+67,ymid,x+93,ymid,st[1],1.4);
+    });
+    // alignment dimensions
+    panel(s,60,200,800,240,'对齐维度监控');
+    var dims=[['诚实性','0.92',AC,'无欺骗'],['无害性','0.88',INFO,'无伤害'],['可助性','0.85',PUR,'有效帮助'],['可控性','0.79',WARN,'可引导'],['鲁棒性','0.72',ROSE,'抗扰动']];
+    dims.forEach(function(d,i){
+      var x=90+i*155;
+      box(s,x,225,135,150,'rgba(255,255,255,0.02)',d[2],5,1.2);
+      txt(s,x+67,250,d[0],d[2],11,'middle','700');
+      // gauge
+      var gy=275, val=parseFloat(d[1]);
+      box(s,x+20,gy,95,12,'rgba(255,255,255,0.05)',BD,2,1);
+      box(s,x+20,gy,95*val,12,d[2]+'55',d[2],2,1);
+      txt(s,x+67,300,d[1],d[2],16,'middle','700');
+      txt(s,x+67,322,d[3],DIM,9,'middle');
+      // status
+      circle(s,x+67,345,5,val>0.8?'rgba(0,212,170,0.3)':'rgba(245,158,11,0.3)',val>0.8?AC:WARN,1.5);
+      txt(s,x+67,362,val>0.8?'良好':'注意',val>0.8?AC:WARN,9,'middle','600');
+    });
+    txt(s,460,455,'综合对齐分: 0.83 / 1.00   鲁棒性与可控性需改善',PUR,12,'middle','700');
+    log('log8','<span class="p">[对齐辅助]</span> <b>监控与修正偏离</b>：SAE 特征实时监控模型对齐状态，偏离时触发修正引导。\n<span class="d">五维对齐监控(诚实/无害/可助/可控/鲁棒)。综合分 0.83，鲁棒性(0.72)与可控性(0.79)偏弱需改善。SAE 使对齐从"黑箱评估"变为"特征级实时监控"。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ===== wiring =====
+var draws={m1:M1,m2:M2,m3:M3,m4:M4,m5:M5,m6:M6,m7:M7,m8:M8};
+document.querySelectorAll('.tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+    document.querySelectorAll('.module').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+    document.getElementById(b.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.controls').forEach(function(c){
+  var mod=c.dataset.mod;
+  c.querySelectorAll('.ctrl').forEach(function(b){
+    b.addEventListener('click',function(){
+      c.querySelectorAll('.ctrl').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      draws[mod](b.dataset.act);
+    });
+  });
+});
+// init all modules with default active button
+['m1','m2','m3','m4','m5','m6','m7','m8'].forEach(function(mod){
+  var c=document.querySelector('.controls[data-mod="'+mod+'"]');
+  var act=c.querySelector('.ctrl.active').dataset.act;
+  draws[mod](act);
+});
+})();
+</script>
+</body>
+</html>

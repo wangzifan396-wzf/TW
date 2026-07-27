@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · KV缓存与内存优化可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;padding:0 0 40px}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto;flex-wrap:wrap}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+main{padding:20px 24px;max-width:1000px;margin:0 auto}
+.module{display:none}
+.module.active{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.module h2{font-size:19px;font-weight:600;margin-bottom:6px;color:#e6e8ee}
+.module p{color:#8a93a8;font-size:13px;margin-bottom:14px;max-width:880px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ctrl{padding:7px 14px;background:#151823;border:1px solid #2d3344;color:#9aa3b8;border-radius:6px;cursor:pointer;font-size:13px;transition:all .15s}
+.ctrl:hover{border-color:#00d4aa;color:#e6e8ee}
+.ctrl.active{background:rgba(0,212,170,.14);border-color:#00d4aa;color:#00d4aa}
+.viz{background:#151823;border:1px solid #2d3344;border-radius:10px;padding:10px;margin-bottom:12px;overflow-x:auto}
+svg{display:block;width:100%;height:auto;max-width:920px}
+.log{background:#0f1117;border:1px solid #2d3344;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#8a93a8;font-family:'Consolas','SF Mono',Monaco,monospace;min-height:56px;line-height:1.7}
+.log .k{color:#00d4aa}.log .i{color:#38bdf8}.log .p{color:#a78bfa}.log .w{color:#f59e0b}.log .e{color:#ef4444}.log .r{color:#fb7185}.log .d{color:#62697b}
+.log b{color:#e6e8ee;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>KV缓存与内存优化可视化实验室</h1>
+</header>
+<nav class="tabs">
+<button class="tab active" data-tab="m1">M1 缓存全景</button>
+<button class="tab" data-tab="m2">M2 缓存机制</button>
+<button class="tab" data-tab="m3">M3 PagedAttention</button>
+<button class="tab" data-tab="m4">M4 量化压缩</button>
+<button class="tab" data-tab="m5">M5 驱逐策略</button>
+<button class="tab" data-tab="m6">M6 共享前缀</button>
+<button class="tab" data-tab="m7">M7 内存分析</button>
+<button class="tab" data-tab="m8">M8 应用场景</button>
+</nav>
+<main>
+
+<section id="m1" class="module active">
+<h2>M1 · KV缓存全景</h2>
+<p>KV Cache 是大模型推理的内存核心：注意力机制产生 Key/Value，预填阶段写入缓存，解码阶段增量复用，最终在长上下文与高并发下成为内存瓶颈。本模块总览四大组成与贯穿推理始终的缓存生命周期。</p>
+<div class="controls" data-mod="m1">
+<button class="ctrl active" data-act="all">全部</button>
+<button class="ctrl" data-act="attn">注意力机制</button>
+<button class="ctrl" data-act="store">KV存储</button>
+<button class="ctrl" data-act="bottleneck">内存瓶颈</button>
+</div>
+<div class="viz"><svg id="svg1" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log1"></div>
+</section>
+
+<section id="m2" class="module">
+<h2>M2 · 缓存机制</h2>
+<p>推理分两阶段：Prefill 一次性并行处理整个 prompt 并写入 KV 缓存（计算密集）；Decode 逐 token 增量生成，每步仅计算新 token 的 K/V 并追加（内存密集）。前缀命中可复用缓存，内存按 层×头×序列长×头维度 四维布局。</p>
+<div class="controls" data-mod="m2">
+<button class="ctrl active" data-act="prefill">Prefill阶段</button>
+<button class="ctrl" data-act="decode">Decode阶段</button>
+<button class="ctrl" data-act="hit">缓存命中</button>
+<button class="ctrl" data-act="layout">内存布局</button>
+</div>
+<div class="viz"><svg id="svg2" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log2"></div>
+</section>
+
+<section id="m3" class="module">
+<h2>M3 · PagedAttention</h2>
+<p>PagedAttention 借鉴操作系统虚拟内存：把每个请求的逻辑 KV 序列切成固定大小的块(Block)，通过页表映射到物理块池，按需分配、跨请求共享。消除内存碎片与浪费，支撑连续批处理，是 vLLM 的核心创新。</p>
+<div class="controls" data-mod="m3">
+<button class="ctrl active" data-act="virtual">虚拟内存</button>
+<button class="ctrl" data-act="pagetable">页表管理</button>
+<button class="ctrl" data-act="blockalloc">块分配</button>
+<button class="ctrl" data-act="defrag">碎片整理</button>
+</div>
+<div class="viz"><svg id="svg3" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log3"></div>
+</section>
+
+<section id="m4" class="module">
+<h2>M4 · 量化压缩</h2>
+<p>把 FP16 的 KV 缓存压到 INT8/INT4/FP8 可成倍降低显存与带宽。INT8 省一半、INT4 省四分之三；FP8(E4M3/E5M2) 兼顾范围与精度；分组量化为每组独立缩放因子，精度损失更小。量化是长上下文与高并发的关键杠杆。</p>
+<div class="controls" data-mod="m4">
+<button class="ctrl active" data-act="int8">INT8量化</button>
+<button class="ctrl" data-act="int4">INT4量化</button>
+<button class="ctrl" data-act="fp8">FP8量化</button>
+<button class="ctrl" data-act="group">分组量化</button>
+</div>
+<div class="viz"><svg id="svg4" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log4"></div>
+</section>
+
+<section id="m5" class="module">
+<h2>M5 · 驱逐策略</h2>
+<p>显存有限时需主动淘汰旧 KV。LRU 淘汰最久未访问；滑动窗口只留最近 W 个；重击者(H2O)保留高注意力 token；注意力汇(StreamingLLM)发现首 token 是"汇点"，保留首部+滑窗即可稳定外推到超长序列。</p>
+<div class="controls" data-mod="m5">
+<button class="ctrl active" data-act="lru">LRU</button>
+<button class="ctrl" data-act="sliding">滑动窗口</button>
+<button class="ctrl" data-act="heavy">重击者</button>
+<button class="ctrl" data-act="sink">注意力汇</button>
+</div>
+<div class="viz"><svg id="svg5" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log5"></div>
+</section>
+
+<section id="m6" class="module">
+<h2>M6 · 共享前缀</h2>
+<p>多请求常共享系统提示/少样本前缀。用前缀树(Radix Tree)识别公共 token 序列，物理块以引用计数共享，命中即复用、避免重复计算。天然支持去重，是 ChatGPT 类多轮与模板场景的提速利器。</p>
+<div class="controls" data-mod="m6">
+<button class="ctrl active" data-act="tree">前缀树</button>
+<button class="ctrl" data-act="share">缓存共享</button>
+<button class="ctrl" data-act="multi">多请求</button>
+<button class="ctrl" data-act="dedup">去重</button>
+</div>
+<div class="viz"><svg id="svg6" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log6"></div>
+</section>
+
+<section id="m7" class="module">
+<h2>M7 · 内存分析</h2>
+<p>推理显存由模型权重、KV 缓存、激活三部分构成。KV 随上下文与批大小线性增长，长上下文下可远超权重。Decode 阶段是内存带宽受限，吞吐量随 batch 先升后平。量化分析这些趋势是容量规划与成本优化的基础。</p>
+<div class="controls" data-mod="m7">
+<button class="ctrl active" data-act="breakdown">内存分解</button>
+<button class="ctrl" data-act="scaling">扩展分析</button>
+<button class="ctrl" data-act="bandwidth">带宽分析</button>
+<button class="ctrl" data-act="throughput">吞吐量</button>
+</div>
+<div class="viz"><svg id="svg7" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log7"></div>
+</section>
+
+<section id="m8" class="module">
+<h2>M8 · 应用场景</h2>
+<p>KV 缓存优化落地四大场景：长上下文(100K+)靠分页+驱逐+量化管理超长序列；批量服务靠连续批处理+PagedAttention 提升密度；流式推理靠增量缓存支持逐 token 输出；多轮对话靠跨轮前缀复用降低重复计算。</p>
+<div class="controls" data-mod="m8">
+<button class="ctrl active" data-act="longcontext">长上下文</button>
+<button class="ctrl" data-act="batch">批量服务</button>
+<button class="ctrl" data-act="streaming">流式推理</button>
+<button class="ctrl" data-act="multiturn">多轮对话</button>
+</div>
+<div class="viz"><svg id="svg8" viewBox="0 0 920 500"></svg></div>
+<div class="log" id="log8"></div>
+</section>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+// ===== color constants =====
+var AC='#00d4aa', INFO='#38bdf8', PUR='#a78bfa', WARN='#f59e0b', ERR='#ef4444', ROSE='#fb7185', DIM='#62697b', BD='#2d3344';
+var NS='http://www.w3.org/2000/svg';
+
+// ===== core helpers =====
+function el(tag, attrs, parent){
+  var n=document.createElementNS(NS, tag);
+  if(attrs){ for(var k in attrs){ if(attrs[k]!==undefined) n.setAttribute(k, attrs[k]); } }
+  if(parent) parent.appendChild(n);
+  return n;
+}
+function clear(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+function svg(id){ return document.getElementById(id); }
+function log(id, html){ document.getElementById(id).innerHTML=html; }
+
+// ===== drawing helpers =====
+function addDefs(s){
+  var defs=el('defs',{},s);
+  var map={'ac':AC,'info':INFO,'pur':PUR,'warn':WARN,'err':ERR,'rose':ROSE,'dim':DIM};
+  for(var key in map){
+    var m=el('marker',{id:'ar-'+key,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},defs);
+    el('path',{d:'M0,0 L10,5 L0,10 z',fill:map[key]},m);
+  }
+}
+function mk(color){
+  var map={};map[AC]='ac';map[INFO]='info';map[PUR]='pur';map[WARN]='warn';map[ERR]='err';map[ROSE]='rose';map[DIM]='dim';
+  return 'url(#ar-'+(map[color]||'dim')+')';
+}
+function txt(s,x,y,str,fill,size,anchor,weight){
+  var n=el('text',{x:x,y:y,fill:fill,'font-size':size,'font-family':'sans-serif','text-anchor':anchor||'middle','font-weight':weight||'normal'},s);
+  n.textContent=str;
+  return n;
+}
+function tleft(s,x,y,str,fill,size){
+  var n=el('text',{x:x,y:y,fill:fill,'font-size':size,'font-family':'sans-serif','text-anchor':'start'},s);
+  n.textContent=str;
+  return n;
+}
+function box(s,x,y,w,h,fill,stroke,r,lw){
+  return el('rect',{x:x,y:y,width:w,height:h,rx:r||8,fill:fill,stroke:stroke||'none','stroke-width':lw||1.5},s);
+}
+function node(s,x,y,w,h,label,fill,stroke,sub,subFill){
+  box(s,x-w/2,y-h/2,w,h,fill,stroke,8,1.5);
+  if(sub){
+    txt(s,x,y-3,label,stroke,12,'middle','600');
+    txt(s,x,y+13,sub,subFill||DIM,9);
+  }else{
+    txt(s,x,y+h/2-5,label,stroke,12,'middle','600');
+  }
+}
+function line(s,x1,y1,x2,y2,stroke,lw,dash,opacity){
+  el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke,'stroke-width':lw||1.5,'stroke-dasharray':dash||'none','stroke-opacity':opacity==null?1:opacity},s);
+}
+function arrow(s,x1,y1,x2,y2,stroke,lw){
+  el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:stroke,'stroke-width':lw||1.6,'marker-end':mk(stroke)},s);
+}
+function circle(s,cx,cy,r,fill,stroke,lw){
+  return el('circle',{cx:cx,cy:cy,r:r,fill:fill,stroke:stroke,'stroke-width':lw||1.5},s);
+}
+function title(s,x,y,str,color,size){
+  txt(s,x,y,str,color||AC,size||17,'middle','700');
+}
+function panel(s,x,y,w,h,label){
+  box(s,x,y,w,h,'rgba(255,255,255,0.015)',BD,10,1);
+  txt(s,x+12,y+20,label,DIM,11,'start','600');
+}
+function hex(c){
+  var h=String(c).replace('#','');
+  var r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
+  return r+','+g+','+b;
+}
+
+// ============================================================
+// M1 — KV缓存全景
+// ============================================================
+function M1(act){
+  var s=svg('svg1'); clear(s); addDefs(s);
+  title(s,460,34,'KV 缓存与内存优化全景',AC,18);
+  var cx=460, cy=238;
+  var nodes=[
+    {k:'attn',x:235,y:130,l:'注意力机制',c:INFO,sub:'Q·Kᵀ → softmax → V'},
+    {k:'store',x:685,y:130,l:'K/V 存储',c:AC,sub:'逐层逐头持久化'},
+    {k:'life',x:235,y:350,l:'缓存生命周期',c:PUR,sub:'预填→增量→淘汰'},
+    {k:'bottleneck',x:685,y:350,l:'内存瓶颈',c:ERR,sub:'随上下文二次增长'}
+  ];
+  function on(n){ return act==='all'||act===n.k; }
+  nodes.forEach(function(n){
+    var a=on(n);
+    el('line',{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:a?n.c:DIM,'stroke-width':a?2:1,'stroke-opacity':a?0.55:0.18,'marker-end':mk(a?n.c:DIM)},s);
+  });
+  box(s,cx-84,cy-32,168,64,'rgba(0,212,170,0.10)',AC,12,2);
+  txt(s,cx,cy-6,'KV Cache',AC,15,'middle','700');
+  txt(s,cx,cy+14,'推理内存核心',DIM,11);
+  nodes.forEach(function(n){
+    var a=on(n);
+    node(s,n.x,n.y,158,52,n.l,a?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.01)',a?n.c:DIM,n.sub,a?n.c:DIM);
+  });
+  // attention detail panel (top-left inset)
+  if(act==='all'||act==='attn'){
+    panel(s,70,418,250,64,'注意力 · 缓存来源');
+    txt(s,90,452,'Q',INFO,11,'start','600'); arrow(s,108,448,140,448,INFO,1.3);
+    txt(s,150,452,'Kᵀ',AC,11,'start','600'); arrow(s,170,448,200,448,AC,1.3);
+    txt(s,210,452,'V',WARN,11,'start','600');
+    txt(s,90,470,'score=softmax(QKᵀ/√d)·V',DIM,9,'start');
+  }
+  // bottleneck detail
+  if(act==='all'||act==='bottleneck'){
+    panel(s,600,418,250,64,'内存公式');
+    tleft(s,616,448,'M = 2·L·H·S·D·dtype',ERR,11);
+    tleft(s,616,468,'7B@2K: ~1GB / 请求',WARN,9);
+  }
+  // bottom pipeline
+  panel(s,330,418,260,64,'推理生命周期');
+  var steps=[['预填',AC],['写缓存',INFO],['解码',PUR],['淘汰',WARN]];
+  var sx=352, gap=58;
+  steps.forEach(function(st,i){
+    var x=sx+i*gap;
+    box(s,x-22,448-12,44,24,'rgba(255,255,255,0.03)',st[1],5,1.2);
+    txt(s,x,452+4,st[0],st[1],9,'middle','600');
+    if(i<steps.length-1) arrow(s,x+24,452,x+gap-24,452,DIM,1.3);
+  });
+  var msgs={
+    all:'<span class="k">[全景]</span> <b>四大组成协同</b>：注意力产生 K/V → 存储层持久化 → 生命周期管理(预填/增量/淘汰) → 长上下文下成为内存瓶颈。\n<span class="d">KV Cache 贯穿推理始终，是吞吐与成本的决定性因素。</span>',
+    attn:'<span class="i">[注意力机制]</span> 自注意力计算 Attention(Q,K,V)=softmax(QKᵀ/√d)·V，其中 <b>K/V 是历史信息载体</b>，缓存后可被后续 token 反复复用。\n<span class="d">无需重算历史 K/V，这是 KV Cache 加速解码的根本原理。</span>',
+    store:'<span class="k">[K/V 存储]</span> 每层每头各自维护 K 与 V 两个张量，按 <b>[层,头,序列长,头维度]</b> 四维布局持久化于显存。\n<span class="d">FP16 下 7B 模型 2K 上下文单请求约 1GB，是显存大头。</span>',
+    bottleneck:'<span class="e">[内存瓶颈]</span> KV 缓存随 <b>上下文长度 × 批大小</b> 线性增长，长上下文下远超模型权重，限制并发与上下文长度。\n<span class="d">公式 M=2·L·H·S·D·dtype。量化/分页/驱逐是三大解法。</span>'
+  };
+  log('log1',msgs[act].replace(/\n/g,'<br>'));
+}
+
+// ============================================================
+// M2 — 缓存机制
+// ============================================================
+function M2(act){
+  var s=svg('svg2'); clear(s); addDefs(s);
+  if(act==='prefill'){
+    title(s,460,34,'Prefill 阶段：并行计算并写入 KV',AC,17);
+    panel(s,60,55,800,410,'一次性并行处理整个 prompt（计算密集）');
+    var toks=['BOS','t₁','t₂','t₃','t₄','t₅','t₆'];
+    var bx=160, gap=96;
+    toks.forEach(function(t,i){
+      var x=bx+i*gap;
+      box(s,x-30,92,60,30,'rgba(56,189,248,0.12)',INFO,6,1.4);
+      txt(s,x,112,t,INFO,11,'middle','600');
+      arrow(s,x,124,x,168,AC,1.3);
+    });
+    txt(s,460,156,'输入 Prompt（并行输入）',DIM,10);
+    // parallel compute band
+    box(s,140,168,640,40,'rgba(0,212,170,0.10)',AC,8,1.5);
+    txt(s,460,193,'并行 Attention：同时计算所有 token 的 Q / K / V',AC,12,'middle','600');
+    toks.forEach(function(t,i){ var x=bx+i*gap; arrow(s,x,210,x,250,INFO,1.2); });
+    // KV cache grid all filled
+    box(s,140,250,640,90,'rgba(255,255,255,0.02)',BD,8,1);
+    txt(s,180,272,'KV Cache',AC,11,'start','600');
+    for(var r=0;r<2;r++){
+      for(var c=0;c<7;c++){
+        var x=160+c*86, y=286+r*26;
+        el('rect',{x:x,y:y,width:74,height:22,fill:r===0?'rgba(0,212,170,0.18)':'rgba(245,158,11,0.16)',stroke:r===0?AC:WARN,'stroke-width':1},s);
+        txt(s,x+37,y+15,r===0?'K':'V',r===0?AC:WARN,9,'middle','600');
+      }
+    }
+    txt(s,180,412,'第 0 步：一次性写入全部 KV（7 个 token）',AC,11,'start','600');
+    // timing bar
+    box(s,520,398,300,30,'rgba(255,255,255,0.02)',BD,5,1);
+    box(s,524,402,292,22,'rgba(0,212,170,0.25)',AC,3,1);
+    txt(s,670,417,'计算密集 · 高算力利用率',AC,10,'middle','600');
+    log('log2','<span class="k">[Prefill]</span> <b>并行处理整个 prompt</b>：一次性计算所有 token 的 Q/K/V 并写入缓存。\n<span class="d">此阶段计算密集、GPU 利用率高。代价是首 token 延迟(TTFT)随 prompt 长度上升。缓存写入后，后续解码无需重算历史。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='decode'){
+    title(s,460,34,'Decode 阶段：增量复用缓存',INFO,17);
+    panel(s,60,55,800,410,'逐 token 自回归生成（内存密集）');
+    var cached=6, bx=160, gap=70;
+    // cached KV (already filled)
+    box(s,140,90,640,40,'rgba(255,255,255,0.02)',BD,8,1);
+    txt(s,180,114,'已缓存 KV（6 token，复用）',DIM,10,'start');
+    for(var c=0;c<cached;c++){
+      var x=bx+c*gap;
+      el('rect',{x:x,y:96,width:56,height:26,fill:'rgba(0,212,170,0.14)',stroke:AC,'stroke-width':1},s);
+      txt(s,x+28,113,'K'+(c+1),AC,9,'middle','600');
+    }
+    // new token
+    box(s,160,160,80,34,'rgba(167,139,250,0.15)',PUR,6,1.5);
+    txt(s,200,182,'t₇ (新)',PUR,11,'middle','600');
+    txt(s,300,182,'仅算新 token 的 Q/K/V',PUR,11,'start','600');
+    arrow(s,200,196,200,236,INFO,1.3);
+    arrow(s,560,113,560,236,PUR,1.3); // reuse arrow from cache
+    txt(s,575,178,'复用历史 K/V',AC,10,'start');
+    // attention combine
+    box(s,140,238,640,40,'rgba(56,189,248,0.10)',INFO,8,1.5);
+    txt(s,460,263,'Attention = softmax(Q₇ · [K₁..K₇]ᵀ) · [V₁..V₇]',INFO,12,'middle','600');
+    // append new KV
+    box(s,140,300,640,70,'rgba(255,255,255,0.02)',BD,8,1);
+    txt(s,180,322,'KV Cache 增长',AC,11,'start','600');
+    for(var c=0;c<cached;c++){
+      var x=bx+c*gap;
+      el('rect',{x:x,y:330,width:56,height:26,fill:'rgba(0,212,170,0.14)',stroke:AC,'stroke-width':1},s);
+      txt(s,x+28,347,'K'+(c+1),AC,9,'middle','600');
+    }
+    var nx=bx+cached*gap;
+    el('rect',{x:nx,y:330,width:56,height:26,fill:'rgba(167,139,250,0.20)',stroke:PUR,'stroke-width':1.6,'stroke-dasharray':'3,2'},s);
+    txt(s,nx+28,347,'K7',PUR,9,'middle','700');
+    // timing
+    box(s,160,392,560,30,'rgba(255,255,255,0.02)',BD,5,1);
+    for(var st=0;st<6;st++){ box(s,164+st*92,396,86,22,'rgba(245,158,11,0.18)',WARN,3,1); }
+    txt(s,440,411,'每步仅增量计算 → 内存带宽受限',WARN,10,'middle','600');
+    log('log2','<span class="i">[Decode]</span> <b>逐 token 增量生成</b>：每步仅计算新 token 的 Q/K/V，复用历史缓存，新 K/V 追加到末尾。\n<span class="d">此阶段内存密集、算力利用率低，瓶颈在显存带宽。每步缓存增长 1，是 TPOT(单 token 延迟)的主因。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='hit'){
+    title(s,460,34,'缓存命中：前缀复用',WARN,17);
+    panel(s,60,55,800,410,'Prompt 前缀命中已有缓存');
+    // existing cache
+    box(s,90,90,740,70,'rgba(255,255,255,0.02)',BD,8,1);
+    txt(s,110,112,'已有缓存',DIM,10,'start','600');
+    var prefix=['sys','p₁','p₂','p₃','p₄','p₅','p₆','p₇','p₈'];
+    prefix.forEach(function(t,i){
+      var x=108+i*78;
+      el('rect',{x:x,y:122,width:64,height:26,fill:'rgba(0,212,170,0.14)',stroke:AC,'stroke-width':1},s);
+      txt(s,x+32,139,t,AC,9,'middle','600');
+    });
+    // new request
+    txt(s,460,190,'新请求',WARN,11,'middle','600');
+    var req=['sys','p₁','p₂','p₃','q₁','q₂','q₃'];
+    req.forEach(function(t,i){
+      var x=200+i*72, hit=i<4;
+      el('rect',{x:x,y:205,width:60,height:28,fill:hit?'rgba(0,212,170,0.18)':'rgba(239,68,68,0.16)',stroke:hit?AC:ERR,'stroke-width':1.3},s);
+      txt(s,x+30,223,t,hit?AC:ERR,10,'middle','600');
+    });
+    // labels
+    box(s,200,250,276,26,'rgba(0,212,170,0.10)',AC,5,1);
+    txt(s,338,267,'命中：复用缓存（免计算）',AC,10,'middle','600');
+    box(s,488,250,200,26,'rgba(239,68,68,0.10)',ERR,5,1);
+    txt(s,588,267,'未命中：需计算',ERR,10,'middle','600');
+    // hit rate gauge
+    panel(s,90,300,740,140,'前缀命中率与收益');
+    var rate=4/7;
+    box(s,120,340,560,30,'rgba(255,255,255,0.02)',BD,6,1);
+    box(s,122,342,Math.round(556*rate),26,'rgba(0,212,170,0.30)',AC,4,1);
+    txt(s,400,359,'命中率 '+(rate*100).toFixed(0)+'%  (4/7 prefix 命中)',AC,11,'middle','600');
+    var stats=[['Prefill Token','7 → 3',AC],['首 token 延迟','↓ 57%',INFO],['缓存写入','4 块免算',PUR],['显存占用','+3 块',WARN]];
+    stats.forEach(function(r,i){ var x=120+i*180; txt(s,x,400,r[0],DIM,10,'start'); txt(s,x,420,r[1],r[2],13,'start','700'); });
+    log('log2','<span class="w">[缓存命中]</span> <b>前缀复用</b>：新请求与已有缓存共享公共前缀(系统提示/少样本)，命中部分免重算，仅计算新后缀。\n<span class="d">命中率越高，Prefill 计算量与 TTFT 越低。Radix Tree 自动发现并复用最长公共前缀。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'KV 缓存内存布局（四维张量）',PUR,17);
+    panel(s,60,55,420,410,'张量结构 [L, H, S, D]');
+    // layer stack
+    var Lx=110;
+    for(var L=0;L<4;L++){
+      var ly=100+L*30;
+      el('rect',{x:Lx,y:ly,width:300,height:24,fill:'rgba(167,139,250,'+(0.06+L*0.04)+')',stroke:PUR,'stroke-width':1},s);
+      txt(s,Lx+150,ly+16,L===1?'Layer ℓ  ·  [H, S, D]':'Layer '+L,DIM,9,'middle','600');
+    }
+    txt(s,Lx+150,236,'⋮  共 L 层（堆叠）',PUR,10,'middle','600');
+    // head grid (zoom)
+    panel(s,500,55,360,200,'单层 · 多头 [H, S, D]');
+    var hx=520;
+    for(var h=0;h<4;h++){
+      var x=hx+h*82;
+      box(s,x,90,72,40,'rgba(56,189,248,0.10)',INFO,5,1.2);
+      txt(s,x+36,114,'Head '+h,INFO,9,'middle','600');
+      // mini seq×dim grid
+      for(var r=0;r<3;r++) for(var c=0;c<4;c++){
+        el('rect',{x:x+6+c*15,y:140+r*10,width:13,height:8,fill:'rgba(0,212,170,0.16)',stroke:AC,'stroke-width':0.6},s);
+      }
+    }
+    txt(s,680,205,'S(序列长) × D(头维度)',DIM,9,'middle');
+    txt(s,680,222,'每个头独立缓存 K 与 V',WARN,9,'middle');
+    // formula
+    panel(s,500,270,360,195,'显存公式与实例');
+    tleft(s,520,300,'M = 2 · L · H · S · D · b',AC,13);
+    tleft(s,520,322,'2 = K 与 V 两份',DIM,10);
+    tleft(s,520,340,'b = 每元素字节数',DIM,10);
+    box(s,516,356,330,1,BD,1);
+    tleft(s,520,378,'7B @ FP16, S=2048:',WARN,11);
+    tleft(s,520,398,'2·32·32·2048·128·2',DIM,10);
+    tleft(s,520,418,'≈ 1.07 GB / 请求',ERR,12);
+    tleft(s,520,442,'× batch 32 ≈ 34 GB',ERR,11);
+    log('log2','<span class="p">[内存布局]</span> KV 缓存是四维张量 <b>[层数 L, 头数 H, 序列长 S, 头维度 D]</b>，K 与 V 各一份。\n<span class="d">M=2·L·H·S·D·dtype。7B 模型 2K 上下文 FP16 单请求约 1GB，batch 32 即 34GB —— 远超 7B 权重本身(14GB)。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M3 — PagedAttention
+// ============================================================
+function M3(act){
+  var s=svg('svg3'); clear(s); addDefs(s);
+  if(act==='virtual'){
+    title(s,460,34,'虚拟内存：逻辑连续 vs 物理分块',AC,17);
+    panel(s,50,55,380,360,'逻辑视图（序列连续）');
+    txt(s,240,90,'请求逻辑序列',DIM,11,'middle','600');
+    var blk=72;
+    for(var i=0;i<4;i++){
+      var x=90+i*blk;
+      el('rect',{x:x,y:110,width:62,height:34,fill:'rgba(56,189,248,0.14)',stroke:INFO,'stroke-width':1.4},s);
+      txt(s,x+31,131,'逻辑块 '+i,INFO,10,'middle','600');
+    }
+    txt(s,240,168,'token 0 … 15（看似连续）',DIM,10,'middle');
+    // mapping arrows
+    var maps=[[0,2],[1,5],[2,0],[3,7]];
+    maps.forEach(function(m,i){
+      var x1=90+i*blk+31, x2=540+m[1]*44+18;
+      el('path',{d:'M'+x1+',150 C'+x1+',185 '+(x2)+',185 '+x2+',210',fill:'none',stroke:m[1]===0?WARN:AC,'stroke-width':1.4,'stroke-dasharray':'4,3','marker-end':mk(m[1]===0?WARN:AC)},s);
+    });
+    panel(s,490,55,380,360,'物理视图（块池分块）');
+    txt(s,680,90,'物理块池（非连续）',DIM,11,'middle','600');
+    for(var p=0;p<8;p++){
+      var px=520+(p%4)*82, py=210+Math.floor(p/4)*52;
+      var used=false;
+      maps.forEach(function(m){ if(m[1]===p) used=true; });
+      el('rect',{x:px,y:py,width:72,height:40,fill:used?'rgba(0,212,170,0.18)':'rgba(255,255,255,0.02)',stroke:used?AC:BD,'stroke-width':1.3},s);
+      txt(s,px+36,py+18,'物理 '+p,used?AC:DIM,9,'middle','600');
+      txt(s,px+36,py+32,used?'已分配':'空闲',used?AC:DIM,8,'middle');
+    }
+    txt(s,240,360,'逻辑块 0 → 物理 2（非连续映射）',WARN,10,'middle');
+    txt(s,680,360,'按需分配，零浪费',AC,10,'middle','600');
+    txt(s,460,440,'借鉴 OS 虚拟内存：逻辑序列切固定块，映射到物理块池',PUR,11,'middle','600');
+    log('log3','<span class="k">[虚拟内存]</span> <b>逻辑连续、物理分块</b>：把请求 KV 序列切成固定大小块(如16 token)，通过页表映射到物理块池。\n<span class="d">物理块无需连续，按需分配，消除传统连续分配的内存浪费(可达 60-80%)。这是 vLLM 的核心思想。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='pagetable'){
+    title(s,460,34,'页表管理：逻辑块 → 物理块',INFO,17);
+    panel(s,50,55,560,360,'块表 (Block Table)');
+    // table header
+    var tx=70, ty=100;
+    ['逻辑块#','物理块#','引用计数','状态'].forEach(function(h,i){
+      box(s,tx+i*130,ty,120,28,'rgba(56,189,248,0.10)',INFO,5,1.2);
+      txt(s,tx+i*130+60,ty+18,h,INFO,11,'middle','600');
+    });
+    var rows=[[0,2,1,'活跃'],[1,5,1,'活跃'],[2,0,2,'共享'],[3,7,1,'活跃'],[4,-1,0,'待分配']];
+    rows.forEach(function(r,i){
+      var y=ty+32+i*34;
+      r.forEach(function(v,j){
+        var col=DIM;
+        if(j===2&&v>=2) col=AC; if(j===3&&v==='共享') col=AC; if(j===3&&v==='待分配') col=WARN; if(j===1&&v===-1) col=DIM;
+        box(s,tx+j*130,y,120,30,'rgba(255,255,255,0.015)',BD,4,1);
+        txt(s,tx+j*130+60,y+19,j===1&&v===-1?'—':String(v),col,11,'middle','600');
+      });
+    });
+    txt(s,tx+65,ty+32+5*34+8,'引用计数≥2 → 多请求共享同一物理块',AC,10,'start');
+    // refcount sharing illustration
+    panel(s,630,55,240,360,'共享块示例');
+    box(s,660,110,180,60,'rgba(0,212,170,0.10)',AC,6,1.4);
+    txt(s,750,134,'物理块 0',AC,11,'middle','600');
+    txt(s,750,154,'refcount = 2',WARN,10,'middle');
+    arrow(s,680,200,720,170,AC,1.3);
+    arrow(s,820,200,780,170,AC,1.3);
+    box(s,650,200,90,30,'rgba(56,189,248,0.12)',INFO,5,1.2);
+    txt(s,695,219,'请求A',INFO,10,'middle','600');
+    box(s,800,200,90,30,'rgba(167,139,250,0.12)',PUR,5,1.2);
+    txt(s,845,219,'请求B',PUR,10,'middle','600');
+    txt(s,750,265,'公共前缀块被两请求引用',DIM,10,'middle');
+    txt(s,750,288,'释放时 refcount-1',WARN,10,'middle');
+    txt(s,750,311,'降为 0 才回收物理块',ERR,10,'middle');
+    txt(s,460,440,'页表是逻辑↔物理的桥梁，引用计数实现安全共享',PUR,11,'middle','600');
+    log('log3','<span class="i">[页表管理]</span> <b>块表映射逻辑→物理</b>，每行记录逻辑块号、物理块号、引用计数与状态。\n<span class="d">引用计数≥2 表示多请求共享同一物理块(公共前缀)，释放时减一，归零才真正回收 —— 实现安全共享与按需释放。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='blockalloc'){
+    title(s,460,34,'块分配：多请求共享物理池',WARN,17);
+    panel(s,50,55,820,360,'物理块池 · 连续批处理');
+    // three requests
+    var reqs=[{c:INFO,n:'请求A',blocks:[0,1,2,5]},{c:PUR,n:'请求B',blocks:[0,1,3,6,7]},{c:ROSE,n:'请求C',blocks:[4,8]}];
+    // shared prefix blocks 0,1
+    var pool=[];
+    for(var p=0;p<12;p++) pool.push({used:false,c:DIM,refs:0});
+    reqs.forEach(function(r){ r.blocks.forEach(function(b){ pool[b].used=true; pool[b].refs++; if(pool[b].refs===1) pool[b].c=r.c; else pool[b].c=AC; }); });
+    // draw pool grid 4x3
+    for(var p=0;p<pool.length;p++){
+      var px=80+(p%4)*190, py=100+Math.floor(p/4)*88;
+      var pl=pool[p];
+      el('rect',{x:px,y:py,width:170,height:70,fill:pl.used?('rgba('+hex(pl.c)+',0.14)'):'rgba(255,255,255,0.015)',stroke:pl.used?pl.c:BD,'stroke-width':1.4},s);
+      txt(s,px+85,py+24,'物理块 '+p,pl.used?pl.c:DIM,11,'middle','600');
+      if(pl.used){
+        txt(s,px+85,py+44,pl.refs>1?('共享 · ref '+pl.refs):'占用',pl.refs>1?AC:pl.c,9,'middle','600');
+      }else{
+        txt(s,px+85,py+44,'空闲',DIM,9,'middle');
+      }
+    }
+    // legend
+    box(s,80,380,14,12,'rgba(56,189,248,0.5)',INFO,2); tleft(s,100,390,'请求A',INFO,10);
+    box(s,180,380,14,12,'rgba(167,139,250,0.5)',PUR,2); tleft(s,200,390,'请求B',PUR,10);
+    box(s,280,380,14,12,'rgba(251,113,133,0.5)',ROSE,2); tleft(s,300,390,'请求C',ROSE,10);
+    box(s,380,380,14,12,'rgba(0,212,170,0.5)',AC,2); tleft(s,400,390,'共享块(前缀复用)',AC,10);
+    txt(s,460,418,'块0/1 为 A、B 共享系统提示前缀，仅占一份物理内存',AC,11,'middle','600');
+    log('log3','<span class="w">[块分配]</span> <b>多请求共享物理池</b>：连续批处理中各请求按需申请物理块，公共前缀块以引用计数共享。\n<span class="d">块0/1(系统提示)被 A、B 共享，仅占一份内存。空闲块随时供新请求使用 —— 显存利用率从 ~40% 提升至 ~96%。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'碎片整理：紧凑物理布局',ERR,17);
+    // before
+    panel(s,50,55,400,360,'整理前（碎片化）');
+    var before=[1,0,1,0,1,1,0,1,0,1,1,0];
+    before.forEach(function(u,i){
+      var x=70+(i%4)*92, y=100+Math.floor(i/4)*70;
+      el('rect',{x:x,y:y,width:80,height:56,fill:u?'rgba(239,68,68,0.16)':'rgba(255,255,255,0.015)',stroke:u?ERR:BD,'stroke-width':1.3},s);
+      txt(s,x+40,y+34,u?'占用':'空洞',u?ERR:DIM,10,'middle','600');
+    });
+    txt(s,250,330,'碎片率 '+(before.filter(function(v){return !v;}).length/12*100).toFixed(0)+'%',ERR,12,'middle','700');
+    txt(s,250,352,'连续分配需大块空闲 → 浪费',WARN,10,'middle');
+    // arrow
+    arrow(s,460,235,500,235,AC,2);
+    txt(s,480,222,'PagedAttention',AC,10,'middle','600');
+    txt(s,480,250,'天然无碎片',AC,10,'middle');
+    // after
+    panel(s,470,55,400,360,'整理后（紧凑）');
+    var after=[1,1,1,1,1,1,0,0,0,0,0,0];
+    after.forEach(function(u,i){
+      var x=490+(i%4)*92, y=100+Math.floor(i/4)*70;
+      el('rect',{x:x,y:y,width:80,height:56,fill:u?'rgba(0,212,170,0.16)':'rgba(255,255,255,0.015)',stroke:u?AC:BD,'stroke-width':1.3},s);
+      txt(s,x+40,y+34,u?'占用':'空闲',u?AC:DIM,10,'middle','600');
+    });
+    txt(s,670,330,'碎片率 0%',AC,12,'middle','700');
+    txt(s,670,352,'分块分配，按需取用，零浪费',AC,10,'middle');
+    txt(s,460,440,'传统连续分配 → 碎片浪费；PagedAttention → 块级分配消除碎片',PUR,11,'middle','600');
+    log('log3','<span class="e">[碎片整理]</span> <b>传统连续分配产生碎片</b>（请求释放留下不连续空洞，无法供大请求使用）。\n<span class="d">PagedAttention 块级分配天然消除碎片 —— 物理块等价可互换，无需整理。显存利用率从 ~20-40%(连续) 提升至 ~96%(分页)。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M4 — 量化压缩
+// ============================================================
+function M4(act){
+  var s=svg('svg4'); clear(s); addDefs(s);
+  if(act==='int8'){
+    title(s,460,34,'INT8 量化：FP16 → INT8',AC,17);
+    panel(s,50,55,820,360,'对称量化 · 缩放因子 scale=max|X|/127');
+    // FP16 values
+    txt(s,180,100,'FP16 (16 bit)',AC,12,'middle','600');
+    var vals=[0.32,-0.15,0.88,-0.61,0.47,-0.03];
+    vals.forEach(function(v,i){
+      var x=80+i*130;
+      box(s,x,110,110,34,'rgba(0,212,170,0.10)',AC,5,1.3);
+      txt(s,x+55,132,v.toFixed(2),AC,11,'middle','600');
+      arrow(s,x+55,146,x+55,176,DIM,1.2);
+    });
+    // scale
+    box(s,340,176,220,28,'rgba(245,158,11,0.12)',WARN,5,1.3);
+    txt(s,450,195,'scale = 0.88/127 ≈ 0.0069',WARN,11,'middle','600');
+    // INT8
+    txt(s,180,230,'INT8 (8 bit)',WARN,12,'middle','600');
+    vals.forEach(function(v,i){
+      var x=80+i*130;
+      var q=Math.round(v/0.0069);
+      box(s,x,240,110,34,'rgba(245,158,11,0.14)',WARN,5,1.3);
+      txt(s,x+55,262,String(q),WARN,11,'middle','600');
+    });
+    // bit layout
+    panel(s,50,300,500,100,'位宽对比');
+    box(s,70,330,460,24,'rgba(0,212,170,0.12)',AC,4,1); txt(s,300,346,'FP16: 1符号+5指数+10尾数 (16 bit)',AC,10,'middle','600');
+    box(s,70,362,230,24,'rgba(245,158,11,0.14)',WARN,4,1); txt(s,185,378,'INT8: 8 bit',WARN,10,'middle','600');
+    txt(s,330,378,'省 50% 显存',AC,11,'start','600');
+    txt(s,70,420,'精度损失小(PPL↑<0.5)，性价比最高',INFO,11,'start');
+    // savings
+    panel(s,580,300,290,100,'收益');
+    txt(s,600,332,'显存: 16 → 8 bit',AC,11,'start','600');
+    txt(s,600,354,'带宽: ↓ 50%',INFO,11,'start');
+    txt(s,600,376,'精度: 接近无损',PUR,11,'start');
+    txt(s,600,398,'推荐: 通用首选',WARN,11,'start','600');
+    log('log4','<span class="k">[INT8]</span> <b>FP16→INT8 对称量化</b>：求缩放因子 scale=max|X|/127，量化值 q=round(x/scale)。\n<span class="d">显存与带宽各降 50%，精度损失极小(PPL↑<0.5)，是 KV 量化的通用首选。代表：KVCache INT8、SmoothQuant。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='int4'){
+    title(s,460,34,'INT4 量化：FP16 → INT4',ROSE,17);
+    panel(s,50,55,820,360,'激进修约 · 4 bit 表示 · 需分组缩放');
+    var vals=[0.32,-0.15,0.88,-0.61,0.47,-0.03];
+    txt(s,180,100,'FP16 (16 bit)',AC,12,'middle','600');
+    vals.forEach(function(v,i){
+      var x=80+i*130;
+      box(s,x,110,110,34,'rgba(0,212,170,0.10)',AC,5,1.3);
+      txt(s,x+55,132,v.toFixed(2),AC,11,'middle','600');
+      arrow(s,x+55,146,x+55,176,DIM,1.2);
+    });
+    box(s,320,176,260,28,'rgba(251,113,133,0.14)',ROSE,5,1.3);
+    txt(s,450,195,'scale = 0.88/7 ≈ 0.126',ROSE,11,'middle','600');
+    txt(s,180,230,'INT4 (4 bit)',ROSE,12,'middle','600');
+    vals.forEach(function(v,i){
+      var x=80+i*130;
+      var q=Math.max(-8,Math.min(7,Math.round(v/0.126)));
+      box(s,x,240,110,34,'rgba(251,113,133,0.16)',ROSE,5,1.3);
+      txt(s,x+55,262,String(q),ROSE,11,'middle','600');
+    });
+    // quantization error highlight
+    txt(s,450,290,'0.88→7 (误差较大) · 0.03→0 (精度不足)',ERR,10,'middle');
+    panel(s,50,310,500,90,'位宽对比');
+    box(s,70,338,460,22,'rgba(0,212,170,0.12)',AC,4,1); txt(s,300,353,'FP16 (16 bit)',AC,10,'middle','600');
+    box(s,70,364,115,22,'rgba(251,113,133,0.16)',ROSE,4,1); txt(s,127,379,'INT4',ROSE,10,'middle','600');
+    txt(s,220,379,'省 75% 显存，但精度损失需分组缓解',WARN,10,'start');
+    txt(s,70,402,'常配 per-channel/group scale 保精度',INFO,11,'start');
+    panel(s,580,310,290,90,'收益');
+    txt(s,600,342,'显存: 16 → 4 bit',ROSE,11,'start','600');
+    txt(s,600,364,'带宽: ↓ 75%',INFO,11,'start');
+    txt(s,600,386,'精度: 需精调',WARN,11,'start');
+    log('log4','<span class="r">[INT4]</span> <b>FP16→INT4 激进量化</b>：仅 4 bit 表示，动态范围 ±8，单值精度损失大。\n<span class="d">显存省 75%、带宽降 75%，但需配 per-channel/分组缩放与 outlier 保护保精度。代表：AWQ、GPTQ、KIVI(INT4 KV)。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='fp8'){
+    title(s,460,34,'FP8 量化：E4M3 / E5M2',INFO,17);
+    panel(s,50,55,820,360,'浮点格式 · 兼顾范围与精度');
+    // E4M3
+    txt(s,235,100,'E4M3 (精度优先)',AC,12,'middle','600');
+    var e4m3=[['符号',1,AC],['指数',4,INFO],['尾数',3,PUR]];
+    var ex=90;
+    e4m3.forEach(function(b){
+      var w=b[1]*22;
+      box(s,ex,115,w,36,'rgba('+hex(b[2])+',0.14)',b[2],4,1.3);
+      txt(s,ex+w/2,138,b[0]+' '+b[1],b[2],10,'middle','600');
+      ex+=w+4;
+    });
+    txt(s,235,170,'范围 ±448 · 尾数多 · 精度高',DIM,10,'middle');
+    // E5M2
+    txt(s,685,100,'E5M2 (范围优先)',WARN,12,'middle','600');
+    var e5m2=[['符号',1,AC],['指数',5,INFO],['尾数',2,PUR]];
+    ex=540;
+    e5m2.forEach(function(b){
+      var w=b[1]*22;
+      box(s,ex,115,w,36,'rgba('+hex(b[2])+',0.14)',b[2],4,1.3);
+      txt(s,ex+w/2,138,b[0]+' '+b[1],b[2],10,'middle','600');
+      ex+=w+4;
+    });
+    txt(s,685,170,'范围 ±57344 · 指数多 · 动态大',DIM,10,'middle');
+    // comparison
+    panel(s,50,200,820,140,'两种格式取舍');
+    var cols=[['','E4M3','E5M2'],['指数位','4','5'],['尾数位','3','2'],['动态范围','±448','±57344'],['精度','较高','较低'],['适用','权重/激活','梯度']];
+    cols.forEach(function(r,i){
+      r.forEach(function(v,j){
+        var x=80+j*240, y=224+i*20;
+        if(i===0) box(s,x,y,220,20,'rgba(56,189,248,0.10)',INFO,3,1);
+        txt(s,x+110,y+14,v,i===0?INFO:(j===0?DIM:'#e6e8ee'),10,'middle',i===0?'600':'normal');
+      });
+    });
+    txt(s,460,372,'FP8 硬件原生支持(Hopper/Blackwell)，量化近乎无损',AC,11,'middle','600');
+    log('log4','<span class="i">[FP8]</span> <b>两种 8 bit 浮点格式</b>：E4M3 尾数多精度高(±448)适合权重/激活；E5M2 指数多范围大(±57344)适合梯度。\n<span class="d">硬件原生支持(Hopper/Blackwell GPU)，量化近乎无损，性能接近 INT8 但精度更好。是新一代 KV 量化方向。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'分组量化：per-group scale',PUR,17);
+    panel(s,50,55,820,360,'每组独立缩放因子 · 精度更均衡');
+    // per-tensor (coarse)
+    txt(s,235,100,'逐张量(per-tensor) · 粗放',ERR,12,'middle','600');
+    box(s,90,115,290,50,'rgba(239,68,68,0.10)',ERR,5,1.3);
+    txt(s,235,145,'单一 scale 覆盖全部',ERR,10,'middle','600');
+    var vals1=[0.30,0.32,0.29,8.50,0.31,0.28];
+    vals1.forEach(function(v,i){
+      var x=95+i*48, col=Math.abs(v)>1?ERR:AC;
+      el('rect',{x:x,y:175,width:42,height:24,fill:'rgba('+hex(col)+',0.14)',stroke:col,'stroke-width':1},s);
+      txt(s,x+21,191,v.toFixed(2),col,8,'middle','600');
+    });
+    txt(s,235,218,'outlier(8.50) 拉大 scale → 小值精度崩塌',WARN,9,'middle');
+    // per-group (fine)
+    txt(s,685,100,'分组(per-group) · 精细',AC,12,'middle','600');
+    var groups=[[0.30,0.32,0.29],[8.50,0.31,0.28]];
+    groups.forEach(function(g,gi){
+      var gx=540, gy=115+gi*32;
+      var mx=Math.max.apply(null,g.map(Math.abs));
+      box(s,gx,gy,290,28,'rgba(0,212,170,0.10)',AC,4,1.2);
+      txt(s,gx+145,gy+18,'group'+gi+' · scale='+mx.toFixed(2),AC,9,'middle','600');
+    });
+    txt(s,685,195,'每组独立 scale → outlier 被隔离',AC,9,'middle');
+    groups.forEach(function(g,gi){
+      g.forEach(function(v,i){
+        var x=545+i*48, y=215+gi*22;
+        el('rect',{x:x,y:y,width:42,height:18,fill:'rgba(0,212,170,0.14)',stroke:AC,'stroke-width':1},s);
+        txt(s,x+21,y+13,v.toFixed(2),AC,8,'middle','600');
+      });
+    });
+    // tradeoff
+    panel(s,50,280,820,120,'分组量化权衡');
+    var trade=[['组大小','越小精度越高、开销越大'],['典型','32/64/128 元素一组'],['KV 应用','per-head 或 per-token 分组'],['开销','额外存储 scale/zero point']];
+    trade.forEach(function(r,i){
+      txt(s,80,308+i*24,r[0],WARN,11,'start','600');
+      txt(s,260,308+i*24,r[1],'#e6e8ee',11,'start');
+    });
+    log('log4','<span class="p">[分组量化]</span> <b>每组独立缩放因子</b>：把张量分小組，每组算自己的 scale，隔离 outlier 影响。\n<span class="d">相比逐张量(单一 scale 被 outlier 拉大)精度大幅提升，是 INT4 量化的标配。KIVI 用 per-channel/per-token 分组保 KV INT4 精度。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M5 — 驱逐策略
+// ============================================================
+function M5(act){
+  var s=svg('svg5'); clear(s); addDefs(s);
+  if(act==='lru'){
+    title(s,460,34,'LRU：最近最少使用淘汰',AC,17);
+    panel(s,50,55,820,360,'时间轴 · 淘汰最久未访问');
+    var seq=['t₁','t₂','t₃','t₄','t₅','t₆','t₇','t₈','t₉','t₁₀'];
+    var access=[1,2,1,3,4,2,5,1,6,3]; // last access step per token-ish
+    seq.forEach(function(t,i){
+      var x=80+i*76;
+      var recent=i>=7;
+      el('rect',{x:x,y:120,width:62,height:44,fill:recent?'rgba(0,212,170,0.16)':'rgba(239,68,68,0.14)',stroke:recent?AC:ERR,'stroke-width':1.3},s);
+      txt(s,x+31,138,t,recent?AC:ERR,10,'middle','600');
+      txt(s,x+31,155,recent?'保留':'淘汰',recent?AC:ERR,8,'middle');
+    });
+    // capacity line
+    line(s,80,185,80+7*76,185,WARN,1.6,'5,3');
+    txt(s,80+3.5*76,178,'容量 W=7 → 超出即淘汰最旧',WARN,10,'middle','600');
+    // LRU queue
+    panel(s,50,210,820,180,'LRU 队列（左旧 → 右新）');
+    var q=['t₃','t₄','t₂','t₅','t₇','t₉','t₁₀'];
+    q.forEach(function(t,i){
+      var x=90+i*100;
+      var evict=i===0;
+      el('rect',{x:x,y:250,width:84,height:50,fill:evict?'rgba(239,68,68,0.18)':'rgba(0,212,170,0.12)',stroke:evict?ERR:AC,'stroke-width':1.4},s);
+      txt(s,x+42,273,t,evict?ERR:AC,12,'middle','600');
+      txt(s,x+42,290,evict?'← 下一淘汰':'',ERR,9,'middle');
+    });
+    arrow(s,90,330,810,330,DIM,1.4);
+    txt(s,450,346,'访问即移到队尾；容量满时淘汰队首',DIM,11,'middle');
+    txt(s,460,420,'简单有效，但忽略注意力重要性 · 长尾 token 误淘汰风险',WARN,11,'middle','600');
+    log('log5','<span class="k">[LRU]</span> <b>淘汰最久未访问的 KV</b>：维护访问时间，容量满时驱逐队首(最旧)。\n<span class="d">实现简单，但仅看时间不看注意力重要性，可能误删仍被高频关注的长尾 token。适合通用缓存场景。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='sliding'){
+    title(s,460,34,'滑动窗口：保留最近 W 个 token',INFO,17);
+    panel(s,50,55,820,360,'窗口滑动 · 老窗口丢弃');
+    var N=12, W=6;
+    for(var i=0;i<N;i++){
+      var x=70+i*62, inWin=i>=N-W;
+      el('rect',{x:x,y:120,width:52,height:52,fill:inWin?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.015)',stroke:inWin?INFO:BD,'stroke-width':1.4},s);
+      txt(s,x+26,150,'t'+(i+1),inWin?INFO:DIM,10,'middle','600');
+    }
+    // window bracket
+    line(s,70+(N-W)*62,108,70+N*62-10,108,INFO,2);
+    line(s,70+(N-W)*62,108,70+(N-W)*62,118,INFO,2);
+    line(s,70+N*62-10,108,70+N*62-10,118,INFO,2);
+    txt(s,70+(N-W/2)*62,100,'滑动窗口 W=6',INFO,11,'middle','700');
+    txt(s,70+(N-W)/2*62+30,182,'丢弃',ERR,10,'middle'); 
+    arrow(s,70+3*62,190,70+3*62,176,ERR,1.3);
+    // step animation boxes
+    panel(s,50,210,820,180,'解码推进 · 窗口右移');
+    var steps=[['step k','t₅..t₁₀'],['step k+1','t₆..t₁₁'],['step k+2','t₇..t₁₂']];
+    steps.forEach(function(st,i){
+      var x=110+i*250;
+      box(s,x,240,210,46,'rgba(56,189,248,0.10)',INFO,6,1.3);
+      txt(s,x+105,262,st[1],INFO,11,'middle','600');
+      txt(s,x+105,280,st[0],DIM,9,'middle');
+      if(i<2) arrow(s,x+215,263,x+245,263,AC,1.4);
+    });
+    txt(s,460,330,'每生成 1 token，窗口右移 1，最左 token 出窗',INFO,11,'middle');
+    txt(s,460,358,'显存恒定 O(W) · 但丢失远距离依赖',WARN,11,'middle');
+    txt(s,460,420,'适合短依赖任务；长文档需配合召回机制',WARN,11,'middle','600');
+    log('log5','<span class="i">[滑动窗口]</span> <b>只保留最近 W 个 token 的 KV</b>，窗口随解码右移，最左 token 出窗丢弃。\n<span class="d">显存恒定 O(W)，但丢失远距离注意力依赖，长文档召回下降。常作基础策略，配合召回/重计算补长程。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='heavy'){
+    title(s,460,34,'重击者 H2O：保留高注意力 token',WARN,17);
+    panel(s,50,55,820,360,'Heavy Hitter Oracle · 按注意力分数留 Top-k');
+    // attention score bars
+    var scores=[0.92,0.15,0.78,0.10,0.85,0.22,0.05,0.66,0.41,0.88];
+    var sorted=scores.map(function(v,i){return {v:v,i:i};}).sort(function(a,b){return b.v-a.v;});
+    var keep=new Array(scores.length); sorted.forEach(function(o,idx){ keep[o.i]=idx<5; });
+    scores.forEach(function(v,i){
+      var x=80+i*76, h=Math.round(v*120);
+      var col=keep[i]?WARN:DIM;
+      el('rect',{x:x,y:260-h,width:58,height:h,fill:'rgba('+hex(col)+',0.30)',stroke:col,'stroke-width':1.3},s);
+      txt(s,x+29,270,'t'+(i+1),col,9,'middle','600');
+      txt(s,x+29,284,keep[i]?'保留':'淘汰',keep[i]?WARN:DIM,8,'middle');
+      txt(s,x+29,300,v.toFixed(2),col,8,'middle');
+    });
+    line(s,70,300,80+10*76,300,BD,1);
+    // threshold
+    var thr=sorted[4].v;
+    line(s,70,260-thr*120,80+10*76,260-thr*120,AC,1.4,'4,3');
+    txt(s,820,260-thr*120-6,'Top-5 阈值',AC,9,'end');
+    // policy
+    panel(s,50,330,820,110,'策略：累计注意力分数排序，保留 Heavy Hitter');
+    txt(s,80,358,'1. 统计每个历史 token 的累计注意力分数',WARN,11,'start');
+    txt(s,80,380,'2. 容量满时淘汰分数最低的非重击者',WARN,11,'start');
+    txt(s,80,402,'3. 保留高注意力 token → 召回接近全量',WARN,11,'start');
+    txt(s,460,430,'H2O：仅 20% KV 即保持 ~98% 生成质量',AC,11,'middle','600');
+    log('log5','<span class="w">[重击者 H2O]</span> <b>按累计注意力分数保留 Top-k</b>(Heavy Hitter)，淘汰低分非关键 token。\n<span class="d">基于"少数 token 贡献多数注意力"的观察，仅留 20% KV 即可保持 ~98% 质量。比 LRU/滑窗召回显著更好。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'注意力汇 StreamingLLM：首 token + 滑窗',PUR,17);
+    panel(s,50,55,820,360,'Attention Sink · 首 token 是注意力"汇点"');
+    // sequence with sink + window
+    var N=14, sink=4, win=6;
+    for(var i=0;i<N;i++){
+      var x=70+i*56, isSink=i<sink, isWin=i>=N-win;
+      var col=isSink?PUR:(isWin?INFO:DIM);
+      el('rect',{x:x,y:120,width:46,height:46,fill:'rgba('+hex(col)+',0.16)',stroke:col,'stroke-width':1.4},s);
+      txt(s,x+23,147,'t'+(i+1),col,9,'middle','600');
+    }
+    // brackets
+    line(s,70,108,70+sink*56-10,108,PUR,2);
+    txt(s,70+sink*28,100,'注意力汇 (sink)',PUR,10,'middle','700');
+    line(s,70+(N-win)*56,108,70+N*56-10,108,INFO,2);
+    txt(s,70+(N-win/2)*56,100,'滑动窗口',INFO,10,'middle','700');
+    txt(s,70+(sink+(N-win-sink)/2)*56,182,'中间丢弃',ERR,10,'middle');
+    // attention flow to sink
+    [0,1,2,3].forEach(function(si){
+      el('path',{d:'M'+(70+(N-win)*56+23)+',130 Q'+(70+si*56+23)+',80 '+(70+si*56+23)+',118',fill:'none',stroke:PUR,'stroke-width':1,'stroke-opacity':0.5,'stroke-dasharray':'3,2'},s);
+    });
+    // finding
+    panel(s,50,210,420,180,'关键发现');
+    txt(s,70,238,'首几个 token 充当「注意力汇点」',PUR,11,'start','600');
+    txt(s,70,260,'大量注意力被分配给首 token',DIM,10,'start');
+    txt(s,70,280,'即使内容无关也会被强关注',DIM,10,'start');
+    txt(s,70,302,'删除首 token → 注意力无处倾泻',ERR,10,'start');
+    txt(s,70,322,'→ 生成质量骤降(灾难性)',ERR,10,'start');
+    txt(s,70,352,'保留 sink + 滑窗即可稳定外推',AC,11,'start','600');
+    // result
+    panel(s,490,210,380,180,'效果：超长序列稳定生成');
+    var data=[[1,0.95],[4,0.94],[8,0.93],[16,0.92],[32,0.91],[64,0.90]];
+    var cx=540, cy=360, cw=300, ch=120;
+    line(s,cx,cy,cx+cw,cy,DIM,1.2); line(s,cx,cy,cx,cy-ch,DIM,1.2);
+    txt(s,cx+cw/2,cy+20,'序列长度(万)',DIM,9,'middle');
+    var pts=data.map(function(d){ return (cx+d[0]/64*cw)+','+(cy-d[1]*ch); });
+    el('polyline',{points:pts.join(' '),fill:'none',stroke:AC,'stroke-width':2.2},s);
+    data.forEach(function(d){
+      var x=cx+d[0]/64*cw, y=cy-d[1]*ch;
+      circle(s,x,y,3,'rgba(0,212,170,0.5)',AC,1);
+    });
+    txt(s,680,240,'质量稳定不崩',AC,11,'middle','600');
+    txt(s,460,430,'sink + 滑窗 → 百万 token 稳定生成，显存恒定',AC,11,'middle','600');
+    log('log5','<span class="p">[注意力汇]</span> <b>首 token 是注意力"汇点"</b>，保留首几个 sink token + 滑动窗口即可稳定外推到超长序列。\n<span class="d">删除 sink 会导致注意力无处倾泻、质量骤降。StreamingLLM 用恒定显存支撑百万 token 生成，是流式长生成的关键。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M6 — 共享前缀
+// ============================================================
+function M6(act){
+  var s=svg('svg6'); clear(s); addDefs(s);
+  if(act==='tree'){
+    title(s,460,34,'前缀树 (Radix Tree)：公共序列复用',AC,17);
+    panel(s,50,55,820,360,'Radix Tree · 节点=token 块 · 叶=请求');
+    // root
+    box(s,420,90,80,36,'rgba(0,212,170,0.14)',AC,6,1.5);
+    txt(s,460,113,'root',AC,11,'middle','600');
+    // level1: system prompt (shared)
+    box(s,300,160,120,36,'rgba(56,189,248,0.14)',INFO,6,1.5);
+    txt(s,360,183,'[系统提示]',INFO,10,'middle','600');
+    box(s,540,160,120,36,'rgba(167,139,250,0.14)',PUR,6,1.5);
+    txt(s,600,183,'[少样本]',PUR,10,'middle','600');
+    arrow(s,440,128,380,160,AC,1.4); arrow(s,480,128,580,160,AC,1.4);
+    // level2 children
+    var kids=[{x:200,c:ROSE,l:'Q1:天气'},{x:360,c:WARN,l:'Q2:新闻'},{x:540,c:INFO,l:'Q3:翻译'},{x:700,c:PUR,l:'Q4:代码'}];
+    kids.forEach(function(k){
+      box(s,k.x-60,240,120,34,'rgba('+hex(k.c)+',0.14)',k.c,5,1.3);
+      txt(s,k.x,262,k.l,k.c,10,'middle','600');
+      arrow(s,360,196,k.x,240,INFO,1.2);
+    });
+    // leaves
+    kids.forEach(function(k){
+      box(s,k.x-50,310,100,28,'rgba(255,255,255,0.02)',BD,4,1);
+      txt(s,k.x,328,'请求',DIM,9,'middle','600');
+      arrow(s,k.x,274,k.x,310,k.c,1.2);
+    });
+    // shared block annotation
+    el('rect',{x:285,y:150,width:130,height:56,fill:'none',stroke:AC,'stroke-width':1.4,'stroke-dasharray':'4,3','rx':6},s);
+    txt(s,350,400,'系统提示节点被 4 请求共享 → 物理块 refcount=4',AC,11,'middle','600');
+    txt(s,460,430,'前缀树自动发现最长公共前缀，命中即复用',PUR,11,'middle','600');
+    log('log6','<span class="k">[前缀树]</span> <b>Radix Tree 组织 token 序列</b>：公共前缀共享父节点，分叉处才新建子节点。\n<span class="d">插入请求时沿树匹配，命中前缀直接复用物理块(refcount++)，仅新增分叉部分。自动实现最长公共前缀复用。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='share'){
+    title(s,460,34,'缓存共享：公共前缀复用',INFO,17);
+    panel(s,50,55,820,360,'物理块引用计数共享');
+    // shared prefix blocks
+    txt(s,460,100,'公共前缀（系统提示 4 块）',AC,12,'middle','600');
+    for(var i=0;i<4;i++){
+      var x=160+i*110;
+      el('rect',{x:x,y:115,width:90,height:44,fill:'rgba(0,212,170,0.18)',stroke:AC,'stroke-width':1.5},s);
+      txt(s,x+45,134,'块'+i,AC,10,'middle','600');
+      txt(s,x+45,150,'ref=3',WARN,9,'middle');
+    }
+    // fan out to requests
+    var reqs=[{x:200,c:INFO,l:'请求A: ...天气?'},{x:460,c:PUR,l:'请求B: ...新闻?'},{x:720,c:ROSE,l:'请求C: ...翻译?'}];
+    reqs.forEach(function(r){
+      arrow(s,460,165,r.x,210,r.c,1.4);
+      box(s,r.x-90,210,180,40,'rgba('+hex(r.c)+',0.12)',r.c,6,1.3);
+      txt(s,r.x,235,r.l,r.c,10,'middle','600');
+    });
+    // unique suffix blocks
+    reqs.forEach(function(r){
+      box(s,r.x-50,270,100,30,'rgba('+hex(r.c)+',0.10)',r.c,5,1.2);
+      txt(s,r.x,289,'独有后缀块',r.c,9,'middle','600');
+      arrow(s,r.x,250,r.x,270,r.c,1.2);
+    });
+    // savings
+    panel(s,50,320,820,110,'显存收益');
+    var sav=[['无共享','3 × 4 = 12 块',ERR],['共享后','4 + 3×1 = 7 块',AC],['节省','5 块 / 42%',WARN]];
+    sav.forEach(function(r,i){
+      var x=120+i*250;
+      txt(s,x,352,r[0],DIM,11,'start');
+      txt(s,x,378,r[1],r[2],14,'start','700');
+    });
+    txt(s,460,420,'前缀越长、并发越多，共享收益越大',AC,11,'middle','600');
+    log('log6','<span class="i">[缓存共享]</span> <b>公共前缀物理块以引用计数共享</b>：3 请求共享 4 块系统提示，refcount=3，仅占一份内存。\n<span class="d">无共享需 12 块，共享后 7 块，省 42%。前缀越长、并发越高收益越大。是 RAG/Agent 模板的提速利器。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='multi'){
+    title(s,460,34,'多请求：系统提示共享',PUR,17);
+    panel(s,50,55,820,360,'并发请求 · 公共前缀命中');
+    // system prompt bar
+    box(s,90,95,740,40,'rgba(0,212,170,0.14)',AC,6,1.5);
+    txt(s,460,120,'[系统提示] 你是一个有用的助手... (共享 · 命中)',AC,11,'middle','600');
+    // 4 requests
+    var reqs=[
+      {c:INFO,l:'A: 总结这篇文章',suf:'总结...'},
+      {c:PUR,l:'B: 翻译这段话',suf:'翻译...'},
+      {c:WARN,l:'C: 写一首诗',suf:'写诗...'},
+      {c:ROSE,l:'D: 解释概念',suf:'解释...'}
+    ];
+    reqs.forEach(function(r,i){
+      var y=160+i*58;
+      // shared prefix reused (green, dashed)
+      box(s,90,y,300,44,'rgba(0,212,170,0.10)',AC,5,1.2);
+      txt(s,240,y+27,'[系统提示] · 命中复用',AC,10,'middle','600');
+      arrow(s,390,y+22,430,y+22,r.c,1.3);
+      // unique query (compute)
+      box(s,430,y,260,44,'rgba('+hex(r.c)+',0.14)',r.c,5,1.3);
+      txt(s,560,y+27,r.l,r.c,10,'middle','600');
+      arrow(s,690,y+22,720,y+22,r.c,1.2);
+      // generated
+      box(s,720,y,110,44,'rgba('+hex(r.c)+',0.06)',r.c,5,1.1);
+      txt(s,775,y+27,'生成中',r.c,9,'middle');
+    });
+    // timeline
+    panel(s,50,400,820,50,'Prefill 计算量');
+    txt(s,80,430,'4 请求 × 系统提示(512 tok) 免算 → 节省 2048 token 计算',AC,11,'start','600');
+    log('log6','<span class="p">[多请求]</span> <b>并发请求共享系统提示</b>：公共前缀命中复用，各请求仅计算独有查询部分。\n<span class="d">4 请求共享 512 token 系统提示 → 节省 2048 token 的 Prefill 计算。高并发模板场景(客服/RAG)首 token 延迟大幅下降。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'去重：消除冗余缓存',ROSE,17);
+    panel(s,50,55,400,360,'去重前（冗余）');
+    var dup=[
+      {c:INFO,l:'[系统提示] A'},
+      {c:PUR,l:'[系统提示] B'},
+      {c:WARN,l:'[系统提示] C'},
+      {c:ROSE,l:'[系统提示] D'}
+    ];
+    dup.forEach(function(r,i){
+      var y=100+i*70;
+      box(s,80,y,340,56,'rgba('+hex(r.c)+',0.10)',r.c,5,1.3);
+      txt(s,250,y+25,r.l+' (完整副本)',r.c,10,'middle','600');
+      txt(s,250,y+42,'512 tok × 1',DIM,9,'middle');
+    });
+    txt(s,250,400,'4 份相同前缀 · 共 2048 tok 冗余',ERR,11,'middle','700');
+    // arrow
+    arrow(s,460,235,500,235,AC,2);
+    txt(s,480,222,'去重',AC,10,'middle','600');
+    // after
+    panel(s,470,55,400,360,'去重后（共享）');
+    box(s,560,100,220,56,'rgba(0,212,170,0.18)',AC,6,1.5);
+    txt(s,670,125,'[系统提示]',AC,11,'middle','700');
+    txt(s,670,144,'1 份 · refcount=4',WARN,10,'middle');
+    dup.forEach(function(r,i){
+      var y=180+i*52;
+      arrow(s,670,160,670,y,r.c,1.2);
+      el('path',{d:'M670,160 L'+(560+i*0)+','+y+' L670,'+y,fill:'none',stroke:r.c,'stroke-width':1.2,'stroke-opacity':0.6},s);
+      box(s,560,y,220,42,'rgba('+hex(r.c)+',0.08)',r.c,5,1.1);
+      txt(s,670,y+26,'请求 '+['A','B','C','D'][i]+' · 引用',r.c,10,'middle','600');
+    });
+    txt(s,670,400,'1 份前缀 · 节省 1536 tok',AC,11,'middle','700');
+    txt(s,460,440,'Radix Tree 自动去重 · 相同序列只存一份物理块',PUR,11,'middle','600');
+    log('log6','<span class="r">[去重]</span> <b>消除相同前缀的冗余副本</b>：4 请求各存一份系统提示(2048 tok 冗余)，去重后仅存 1 份(refcount=4)。\n<span class="d">节省 75% 前缀内存。Radix Tree 在插入时自动检测相同序列并合并，天然去重，无需显式干预。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M7 — 内存分析
+// ============================================================
+function M7(act){
+  var s=svg('svg7'); clear(s); addDefs(s);
+  if(act==='breakdown'){
+    title(s,460,34,'内存分解：权重 vs KV vs 激活',AC,17);
+    panel(s,50,55,420,360,'显存构成（7B @ 2K, batch 32）');
+    // stacked bar
+    var parts=[['模型权重',14,AC],['KV 缓存',34,ERR],['激活',6,INFO]];
+    var total=54, by=110, bh=260;
+    var acc=0;
+    parts.forEach(function(p){
+      var h=p[1]/total*bh;
+      el('rect',{x:120,y:by+acc,width:160,height:h,fill:'rgba('+hex(p[2])+',0.30)',stroke:p[2],'stroke-width':1.4},s);
+      txt(s,200,by+acc+h/2+5,p[0],p[2],11,'middle','600');
+      txt(s,200,by+acc+h/2+20,p[1]+' GB',p[2],10,'middle');
+      acc+=h;
+    });
+    txt(s,200,by+bh+20,'总计 '+total+' GB','#e6e8ee',12,'middle','700');
+    txt(s,200,by+bh+38,'KV 缓存占 '+(34/total*100).toFixed(0)+'%',ERR,11,'middle','600');
+    // detail table
+    panel(s,490,55,380,360,'明细');
+    var rows=[['模型权重','14 GB',AC,'FP16 权重'],['KV 缓存','34 GB',ERR,'batch32×2K'],['激活','6 GB',INFO,'中间结果'],['合计','54 GB','#e6e8ee','']];
+    rows.forEach(function(r,i){
+      var y=100+i*44;
+      txt(s,510,y,r[0],DIM,11,'start');
+      txt(s,510,y+18,r[1],r[2],13,'start','700');
+      txt(s,720,y,r[3],DIM,9,'start');
+    });
+    box(s,505,288,350,1,BD,1);
+    txt(s,510,312,'优化杠杆：',WARN,11,'start','600');
+    txt(s,510,332,'· 量化 KV(INT8→17GB, INT4→8.5GB)',AC,10,'start');
+    txt(s,510,352,'· PagedAttention 提升块利用率',INFO,10,'start');
+    txt(s,510,372,'· 驱逐策略限制单请求 KV',PUR,10,'start');
+    txt(s,510,392,'· 共享前缀降并发总 KV',WARN,10,'start');
+    log('log7','<span class="k">[内存分解]</span> 7B 模型 @2K batch32：<b>权重 14GB + KV 34GB + 激活 6GB = 54GB</b>，KV 缓存占 63% 成大头。\n<span class="d">长上下文/高并发下 KV 远超权重。量化(INT4 KV→8.5GB)、分页、驱逐、共享前缀是四大优化杠杆。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='scaling'){
+    title(s,460,34,'扩展分析：KV 内存 vs 上下文长度',INFO,17);
+    panel(s,50,55,820,360,'KV 缓存随上下文/批大小线性增长');
+    var cx=120, cy=380, cw=560, ch=280;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+28,'上下文长度 S (token)',DIM,10,'middle');
+    txt(s,cx-36,cy-ch/2,'KV 内存 (GB)',DIM,10,'middle');
+    for(var g=0;g<=4;g++){ var yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(g*20),DIM,9,'end'); }
+    // batch=1 curve
+    var pts1=[]; for(i=0;i<=40;i++){ var x=cx+i*cw/40; var v=i*0.5; pts1.push(x+','+(cy-v*ch/40)); }
+    el('polyline',{points:pts1.join(' '),fill:'none',stroke:AC,'stroke-width':2.4},s);
+    // batch=8
+    var pts2=[]; for(i=0;i<=40;i++){ var x=cx+i*cw/40; var v=i*4; pts2.push(x+','+(cy-Math.min(v,80)*ch/80)); }
+    el('polyline',{points:pts2.join(' '),fill:'none',stroke:INFO,'stroke-width':2.4},s);
+    // batch=32
+    var pts3=[]; for(i=0;i<=40;i++){ var x=cx+i*cw/40; var v=i*16; pts3.push(x+','+(cy-Math.min(v,80)*ch/80)); }
+    el('polyline',{points:pts3.join(' '),fill:'none',stroke:ERR,'stroke-width':2.4,'stroke-dasharray':'5,3'},s);
+    // weights reference line
+    line(s,cx,cy-14/80*ch,cx+cw,cy-14/80*ch,WARN,1.4,'6,3');
+    txt(s,cx+cw-6,cy-14/80*ch-6,'权重 14GB',WARN,9,'end');
+    // legend
+    box(s,560,90,14,4,AC,AC,2); tleft(s,580,96,'batch=1',AC,11);
+    box(s,560,110,14,4,INFO,INFO,2); tleft(s,580,116,'batch=8',INFO,11);
+    box(s,560,130,14,4,ERR,ERR,2); tleft(s,580,136,'batch=32',ERR,11);
+    txt(s,460,440,'KV 随 S×batch 线性增长，长上下文下远超权重',PUR,11,'middle','600');
+    log('log7','<span class="i">[扩展分析]</span> <b>KV 内存 = 2·L·H·S·D·dtype·batch</b>，随上下文长度 S 与批大小 batch 线性增长。\n<span class="d">batch=32、S=4K 时 KV 达 64GB(FP16)，远超 14GB 权重。这是长上下文与高并发的核心瓶颈，量化是降斜率的关键。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='bandwidth'){
+    title(s,460,34,'带宽分析：Decode 内存受限',WARN,17);
+    panel(s,50,55,820,360,'Decode 阶段 · 显存带宽是瓶颈');
+    // roofline
+    var cx=120, cy=380, cw=380, ch=260;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+28,'批大小 batch',DIM,10,'middle');
+    txt(s,cx-36,cy-ch/2,'Token/s',DIM,10,'middle');
+    for(g=0;g<=4;g++){ yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); }
+    // memory-bound ramp then flat
+    var ramp=[]; for(i=0;i<=20;i++){ var x=cx+i*cw/20; var v=i*ch/20*0.9; ramp.push(x+','+(cy-v)); }
+    for(i=20;i<=40;i++){ var x=cx+i*cw/40; ramp.push(x+','+(cy-0.9*ch)); }
+    el('polyline',{points:ramp.join(' '),fill:'none',stroke:WARN,'stroke-width':2.4},s);
+    txt(s,cx+12*cw/40,cy-0.5*ch,'带宽受限区',WARN,10,'middle');
+    txt(s,cx+30*cw/40,cy-0.95*ch,'算力受限区',ERR,10,'middle');
+    line(s,cx+20*cw/40,cy,cx+20*cw/40,cy-ch,DIM,1,'3,3');
+    txt(s,cx+20*cw/40,cy+14,'拐点',DIM,9,'middle');
+    // kv bandwidth share
+    panel(s,540,70,330,330,'Decode 每步带宽构成');
+    var bw=[['读 KV 缓存','82%',ERR],['读权重','12%',WARN],['写新 KV','4%',AC],['其他','2%',DIM]];
+    bw.forEach(function(r,i){
+      var y=110+i*56, w=parseFloat(r[1]);
+      box(s,560,y,260,30,'rgba(255,255,255,0.02)',BD,4,1);
+      box(s,560,y,w*2.6,30,'rgba('+hex(r[2])+',0.22)',r[2],4,1);
+      txt(s,575,y+19,r[0],r[2],10,'start','600');
+      txt(s,810,y+19,r[1],'#e6e8ee',11,'end','700');
+    });
+    txt(s,460,440,'Decode 每步 82% 带宽在读 KV → KV 量化直接提速',AC,11,'middle','600');
+    log('log7','<span class="w">[带宽分析]</span> <b>Decode 是内存带宽受限</b>：每步 82% 带宽用于读 KV 缓存，仅 12% 读权重。\n<span class="d">小 batch 时吞吐被带宽限制(线性升)，大 batch 才转入算力受限。KV 量化(INT4/FP8)直接削减读取量 → 等比提速 Decode。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'吞吐量：batch vs token/s',PUR,17);
+    panel(s,50,55,820,360,'吞吐量随 batch 先升后平');
+    var cx=120, cy=380, cw=560, ch=280;
+    line(s,cx,cy,cx+cw,cy,DIM,1.3); line(s,cx,cy,cx,cy-ch,DIM,1.3);
+    txt(s,cx+cw/2,cy+28,'批大小 batch',DIM,10,'middle');
+    txt(s,cx-36,cy-ch/2,'吞吐 token/s',DIM,10,'middle');
+    for(g=0;g<=4;g++){ yy=cy-g*ch/4; line(s,cx,yy,cx+cw,yy,BD,1,'2,4'); txt(s,cx-14,yy+4,(g*250),DIM,9,'end'); }
+    // throughput curve
+    var tp=[]; for(i=0;i<=40;i++){ var x=cx+i*cw/40; var v=1000*(1-Math.exp(-i/12)); tp.push(x+','+(cy-v/1000*ch)); }
+    el('polyline',{points:tp.join(' '),fill:'none',stroke:PUR,'stroke-width':2.6},s);
+    // annotate
+    circle(s,cx+12*cw/40,cy-(1000*(1-Math.exp(-1)))*ch/1000,4,'rgba(167,139,250,0.5)',PUR,1.5);
+    txt(s,cx+14*cw/40,cy-(1000*(1-Math.exp(-1)))*ch/1000-10,'最优点 batch≈12',PUR,10,'middle','600');
+    circle(s,cx+36*cw/40,cy-(1000*(1-Math.exp(-3)))*ch/1000,4,'rgba(239,68,68,0.5)',ERR,1.5);
+    txt(s,cx+34*cw/40,cy-(1000*(1-Math.exp(-3)))*ch/1000-10,'收益递减',ERR,10,'middle');
+    // paged benefit
+    var tp2=[]; for(i=0;i<=40;i++){ var x=cx+i*cw/40; var v=1000*(1-Math.exp(-i/9))*1.18; tp2.push(x+','+(cy-Math.min(v,1100)/1000*ch)); }
+    el('polyline',{points:tp2.join(' '),fill:'none',stroke:AC,'stroke-width':2.4,'stroke-dasharray':'5,3'},s);
+    box(s,540,90,14,4,PUR,PUR,2); tleft(s,560,96,'传统(连续)',PUR,11);
+    box(s,540,110,14,4,AC,AC,2); tleft(s,560,116,'PagedAttention',AC,11);
+    txt(s,460,440,'PagedAttention 提升有效 batch → 吞吐 +18%',AC,11,'middle','600');
+    log('log7','<span class="p">[吞吐量]</span> <b>吞吐随 batch 先线性升后趋平</b>：小 batch 带宽受限(升)，大 batch 算力受限(平)，存在最优 batch。\n<span class="d">PagedAttention 提升显存利用率 → 更大有效 batch → 吞吐 +18%。连续批处理进一步抹平气泡，是高吞吐服务的关键。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ============================================================
+// M8 — 应用场景
+// ============================================================
+function M8(act){
+  var s=svg('svg8'); clear(s); addDefs(s);
+  if(act==='longcontext'){
+    title(s,460,34,'长上下文：100K+ token 缓存管理',AC,17);
+    panel(s,50,55,820,360,'超长序列 · KV 管理三件套');
+    // context length bar
+    var lens=[['4K',AC],['32K',INFO],['128K',PUR],['1M',WARN],['10M',ERR]];
+    lens.forEach(function(l,i){
+      var x=80+i*150;
+      box(s,x,100,130,40,'rgba('+hex(l[1])+',0.14)',l[1],5,1.3);
+      txt(s,x+65,125,l[0],l[1],12,'middle','700');
+      if(i<4) arrow(s,x+132,120,x+148,120,DIM,1.3);
+    });
+    txt(s,460,165,'上下文长度持续突破 → KV 内存爆炸',WARN,11,'middle','600');
+    // three tools
+    var tools=[
+      {x:170,c:AC,t:'PagedAttention',d:'块级分配\n按需取用',s:'显存↑96%'},
+      {x:460,c:INFO,t:'量化压缩',d:'INT8/INT4\nFP8',s:'显存↓50-75%'},
+      {x:750,c:PUR,t:'驱逐策略',d:'sink+滑窗\nH2O',s:'恒定显存'}
+    ];
+    tools.forEach(function(t){
+      box(s,t.x-110,200,220,90,'rgba('+hex(t.c)+',0.10)',t.c,8,1.4);
+      txt(s,t.x,225,t.t,t.c,12,'middle','700');
+      txt(s,t.x,248,t.d.replace(/\n/g,' / '),DIM,10,'middle');
+      box(s,t.x-50,270,100,24,'rgba('+hex(t.c)+',0.16)',t.c,4,1);
+      txt(s,t.x,286,t.s,t.c,10,'middle','600');
+    });
+    // formula
+    panel(s,50,310,820,90,'长上下文 KV 内存（7B FP16, 单请求）');
+    txt(s,80,340,'4K: 2GB',AC,11,'start','600');
+    txt(s,220,340,'32K: 16GB',INFO,11,'start','600');
+    txt(s,380,340,'128K: 64GB',PUR,11,'start','600');
+    txt(s,560,340,'1M: 512GB',ERR,11,'start','700');
+    txt(s,80,372,'→ 1M 上下文需 INT4 量化(128GB) + 分页 + 驱逐才可行',WARN,11,'start','600');
+    log('log8','<span class="k">[长上下文]</span> <b>100K+ token 需 KV 管理三件套</b>：PagedAttention(分页)+ 量化(INT8/4)+ 驱逐(sink+滑窗)。\n<span class="d">7B 模型 1M 上下文 FP16 需 512GB KV —— 必须量化+驱逐降到可行范围。这是 Gemini/Claude 长上下文背后的工程基石。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='batch'){
+    title(s,460,34,'批量服务：连续批处理 + PagedAttention',INFO,17);
+    panel(s,50,55,820,360,'连续批处理 · 动态拼批');
+    // requests with different lengths
+    var reqs=[
+      {c:INFO,len:6,off:0},
+      {c:PUR,len:8,off:0},
+      {c:WARN,len:5,off:0},
+      {c:ROSE,len:7,off:0},
+      {c:AC,len:9,off:0}
+    ];
+    reqs.forEach(function(r,i){
+      var y=100+i*52;
+      txt(s,70,y+22,'R'+(i+1),r.c,10,'end','600');
+      for(var t=0;t<r.len;t++){
+        var x=90+t*44;
+        el('rect',{x:x,y:y,width:38,height:36,fill:'rgba('+hex(r.c)+',0.14)',stroke:r.c,'stroke-width':1.2},s);
+      }
+      // completion mark
+      el('rect',{x:90+r.len*44,y:y,width:38,height:36,fill:'rgba(0,212,170,0.20)',stroke:AC,'stroke-width':1.4,'stroke-dasharray':'3,2'},s);
+      txt(s,90+r.len*44+19,y+22,'✓',AC,12,'middle','700');
+    });
+    // continuous batching annotation
+    line(s,90,372,560,372,WARN,1.4,'4,3');
+    txt(s,325,388,'已完成请求即时退出 · 新请求即时加入',WARN,10,'middle','600');
+    // metrics
+    panel(s,600,70,270,330,'PagedAttention 收益');
+    var m=[['显存利用率','20% → 96%',AC],['最大 batch','受限 → 灵活',INFO],['吞吐量','+2-4x',PUR],['首 token','共享前缀↓',WARN],['碎片','消除',AC]];
+    m.forEach(function(r,i){
+      var y=110+i*52;
+      txt(s,620,y,r[0],DIM,11,'start');
+      txt(s,620,y+20,r[1],r[2],13,'start','700');
+    });
+    log('log8','<span class="i">[批量服务]</span> <b>连续批处理 + PagedAttention</b>：请求长度不一，完成即退出、新请求即加入，动态拼批零等待。\n<span class="d">PagedAttention 把显存利用率从 20% 提到 96%，最大 batch 灵活扩展，吞吐 +2-4x。是 vLLM/TGI 高吞吐服务的核心。</span>'.replace(/\n/g,'<br>'));
+  }else if(act==='streaming'){
+    title(s,460,34,'流式推理：增量生成',PUR,17);
+    panel(s,50,55,820,360,'逐 token 输出 · KV 增量追加');
+    // timeline
+    var steps=[['t₁','预填'],['t₂','解码'],['t₃','解码'],['t₄','解码'],['t₅','解码']];
+    steps.forEach(function(st,i){
+      var x=90+i*150;
+      box(s,x,100,130,50,'rgba(167,139,250,0.12)',PUR,6,1.3);
+      txt(s,x+65,122,st[0],PUR,12,'middle','700');
+      txt(s,x+65,140,st[1],DIM,9,'middle');
+      if(i<4) arrow(s,x+132,125,x+148,125,AC,1.4);
+    });
+    // KV growth
+    txt(s,460,185,'KV 缓存随生成增长',WARN,11,'middle','600');
+    for(var st=0;st<5;st++){
+      var y=205+st*24;
+      txt(s,80,y+12,'step '+st,DIM,9,'end');
+      for(var t=0;t<=st+1;t++){
+        var x=110+t*36;
+        el('rect',{x:x,y:y,width:30,height:18,fill:t<=st?'rgba(0,212,170,0.16)':'rgba(167,139,250,0.20)',stroke:t<=st?AC:PUR,'stroke-width':1},s);
+      }
+    }
+    // stream out
+    panel(s,560,205,290,200,'流式输出特性');
+    var f=[['首 token','TTFT 优先',AC],['增量','逐 token 返回',INFO],['缓存','每步 +1 块',PUR],['内存','随生成长',WARN],['终止','EOS 停止',ROSE]];
+    f.forEach(function(r,i){
+      var y=235+i*32;
+      txt(s,580,y,r[0],r[1],11,'start','600');
+      txt(s,720,y,r[1],DIM,10,'start');
+    });
+    txt(s,460,440,'流式 = 增量 KV 追加 + 即时 token 返回 · 用户感知低延迟',AC,11,'middle','600');
+    log('log8','<span class="p">[流式推理]</span> <b>逐 token 增量生成</b>：每步 KV 缓存 +1 块，新 token 即时返回给用户，营造低延迟体验。\n<span class="d">首 token 延迟(TTFT)由 Prefill 决定，后续 token 间隔(TPOT)由 Decode 带宽决定。流式是 ChatGPT 式交互的基础。</span>'.replace(/\n/g,'<br>'));
+  }else{
+    title(s,460,34,'多轮对话：跨轮缓存复用',ROSE,17);
+    panel(s,50,55,820,360,'多轮 · 历史前缀跨轮复用');
+    // rounds
+    var rounds=[
+      {c:INFO,t:'轮1: 你好',kv:3},
+      {c:PUR,t:'轮2: 介绍自己',kv:7},
+      {c:WARN,t:'轮3: 写首诗',kv:12},
+      {c:ROSE,t:'轮4: 改一下',kv:16}
+    ];
+    rounds.forEach(function(r,i){
+      var y=100+i*62;
+      // history reused (green)
+      if(i>0){
+        box(s,80,y,300,48,'rgba(0,212,170,0.10)',AC,5,1.2);
+        txt(s,230,y+22,'历史 '+r.kv+' token · 命中复用',AC,10,'middle','600');
+        txt(s,230,y+38,'免重算',AC,9,'middle');
+        arrow(s,382,y+24,420,y+24,r.c,1.3);
+      }else{
+        box(s,80,y,300,48,'rgba(255,255,255,0.02)',BD,5,1.1);
+        txt(s,230,y+29,'首轮全量计算',DIM,10,'middle');
+        arrow(s,382,y+24,420,y+24,r.c,1.3);
+      }
+      // new turn
+      box(s,420,y,260,48,'rgba('+hex(r.c)+',0.14)',r.c,5,1.3);
+      txt(s,550,y+29,r.t,r.c,11,'middle','600');
+      arrow(s,682,y+24,720,y+24,r.c,1.2);
+      // kv total
+      box(s,720,y,120,48,'rgba('+hex(r.c)+',0.08)',r.c,5,1.1);
+      txt(s,780,y+22,'KV '+r.kv,r.c,10,'middle','600');
+      txt(s,780,y+38,'累积',DIM,8,'middle');
+    });
+    // savings
+    panel(s,50,360,820,70,'跨轮收益');
+    txt(s,80,388,'无复用: 每轮重算全部历史 → O(n²) 总计算',ERR,11,'start','600');
+    txt(s,80,410,'有复用: 仅算本轮新增 → 总计算 ≈ 末轮 KV 长度',AC,11,'start','600');
+    txt(s,560,388,'4 轮总计算: 38 → 16 token',WARN,11,'start','700');
+    txt(s,560,410,'省 58% · 轮次越多收益越大',AC,11,'start','600');
+    log('log8','<span class="r">[多轮对话]</span> <b>跨轮前缀复用</b>：历史轮次 KV 作为前缀命中复用，每轮仅计算新增部分。\n<span class="d">无复用时每轮重算全部历史(O(n²) 总计算)，复用后总计算≈末轮 KV 长度，4 轮省 58%。是 ChatGPT 多轮提速的关键。</span>'.replace(/\n/g,'<br>'));
+  }
+}
+
+// ===== wiring =====
+var draws={m1:M1,m2:M2,m3:M3,m4:M4,m5:M5,m6:M6,m7:M7,m8:M8};
+document.querySelectorAll('.tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+    document.querySelectorAll('.module').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+    document.getElementById(b.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.controls').forEach(function(c){
+  var mod=c.dataset.mod;
+  c.querySelectorAll('.ctrl').forEach(function(b){
+    b.addEventListener('click',function(){
+      c.querySelectorAll('.ctrl').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      draws[mod](b.dataset.act);
+    });
+  });
+});
+// init all modules with default active button
+['m1','m2','m3','m4','m5','m6','m7','m8'].forEach(function(mod){
+  var c=document.querySelector('.controls[data-mod="'+mod+'"]');
+  var act=c.querySelector('.ctrl.active').dataset.act;
+  draws[mod](act);
+});
+})();
+</script>
+</body>
+</html>

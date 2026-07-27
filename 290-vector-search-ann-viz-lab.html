@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TW · 向量搜索与近似最近邻可视化实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e6e8ee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6}
+header{padding:16px 24px;border-bottom:1px solid #2d3344;display:flex;align-items:center;gap:16px}
+header a{color:#62697b;text-decoration:none;font-size:13px}
+header a:hover{color:#00d4aa}
+header h1{font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid #2d3344;overflow-x:auto}
+.tab{padding:10px 16px;background:none;border:none;color:#62697b;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:color .18s,border-color .18s}
+.tab:hover{color:#e6e8ee}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.module{display:none;padding:24px}
+.module.active{display:block}
+.module h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.module>p{font-size:13px;color:#9aa0b0;margin-bottom:16px;max-width:800px}
+.ctrl{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ctrl button{padding:6px 14px;background:#1a1d27;color:#e6e8ee;border:1px solid #2d3344;border-radius:6px;font-size:12px;cursor:pointer;transition:background .18s,border-color .18s}
+.ctrl button:hover{background:#252836;border-color:#00d4aa}
+svg{width:100%;max-width:920px;height:auto;background:#0f1117;border:1px solid #1a1d27;border-radius:8px}
+.log{margin-top:8px;padding:8px 12px;background:#0a0c12;border:1px solid #1a1d27;border-radius:6px;font-size:12px;color:#9aa0b0;font-family:monospace;min-height:24px}
+</style>
+</head>
+<body>
+<header>
+<a href="../index.html">← 返回 TW Hub</a>
+<h1>向量搜索与近似最近邻可视化实验室</h1>
+</header>
+<div class="tabs">
+<button class="tab active" data-m="m1">M1 搜索全景</button>
+<button class="tab" data-m="m2">M2 相似度度量</button>
+<button class="tab" data-m="m3">M3 HNSW</button>
+<button class="tab" data-m="m4">M4 IVF</button>
+<button class="tab" data-m="m5">M5 PQ量化</button>
+<button class="tab" data-m="m6">M6 混合索引</button>
+<button class="tab" data-m="m7">M7 性能分析</button>
+<button class="tab" data-m="m8">M8 应用场景</button>
+</div>
+
+<div id="m1" class="module active">
+<h2>M1 · 向量搜索全景</h2>
+<p>向量搜索(Vector Search)通过将数据嵌入高维向量空间，用相似度度量找到最近邻。精确搜索(KNN)遍历全部数据保证100%召回但速度慢；近似最近邻(ANN)算法(HNSW/IVF/PQ)牺牲少量精度换取数百倍加速。本模块展示嵌入空间、相似度度量与精确vs近似的权衡。</p>
+<div class="ctrl">
+<button onclick="drawM1('all')">全部</button>
+<button onclick="drawM1('embed')">嵌入空间</button>
+<button onclick="drawM1('metric')">相似度度量</button>
+<button onclick="drawM1('exact')">精确vs近似</button>
+</div>
+<svg id="s1" viewBox="0 0 920 500"></svg>
+<div class="log" id="l1">点击按钮查看向量搜索全景</div>
+</div>
+
+<div id="m2" class="module">
+<h2>M2 · 相似度度量</h2>
+<p>相似度度量是向量搜索的核心。余弦相似度衡量方向夹角，对向量长度不敏感；点积兼顾方向与模长；L2距离(欧氏距离)衡量绝对位置差异。不同度量适合不同场景：文本语义常用余弦，图像特征常用L2。归一化后点积等价于余弦相似度。</p>
+<div class="ctrl">
+<button onclick="drawM2('cosine')">余弦相似度</button>
+<button onclick="drawM2('dot')">点积</button>
+<button onclick="drawM2('l2')">L2距离</button>
+<button onclick="drawM2('inner')">内积</button>
+</div>
+<svg id="s2" viewBox="0 0 920 500"></svg>
+<div class="log" id="l2">点击按钮查看不同相似度度量</div>
+</div>
+
+<div id="m3" class="module">
+<h2>M3 · HNSW 分层可导航小世界图</h2>
+<p>HNSW(Hierarchical Navigable Small World)是目前最流行的图索引算法。借鉴Skip-List思想构建多层图：上层稀疏用于长距离跳跃，下层密集保证精度。搜索从顶层入口点贪心导航，逐层下沉。插入时按概率分配层数并连接邻居。查询复杂度接近O(log N)。</p>
+<div class="ctrl">
+<button onclick="drawM3('hier')">层级图</button>
+<button onclick="drawM3('skip')">Skip-List</button>
+<button onclick="drawM3('nav')">层导航</button>
+<button onclick="drawM3('insert')">插入过程</button>
+</div>
+<svg id="s3" viewBox="0 0 920 500"></svg>
+<div class="log" id="l3">点击按钮查看HNSW算法细节</div>
+</div>
+
+<div id="m4" class="module">
+<h2>M4 · IVF 倒排文件索引</h2>
+<p>IVF(Inverted File)通过K-Means聚类将向量空间划分为多个桶(Voronoi单元)。查询时只搜索最近的nprobe个桶，将O(N)降为O(N×nprobe/nlist)。粗量化(Coarse Quantizer)定位候选桶，精排阶段在桶内精确计算。增大nprobe提升召回但降低速度。</p>
+<div class="ctrl">
+<button onclick="drawM4('kmeans')">K-means聚类</button>
+<button onclick="drawM4('ivf')">倒排文件</button>
+<button onclick="drawM4('probe')">探测搜索</button>
+<button onclick="drawM4('coarse')">粗到精</button>
+</div>
+<svg id="s4" viewBox="0 0 920 500"></svg>
+<div class="log" id="l4">点击按钮查看IVF算法流程</div>
+</div>
+
+<div id="m5" class="module">
+<h2>M5 · PQ 乘积量化</h2>
+<p>乘积量化(Product Quantization)将高维向量切分为M段子向量，每段独立用K-Means学习码本(通常256个聚类中心)。每段向量用1字节码本索引替代，D维float向量压缩为M字节。压缩比可达32-64倍，距离通过查表(ADC)快速计算。是有损压缩，轻微影响精度。</p>
+<div class="ctrl">
+<button onclick="drawM5('split')">向量分割</button>
+<button onclick="drawM5('subvec')">子向量</button>
+<button onclick="drawM5('codebook')">码本</button>
+<button onclick="drawM5('ratio')">压缩比</button>
+</div>
+<svg id="s5" viewBox="0 0 920 500"></svg>
+<div class="log" id="l5">点击按钮查看PQ量化压缩过程</div>
+</div>
+
+<div id="m6" class="module">
+<h2>M6 · 混合索引</h2>
+<p>实际系统常组合多种ANN技术。IVF-PQ用IVF快速定位桶+PQ压缩存储，兼顾速度与内存；HNSW-PQ用图索引导航+PQ压缩节点向量，极致内存效率；多探测(Multi-Probe)策略提升IVF召回；过滤搜索(Filter)结合元数据属性约束。混合索引是工业级向量数据库的核心。</p>
+<div class="ctrl">
+<button onclick="drawM6('ivfpq')">IVF-PQ</button>
+<button onclick="drawM6('hnswpq')">HNSW-PQ</button>
+<button onclick="drawM6('multiprobe')">多探测</button>
+<button onclick="drawM6('filter')">过滤搜索</button>
+</div>
+<svg id="s6" viewBox="0 0 920 500"></svg>
+<div class="log" id="l6">点击按钮查看混合索引策略</div>
+</div>
+
+<div id="m7" class="module">
+<h2>M7 · 性能分析</h2>
+<p>向量搜索的核心权衡是召回率(Recall)与查询速度(QPS)的平衡。召回-速度曲线展示不同算法在相同精度下的吞吐量；内存-精度对比揭示压缩比的影响；扩展曲线展示数据量增长时的性能衰减；基准对比在标准数据集(SIFT1M/GIST1M)上横向评测各算法。</p>
+<div class="ctrl">
+<button onclick="drawM7('recall')">召回-速度</button>
+<button onclick="drawM7('memory')">内存-精度</button>
+<button onclick="drawM7('scale')">扩展曲线</button>
+<button onclick="drawM7('bench')">基准对比</button>
+</div>
+<svg id="s7" viewBox="0 0 920 500"></svg>
+<div class="log" id="l7">点击按钮查看性能分析数据</div>
+</div>
+
+<div id="m8" class="module">
+<h2>M8 · 应用场景</h2>
+<p>向量搜索是现代AI系统的基础设施。语义搜索将查询编码为向量检索相关文档；RAG检索从知识库召回上下文供LLM生成；推荐系统用向量相似度匹配用户与物品；去重匹配用向量距离识别近似重复内容。从搜索引擎到AI Agent，向量检索无处不在。</p>
+<div class="ctrl">
+<button onclick="drawM8('semantic')">语义搜索</button>
+<button onclick="drawM8('rag')">RAG检索</button>
+<button onclick="drawM8('recsys')">推荐系统</button>
+<button onclick="drawM8('dedup')">去重匹配</button>
+</div>
+<svg id="s8" viewBox="0 0 920 500"></svg>
+<div class="log" id="l8">点击按钮查看向量搜索应用场景</div>
+</div>
+
+<script>
+var tabs=document.querySelectorAll('.tab'),mods=document.querySelectorAll('.module');
+tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');mods.forEach(function(m){m.classList.remove('active')});document.getElementById(t.dataset.m).classList.add('active');});});
+function el(t,a,p){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function clear(s){while(s.firstChild)s.removeChild(s.firstChild);}
+var AC='#00d4aa',INFO='#38bdf8',PUR='#a78bfa',WARN='#f59e0b',ERR='#ef4444',ROSE='#fb7185',DIM='#62697b',BD='#2d3344',BG='#1a1d27';
+
+/* drawing helpers */
+function T(s,x,y,t,f,c,a){var e=el('text',{x:x,y:y,fill:f,'font-size':c||12},s);if(a)e.setAttribute('text-anchor',a);e.textContent=t;return e;}
+function B(s,x,y,w,h,fl,st,r){return el('rect',{x:x,y:y,width:w,height:h,fill:fl||'none',stroke:st||BD,'stroke-width':1,rx:r||4},s);}
+function C(s,cx,cy,r,fl,st){return el('circle',{cx:cx,cy:cy,r:r,fill:fl||'none',stroke:st||BD,'stroke-width':1},s);}
+function L(s,x1,y1,x2,y2,st,w){return el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:st||DIM,'stroke-width':w||1},s);}
+function AR(s,x1,y1,x2,y2,c){L(s,x1,y1,x2,y2,c||AC,2);var a=Math.atan2(y2-y1,x2-x1);el('polygon',{points:(x2-8*Math.cos(a-0.4))+','+(y2-8*Math.sin(a-0.4))+' '+(x2-8*Math.cos(a+0.4))+','+(y2-8*Math.sin(a+0.4))+' '+x2+','+y2,fill:c||AC},s);}
+function FO(s,x,y,w,h,op){var e=el('rect',{x:x,y:y,width:w,height:h,fill:AC,stroke:BD,'stroke-width':0.5},s);e.setAttribute('fill-opacity',op);return e;}
+function PL(s,pts,fl,st,w){return el('path',{d:'M'+pts.map(function(p){return p[0]+','+p[1]}).join(' L'),fill:fl||'none',stroke:st||DIM,'stroke-width':w||1,'stroke-linejoin':'round'},s);}
+
+/* ===== M1 向量搜索全景 ===== */
+function drawM1(mode){
+var s=document.getElementById('s1'),lg=document.getElementById('l1');
+clear(s);
+if(mode==='all'){
+T(s,460,28,'向量搜索与ANN全景',AC,16,'middle');
+T(s,460,48,'嵌入空间 | 相似度度量 | 精确KNN vs 近似ANN | 权衡取舍',DIM,12,'middle');
+/* quadrant 1: embedding space */
+T(s,230,80,'嵌入空间 (Embedding Space)',AC,13,'middle');
+B(s,60,95,340,145,'#0a0c12',BD);
+var pts1=[[120,150],[180,120],[150,180],[210,160],[170,210],[250,150],[230,200],[280,175],[300,210],[140,225],[200,140]];
+for(var i in pts1){C(s,pts1[i][0],pts1[i][1],4,'rgba(0,212,170,0.6)',AC);}
+C(s,250,150,6,INFO,INFO);
+T(s,250,142,'Q',INFO,9,'middle');
+for(var j=0;j<5;j++){var a=pts1[j];L(s,250,150,a[0],a[1],'rgba(56,189,248,0.3)',1);}
+T(s,230,232,'文本→向量→空间分布',DIM,9,'middle');
+/* quadrant 2: similarity metrics */
+T(s,690,80,'相似度度量 (Similarity)',WARN,13,'middle');
+B(s,520,95,340,145,'#0a0c12',BD);
+var metrics=[['余弦相似度','cos(a,b)',AC],['点积','a·b',INFO],['L2距离','||a-b||',PUR],['内积','<a,b>',ROSE]];
+for(var m in metrics){var yy=115+m*28;B(s,540,yy,300,24,BG,metrics[m][2]);T(s,555,yy+16,metrics[m][0],metrics[m][2],11);T(s,820,yy+16,metrics[m][1],DIM,10,'middle');}
+T(s,690,232,'不同度量衡量不同相似性',DIM,9,'middle');
+/* quadrant 3: exact vs ANN */
+T(s,230,270,'精确KNN vs 近似ANN',PUR,13,'middle');
+B(s,60,285,340,145,'#0a0c12',BD);
+B(s,80,305,140,105,'rgba(56,189,248,0.08)',INFO);
+T(s,150,325,'精确 KNN',INFO,12,'middle');
+T(s,150,345,'遍历全部N个向量',DIM,9,'middle');
+T(s,150,360,'O(N) 复杂度',INFO,9,'middle');
+T(s,150,378,'100% 召回率',AC,9,'middle');
+T(s,150,395,'速度慢',ERR,9,'middle');
+B(s,240,305,140,105,'rgba(0,212,170,0.08)',AC);
+T(s,310,325,'近似 ANN',AC,12,'middle');
+T(s,310,345,'索引+剪枝',DIM,9,'middle');
+T(s,310,360,'O(logN) 复杂度',AC,9,'middle');
+T(s,310,378,'95%+ 召回率',WARN,9,'middle');
+T(s,310,395,'速度快',AC,9,'middle');
+/* quadrant 4: tradeoffs */
+T(s,690,270,'权衡取舍 (Trade-offs)',ROSE,13,'middle');
+B(s,520,285,340,145,'#0a0c12',BD);
+var trade=[['速度↑','精度↓'],['内存↓','精度↓'],['召回↑','延迟↑'],['构建快','查询慢']];
+for(var tr in trade){var yy=305+tr*30;B(s,540,yy,300,24,BG,ROSE);T(s,590,yy+16,trade[tr][0],AC,10);T(s,660,yy+16,'↔',DIM,11,'middle');T(s,790,yy+16,trade[tr][1],ERR,10,'middle');}
+T(s,460,470,'ANN三要素：召回率 vs 查询速度 vs 内存占用 —— 不可三者兼得',DIM,11,'middle');
+lg.textContent='[全景] 向量搜索全景：嵌入空间表示数据、相似度度量计算距离、KNN精确但慢、ANN快速近似。核心是召回率/速度/内存权衡。';
+return;
+}
+if(mode==='embed'){
+T(s,460,28,'嵌入空间 (Embedding Space)',AC,16,'middle');
+T(s,460,50,'将文本/图像编码为高维向量，相似内容在空间中聚集',DIM,12,'middle');
+/* encoder pipeline */
+B(s,80,80,150,50,BG,INFO);
+T(s,155,100,'文本输入',INFO,12,'middle');
+T(s,155,118,'"可爱的橘猫"',DIM,10,'middle');
+AR(s,230,105,300,105,AC);
+B(s,300,80,160,50,BG,AC);
+T(s,380,100,'Encoder',AC,12,'middle');
+T(s,380,118,'BERT/CLIP',DIM,10,'middle');
+AR(s,460,105,530,105,PUR);
+B(s,530,80,300,50,BG,PUR);
+T(s,680,100,'向量 [0.21, -0.43, 0.88, ...]',PUR,11,'middle');
+T(s,680,118,'768维 float32',DIM,10,'middle');
+/* 2D scatter */
+T(s,460,160,'二维投影 (PCA/t-SNE)',WARN,12,'middle');
+B(s,80,170,760,230,'#0a0c12',BD);
+L(s,460,180,460,395,DIM,0.5);
+L(s,90,300,830,300,DIM,0.5);
+T(s,835,304,'x',DIM,10);
+T(s,465,185,'y',DIM,10);
+/* clusters */
+var clusters=[
+{c:AC,pts:[[150,220],[170,240],[160,255],[180,225],[140,235],[175,210],[200,245],[155,265]],t:'动物'},
+{c:INFO,pts:[[300,340],[320,330],[310,355],[290,345],[335,345],[305,370],[280,355],[325,365]],t:'科技'},
+{c:PUR,pts:[[550,210],[570,225],[560,245],[540,230],[580,200],[590,235],[530,250],[565,260]],t:'美食'},
+{c:WARN,pts:[[700,330],[720,350],[710,365],[690,345],[730,340],[705,370],[680,360],[725,355]],t:'运动'},
+{c:ROSE,pts:[[420,290],[430,275],[410,285],[440,283]]}
+];
+for(var cl in clusters){
+for(var p in clusters[cl].pts){C(s,clusters[cl].pts[p][0],clusters[cl].pts[p][1],5,'rgba(255,255,255,0.1)',clusters[cl].c);}
+if(clusters[cl].t){var cx=clusters[cl].pts[0][0]-30,cy=clusters[cl].pts[0][1]-15;T(s,cx,cy,clusters[cl].t,clusters[cl].c,10);}
+}
+/* query point */
+C(s,420,290,8,INFO,INFO);
+T(s,420,278,'Q:小猫',INFO,10,'middle');
+for(var k=0;k<4;k++){L(s,420,290,clusters[4].pts[k][0],clusters[4].pts[k][1],'rgba(56,189,248,0.4)',1);}
+T(s,460,475,'相似语义在嵌入空间中聚集成簇，查询向量附近即为语义最近邻',AC,11,'middle');
+lg.textContent='[嵌入空间] Encoder将文本编码为768维向量，相似语义(动物/科技/美食/运动)在空间中聚簇。查询"小猫"向量附近的动物簇即为最近邻。';
+return;
+}
+if(mode==='metric'){
+T(s,460,28,'相似度度量对比',WARN,16,'middle');
+T(s,460,50,'余弦 | 点积 | L2 | 内积 四种度量的几何含义',DIM,12,'middle');
+/* cosine */
+T(s,160,85,'余弦相似度',AC,12,'middle');
+B(s,60,95,200,140,'#0a0c12',AC);
+L(s,160,210,160,120,AC,2);
+L(s,160,210,230,150,INFO,2);
+C(s,160,210,3,AC,AC);C(s,160,120,3,AC,AC);C(s,230,150,3,INFO,INFO);
+T(s,150,118,'a',AC,10);T(s,238,148,'b',INFO,10);
+var arcPts=[];
+for(var d=0;d<=12;d++){var ang=-Math.PI/2+d*(Math.atan2(150-210,230-160)-(-Math.PI/2))/12;arcPts.push([160+22*Math.cos(ang),210+22*Math.sin(ang)]);}
+PL(s,arcPts,'none',WARN,1.5);
+T(s,185,185,'θ',WARN,10);
+T(s,160,250,'cos(θ)=a·b/|a||b|',AC,9,'middle');
+T(s,160,265,'范围[-1,1]',DIM,9,'middle');
+/* dot */
+T(s,410,85,'点积',INFO,12,'middle');
+B(s,310,95,200,140,'#0a0c12',INFO);
+L(s,410,210,410,120,INFO,2);
+L(s,410,210,470,150,AC,2);
+C(s,410,210,3,DIM,DIM);C(s,410,120,3,INFO,INFO);C(s,470,150,3,AC,AC);
+T(s,400,118,'a',INFO,10);T(s,478,148,'b',AC,10);
+T(s,410,250,'a·b=Σaᵢbᵢ',INFO,9,'middle');
+T(s,410,265,'含方向+模长',DIM,9,'middle');
+/* l2 */
+T(s,660,85,'L2距离',PUR,12,'middle');
+B(s,560,95,200,140,'#0a0c12',PUR);
+L(s,620,210,620,160,PUR,2);
+L(s,620,160,720,160,PUR,2);
+L(s,620,210,720,160,DIM,1);
+C(s,620,210,3,PUR,PUR);C(s,720,160,3,PUR,PUR);
+T(s,610,218,'a',PUR,10);T(s,728,156,'b',PUR,10);
+T(s,660,200,'d',WARN,9,'middle');
+T(s,660,250,'||a-b||=√Σ(aᵢ-bᵢ)²',PUR,9,'middle');
+T(s,660,265,'绝对位置差',DIM,9,'middle');
+/* inner */
+T(s,160,300,'内积(未归一化)',ROSE,12,'middle');
+B(s,60,310,200,140,'#0a0c12',ROSE);
+L(s,160,420,160,330,ROSE,2);
+L(s,160,420,220,350,AC,2);
+C(s,160,420,3,DIM,DIM);C(s,160,330,3,ROSE,ROSE);C(s,220,350,3,AC,AC);
+T(s,150,328,'a',ROSE,10);T(s,228,348,'b',AC,10);
+T(s,160,400,'内积',ROSE,9,'middle');
+T(s,160,460,'<a,b>=a·b',ROSE,9,'middle');
+T(s,160,475,'归一化=余弦',DIM,9,'middle');
+/* selection guide */
+T(s,560,300,'选型指南',WARN,12,'middle');
+B(s,460,310,440,140,BG,BD);
+var guide=[['文本语义','余弦(归一化后方向一致)'],['图像特征','L2(像素位置敏感)'],['推荐排序','内积(含模长权重)'],['快速近似','归一化+点积(等价余弦)']];
+for(var g in guide){var yy=330+g*26;T(s,480,yy,guide[g][0],AC,10);T(s,620,yy,guide[g][1],DIM,10);}
+T(s,460,475,'余弦看方向 | 点积看方向+模长 | L2看绝对距离',WARN,11,'middle');
+lg.textContent='[相似度度量] 余弦(方向)、点积(方向+模长)、L2(绝对距离)、内积(未归一化)。文本用余弦、图像用L2、推荐用内积。归一化后点积=余弦。';
+return;
+}
+if(mode==='exact'){
+T(s,460,28,'精确KNN vs 近似ANN',PUR,16,'middle');
+T(s,460,50,'精确搜索遍历全量 vs ANN用索引加速的对比',DIM,12,'middle');
+/* exact KNN */
+B(s,80,80,360,180,'rgba(56,189,248,0.06)',INFO);
+T(s,260,105,'精确 KNN (Brute Force)',INFO,13,'middle');
+var kpts=[];
+for(var i=0;i<60;i++){kpts.push([100+Math.random()*320,125+Math.random()*120]);}
+for(var p in kpts){C(s,kpts[p][0],kpts[p][1],3,'rgba(56,189,248,0.4)',INFO);}
+C(s,260,185,7,ERR,ERR);
+T(s,260,177,'Q',ERR,9,'middle');
+for(var d=0;d<60;d++){if(d%3===0)L(s,260,185,kpts[d][0],kpts[d][1],'rgba(239,68,68,0.1)',0.5);}
+T(s,100,220,'遍历全部N=1M向量计算距离',DIM,10);
+T(s,100,238,'复杂度 O(N·D) | 召回 100% | 延迟 ~1000ms',INFO,10);
+/* ANN */
+B(s,480,80,360,180,'rgba(0,212,170,0.06)',AC);
+T(s,660,105,'近似 ANN (Indexed)',AC,13,'middle');
+/* small index structure */
+for(var l=0;l<3;l++){
+var ly=130+l*20;
+for(var n=0;n<8;n++){C(s,520+n*40,ly,3,'rgba(0,212,170,0.5)',AC);}
+}
+C(s,660,200,7,ERR,ERR);
+T(s,660,192,'Q',ERR,9,'middle');
+for(var v=0;v<5;v++){L(s,660,200,540+v*50,130+v%3*20,'rgba(239,68,68,0.3)',1);}
+T(s,500,220,'索引剪枝，只访问少量候选',DIM,10);
+T(s,500,238,'复杂度 O(logN·D) | 召回 95% | 延迟 ~2ms',AC,10);
+/* comparison bars */
+T(s,460,290,'性能对比 (N=1M, D=128)',WARN,13,'middle');
+var cmp=[{t:'延迟(ms)',knn:1000,ann:2,c:INFO},{t:'QPS',knn:1,ann:5000,c:AC},{t:'召回率(%)',knn:100,ann:95,c:PUR},{t:'内存(MB)',knn:512,ann:64,c:WARN}];
+for(var i in cmp){
+var bx=120+i*200;
+T(s,bx+80,320,cmp[i].t,DIM,10,'middle');
+var knnH=cmp[i].knn>cmp[i].ann?80:80*(cmp[i].knn/Math.max(cmp[i].ann,1));
+var annH=cmp[i].ann>cmp[i].knn?80:80*(cmp[i].ann/Math.max(cmp[i].knn,1));
+B(s,bx,330+80-knnH,60,knnH,'rgba(56,189,248,0.2)',INFO);
+T(s,bx+30,330+80-knnH-6,cmp[i].knn+'',INFO,9,'middle');
+B(s,bx+90,330+80-annH,60,annH,'rgba(0,212,170,0.2)',AC);
+T(s,bx+120,330+80-annH-6,cmp[i].ann+'',AC,9,'middle');
+}
+T(s,120,430,'KNN',INFO,9);T(s,210,430,'ANN',AC,9);
+T(s,460,465,'ANN用2ms获得95%召回，比KNN快500倍 —— 以5%精度换取500x速度',PUR,11,'middle');
+lg.textContent='[精确vs近似] KNN遍历1M向量需1000ms/100%召回；ANN索引仅需2ms/95%召回。ANN快500倍，仅损失5%精度，工业界普遍采用ANN。';
+return;
+}
+}
+
+/* ===== M2 相似度度量 ===== */
+function drawM2(mode){
+var s=document.getElementById('s2'),lg=document.getElementById('l2');
+clear(s);
+if(mode==='cosine'){
+T(s,460,28,'余弦相似度 (Cosine Similarity)',AC,16,'middle');
+T(s,460,50,'衡量两向量方向夹角，对模长不敏感',DIM,12,'middle');
+/* formula */
+B(s,80,80,760,40,'rgba(0,212,170,0.08)',AC);
+T(s,460,106,'cos(θ) = (a·b) / (|a|×|b|) = Σ(aᵢbᵢ) / (√Σaᵢ² × √Σbᵢ²)',AC,13,'middle');
+/* angle visualization */
+T(s,230,150,'几何含义',WARN,12,'middle');
+B(s,80,160,300,200,'#0a0c12',BD);
+L(s,230,330,230,180,AC,2);
+L(s,230,330,330,200,INFO,2);
+C(s,230,330,3,DIM,DIM);C(s,230,180,3,AC,AC);C(s,330,200,3,INFO,INFO);
+T(s,220,178,'a',AC,11);T(s,338,198,'b',INFO,11);
+var aPts=[];
+for(var d=0;d<=14;d++){var ang=-Math.PI/2+d*(Math.atan2(200-330,330-230)-(-Math.PI/2))/14;aPts.push([230+30*Math.cos(ang),330+30*Math.sin(ang)]);}
+PL(s,aPts,'none',WARN,1.5);
+T(s,260,310,'θ',WARN,11);
+T(s,230,360,'cos(θ)=1: 同向(最相似)',AC,9,'middle');
+T(s,230,375,'cos(θ)=0: 正交(无关)',DIM,9,'middle');
+T(s,230,390,'cos(θ)=-1: 反向(最不似)',ERR,9,'middle');
+/* example vectors */
+T(s,620,150,'计算示例',PUR,12,'middle');
+B(s,460,160,400,200,BG,BD);
+T(s,480,185,'a = [1, 2, 3]',AC,11);
+T(s,480,205,'b = [2, 4, 6]',INFO,11);
+T(s,480,230,'a·b = 1×2+2×4+3×6 = 28',WARN,10);
+T(s,480,250,'|a| = √(1+4+9) = √14',WARN,10);
+T(s,480,270,'|b| = √(4+16+36) = √56',WARN,10);
+T(s,480,290,'cos = 28/(√14×√56)',WARN,10);
+B(s,480,305,340,30,'rgba(0,212,170,0.15)',AC);
+T(s,650,325,'= 1.000 (同向)',AC,12,'middle');
+T(s,480,355,'b=2a，方向完全相同→cos=1',DIM,10);
+/* properties */
+B(s,80,375,360,75,BG,AC);
+T(s,100,395,'特性:',AC,11);
+T(s,100,413,'• 范围 [-1, 1]，归一化到[0,1]',AC,10);
+T(s,100,430,'• 只看方向，忽略模长',AC,10);
+T(s,100,447,'• 文本语义搜索首选',AC,10);
+T(s,460,475,'余弦相似度适合衡量语义方向一致性，是NLP向量检索的默认度量',AC,11,'middle');
+lg.textContent='[余弦相似度] cos(θ)=a·b/(|a||b|)。a=[1,2,3],b=[2,4,6]时b=2a方向相同，cos=1.0。范围[-1,1]，文本语义搜索首选。';
+return;
+}
+if(mode==='dot'){
+T(s,460,28,'点积 (Dot Product)',INFO,16,'middle');
+T(s,460,50,'a·b = Σaᵢbᵢ，同时考虑方向与模长',DIM,12,'middle');
+/* formula */
+B(s,80,80,760,40,'rgba(56,189,248,0.08)',INFO);
+T(s,460,106,'a·b = a₁b₁ + a₂b₂ + ... + aₙbₙ = |a||b|cos(θ)',INFO,13,'middle');
+/* geometric meaning */
+T(s,230,150,'几何分解',WARN,12,'middle');
+B(s,80,160,300,200,'#0a0c12',BD);
+L(s,160,330,160,180,INFO,2);
+L(s,160,330,300,220,AC,2);
+C(s,160,330,3,DIM,DIM);C(s,160,180,3,INFO,INFO);C(s,300,220,3,AC,AC);
+T(s,150,178,'a',INFO,11);T(s,308,218,'b',AC,11);
+L(s,160,220,300,220,DIM,1);
+T(s,220,212,'|b|cosθ',WARN,9);
+T(s,230,360,'点积 = |a| × (|b|cosθ)',INFO,9,'middle');
+T(s,230,375,'= a在b方向投影 × |b|',DIM,9,'middle');
+T(s,230,390,'模长越大→点积越大',WARN,9,'middle');
+/* magnitude effect */
+T(s,620,150,'模长影响',PUR,12,'middle');
+B(s,460,160,400,200,BG,BD);
+var cases=[['同向短','[1,1]·[1,1]=2',0.5,AC],['同向长','[3,3]·[3,3]=18',1.5,AC],['垂直','[1,0]·[0,1]=0',0,PUR],['反向','[1,1]·[-1,-1]=-2',-0.5,ERR]];
+for(var c in cases){
+var yy=185+c*42;
+T(s,480,yy,cases[c][0],cases[c][1]>0?AC:cases[c][1]<0?ERR:PUR,10);
+T(s,580,yy,cases[c][1],cases[c][2]>0?AC:cases[c][2]<0?ERR:PUR,10);
+B(s,700,yy-12,140,20,BG,cases[c][3]);
+T(s,770,yy+4,cases[c][2]>0?'正(大)':'0' ,cases[c][3],9,'middle');
+}
+T(s,480,360,'模长放大→点积放大',WARN,10);
+/* use case */
+B(s,80,375,360,75,BG,INFO);
+T(s,100,395,'适用场景:',INFO,11);
+T(s,100,413,'• 推荐系统(模长=热度/质量)',INFO,10);
+T(s,100,430,'• 向量未归一化时排序',INFO,10);
+T(s,100,447,'• 内积检索(Max Inner Product)',INFO,10);
+T(s,460,475,'点积=方向×模长，适合需要考虑向量"强度"的场景如推荐排序',INFO,11,'middle');
+lg.textContent='[点积] a·b=Σaᵢbᵢ=|a||b|cosθ。同向短向量=2，同向长向量=18(模长放大)，垂直=0，反向=-2。推荐系统用点积考虑物品热度。';
+return;
+}
+if(mode==='l2'){
+T(s,460,28,'L2 距离 (欧氏距离)',PUR,16,'middle');
+T(s,460,50,'||a-b|| = √Σ(aᵢ-bᵢ)²，衡量绝对位置差异',DIM,12,'middle');
+/* formula */
+B(s,80,80,760,40,'rgba(167,139,250,0.08)',PUR);
+T(s,460,106,'d(a,b) = √((a₁-b₁)² + (a₂-b₂)² + ... + (aₙ-bₙ)²)',PUR,13,'middle');
+/* 2D distance */
+T(s,230,150,'二维可视化',WARN,12,'middle');
+B(s,80,160,300,200,'#0a0c12',BD);
+L(s,230,330,230,180,PUR,2);
+L(s,230,180,330,180,PUR,2);
+L(s,230,330,330,180,DIM,1);
+C(s,230,330,4,PUR,PUR);C(s,330,180,4,INFO,INFO);
+T(s,220,338,'a',PUR,11);T(s,338,178,'b',INFO,11);
+T(s,270,170,'dx=100',WARN,9);
+T(s,245,255,'dy=150',WARN,9);
+T(s,270,260,'d',AC,10,'middle');
+T(s,230,360,'d=√(100²+150²)=180.3',PUR,9,'middle');
+T(s,230,375,'直角三角形勾股定理',DIM,9,'middle');
+/* example */
+T(s,620,150,'计算示例',AC,12,'middle');
+B(s,460,160,400,200,BG,BD);
+T(s,480,185,'a = [1, 2, 3]',AC,11);
+T(s,480,205,'b = [4, 6, 3]',INFO,11);
+T(s,480,230,'a-b = [-3, -4, 0]',WARN,10);
+T(s,480,250,'(a-b)² = [9, 16, 0]',WARN,10);
+T(s,480,270,'Σ = 9+16+0 = 25',WARN,10);
+B(s,480,285,340,30,'rgba(167,139,250,0.15)',PUR);
+T(s,650,305,'d = √25 = 5.0',PUR,12,'middle');
+T(s,480,335,'距离越小→越相似',DIM,10);
+T(s,480,352,'L2=0 表示两向量完全相同',DIM,10);
+/* properties */
+B(s,80,375,360,75,BG,PUR);
+T(s,100,395,'特性:',PUR,11);
+T(s,100,413,'• 范围 [0, +∞)，0=相同',PUR,10);
+T(s,100,430,'• 对绝对位置敏感',PUR,10);
+T(s,100,447,'• 图像/音频特征常用',PUR,10);
+T(s,460,475,'L2距离衡量空间绝对位置差异，归一化后与余弦单调相关',PUR,11,'middle');
+lg.textContent='[L2距离] d=√Σ(aᵢ-bᵢ)²。a=[1,2,3],b=[4,6,3]时d=√(9+16+0)=5.0。范围[0,∞)，图像特征首选，0表示完全相同。';
+return;
+}
+if(mode==='inner'){
+T(s,460,28,'内积与归一化关系',ROSE,16,'middle');
+T(s,460,50,'归一化后内积等价于余弦相似度',DIM,12,'middle');
+/* normalization */
+T(s,230,80,'归一化过程',AC,12,'middle');
+B(s,80,90,300,150,BG,AC);
+T(s,100,115,'原始向量:',AC,11);
+T(s,100,135,'a = [3, 4]',AC,11);
+T(s,100,155,'|a| = √(9+16) = 5',WARN,10);
+T(s,100,175,'a_norm = a/|a|',WARN,10);
+T(s,100,195,'= [3/5, 4/5]',WARN,10);
+B(s,100,205,260,24,'rgba(0,212,170,0.15)',AC);
+T(s,230,221,'= [0.6, 0.8]',AC,11,'middle');
+/* equivalence proof */
+T(s,620,80,'等价性证明',PUR,12,'middle');
+B(s,460,90,400,150,BG,PUR);
+T(s,480,115,'归一化后: |a\'|=|b\'|=1',PUR,11);
+T(s,480,140,'内积: a\'·b\' = |a\'||b\'|cosθ',PUR,10);
+T(s,480,160,'         = 1×1×cosθ',PUR,10);
+B(s,480,175,360,28,'rgba(167,139,250,0.15)',PUR);
+T(s,660,194,'= cosθ',PUR,12,'middle');
+T(s,480,220,'∴ 归一化后 内积≡余弦',AC,10);
+/* comparison table */
+T(s,460,265,'三种度量关系对比',WARN,13,'middle');
+var rows=[['度量','考虑模长','考虑方向','范围','场景'],['余弦','✗','✓','[-1,1]','文本语义'],['点积','✓','✓','(-∞,+∞)','推荐排序'],['L2','✓(位置)','✗(间接)','[0,+∞)','图像特征'],['内积(归一化)','✗','✓','[-1,1]','=余弦']];
+for(var r in rows){for(var c in rows[r]){var isH=r==0;B(s,80+c*168,290+r*28,160,26,isH?'rgba(245,158,11,0.1)':BG,isH?WARN:BD);T(s,160+c*168,307+r*28,rows[r][c],isH?WARN:'#e6e8ee',10,'middle');}}
+T(s,460,455,'归一化是关键技巧：统一用内积检索即可实现余弦相似度',ROSE,11,'middle');
+T(s,460,475,'FAISS/Milvus等库默认支持归一化+内积的快速检索',DIM,10,'middle');
+lg.textContent='[内积] 归一化a=[3,4]→[0.6,0.8]后|a|=1，内积a\'·b\'=cosθ。归一化后内积≡余弦，统一用内积检索即可实现余弦相似度，FAISS/Milvus默认支持。';
+return;
+}
+}
+
+/* ===== M3 HNSW ===== */
+function drawM3(mode){
+var s=document.getElementById('s3'),lg=document.getElementById('l3');
+clear(s);
+if(mode==='hier'){
+T(s,460,28,'HNSW 层级图结构',AC,16,'middle');
+T(s,460,50,'多层图：上层稀疏长跳，下层密集精确',DIM,12,'middle');
+/* layer 2 (top, sparse) */
+T(s,80,85,'Layer 2 (稀疏)',WARN,12);
+B(s,60,90,800,60,'#0a0c12',WARN);
+var l2=[[120,120],[300,118],[480,122],[660,119],[820,121]];
+for(var i=0;i<l2.length-1;i++)L(s,l2[i][0],l2[i][1],l2[i+1][0],l2[i+1][1],WARN,1.5);
+for(var n in l2){C(s,l2[n][0],l2[n][1],8,BG,WARN);T(s,l2[n][0],l2[n][1]+3,'L2',WARN,8,'middle');}
+T(s,870,123,'入口',WARN,9);
+/* layer 1 (medium) */
+T(s,80,170,'Layer 1 (中等)',PUR,12);
+B(s,60,175,800,60,'#0a0c12',PUR);
+var l1=[[120,205],[220,203],[320,207],[420,205],[520,206],[620,204],[720,207],[820,205]];
+var l1e=[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[0,2],[2,5],[3,6]];
+for(var e in l1e)L(s,l1[l1e[e][0]][0],l1[l1e[e][0]][1],l1[l1e[e][1]][0],l1[l1e[e][1]][1],PUR,1);
+for(var n in l1){C(s,l1[n][0],l1[n][1],7,BG,PUR);T(s,l1[n][0],l1[n][1]+3,'L1',PUR,7,'middle');}
+/* layer 0 (bottom, dense) */
+T(s,80,255,'Layer 0 (密集)',AC,12);
+B(s,60,260,800,120,'#0a0c12',AC);
+var l0=[];
+for(var i=0;i<20;i++){l0.push([90+i*38,300+Math.sin(i)*20]);}
+var l0e=[];
+for(var i=0;i<20;i++){l0e.push([i,(i+1)%20]);if(i%3===0)l0e.push([i,(i+4)%20]);if(i%5===0)l0e.push([i,(i+7)%20]);}
+for(var e in l0e)L(s,l0[l0e[e][0]][0],l0[l0e[e][0]][1],l0[l0e[e][1]][0],l0[l0e[e][1]][1],'rgba(0,212,170,0.3)',0.8);
+for(var n in l0){C(s,l0[n][0],l0[n][1],5,BG,AC);}
+/* cross-layer links */
+T(s,870,120,'↕',DIM,14);
+T(s,870,205,'↕',DIM,14);
+L(s,120,128,120,198,DIM,1);
+L(s,300,128,220,198,DIM,1);
+L(s,480,128,420,198,DIM,1);
+L(s,120,212,120,295,DIM,1);
+L(s,220,212,158,300,DIM,1);
+L(s,420,212,344,310,DIM,1);
+/* search path */
+T(s,460,400,'搜索路径: L2入口→贪心导航→逐层下沉→L0精排',WARN,12,'middle');
+B(s,80,410,760,50,BG,BD);
+T(s,100,430,'Step1: L2从入口贪心找最近 → Step2: 下沉L1继续导航 → Step3: 下沉L0精确搜索邻居',AC,10);
+T(s,100,448,'每层只访问少量节点，总复杂度 O(log N)',PUR,10);
+T(s,460,480,'上层快速定位区域，下层保证精度 —— 分治思想的图索引',AC,11,'middle');
+lg.textContent='[层级图] HNSW多层图：L2稀疏(5节点)长距离跳跃、L1中等(8节点)、L0密集(20节点)精确。搜索从顶层入口贪心导航逐层下沉，复杂度O(logN)。';
+return;
+}
+if(mode==='skip'){
+T(s,460,28,'Skip-List 思想借鉴',WARN,16,'middle');
+T(s,460,50,'HNSW的层级结构源自跳表(Skip List)的概率分层',DIM,12,'middle');
+/* skip list structure */
+T(s,80,85,'跳表 Skip-List',WARN,12);
+var sl=[
+{y:110,nodes:[[100,'3'],[260,'17'],[480,'42'],[700,'68'],[860,'99']],c:WARN,t:'L3'},
+{y:155,nodes:[[100,'3'],[260,'17'],[380,'25'],[480,'42'],[600,'55'],[700,'68'],[820,'85'],[860,'99']],c:PUR,t:'L2'},
+{y:200,nodes:[[100,'3'],[180,'8'],[260,'17'],[380,'25'],[480,'42'],[540,'48'],[600,'55'],[700,'68'],[760,'75'],[820,'85'],[860,'99']],c:AC,t:'L1'},
+{y:245,nodes:[[100,'3'],[140,'6'],[180,'8'],[220,'12'],[260,'17'],[300,'20'],[340,'22'],[380,'25'],[420,'33'],[480,'42'],[540,'48'],[600,'55'],[640,'62'],[700,'68'],[740,'72'],[760,'75'],[820,'85'],[860,'99']],c:INFO,t:'L0'}
+];
+for(var li in sl){
+var layer=sl[li];
+for(var i=0;i<layer.nodes.length-1;i++)L(s,layer.nodes[i][0]+20,layer.y,layer.nodes[i+1][0],layer.y,layer.c,1.5);
+for(var n in layer.nodes){B(s,layer.nodes[n][0]-12,layer.y-12,28,22,BG,layer.c);T(s,layer.nodes[n][0]+2,layer.y+3,layer.nodes[n][1],layer.c,9,'middle');}
+T(s,60,layer.y+4,layer.t,layer.c,10);
+}
+/* vertical links */
+for(var i=0;i<sl[0].nodes.length;i++){
+var x=sl[0].nodes[i][0]+2;
+L(s,x,122,x,233,DIM,0.8);
+}
+/* search example */
+T(s,460,290,'查找 42 的路径',AC,13,'middle');
+B(s,80,300,760,70,BG,AC);
+T(s,100,322,'L3: 3→17→42 ✓ (3步跨越大间隔)',WARN,10);
+T(s,100,340,'L2: (直接命中) ',PUR,10);
+T(s,100,358,'跳表用概率分层实现O(logN)查找，HNSW将其迁移到图结构',AC,10);
+/* probability */
+T(s,460,390,'层数分配概率',INFO,12,'middle');
+B(s,80,400,760,60,BG,INFO);
+T(s,100,420,'P(Layer=k) = (1/ml)ᵏ，ml通常=2',INFO,10);
+T(s,100,438,'L0:100% | L1:50% | L2:25% | L3:12.5% | ... 每层节点数约减半',INFO,10);
+T(s,100,455,'插入时随机生成层数: exp(-uniform) × ml，类似跳表',DIM,10);
+T(s,460,485,'HNSW = 跳表的概率分层 + 小世界图的导航连接',WARN,11,'middle');
+lg.textContent='[Skip-List] HNSW借鉴跳表概率分层：P(L=k)=(1/ml)^k，每层节点约减半。查42在L3仅需3步(3→17→42)。跳表分层+图导航=HNSW。';
+return;
+}
+if(mode==='nav'){
+T(s,460,28,'层导航搜索过程',INFO,16,'middle');
+T(s,460,50,'从顶层入口贪心导航，逐层下沉至目标区域',DIM,12,'middle');
+/* layer 2 navigation */
+T(s,80,80,'Layer 2: 入口→贪心导航',WARN,12);
+B(s,60,85,800,80,'#0a0c12',WARN);
+var n2=[{x:100,y:120,t:'EP'},{x:250,y:118,t:'A'},{x:400,y:122,t:'B'},{x:550,y:120,t:'C'},{x:700,y:118,t:'D'},{x:830,y:121,t:'E'}];
+C(s,470,150,6,ERR,ERR);T(s,470,165,'Q(目标)',ERR,8,'middle');
+for(var i=0;i<n2.length-1;i++)L(s,n2[i].x,n2[i].y,n2[i+1].x,n2[i+1].y,DIM,1);
+L(s,100,120,250,118,WARN,2);L(s,250,118,400,122,WARN,2);L(s,400,122,550,120,AC,2);
+for(var n in n2){var isPath=n<3;C(s,n2[n].x,n2[n].y,9,isPath?BG:'rgba(245,158,11,0.2)',isPath?WARN:DIM);T(s,n2[n].x,n2[n].y+3,n2[n].t,isPath?WARN:DIM,8,'middle');}
+T(s,300,155,'→A(更近)',WARN,8);
+T(s,470,140,'→B(更近)',AC,8);
+T(s,600,155,'C(更远,停)',DIM,8);
+/* layer 1 */
+T(s,80,180,'Layer 1: 从B下沉继续导航',PUR,12);
+B(s,60,185,800,80,'#0a0c12',PUR);
+var n1=[{x:120,y:220,t:'B'},{x:220,y:218,t:'F'},{x:320,y:222,t:'G'},{x:420,y:220,t:'H'},{x:520,y:218,t:'I'},{x:620,y:222,t:'J'},{x:720,y:220,t:'K'},{x:820,y:218,t:'L'}];
+C(s,450,250,6,ERR,ERR);
+for(var i=0;i<n1.length-1;i++)L(s,n1[i].x,n1[i].y,n1[i+1].x,n1[i+1].y,DIM,0.8);
+L(s,120,220,220,218,PUR,2);L(s,220,218,320,222,PUR,2);L(s,320,222,420,220,AC,2);L(s,420,220,520,218,AC,2);
+for(var n in n1){var isPath=n<5;C(s,n1[n].x,n1[n].y,7,isPath?BG:'rgba(167,139,250,0.2)',isPath?PUR:DIM);T(s,n1[n].x,n1[n].y+3,n1[n].t,isPath?PUR:DIM,7,'middle');}
+/* layer 0 */
+T(s,80,280,'Layer 0: 精确搜索邻居',AC,12);
+B(s,60,285,800,100,'#0a0c12',AC);
+var n0=[];
+for(var i=0;i<16;i++){n0.push({x:90+i*48,y:325+Math.sin(i*0.8)*18,t:''+i});}
+var n0e=[];
+for(var i=0;i<16;i++){n0e.push([i,(i+1)%16]);if(i%3===0&&i+5<16)n0e.push([i,i+5]);}
+for(var e in n0e)L(s,n0[n0e[e][0]].x,n0[n0e[e][0]].y,n0[n0e[e][1]].x,n0[n0e[e][1]].y,'rgba(0,212,170,0.2)',0.7);
+/* highlight path */
+var path0=[7,8,9,10];
+for(var i=0;i<path0.length-1;i++)L(s,n0[path0[i]].x,n0[path0[i]].y,n0[path0[i+1]].x,n0[path0[i+1]].y,AC,2.5);
+C(s,n0[9].x,n0[9].y,7,ERR,ERR);T(s,n0[9].x,n0[9].y-12,'Q',ERR,9,'middle');
+for(var n in n0){var isPath=path0.indexOf(parseInt(n))>=0;C(s,n0[n].x,n0[n].y,5,isPath?BG:'rgba(0,212,170,0.3)',isPath?AC:DIM);}
+/* summary */
+T(s,460,410,'导航路径汇总',WARN,12,'middle');
+B(s,80,420,760,55,BG,BD);
+T(s,100,440,'L2: EP→A→B (3步, 定位区域) → 下沉',WARN,10);
+T(s,100,458,'L1: B→F→G→H→I (5步, 缩小范围) → 下沉 → L0: →8→9(Q) (精确定位)',AC,10);
+T(s,100,472,'总访问节点: 3+5+4=12 (vs 暴力搜索N=50+)',PUR,10);
+T(s,460,495,'贪心导航+逐层下沉，每层只访问局部邻居',INFO,11,'middle');
+lg.textContent='[层导航] L2:EP→A→B(3步定位区域)→L1:B→F→G→H→I(5步缩小)→L0:→8→9(Q精确)。总访问12节点 vs 暴力50+，O(logN)。';
+return;
+}
+if(mode==='insert'){
+T(s,460,28,'HNSW 插入过程',PUR,16,'middle');
+T(s,460,50,'新节点插入：分配层数→逐层连接邻居',DIM,12,'middle');
+/* step 1: assign layer */
+T(s,200,80,'Step1: 随机分配层数',AC,12,'middle');
+B(s,80,90,360,80,BG,AC);
+T(s,100,112,'新节点 x',AC,11);
+T(s,100,130,'l = floor(-ln(unif()) × ml)',WARN,10);
+T(s,100,148,'ml=2, unif=0.3 → l=1 (插入L0,L1)',AC,10);
+/* step 2: search entry */
+T(s,660,80,'Step2: 搜索插入点',INFO,12,'middle');
+B(s,540,90,360,80,BG,INFO);
+T(s,560,112,'从顶层入口贪心搜索',INFO,10);
+T(s,560,130,'到L1层找到最近邻候选集',INFO,10);
+T(s,560,148,'efConstruction=200 控制候选池',INFO,10);
+/* layer 1 insertion */
+T(s,80,190,'Layer 1: 连接邻居 (M=2)',PUR,12);
+B(s,60,195,800,90,'#0a0c12',PUR);
+var ins1=[{x:120,y:230,t:'A'},{x:260,y:228,t:'B'},{x:400,y:232,t:'x(新)'},{x:540,y:230,t:'C'},{x:680,y:228,t:'D'},{x:820,y:231,t:'E'}];
+for(var i=0;i<ins1.length-1;i++)L(s,ins1[i].x,ins1[i].y,ins1[i+1].x,ins1[i+1].y,DIM,1);
+/* new connections */
+L(s,400,232,260,228,PUR,2);L(s,400,232,540,230,PUR,2);
+for(var n in ins1){var isNew=ins1[n].t.indexOf('新')>=0;C(s,ins1[n].x,ins1[n].y,isNew?9:7,isNew?'rgba(167,139,250,0.3)':BG,isNew?PUR:DIM);T(s,ins1[n].x,ins1[n].y+3,ins1[n].t,isNew?PUR:DIM,8,'middle');}
+T(s,330,255,'连接M=2个最近邻',PUR,8,'middle');
+/* layer 0 insertion */
+T(s,80,300,'Layer 0: 连接邻居 (M=16, 密集)',AC,12);
+B(s,60,305,800,100,'#0a0c12',AC);
+var ins0=[];
+for(var i=0;i<14;i++){ins0.push({x:90+i*54,y:345+Math.sin(i)*15,t:''+i});}
+ins0.push({x:380,y:355,t:'x'});
+ins0.sort(function(a,b){return a.x-b.x;});
+for(var i=0;i<ins0.length-1;i++){var isNewA=ins0[i].t==='x',isNewB=ins0[i+1].t==='x';L(s,ins0[i].x,ins0[i].y,ins0[i+1].x,ins0[i+1].y,isNewA||isNewB?AC:'rgba(0,212,170,0.2)',isNewA||isNewB?2:0.7);}
+for(var n in ins0){var isNew=ins0[n].t==='x';C(s,ins0[n].x,ins0[n].y,isNew?8:4,isNew?'rgba(0,212,170,0.3)':'rgba(0,212,170,0.4)',isNew?AC:DIM);if(isNew)T(s,ins0[n].x,ins0[n].y-12,'x',AC,9,'middle');}
+/* summary */
+B(s,80,415,760,65,BG,BD);
+T(s,100,435,'插入流程:',PUR,11);
+T(s,100,453,'1.随机分配层数l → 2.从顶层搜索到l层 → 3.在每层连接M个最近邻 → 4.更新邻居的连接(剪枝保持M)',AC,10);
+T(s,100,470,'参数: M(每层邻居数,16) | efConstruction(建图候选,200) | ml(层数因子,2)',WARN,10);
+T(s,460,495,'插入复杂度 O(logN)，构建索引时间换查询加速',PUR,11,'middle');
+lg.textContent='[插入过程] 1.随机分层数l=floor(-ln(unif)×ml) 2.顶层搜索到l层 3.每层连M个最近邻 4.更新邻居剪枝保持M。参数M=16,efConstruction=200,复杂度O(logN)。';
+return;
+}
+}
+
+/* ===== M4 IVF ===== */
+function drawM4(mode){
+var s=document.getElementById('s4'),lg=document.getElementById('l4');
+clear(s);
+if(mode==='kmeans'){
+T(s,460,28,'K-Means 聚类划分向量空间',WARN,16,'middle');
+T(s,460,50,'将向量空间划分为nlist个Voronoi单元',DIM,12,'middle');
+/* iteration 1 */
+T(s,180,80,'迭代1: 随机初始化中心',AC,12,'middle');
+B(s,80,90,300,180,'#0a0c12',AC);
+var pts1=[];
+for(var i=0;i<40;i++){pts1.push([100+Math.random()*260,105+Math.random()*155]);}
+for(var p in pts1){C(s,pts1[p][0],pts1[p][1],3,'rgba(0,212,170,0.5)',AC);}
+var cents1=[[130,130],[280,150],[180,230]];
+for(var c in cents1){C(s,cents1[c][0],cents1[c][1],8,ERR,ERR);T(s,cents1[c][0],cents1[c][1]-12,'c'+c,ERR,9,'middle');}
+/* iteration 2 */
+T(s,620,80,'迭代2: 分配+更新中心',PUR,12,'middle');
+B(s,520,90,300,180,'#0a0c12',PUR);
+var pts2=[];
+for(var i=0;i<40;i++){pts2.push([540+Math.random()*260,105+Math.random()*155]);}
+for(var p in pts2){var cl=p%3;var cc=[AC,PUR,INFO][cl];C(s,pts2[p][0],pts2[p][1],3,'rgba(255,255,255,0.1)',cc);}
+var cents2=[[570,130],[720,150],[620,230]];
+for(var c in cents2){var cc=[AC,PUR,INFO][c];C(s,cents2[c][0],cents2[c][1],8,cc,cc);T(s,cents2[c][0],cents2[c][1]-12,'c'+c,cc,9,'middle');}
+/* final voronoi */
+T(s,460,295,'最终: Voronoi 划分',WARN,13,'middle');
+B(s,80,305,760,140,'#0a0c12',WARN);
+/* voronoi-like regions */
+L(s,300,305,300,445,DIM,1);L(s,560,305,560,445,DIM,1);L(s,80,375,840,375,DIM,1);
+var regions=[{x:190,y:340,t:'桶0',c:AC},{x:430,y:340,t:'桶1',c:PUR},{x:700,y:340,t:'桶2',c:INFO},{x:190,y:410,t:'桶3',c:WARN},{x:430,y:410,t:'桶4',c:ROSE},{x:700,y:410,t:'桶5',c:ERR}];
+for(var r in regions){
+C(s,regions[r].x,regions[r].y,5,regions[r].c,regions[r].c);
+T(s,regions[r].x,regions[r].y-10,regions[r].t,regions[r].c,10,'middle');
+for(var k=0;k<8;k++){C(s,regions[r].x+(k%4-2)*20,regions[r].y+Math.floor(k/4)*15+8,3,'rgba(255,255,255,0.1)',regions[r].c);}
+}
+/* parameters */
+B(s,80,455,760,40,BG,BD);
+T(s,100,475,'参数: nlist(聚类数,通常√N~16√N) | 训练迭代10-25次 | 桶内向量数尽量均衡',WARN,10);
+T(s,460,498,'K-Means将N个向量分入nlist个桶，每桶一个聚类中心',WARN,11,'middle');
+lg.textContent='[K-Means] 迭代1随机初始化中心→迭代2分配向量+更新中心→最终6个Voronoi桶。nlist通常√N~16√N，训练10-25次迭代，桶内尽量均衡。';
+return;
+}
+if(mode==='ivf'){
+T(s,460,28,'倒排文件 (Inverted File)',AC,16,'middle');
+T(s,460,50,'每个聚类中心维护一个倒排链表存储该桶所有向量',DIM,12,'middle');
+/* structure */
+T(s,160,80,'聚类中心表 (Centroids)',AC,12,'middle');
+B(s,60,90,280,320,BG,AC);
+var centroids=[{t:'C0',v:'[0.1,0.3,...]',n:1240,c:AC},{t:'C1',v:'[0.8,0.2,...]',n:980,c:INFO},{t:'C2',v:'[0.5,0.7,...]',n:1560,c:PUR},{t:'C3',v:'[0.2,0.9,...]',n:870,c:WARN},{t:'C4',v:'[0.6,0.4,...]',n:1100,c:ROSE},{t:'C5',v:'[0.3,0.6,...]',n:1320,c:ERR}];
+for(var i in centroids){var yy=110+i*48;B(s,80,yy,240,42,BG,centroids[i].c);T(s,95,yy+16,centroids[i].t,centroids[i].c,11);T(s,135,yy+16,centroids[i].v,DIM,9);T(s,95,yy+34,'n='+centroids[i].n,centroids[i].c,9);}
+/* inverted lists */
+T(s,620,80,'倒排链表 (Inverted Lists)',WARN,12,'middle');
+var lists=[{x:380,y:110,t:'List0',c:AC,n:1240},{x:560,y:110,t:'List1',c:INFO,n:980},{x:740,y:110,t:'List2',c:PUR,n:1560},{x:380,y:250,t:'List3',c:WARN,n:870},{x:560,y:250,t:'List4',c:ROSE,n:1100},{x:740,y:250,t:'List5',c:ERR,n:1320}];
+for(var l in lists){
+B(s,lists[l].x,lists[l].y,150,120,BG,lists[l].c);
+T(s,lists[l].x+75,lists[l].y+16,lists[l].t,lists[l].c,10,'middle');
+T(s,lists[l].x+75,lists[l].y+32,lists[l].n+' vectors',DIM,9,'middle');
+for(var v=0;v<4;v++){B(s,lists[l].x+10,lists[l].y+44+v*16,130,14,'rgba(255,255,255,0.03)',DIM);T(s,lists[l].x+15,lists[l].y+54+v*16,'vec#'+(v*100+lists[l].n%100),DIM,8);}
+}
+/* links */
+for(var i=0;i<6;i++){
+var cx=320,cy=131+i*48;
+var lx=380+(i%3)*180,ly=110+Math.floor(i/3)*140;
+L(s,cx,cy,lx,ly,'rgba(0,212,170,0.3)',0.8);
+}
+/* memory */
+T(s,460,400,'内存结构',PUR,12,'middle');
+B(s,80,410,760,55,BG,BD);
+T(s,100,430,'聚类中心表: nlist × D × 4 bytes (nlist=1024, D=128 → 0.5MB)',PUR,10);
+T(s,100,448,'倒排链表: N × D × 4 bytes (N=1M, D=128 → 512MB) —— 主体存储',AC,10);
+T(s,100,465,'查询时只扫描nprobe个链表，大幅减少计算量',WARN,10);
+T(s,460,490,'倒排文件=聚类中心(导航)+倒排链表(存储)，空间换时间',AC,11,'middle');
+lg.textContent='[倒排文件] 6个聚类中心(C0-C5)各维护倒排链表(870-1560向量)。中心表0.5MB+链表512MB。查询只扫nprobe个链表，大幅减少计算。';
+return;
+}
+if(mode==='probe'){
+T(s,460,28,'探测搜索 (nprobe)',INFO,16,'middle');
+T(s,460,50,'查询最近的nprobe个桶，平衡召回与速度',DIM,12,'middle');
+/* voronoi with query */
+T(s,460,80,'查询点Q与桶分布',WARN,12,'middle');
+B(s,80,90,760,240,'#0a0c12',BD);
+L(s,330,90,330,330,DIM,1);L(s,590,90,590,330,DIM,1);L(s,80,210,840,210,DIM,1);
+var cells=[{x:200,y:150,t:'C0',c:AC},{x:460,y:150,t:'C1',c:INFO},{x:720,y:150,t:'C2',c:PUR},{x:200,y:270,t:'C3',c:WARN},{x:460,y:270,t:'C4',c:ROSE},{x:720,y:270,t:'C5',c:ERR}];
+for(var c in cells){
+C(s,cells[c].x,cells[c].y,6,cells[c].c,cells[c].c);
+T(s,cells[c].x,cells[c].y-12,cells[c].t,cells[c].c,11,'middle');
+for(var k=0;k<10;k++){C(s,cells[c].x+(k%5-2)*22,cells[c].y+Math.floor(k/5)*18+10,2,'rgba(255,255,255,0.15)',cells[c].c);}
+}
+/* query point */
+C(s,460,210,9,ERR,ERR);T(s,460,196,'Q',ERR,11,'middle');
+/* probe circles */
+el('circle',{cx:460,cy:210,r:60,fill:'rgba(239,68,68,0.05)',stroke:ERR,'stroke-width':1,'stroke-dasharray':'4,3'},s);
+el('circle',{cx:460,cy:210,r:120,fill:'rgba(245,158,11,0.05)',stroke:WARN,'stroke-width':1,'stroke-dasharray':'4,3'},s);
+T(s,520,170,'nprobe=1',ERR,9);
+T(s,580,130,'nprobe=4',WARN,9);
+/* nprobe comparison */
+T(s,460,355,'nprobe 对召回/速度的影响',AC,12,'middle');
+var data=[{t:'nprobe=1',rec:60,qps:12000,c:ERR},{t:'nprobe=4',rec:88,qps:6000,c:WARN},{t:'nprobe=8',rec:95,qps:3000,c:AC},{t:'nprobe=16',rec:99,qps:1500,c:INFO},{t:'nprobe=32',rec:100,qps:700,c:PUR}];
+var cx=100,cw=150;
+for(var i in data){
+var bx=cx+i*cw;
+var rh=data[i].rec*1.5;
+B(s,bx,375-rh,cw-20,rh,'rgba(0,212,170,0.15)',data[i].c);
+T(s,bx+(cw-20)/2,375-rh-6,data[i].rec+'%',data[i].c,9,'middle');
+T(s,bx+(cw-20)/2,385,data[i].t,data[i].c,9,'middle');
+T(s,bx+(cw-20)/2,400,data[i].qps+' QPS',DIM,8,'middle');
+}
+T(s,460,430,'nprobe越大→召回越高但QPS越低',WARN,10,'middle');
+B(s,80,445,760,40,BG,BD);
+T(s,100,465,'选型: nprobe=8 (95%召回/3000QPS) 是常见平衡点 | 高精度场景nprobe=16-32',AC,10);
+T(s,460,495,'探测多个邻近桶补偿量化误差，是IVF的核心调参',INFO,11,'middle');
+lg.textContent='[探测搜索] Q在C1桶附近。nprobe=1召回60%/12kQPS，nprobe=8召回95%/3kQPS，nprobe=32召回100%/700QPS。nprobe=8是常见平衡点。';
+return;
+}
+if(mode==='coarse'){
+T(s,460,28,'粗到精 (Coarse-to-Fine)',PUR,16,'middle');
+T(s,460,50,'两阶段检索：粗量化定位→精排计算精确距离',DIM,12,'middle');
+/* stage 1: coarse */
+T(s,230,80,'Stage 1: 粗量化 (Coarse)',WARN,12,'middle');
+B(s,80,90,380,200,BG,WARN);
+T(s,100,112,'输入: 查询向量 Q',INFO,10);
+B(s,100,120,340,24,'rgba(56,189,248,0.1)',INFO);
+T(s,270,136,'Q = [0.32, -0.15, ...]',INFO,10,'middle');
+T(s,100,162,'计算Q到所有nlist个中心的距离',WARN,10);
+for(var i=0;i<4;i++){B(s,100,172+i*20,340,18,BG,DIM);T(s,110,185+i*20,'d(Q,C'+i+')=',DIM,9);T(s,260,185+i*20,[0.8,0.3,1.2,0.5][i].toFixed(1),i===1?AC:DIM,9);}
+T(s,100,262,'选nprobe=2个最近桶: C1, C3',AC,10);
+B(s,100,270,340,18,'rgba(0,212,170,0.15)',AC);
+T(s,270,283,'候选桶 {C1, C3}',AC,10,'middle');
+/* arrow */
+AR(s,470,190,540,190,AC);
+/* stage 2: fine */
+T(s,700,80,'Stage 2: 精排 (Fine)',AC,12,'middle');
+B(s,540,90,360,200,BG,AC);
+T(s,560,112,'在候选桶内精确计算',AC,10);
+T(s,560,132,'桶C1: 980个向量',WARN,9);
+T(s,560,150,'桶C3: 870个向量',WARN,9);
+T(s,560,170,'总候选: 1850个',AC,10);
+B(s,560,180,320,24,BG,PUR);
+T(s,720,196,'遍历计算精确距离',PUR,10,'middle');
+T(s,560,222,'Top-K=10 排序:',AC,10);
+var topk=[[0.12,'v#1234'],[0.18,'v#5678'],[0.21,'v#9012'],[0.25,'v#3456'],[0.31,'v#7890']];
+for(var i in topk){B(s,560,232+i*18,320,16,i==0?'rgba(0,212,170,0.15)':'rgba(255,255,255,0.03)',i==0?AC:DIM);T(s,570,244+i*18,'#'+(parseInt(i)+1)+' d='+topk[i][0]+' '+topk[i][1],i==0?AC:DIM,9);}
+/* pipeline summary */
+T(s,460,310,'两阶段流水线',PUR,12,'middle');
+B(s,80,320,760,80,BG,BD);
+var pipe=[{x:100,t:'Q向量',c:INFO},{x:250,t:'粗量化\n(扫nlist中心)',c:WARN},{x:430,t:'选nprobe桶',c:PUR},{x:600,t:'精排\n(扫桶内向量)',c:AC},{x:780,t:'Top-K结果',c:ROSE}];
+for(var i=0;i<5;i++){B(s,pipe[i].x-65,335,130,50,BG,pipe[i].c);var ls=pipe[i].t.split('\n');T(s,pipe[i].x,355,ls[0],pipe[i].c,10,'middle');if(ls[1])T(s,pipe[i].x,372,ls[1],DIM,9,'middle');if(i<4)AR(s,pipe[i].x+65,360,pipe[i+1].x-65,360,pipe[i].c);}
+T(s,80,415,'复杂度: O(nlist·D) 粗排 + O(nprobe·|桶|·D) 精排 << O(N·D) 暴力',WARN,10);
+T(s,80,433,'典型: nlist=4096, nprobe=8, |桶|≈244 → 扫描1952 vs N=1M (512x加速)',AC,10);
+T(s,460,470,'粗到精=分治: 先定位区域再局部精算',PUR,11,'middle');
+lg.textContent='[粗到精] 粗量化扫4096中心选nprobe=8桶→精排在1850候选中算精确距离取Top-10。扫描1952 vs 1M(512x加速)，O(nlist+nprobe·桶)《O(N)。';
+return;
+}
+}
+
+/* ===== M5 PQ量化 ===== */
+function drawM5(mode){
+var s=document.getElementById('s5'),lg=document.getElementById('l5');
+clear(s);
+if(mode==='split'){
+T(s,460,28,'向量分割 (Vector Splitting)',AC,16,'middle');
+T(s,460,50,'将D维向量切分为M段子向量，每段独立量化',DIM,12,'middle');
+/* original vector */
+T(s,460,80,'原始向量 (D=128, float32, 512 bytes)',AC,12,'middle');
+B(s,80,90,760,40,'rgba(0,212,170,0.08)',AC);
+var segs=16;
+for(var i=0;i<segs;i++){B(s,80+i*47.5,90,46,40,i%2?'rgba(0,212,170,0.05)':'rgba(56,189,248,0.05)',i%2?AC:INFO);T(s,80+i*47.5+23,114,'v['+i*8+'-'+(i*8+7)+']',DIM,8,'middle');}
+/* split arrows */
+for(var i=0;i<4;i++){AR(s,80+47.5*(i*4+2),130,200+i*180,165,PUR);}
+/* M segments */
+T(s,460,155,'切分为 M=4 段 (每段 D/M=32 维)',PUR,12,'middle');
+var segData=[{x:100,t:'x1 (32维)',c:AC},{x:300,t:'x2 (32维)',c:INFO},{x:500,t:'x3 (32维)',c:PUR},{x:700,t:'x4 (32维)',c:WARN}];
+for(var i in segData){
+B(s,segData[i].x-80,170,160,50,BG,segData[i].c);
+T(s,segData[i].x,190,segData[i].t,segData[i].c,11,'middle');
+T(s,segData[i].x,208,'float32 × 32 = 128B',DIM,9,'middle');
+}
+/* independent quantization */
+T(s,460,245,'每段独立K-Means量化 (K=256, 即1字节)',WARN,12,'middle');
+for(var i in segData){
+B(s,segData[i].x-80,255,160,50,BG,WARN);
+T(s,segData[i].x,275,'码本'+i,WARN,10,'middle');
+T(s,segData[i].x,293,'256×32 聚类中心',DIM,9,'middle');
+AR(s,segData[i].x,222,segData[i].x,255,segData[i].c);
+}
+/* encoded */
+T(s,460,330,'编码结果: M=4 字节 (每段1字节码本索引)',AC,12,'middle');
+B(s,280,340,360,40,'rgba(0,212,170,0.12)',AC);
+for(var i in segData){B(s,290+i*88,340,80,40,BG,segData[i].c);T(s,330+i*88,365,'code='+i*50%256,segData[i].c,11,'middle');}
+/* compression */
+B(s,80,400,760,60,BG,BD);
+T(s,100,420,'压缩比: 512 bytes → 4 bytes = 128x 压缩!',AC,11);
+T(s,100,438,'每段用1字节(256个码字)替代32维float(128字节)，总M字节替代D×4字节',WARN,10);
+T(s,100,455,'D=128, M=4 → 4/512 = 1/128 压缩比',PUR,10);
+T(s,460,485,'分割是PQ的基础：降维分治，每段独立量化',AC,11,'middle');
+lg.textContent='[向量分割] D=128向量(512B)切为M=4段(各32维float128B)，每段用K=256码本量化为1字节。结果4字节，128x压缩!分割分治是PQ基础。';
+return;
+}
+if(mode==='subvec'){
+T(s,460,28,'子向量训练与编码',INFO,16,'middle');
+T(s,460,50,'每段子向量独立训练码本，编码为聚类中心索引',DIM,12,'middle');
+/* training data for segment 1 */
+T(s,230,80,'段1训练数据 (N个子向量)',AC,12,'middle');
+B(s,80,90,300,160,BG,AC);
+for(var i=0;i<30;i++){C(s,100+Math.random()*260,105+Math.random()*135,3,'rgba(0,212,170,0.4)',AC);}
+T(s,100,250,'30个子向量(32维)',DIM,9);
+/* kmeans on segment 1 */
+T(s,620,80,'K-Means 聚类 (K=256)',WARN,12,'middle');
+B(s,460,90,400,160,BG,WARN);
+for(var i=0;i<8;i++){
+var cx=490+(i%4)*90,cy=120+Math.floor(i/4)*60;
+for(var j=0;j<5;j++){C(s,cx+(j-2)*12,cy+(j%2-0.5)*10,2,'rgba(255,255,255,0.1)',WARN);}
+C(s,cx,cy,5,WARN,WARN);
+T(s,cx,cy-10,'c'+i,WARN,8,'middle');
+}
+T(s,480,250,'256个聚类中心 = 码本 (32×256 float)',WARN,9);
+/* encoding process */
+T(s,460,275,'编码过程',PUR,12,'middle');
+B(s,80,285,760,90,BG,BD);
+T(s,100,307,'输入子向量 x₁',AC,10);
+B(s,100,315,120,24,'rgba(0,212,170,0.1)',AC);
+T(s,160,331,'x₁=[0.2,0.8,...]',AC,9,'middle');
+T(s,240,325,'→',DIM,14,'middle');
+T(s,270,307,'找最近聚类中心',WARN,10);
+B(s,270,315,140,24,'rgba(245,158,11,0.1)',WARN);
+T(s,340,331,'argmin d(x₁,cᵢ)',WARN,9,'middle');
+T(s,430,325,'→',DIM,14,'middle');
+T(s,460,307,'编码为索引',PUR,10);
+B(s,460,315,80,24,'rgba(167,139,250,0.15)',PUR);
+T(s,500,331,'code=42',PUR,11,'middle');
+T(s,560,325,'→',DIM,14,'middle');
+T(s,590,307,'存储1字节',INFO,10);
+B(s,590,315,100,24,'rgba(56,189,248,0.1)',INFO);
+T(s,640,331,'0x2A',INFO,11,'middle');
+T(s,710,307,'(替128B)',DIM,9);
+/* M segments parallel */
+T(s,460,395,'M=4段并行编码',AC,11,'middle');
+var segs=[{x:120,t:'x1→c42',c:AC},{x:340,t:'x2→c198',c:INFO},{x:560,t:'x3→c7',c:PUR},{x:780,t:'x4→c155',c:WARN}];
+for(var i in segs){B(s,segs[i].x-90,405,180,28,BG,segs[i].c);T(s,segs[i].x,422,segs[i].t,segs[i].c,10,'middle');}
+B(s,80,445,760,40,BG,BD);
+T(s,100,465,'编码后向量: [42, 198, 7, 155] —— 4字节替代512字节',AC,10);
+T(s,100,480,'解码: 用码本查表还原近似向量(有损)，距离通过ADC查表快速计算',WARN,10);
+T(s,460,498,'子向量编码：连续空间→离散码字，有损但高效',INFO,11,'middle');
+lg.textContent='[子向量] 段1的30个子向量K-Means聚类为256中心=码本。编码x1找最近中心c42存1字节。4段并行编码得[42,198,7,155]，4字节替512字节。';
+return;
+}
+if(mode==='codebook'){
+T(s,460,28,'码本结构与距离查表 (ADC)',PUR,16,'middle');
+T(s,460,50,'码本存储聚类中心，ADC用查表替代距离计算',DIM,12,'middle');
+/* codebook structure */
+T(s,230,80,'码本结构 (Codebook)',PUR,12,'middle');
+B(s,80,90,300,220,BG,PUR);
+T(s,100,112,'段1码本 (256×32)',PUR,10);
+for(var i=0;i<6;i++){B(s,100,120+i*18,260,16,i===0?'rgba(167,139,250,0.15)':BG,i===0?PUR:DIM);T(s,110,132+i*18,'c'+i+': [0.12, 0.45, ...]',i===0?PUR:DIM,8);}
+T(s,100,235,'...共256个中心',DIM,9);
+T(s,100,255,'每段独立码本:',AC,10);
+T(s,100,273,'段1: 256×32 float',AC,9);
+T(s,100,288,'段2: 256×32 float',INFO,9);
+T(s,100,303,'段M: 256×32 float',WARN,9);
+/* ADC table */
+T(s,680,80,'ADC 距离查表',AC,12,'middle');
+B(s,460,90,440,220,BG,AC);
+T(s,480,112,'查询Q分段计算到码本距离',AC,10);
+T(s,480,132,'Q = [q1, q2, q3, q4]',DIM,9);
+/* precompute distance tables */
+T(s,480,152,'预计算 段1距离表:',WARN,9);
+for(var i=0;i<6;i++){B(s,480,158+i*14,180,12,i===2?'rgba(245,158,11,0.2)':BG,i===2?WARN:DIM);T(s,485,167+i*14,'d(q1,c'+i+')='+[0.5,0.3,0.1,0.4,0.6,0.2][i].toFixed(1),i===2?WARN:DIM,8);}
+T(s,680,152,'段2距离表:',INFO,9);
+for(var i=0;i<6;i++){B(s,680,158+i*14,180,12,i===4?'rgba(56,189,248,0.2)':BG,i===4?INFO:DIM);T(s,685,167+i*14,'d(q2,c'+i+')='+[0.4,0.5,0.3,0.2,0.1,0.4][i].toFixed(1),i===4?INFO:DIM,8);}
+/* assemble distance */
+T(s,480,260,'总距离 = Σ d(qₘ, c_{codeₘ})',AC,10);
+B(s,480,270,400,30,'rgba(0,212,170,0.12)',AC);
+T(s,680,290,'= 0.1 + 0.1 + ... (查表求和)',AC,10,'middle');
+/* comparison */
+T(s,460,330,'ADC vs 精确计算',WARN,12,'middle');
+var cmp=[{t:'精确距离',cost:'O(D) 乘加',time:'~50ns/vec',mem:'512B/vec',c:ERR},{t:'ADC查表',cost:'O(M) 加法',time:'~2ns/vec',mem:'4B/vec',c:AC}];
+for(var i in cmp){B(s,120+i*340,340,300,90,BG,cmp[i].c);T(s,270+i*340,360,cmp[i].t,cmp[i].c,12,'middle');T(s,140+i*340,382,'计算: '+cmp[i].cost,DIM,10);T(s,140+i*340,400,'速度: '+cmp[i].time,cmp[i].c,10);T(s,140+i*340,418,'内存: '+cmp[i].mem,cmp[i].c,10);}
+T(s,460,450,'ADC: 预计算查询到码本距离表，编码向量距离=各段查表求和',AC,10,'middle');
+T(s,460,470,'25x加速 + 128x省内存，代价是轻微精度损失(~2%召回降)',WARN,10,'middle');
+T(s,460,490,'码本+ADC是PQ高效检索的核心机制',PUR,11,'middle');
+lg.textContent='[码本] 段1码本256中心。ADC预计算Q到各码本距离表，编码向量距离=Σd(qₘ,c_codeₘ)查表求和。25x加速+128x省内存，仅损失~2%召回。';
+return;
+}
+if(mode==='ratio'){
+T(s,460,28,'压缩比与精度权衡',WARN,16,'middle');
+T(s,460,50,'不同M值(子段数)的压缩比、内存、精度对比',DIM,12,'middle');
+/* M value comparison */
+T(s,460,80,'不同M值对比 (D=128, K=256)',AC,12,'middle');
+var mdata=[{m:8,comp:16,mem:32,recall:98,c:AC},{m:16,comp:32,mem:16,recall:96,c:INFO},{m:32,comp:64,mem:8,recall:93,c:PUR},{m:64,comp:128,mem:4,recall:88,c:WARN},{m:128,comp:256,mem:2,recall:80,c:ERR}];
+var cx=80,cw=160;
+for(var i in mdata){
+var bx=cx+i*cw;
+B(s,bx,90,cw-10,60,BG,mdata[i].c);
+T(s,bx+cw/2-5,110,'M='+mdata[i].m,mdata[i].c,12,'middle');
+T(s,bx+cw/2-5,128,'压缩'+mdata[i].comp+'x',DIM,9,'middle');
+T(s,bx+cw/2-5,144,mdata[i].mem+'B/vec',DIM,9,'middle');
+}
+/* recall bars */
+T(s,80,170,'召回率 (%)',DIM,10);
+var chartX=120,chartY=180,chartW=720,chartH=120;
+L(s,chartX,chartY,chartX,chartY+chartH,DIM,1);
+L(s,chartX,chartY+chartH,chartX+chartW,chartY+chartH,DIM,1);
+for(var i=0;i<=5;i++){L(s,chartX,chartY+chartH-i*chartH/5,chartX+chartW,chartY+chartH-i*chartH/5,BD,0.5);T(s,chartX-10,chartY+chartH-i*chartH/5+4,80+i*4,DIM,8,'middle');}
+var bw=chartW/mdata.length-20;
+for(var i in mdata){
+var bx=chartX+10+i*(bw+20);
+var bh=(mdata[i].recall-75)/25*chartH;
+B(s,bx,chartY+chartH-bh,bw,bh,'rgba(245,158,11,0.15)',mdata[i].c);
+T(s,bx+bw/2,chartY+chartH-bh-6,mdata[i].recall+'%',mdata[i].c,9,'middle');
+T(s,bx+bw/2,chartY+chartH+15,'M='+mdata[i].m,DIM,9,'middle');
+}
+/* memory vs recall scatter */
+T(s,460,345,'内存-精度权衡曲线',PUR,12,'middle');
+B(s,80,355,760,90,'#0a0c12',BD);
+var scatterX=120,scatterY=365,scatterW=600,scatterH=70;
+for(var i in mdata){
+var px=scatterX+(mdata[i].mem/32)*scatterW;
+var py=scatterY+scatterH-(mdata[i].recall-75)/25*scatterH;
+C(s,px,py,6,mdata[i].c,mdata[i].c);
+T(s,px+8,py+3,'M='+mdata[i].m,mdata[i].c,8);
+}
+T(s,120,440,'内存少(左)→精度低',DIM,8);
+T(s,620,440,'内存多(右)→精度高',DIM,8);
+/* selection guide */
+B(s,80,450,760,45,BG,BD);
+T(s,100,470,'选型指南:',WARN,11);
+T(s,100,487,'M=8: 高精度(98%)/大内存 | M=16: 平衡(96%)←推荐 | M=32: 省内存(93%) | M=64+: 极致压缩',AC,10);
+T(s,460,510,'PQ用M控制压缩比：M越大压缩越高但精度越低，M=16是常用平衡点',WARN,11,'middle');
+lg.textContent='[压缩比] D=128时: M=8压缩16x/召回98%, M=16压缩32x/召回96%(推荐), M=64压缩128x/召回88%。M越大压缩越高精度越低，M=16常用。';
+return;
+}
+}
+
+/* ===== M6 混合索引 ===== */
+function drawM6(mode){
+var s=document.getElementById('s6'),lg=document.getElementById('l6');
+clear(s);
+if(mode==='ivfpq'){
+T(s,460,28,'IVF-PQ 混合索引',AC,16,'middle');
+T(s,460,50,'IVF快速定位桶 + PQ压缩桶内向量，兼顾速度与内存',DIM,12,'middle');
+/* pipeline */
+T(s,460,80,'IVF-PQ 流水线',WARN,12,'middle');
+var stages=[{x:110,t:'原始向量',d:'1M×128D\n512MB',c:INFO},{x:290,t:'IVF聚类',d:'nlist=4096\n分桶存储',c:WARN},{x:470,t:'PQ压缩',d:'每向量\n512B→16B',c:PUR},{x:650,t:'倒排存储',d:'1M×16B\n16MB',c:AC},{x:830,t:'检索',d:'nprobe=8\nTop-K',c:ROSE}];
+for(var i=0;i<5;i++){B(s,stages[i].x-80,90,160,70,BG,stages[i].c);T(s,stages[i].x,110,stages[i].t,stages[i].c,11,'middle');var ls=stages[i].d.split('\n');T(s,stages[i].x,128,ls[0],DIM,9,'middle');T(s,stages[i].x,142,ls[1],stages[i].c,9,'middle');if(i<4)AR(s,stages[i].x+80,125,stages[i+1].x-80,125,stages[i].c);}
+/* structure */
+T(s,460,185,'存储结构',PUR,12,'middle');
+B(s,80,195,760,150,BG,BD);
+/* coarse quantizer */
+B(s,100,205,200,130,BG,WARN);
+T(s,200,225,'粗量化器',WARN,11,'middle');
+T(s,200,245,'(Coarse Quantizer)',DIM,9,'middle');
+T(s,200,268,'nlist=4096',WARN,9,'middle');
+T(s,200,285,'聚类中心表',WARN,9,'middle');
+T(s,200,302,'4096×128×4B',DIM,9,'middle');
+T(s,200,320,'= 2MB',DIM,9,'middle');
+/* inverted lists with PQ codes */
+B(s,320,205,520,130,BG,AC);
+T(s,580,225,'倒排链表 (PQ编码)',AC,11,'middle');
+for(var i=0;i<4;i++){
+B(s,340,235+i*24,480,20,BG,DIM);
+T(s,350,249+i*24,'桶C'+i+':',INFO,9);
+for(var j=0;j<8;j++){B(s,395+j*52,237+i*24,48,16,'rgba(0,212,170,0.1)',AC);T(s,419+j*52,249+i*24,Math.floor(Math.random()*256),AC,7,'middle');}
+}
+T(s,580,322,'每向量=M=16字节PQ码',AC,9,'middle');
+/* query flow */
+T(s,460,365,'查询流程',INFO,12,'middle');
+B(s,80,375,760,80,BG,INFO);
+var qsteps=['1.Q粗量化\n找nprobe桶','2.扫描候选桶\n的PQ码','3.ADC查表\n计算近似距离','4.排序取\nTop-K'];
+for(var i=0;i<4;i++){B(s,110+i*180,385,160,60,BG,[WARN,PUR,AC,ROSE][i]);var ls=qsteps[i].split('\n');T(s,190+i*180,408,ls[0],[WARN,PUR,AC,ROSE][i],9,'middle');T(s,190+i*180,425,ls[1],DIM,9,'middle');if(i<3)AR(s,270+i*180,415,290+i*180,415,DIM);}
+T(s,80,470,'内存: 512MB→18MB(28x压缩) | 速度: ADC查表,O(nprobe×桶×M) | 召回: ~95%',AC,10);
+T(s,460,495,'IVF-PQ = IVF分桶加速 + PQ压缩省内存，工业界最常用',AC,11,'middle');
+lg.textContent='[IVF-PQ] 流水线:原始向量→IVF聚类4096桶→PQ压缩512B→16B→倒排存储16MB(28x压缩)。查询:粗量化选nprobe桶→扫PQ码→ADC查表→Top-K。召回~95%。';
+return;
+}
+if(mode==='hnswpq'){
+T(s,460,28,'HNSW-PQ 混合索引',WARN,16,'middle');
+T(s,460,50,'HNSW图导航 + PQ压缩节点向量，极致内存效率',DIM,12,'middle');
+/* structure */
+T(s,460,80,'HNSW-PQ 结构',WARN,12,'middle');
+B(s,80,90,760,180,BG,BD);
+/* HNSW graph on top */
+T(s,200,110,'图结构 (HNSW)',WARN,11,'middle');
+B(s,100,120,250,140,'#0a0c12',WARN);
+var gnodes=[[140,150],[200,140],[260,160],[160,190],[230,200],[120,210],[280,210],[190,230]];
+var gedges=[[0,1],[1,2],[0,3],[1,4],[2,4],[3,5],[2,6],[3,7],[4,7],[5,7]];
+for(var e in gedges)L(s,gnodes[gedges[e][0]][0],gnodes[gedges[e][0]][1],gnodes[gedges[e][1]][0],gnodes[gedges[e][1]][1],'rgba(245,158,11,0.3)',0.8);
+for(var n in gnodes){C(s,gnodes[n][0],gnodes[n][1],6,BG,WARN);}
+T(s,225,265,'导航边 + 节点',DIM,9,'middle');
+/* PQ codes storage */
+T(s,580,110,'PQ编码存储',PUR,11,'middle');
+B(s,480,120,360,140,BG,PUR);
+T(s,500,140,'节点ID | PQ码(M=16B)',PUR,9);
+for(var i=0;i<6;i++){
+B(s,500,150+i*18,320,16,BG,DIM);
+T(s,510,162+i*18,'#'+i,INFO,8);
+for(var j=0;j<10;j++){B(s,540+j*28,152+i*18,24,12,'rgba(167,139,250,0.15)',PUR);T(s,552+j*28,161+i*18,Math.floor(Math.random()*256),PUR,6,'middle');}
+}
+T(s,660,265,'每节点仅16B存储',DIM,9,'middle');
+/* query flow */
+T(s,460,295,'查询流程',AC,12,'middle');
+B(s,80,305,760,110,BG,AC);
+var qflow=[{x:160,t:'1.入口点',d:'顶层EP',c:WARN},{x:340,t:'2.图导航',d:'贪心走边\nPQ距离估算',c:PUR},{x:520,t:'3.候选集',d:'ef=200\n收集邻居',c:AC},{x:700,t:'4.重排',d:'Top-K\n精确距离',c:ROSE}];
+for(var i=0;i<4;i++){B(s,qflow[i].x-75,315,150,90,BG,qflow[i].c);T(s,qflow[i].x,335,qflow[i].t,qflow[i].c,10,'middle');var ls=qflow[i].d.split('\n');T(s,qflow[i].x,355,ls[0],DIM,9,'middle');T(s,qflow[i].x,370,ls[1],qflow[i].c,9,'middle');if(i<3)AR(s,qflow[i].x+75,360,qflow[i+1].x-75,360,DIM);}
+/* comparison */
+T(s,460,435,'HNSW vs HNSW-PQ 对比',INFO,12,'middle');
+B(s,80,445,760,55,BG,BD);
+T(s,100,465,'HNSW: 512MB(存原始向量) | QPS 5000 | 召回 98%',WARN,10);
+T(s,100,482,'HNSW-PQ: 16MB(32x压缩) | QPS 4000 | 召回 94% —— 内存敏感场景首选',AC,10);
+T(s,460,505,'HNSW-PQ牺牲4%召回换32x内存节省，适合十亿级向量',WARN,11,'middle');
+lg.textContent='[HNSW-PQ] HNSW图导航(8节点)+PQ编码存储(每节点16B)。查询:入口→图导航PQ估算→候选集→重排。512MB→16MB(32x压缩)，召回94% vs HNSW 98%。';
+return;
+}
+if(mode==='multiprobe'){
+T(s,460,28,'多探测策略 (Multi-Probe)',PUR,16,'middle');
+T(s,460,50,'智能选择多个邻近桶，比单纯增大nprobe更高效',DIM,12,'middle');
+/* single probe vs multi-probe */
+T(s,230,80,'单探测 nprobe=1',ERR,12,'middle');
+B(s,80,90,300,160,'#0a0c12',ERR);
+L(s,230,90,230,250,DIM,1);L(s,80,170,380,170,DIM,1);
+var cells1=[{x:150,y:130,t:'C1',c:ERR,probe:true},{x:310,y:130,t:'C2',c:DIM},{x:150,y:210,t:'C3',c:DIM},{x:310,y:210,t:'C4',c:DIM}];
+for(var c in cells1){C(s,cells1[c].x,cells1[c].y,8,cells1[c].probe?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.05)',cells1[c].c);T(s,cells1[c].x,cells1[c].y-12,cells1[c].t,cells1[c].c,10,'middle');}
+C(s,230,170,7,ERR,ERR);T(s,230,158,'Q',ERR,10,'middle');
+T(s,230,235,'只搜C1，漏掉C3近邻',ERR,9,'middle');
+T(s,230,250,'召回低',DIM,9,'middle');
+/* multi-probe */
+T(s,690,80,'多探测 (智能选桶)',AC,12,'middle');
+B(s,540,90,300,160,'#0a0c12',AC);
+L(s,690,90,690,250,DIM,1);L(s,540,170,840,170,DIM,1);
+var cells2=[{x:610,y:130,t:'C1',c:AC,probe:true},{x:770,y:130,t:'C2',c:DIM},{x:610,y:210,t:'C3',c:WARN,probe:true},{x:770,y:210,t:'C4',c:DIM}];
+for(var c in cells2){C(s,cells2[c].x,cells2[c].y,8,cells2[c].probe?'rgba(0,212,170,0.3)':'rgba(255,255,255,0.05)',cells2[c].c);T(s,cells2[c].x,cells2[c].y-12,cells2[c].t,cells2[c].c,10,'middle');}
+C(s,690,170,7,ERR,ERR);T(s,690,158,'Q',ERR,10,'middle');
+el('circle',{cx:690,cy:170,r:55,fill:'none',stroke:WARN,'stroke-width':1,'stroke-dasharray':'3,3'},s);
+T(s,690,235,'搜C1+C3(Q邻近)',AC,9,'middle');
+T(s,690,250,'召回高',AC,9,'middle');
+/* probe sequence */
+T(s,460,275,'多探测顺序 (基于边界距离)',WARN,12,'middle');
+B(s,80,285,760,90,BG,BD);
+var probes=[{t:'探测1',b:'C1',d:'d=0.1 (最近)',c:AC},{t:'探测2',b:'C3',d:'d=0.3 (次近)',c:WARN},{t:'探测3',b:'C2',d:'d=0.5',c:PUR},{t:'探测4',b:'C4',d:'d=0.7',c:INFO}];
+for(var i in probes){B(s,100+i*180,295,160,70,BG,probes[i].c);T(s,180+i*180,315,probes[i].t,probes[i].c,10,'middle');T(s,180+i*180,335,probes[i].b,probes[i].c,12,'middle');T(s,180+i*180,352,probes[i].d,DIM,9,'middle');if(i<3)AR(s,260+i*180,330,280+i*180,330,DIM);}
+/* comparison */
+T(s,460,395,'效果对比',INFO,12,'middle');
+B(s,80,405,760,55,BG,BD);
+T(s,100,425,'暴力nprobe=4: 召回92% | QPS 3000',ERR,10);
+T(s,100,442,'多probe=4(智能): 召回97% | QPS 3500 —— 同样桶数召回更高',AC,10);
+T(s,100,458,'原理: 优先探测边界距离小的桶(Q虽在C1但接近C3边界)',WARN,10);
+T(s,460,485,'多探测用边界距离智能排序桶，比均匀nprobe更精准',PUR,11,'middle');
+lg.textContent='[多探测] 单探测只搜C1漏C3近邻。多探测按边界距离排序:C1(d=0.1)→C3(0.3)→C2(0.5)→C4(0.7)。同桶数下召回97% vs 均匀92%。';
+return;
+}
+if(mode==='filter'){
+T(s,460,28,'过滤搜索 (Filtered Search)',ROSE,16,'middle');
+T(s,460,50,'结合元数据属性约束的向量检索',DIM,12,'middle');
+/* scenario */
+T(s,460,80,'场景: 电商商品向量搜索 + 属性过滤',ROSE,12,'middle');
+B(s,80,90,760,50,'rgba(251,113,133,0.08)',ROSE);
+T(s,460,115,'查询: "红色连衣裙" + 过滤: {类别=服装, 价格<500, 库存>0}',ROSE,12,'middle');
+/* pre-filter vs post-filter */
+T(s,230,160,'方案A: 后过滤 (Post-Filter)',ERR,12,'middle');
+B(s,80,170,300,200,BG,ERR);
+var stpA=['1.向量检索Top-100','2.按属性过滤','3.剩余可能不足K'];
+for(var i in stpA){B(s,100,185+i*50,260,40,BG,i==0?'rgba(239,68,68,0.1)':BG,i==0?ERR:BD);T(s,230,210+i*50,stpA[i],i==0?ERR:DIM,10,'middle');}
+T(s,230,350,'问题: 过滤后剩3个<K=10',ERR,9,'middle');
+T(s,230,365,'需扩大检索→浪费计算',DIM,9,'middle');
+/* pre-filter */
+T(s,690,160,'方案B: 预过滤 (Pre-Filter)',AC,12,'middle');
+B(s,540,170,300,200,BG,AC);
+var stpB=['1.先按属性过滤候选集','2.在候选集内向量检索','3.直接得Top-K'];
+for(var i in stpB){B(s,560,185+i*50,260,40,BG,i==0?'rgba(0,212,170,0.1)':BG,i==0?AC:BD);T(s,690,210+i*50,stpB[i],i==0?AC:DIM,10,'middle');}
+T(s,690,350,'问题: 过滤集大时无加速',WARN,9,'middle');
+T(s,690,365,'候选集仍需暴力搜',DIM,9,'middle');
+/* optimal: in-filter */
+T(s,460,390,'方案C: 索引内过滤 (最优)',PUR,12,'middle');
+B(s,80,400,760,55,BG,PUR);
+T(s,100,420,'IVF: 只在满足过滤条件的桶内搜 | HNSW: 导航时跳过不满足节点',PUR,10);
+T(s,100,438,'FAISS/Milvus: 支持标量字段索引+向量索引联合查询，下推过滤到索引层',AC,10);
+T(s,100,455,'效果: 召回95% + 满足过滤条件 + QPS仅降20% (vs 无过滤)',WARN,10);
+/* comparison table */
+T(s,460,475,'三种方案对比',DIM,11,'middle');
+var rows=[['方案','召回','速度','准确过滤'],['后过滤','低(不足K)','快','✓'],['预过滤','高','慢(大集)','✓'],['索引内','高','较快','✓']];
+for(var r in rows){for(var c in rows[r]){var isH=r==0;B(s,180+c*180,485+r*0,BG,isH?PUR:BD);}}
+T(s,460,510,'索引内过滤是工业级向量数据库的标准能力',ROSE,11,'middle');
+lg.textContent='[过滤搜索] 后过滤:检索100→过滤剩3(不足K)。预过滤:先过滤集→暴力搜(慢)。索引内过滤(最优):IVF桶内/HNSW节点跳过不满足项，召回95%+QPS仅降20%。';
+return;
+}
+}
+
+/* ===== M7 性能分析 ===== */
+function drawM7(mode){
+var s=document.getElementById('s7'),lg=document.getElementById('l7');
+clear(s);
+if(mode==='recall'){
+T(s,460,28,'召回-速度曲线 (Recall-QPS)',AC,16,'middle');
+T(s,460,50,'不同算法在相同召回率下的查询吞吐量对比',DIM,12,'middle');
+/* chart */
+var chartX=100,chartY=90,chartW=720,chartH=300;
+T(s,60,chartY-10,'QPS',DIM,11);
+T(s,60,chartY+chartH+30,'召回率 Recall@10 (%)',DIM,11);
+L(s,chartX,chartY,chartX,chartY+chartH,DIM,1);
+L(s,chartX,chartY+chartH,chartX+chartW,chartY+chartH,DIM,1);
+for(var i=0;i<=5;i++){L(s,chartX,chartY+chartH-i*chartH/5,chartX+chartW,chartY+chartH-i*chartH/5,BD,0.5);T(s,chartX-10,chartY+chartH-i*chartH/5+4,i*2000,DIM,8,'middle');}
+for(var i=0;i<=5;i++){var xx=chartX+i*chartW/5;L(s,xx,chartY+chartH,xx,chartY+chartH+5,DIM,1);T(s,xx,chartY+chartH+18,80+i*4,DIM,8,'middle');}
+/* curves */
+var algos=[
+{t:'HNSW',c:AC,pts:[[80,200],[88,800],[92,3500],[95,6000],[98,4000],[100,1500]]},
+{t:'IVF',c:WARN,pts:[[80,500],[85,1800],[90,3000],[92,2800],[95,1800],[98,800]]},
+{t:'IVF-PQ',c:PUR,pts:[[80,1500],[85,3500],[88,4500],[90,4000],[92,3000],[95,1500]]},
+{t:'Brute',c:ERR,pts:[[80,1200],[90,1100],[95,1050],[98,1020],[100,1000]]}
+];
+for(var a in algos){
+var prev=null;
+for(var p in algos[a].pts){
+var x=chartX+(algos[a].pts[p][0]-80)/20*chartW;
+var y=chartY+chartH-algos[a].pts[p][1]/10000*chartH;
+C(s,x,y,4,algos[a].c,algos[a].c);
+if(prev)L(s,prev[0],prev[1],x,y,algos[a].c,2);
+prev=[x,y];
+}
+T(s,chartX+chartW-80,chartY+20+parseInt(a)*20,algos[a].t,algos[a].c,10);
+}
+/* annotation */
+B(s,540,360,260,40,BG,AC);
+T(s,670,378,'95%召回: HNSW最优',AC,10,'middle');
+T(s,670,392,'(6000 QPS)',AC,9,'middle');
+AR(s,540,380,420,200,AC);
+/* insight */
+B(s,80,415,760,65,BG,BD);
+T(s,100,435,'关键发现:',WARN,11);
+T(s,100,453,'• HNSW在95%召回时QPS最高(6000)，是速度王者',AC,10);
+T(s,100,470,'• IVF-PQ在低召回(88%)时QPS最高(4500)，适合容忍精度场景',PUR,10);
+T(s,100,487,'• 暴力搜索恒定1000QPS，召回100%但速度最慢',ERR,10);
+T(s,460,505,'HNSW速度最优 | IVF-PQ低召回区吞吐高 | 暴力100%召回基准',AC,11,'middle');
+lg.textContent='[召回-速度] 95%召回: HNSW 6000QPS(最快)、IVF 1800、IVF-PQ 1500、Brute 1050。88%低召回: IVF-PQ 4500QPS最高。HNSW速度王者。';
+return;
+}
+if(mode==='memory'){
+T(s,460,28,'内存-精度权衡',WARN,16,'middle');
+T(s,460,50,'不同索引的内存占用与召回精度对比 (N=1M, D=128)',DIM,12,'middle');
+/* memory bars */
+T(s,460,80,'内存占用 (MB)',WARN,12,'middle');
+var mem=[{t:'Brute',mb:512,c:ERR},{t:'HNSW',mb:620,c:WARN},{t:'IVF',mb:530,c:INFO},{t:'IVF-PQ',mb:34,c:AC},{t:'HNSW-PQ',mb:40,c:PUR}];
+var chartX=100,chartY=95,chartH=180;
+for(var i in mem){
+var bh=mem[i].mb/650*chartH;
+B(s,chartX+i*150,chartY+chartH-bh,120,bh,'rgba(245,158,11,0.15)',mem[i].c);
+T(s,chartX+i*150+60,chartY+chartH-bh-8,mem[i].mb+'MB',mem[i].c,10,'middle');
+T(s,chartX+i*150+60,chartY+chartH+16,mem[i].t,DIM,10,'middle');
+}
+L(s,80,chartY+chartH,840,chartY+chartH,DIM,1);
+/* recall comparison */
+T(s,460,310,'召回率对比 (%)',AC,12,'middle');
+var rec=[{t:'Brute',r:100,c:ERR},{t:'HNSW',r:98,c:WARN},{t:'IVF',r:95,c:INFO},{t:'IVF-PQ',r:94,c:AC},{t:'HNSW-PQ',r:93,c:PUR}];
+var chartY2=325;
+for(var i in rec){
+var bh=rec[i].r/100*100;
+B(s,chartX+i*150,chartY2+100-bh,120,bh,'rgba(0,212,170,0.15)',rec[i].c);
+T(s,chartX+i*150+60,chartY2+100-bh-8,rec[i].r+'%',rec[i].c,10,'middle');
+T(s,chartX+i*150+60,chartY2+100+16,rec[i].t,DIM,10,'middle');
+}
+L(s,80,chartY2+100,840,chartY2+100,DIM,1);
+/* efficiency */
+T(s,460,445,'内存效率 (召回/MB)',PUR,12,'middle');
+B(s,80,455,760,45,BG,BD);
+var eff={Brute:0.20,HNSW:0.16,IVF:0.18,'IVF-PQ':2.76,'HNSW-PQ':2.33};
+T(s,100,475,'IVF-PQ效率最高(2.76 召回/MB) | HNSW-PQ次之(2.33) | Brute最低(0.20)',AC,10);
+T(s,100,492,'PQ系索引内存效率提升10-15倍，适合十亿级大规模场景',WARN,10);
+T(s,460,510,'PQ压缩以2-5%召回代价换15-16x内存节省',PUR,11,'middle');
+lg.textContent='[内存-精度] Brute 512MB/100%, HNSW 620MB/98%, IVF 530MB/95%, IVF-PQ 34MB/94%, HNSW-PQ 40MB/93%。IVF-PQ内存效率2.76最高，PQ省15x内存仅损失2-5%召回。';
+return;
+}
+if(mode==='scale'){
+T(s,460,28,'扩展性曲线 (Scaling)',PUR,16,'middle');
+T(s,460,50,'数据量增长时各算法的延迟与内存变化',DIM,12,'middle');
+/* latency curve */
+T(s,230,80,'查询延迟 vs 数据量',AC,12,'middle');
+var cX=100,cY=95,cW=300,cH=200;
+T(s,60,cY-8,'延迟(ms)',DIM,9);
+L(s,cX,cY,cX,cY+cH,DIM,1);L(s,cX,cY+cH,cX+cW,cY+cH,DIM,1);
+T(s,cX+cW+5,cY+cH,'N',DIM,9);
+for(var i=0;i<=4;i++){L(s,cX,cY+cH-i*cH/4,cX+cW,cY+cH-i*cH/4,BD,0.5);}
+var curves=[
+{t:'Brute',c:ERR,fn:function(n){return Math.pow(n,1.0);}},
+{t:'IVF',c:WARN,fn:function(n){return Math.pow(n,0.5);}},
+{t:'HNSW',c:AC,fn:function(n){return Math.log(n+1)/Math.log(10)*0.5;}}
+];
+for(var cv in curves){var prev=null;for(var i=1;i<=10;i++){var x=cX+(i/10)*cW;var v=curves[cv].fn(i);var maxV=10;var y=cY+cH-Math.min(v/maxV,1)*cH;if(prev)L(s,prev[0],prev[1],x,y,curves[cv].c,2);C(s,x,y,3,curves[cv].c,curves[cv].c);prev=[x,y];}T(s,cX+cW-50,cY+15+cv*16,curves[cv].t,curves[cv].c,9);}
+T(s,100,320,'10K→10M: Brute线性↑',ERR,9);T(s,100,335,'HNSW对数级最优',AC,9);
+/* memory curve */
+T(s,690,80,'内存占用 vs 数据量',WARN,12,'middle');
+var mX=560,mY=95,mW=300,mH=200;
+T(s,520,mY-8,'内存(GB)',DIM,9);
+L(s,mX,mY,mX,mY+mH,DIM,1);L(s,mX,mY+mH,mX+mW,mY+mH,DIM,1);
+for(var i=0;i<=4;i++){L(s,mX,mY+mH-i*mH/4,mX+mW,mY+mH-i*mH/4,BD,0.5);}
+var mcurves=[{t:'原始',c:ERR,fn:function(n){return n;}},{t:'IVF',c:INFO,fn:function(n){return n*1.05;}},{t:'PQ',c:AC,fn:function(n){return n*0.03;}}];
+for(var cv in mcurves){var prev=null;for(var i=1;i<=10;i++){var x=mX+(i/10)*mW;var v=mcurves[cv].fn(i);var y=mY+mH-Math.min(v/10,1)*mH;if(prev)L(s,prev[0],prev[1],x,y,mcurves[cv].c,2);C(s,x,y,3,mcurves[cv].c,mcurves[cv].c);prev=[x,y];}T(s,mX+mW-40,mY+15+cv*16,mcurves[cv].t,mcurves[cv].c,9);}
+T(s,560,320,'PQ压缩后线性但斜率小',AC,9);T(s,560,335,'10亿向量仅30GB',AC,9);
+/* scaling table */
+T(s,460,360,'不同规模推荐方案',PUR,12,'middle');
+B(s,80,370,760,90,BG,BD);
+var rows=[['规模','推荐算法','延迟','内存','备注'],['<100K','Brute/FLAT','<1ms','小','精确搜索即可'],['100K-1M','HNSW','~2ms','中','速度精度最优'],['1M-100M','IVF-PQ','~5ms','省','内存效率高'],['>100M','HNSW-PQ+分片','~10ms','极省','分布式部署']];
+for(var r in rows){for(var c in rows[r]){var isH=r==0;B(s,80+c*156,378+r*18,150,18,isH?'rgba(167,139,250,0.1)':BG,isH?PUR:BD);T(s,155+c*156,390+r*18,rows[r][c],isH?PUR:'#e6e8ee',9,'middle');}}
+T(s,460,490,'Brute线性 | IVF亚线性(√N) | HNSW对数(logN) —— 规模越大ANN优势越明显',PUR,11,'middle');
+lg.textContent='[扩展性] 延迟: Brute O(N)线性、IVF O(√N)、HNSW O(logN)最优。内存: PQ压缩线性但斜率小。10亿向量PQ仅30GB。<1M用HNSW,>100M用HNSW-PQ+分片。';
+return;
+}
+if(mode==='bench'){
+T(s,460,28,'标准基准对比 (SIFT1M/GIST1M)',INFO,16,'middle');
+T(s,460,50,'ANN-Benchmarks 标准数据集上各算法横向评测',DIM,12,'middle');
+/* benchmark table */
+T(s,460,80,'SIFT1M (128维, 100万向量) 基准',AC,12,'middle');
+B(s,80,90,760,200,BG,BD);
+var rows=[['算法','召回@10','QPS','构建(s)','内存(MB)','参数'],['HNSW',99.2,5831,299,620,'M=32,efC=200'],['IVF',95.1,3120,48,530,'nlist=4096,np=16'],['IVF-PQ',94.3,4860,52,34,'nlist=1024,M=16'],['HNSW-PQ',93.1,4120,310,40,'M=32,Mpq=16'],['Annoy',94.8,1850,310,580,'trees=50,k=200'],['ScaNN',97.5,5230,180,165,'num_leaves=1000']];
+for(var r in rows){for(var c in rows[r]){var isH=r==0;B(s,80+c*127,98+r*28,124,26,isH?'rgba(56,189,248,0.1)':BG,isH?INFO:BD);T(s,142+c*127,115+r*28,rows[r][c],isH?INFO:'#e6e8ee',9,'middle');}}
+/* winner highlight */
+T(s,460,315,'各维度优胜者',WARN,12,'middle');
+var winners=[{t:'召回最高',v:'HNSW 99.2%',c:AC},{t:'QPS最高',v:'HNSW 5831',c:WARN},{t:'构建最快',v:'IVF 48s',c:INFO},{t:'内存最省',v:'IVF-PQ 34MB',c:PUR}];
+for(var i in winners){B(s,100+i*190,325,170,60,BG,winners[i].c);T(s,185+i*190,345,winners[i].t,winners[i].c,10,'middle');T(s,185+i*190,368,winners[i].v,winners[i].c,12,'middle');}
+/* insight */
+B(s,80,400,760,65,BG,BD);
+T(s,100,420,'综合分析:',WARN,11);
+T(s,100,438,'• HNSW综合最强: 召回99.2%+QPS5831，但构建慢(299s)内存大(620MB)',AC,10);
+T(s,100,455,'• IVF-PQ性价比最高: 内存仅34MB(18x省)，QPS 4860接近HNSW',AC,10);
+T(s,100,472,'• ScaNN平衡型: 召回97.5%+QPS5230，Google出品工业级',PUR,10);
+T(s,460,495,'SIFT1M基准: HNSW综合最强 | IVF-PQ性价比最高 | ScaNN平衡优秀',INFO,11,'middle');
+lg.textContent='[基准对比] SIFT1M: HNSW召回99.2%/QPS5831(综合最强), IVF-PQ 34MB/QPS4860(性价比), ScaNN 97.5%/5230(平衡)。IVF构建最快48s。';
+return;
+}
+}
+
+/* ===== M8 应用场景 ===== */
+function drawM8(mode){
+var s=document.getElementById('s8'),lg=document.getElementById('l8');
+clear(s);
+if(mode==='semantic'){
+T(s,460,28,'语义搜索 (Semantic Search)',AC,16,'middle');
+T(s,460,50,'将查询编码为向量，检索语义相关的文档',DIM,12,'middle');
+/* pipeline */
+T(s,460,80,'语义搜索流程',WARN,12,'middle');
+var stages=[{x:120,t:'用户查询',d:'小猫怎么\n养护',c:INFO},{x:290,t:'Encoder',d:'BERT\n→768D向量',c:AC},{x:460,t:'向量检索',d:'Top-K=5\n余弦相似',c:PUR},{x:630,t:'排序返回',d:'相关文档\n列表',c:WARN},{x:800,t:'展示',d:'搜索\n结果页',c:ROSE}];
+for(var i=0;i<5;i++){B(s,stages[i].x-80,90,160,70,BG,stages[i].c);T(s,stages[i].x,110,stages[i].t,stages[i].c,11,'middle');var ls=stages[i].d.split('\n');T(s,stages[i].x,128,ls[0],DIM,9,'middle');T(s,stages[i].x,142,ls[1],stages[i].c,9,'middle');if(i<4)AR(s,stages[i].x+80,125,stages[i+1].x-80,125,stages[i].c);}
+/* vector space matching */
+T(s,460,185,'向量空间语义匹配',AC,12,'middle');
+B(s,80,195,760,180,'#0a0c12',BD);
+/* query vector */
+C(s,200,285,10,ERR,ERR);
+T(s,200,270,'Q: "小猫养护"',ERR,11,'middle');
+T(s,200,305,'[0.21,-0.43,...]',ERR,9,'middle');
+/* candidate docs */
+var docs=[{x:380,y:230,t:'D1:猫咪饲养指南',sim:0.92,c:AC},{x:380,y:290,t:'D2:宠物护理手册',sim:0.85,c:AC},{x:620,y:250,t:'D3:小猫喂养技巧',sim:0.88,c:INFO},{x:620,y:320,t:'D4:狗狗训练',sim:0.31,c:ERR},{x:800,y:280,t:'D5:汽车保养',sim:0.12,c:ERR}];
+for(var d in docs){
+var isRel=docs[d].sim>0.7;
+L(s,210,285,docs[d].x-50,docs[d].y,isRel?'rgba(0,212,170,0.5)':'rgba(239,68,68,0.2)',isRel?1.5:0.8);
+B(s,docs[d].x-70,docs[d].y-14,150,28,isRel?'rgba(0,212,170,0.1)':'rgba(255,255,255,0.03)',docs[d].c);
+T(s,docs[d].x+5,docs[d].y+4,docs[d].t,docs[d].c,9,'middle');
+T(s,docs[d].x+5,docs[d].y+18,'sim='+docs[d].sim,docs[d].c,8,'middle');
+}
+/* results */
+T(s,460,390,'返回结果 (Top-3 相关)',PUR,12,'middle');
+B(s,80,400,760,65,BG,PUR);
+T(s,100,420,'1. D1 猫咪饲养指南 (0.92) | 2. D3 小猫喂养技巧 (0.88) | 3. D2 宠物护理手册 (0.85)',AC,10);
+T(s,100,438,'过滤: D4狗狗训练(0.31) | D5汽车保养(0.12) —— 语义不相关被排除',DIM,10);
+T(s,100,455,'语义搜索理解"小猫"="猫咪"，跨词面匹配相关内容',WARN,10);
+T(s,460,485,'语义搜索=向量编码+相似检索，突破关键词匹配的词面限制',AC,11,'middle');
+lg.textContent='[语义搜索] Q"小猫养护"编码768D向量→检索Top-5。D1猫咪饲养(0.92)、D3小猫喂养(0.88)、D2宠物护理(0.85)相关；D4狗狗(0.31)、D5汽车(0.12)排除。语义理解跨词面匹配。';
+return;
+}
+if(mode==='rag'){
+T(s,460,28,'RAG 检索增强生成',INFO,16,'middle');
+T(s,460,50,'向量检索召回上下文，供LLM生成更准确的回答',DIM,12,'middle');
+/* RAG pipeline */
+T(s,460,80,'RAG 检索-生成流程',WARN,12,'middle');
+var stages=[{x:100,t:'用户问题',d:'GPT-4\n训练截止?',c:INFO},{x:270,t:'向量检索',d:'知识库\nTop-3文档',c:AC},{x:440,t:'构建Prompt',d:'问题+上下文\n拼接',c:PUR},{x:610,t:'LLM生成',d:'GPT-4\n基于上下文答',c:WARN},{x:780,t:'回答',d:'含引用\n准确答案',c:ROSE}];
+for(var i=0;i<5;i++){B(s,stages[i].x-80,90,160,70,BG,stages[i].c);T(s,stages[i].x,110,stages[i].t,stages[i].c,11,'middle');var ls=stages[i].d.split('\n');T(s,stages[i].x,128,ls[0],DIM,9,'middle');T(s,stages[i].x,142,ls[1],stages[i].c,9,'middle');if(i<4)AR(s,stages[i].x+80,125,stages[i+1].x-80,125,stages[i].c);}
+/* retrieval detail */
+T(s,460,185,'检索阶段: 从知识库召回相关文档',AC,12,'middle');
+B(s,80,195,360,180,BG,AC);
+T(s,100,215,'知识库 (100万文档):',AC,10);
+var kb=[[0.91,'GPT-4于2023-3发布'],['0.86,'+'GPT-4 Turbo 2023-11'],['0.78,'+'GPT-4训练数据截止2023-4'],['0.45,'+'GPT-3于2020发布']];
+for(var i in kb){B(s,100,225+i*32,320,28,i<3?'rgba(0,212,170,0.1)':BG,i<3?AC:DIM);T(s,110,243+i*32,'#'+(parseInt(i)+1)+' sim='+kb[i][0],i<3?AC:DIM,9);T(s,250,243+i*32,kb[i][1],i<3?'#e6e8ee':DIM,9);}
+T(s,100,360,'Top-3 文档作为上下文',AC,9);
+/* generation detail */
+T(s,700,185,'生成阶段: LLM基于上下文回答',PUR,12,'middle');
+B(s,460,195,400,180,BG,PUR);
+T(s,480,215,'构造 Prompt:',PUR,10);
+B(s,480,222,360,80,'#0a0c12',PUR);
+T(s,490,240,'[上下文]',DIM,9);
+T(s,490,255,'GPT-4于2023-3发布...',AC,8);
+T(s,490,270,'GPT-4 Turbo 2023-11...',AC,8);
+T(s,490,285,'训练数据截止2023-4...',AC,8);
+T(s,490,300,'[问题] GPT-4训练截止?',INFO,9);
+T(s,480,312,'→ LLM 生成:',PUR,10);
+B(s,480,320,360,45,'rgba(167,139,250,0.1)',PUR);
+T(s,490,338,'GPT-4训练数据截止2023年4月',PUR,10);
+T(s,490,354,'(基于检索到的3篇文档)',DIM,9);
+/* benefit */
+T(s,460,395,'RAG 优势',WARN,12,'middle');
+B(s,80,405,760,65,BG,BD);
+T(s,100,425,'• 准确性: 基于实时知识库，减少幻觉(幻觉率降60%)',AC,10);
+T(s,100,443,'• 可溯源: 答案附带引用文档，可信可验证',INFO,10);
+T(s,100,461,'• 易更新: 更新知识库即可，无需重训LLM',PUR,10);
+T(s,460,490,'RAG = 向量检索(召回) + LLM(生成)，是AI应用标配架构',INFO,11,'middle');
+lg.textContent='[RAG检索] Q"GPT-4训练截止?"→检索知识库Top3(GPT-4 2023-3发布/Turbo 2023-11/数据截止2023-4)→构造Prompt→LLM生成"截止2023年4月"。幻觉率降60%。';
+return;
+}
+if(mode==='recsys'){
+T(s,460,28,'推荐系统 (Recommendation)',WARN,16,'middle');
+T(s,460,50,'用户与物品向量相似度匹配，实现个性化推荐',DIM,12,'middle');
+/* user-item matching */
+T(s,460,80,'双塔模型: 用户塔 + 物品塔',WARN,12,'middle');
+/* user tower */
+B(s,80,90,200,120,BG,INFO);
+T(s,180,110,'用户塔',INFO,12,'middle');
+T(s,180,130,'User Features',DIM,9,'middle');
+T(s,180,148,'ID/行为/偏好',DIM,9,'middle');
+AR(s,180,155,180,170,INFO);
+B(s,130,170,100,28,'rgba(56,189,248,0.15)',INFO);
+T(s,180,188,'User Vec',INFO,10,'middle');
+/* item tower */
+B(s,640,90,200,120,BG,AC);
+T(s,740,110,'物品塔',AC,12,'middle');
+T(s,740,130,'Item Features',DIM,9,'middle');
+T(s,740,148,'ID/类别/标签',DIM,9,'middle');
+AR(s,740,155,740,170,AC);
+B(s,690,170,100,28,'rgba(0,212,170,0.15)',AC);
+T(s,740,188,'Item Vec',AC,10,'middle');
+/* similarity matching */
+T(s,460,205,'向量相似度匹配',PUR,12,'middle');
+B(s,300,215,320,40,'rgba(167,139,250,0.1)',PUR);
+T(s,460,240,'cos(UserVec, ItemVec)',PUR,12,'middle');
+AR(s,230,184,300,230,INFO);
+AR(s,690,184,620,230,AC);
+/* candidate ranking */
+T(s,460,275,'候选物品排序',AC,12,'middle');
+B(s,80,285,760,130,BG,AC);
+var items=[{t:'科幻电影A',s:0.92,c:AC,x:120},{t:'科技纪录片B',s:0.85,c:INFO,x:280},{t:'科幻小说C',s:0.78,c:PUR,x:440},{t:'动作片D',s:0.45,c:WARN,x:600},{t:'美食节目E',s:0.21,c:ERR,x:760}];
+for(var i in items){
+var bh=items[i].s*80;
+B(s,items[i].x-70,365-bh,130,bh,'rgba(0,212,170,0.15)',items[i].c);
+T(s,items[i].x,365-bh-8,items[i].s,items[i].c,9,'middle');
+T(s,items[i].x,378,items[i].t,DIM,9,'middle');
+}
+/* result */
+T(s,460,410,'推荐结果: Top-3',WARN,11,'middle');
+B(s,80,420,760,55,BG,BD);
+T(s,100,440,'给科幻爱好者推荐: 1.科幻电影A(0.92) 2.科技纪录片B(0.85) 3.科幻小说C(0.78)',AC,10);
+T(s,100,458,'过滤: 动作片D(0.45) 美食节目E(0.21) —— 与用户偏好不符',DIM,10);
+T(s,100,475,'向量检索实现亿级物品库的实时个性化推荐(ANN加速)',WARN,10);
+T(s,460,498,'双塔模型+ANN检索是现代推荐系统的核心架构',WARN,11,'middle');
+lg.textContent='[推荐系统] 双塔:用户塔(ID/行为)→UserVec, 物品塔(ID/标签)→ItemVec。cos相似度排序:科幻电影A(0.92)>科技纪录片B(0.85)>科幻小说C(0.78)>动作片D(0.45)>美食E(0.21)。ANN加速亿级实时推荐。';
+return;
+}
+if(mode==='dedup'){
+T(s,460,28,'去重匹配 (Deduplication)',ROSE,16,'middle');
+T(s,460,50,'用向量距离识别近似重复内容，海量数据清洗',DIM,12,'middle');
+/* scenario */
+T(s,460,80,'场景: 海量文档/图片去重',ROSE,12,'middle');
+B(s,80,90,760,40,'rgba(251,113,133,0.08)',ROSE);
+T(s,460,115,'10亿文档中找出近似重复项 (阈值: cosine > 0.95)',ROSE,12,'middle');
+/* dedup process */
+T(s,460,160,'去重流程',WARN,12,'middle');
+var stages=[{x:120,t:'向量化',d:'所有文档\n→向量',c:INFO},{x:290,t:'聚类',d:'相似向量\n归簇',c:WARN},{x:460,t:'阈值过滤',d:'cos>0.95\n判为重复',c:PUR},{x:630,t:'保留代表',d:'每簇留\n1篇',c:AC},{x:800,t:'去重结果',d:'N→N/k\n(k平均簇)',c:ROSE}];
+for(var i=0;i<5;i++){B(s,stages[i].x-80,170,160,70,BG,stages[i].c);T(s,stages[i].x,190,stages[i].t,stages[i].c,11,'middle');var ls=stages[i].d.split('\n');T(s,stages[i].x,208,ls[0],DIM,9,'middle');T(s,stages[i].x,222,ls[1],stages[i].c,9,'middle');if(i<4)AR(s,stages[i].x+80,205,stages[i+1].x-80,205,stages[i].c);}
+/* similarity clusters */
+T(s,460,265,'相似度聚类示例',AC,12,'middle');
+B(s,80,275,760,130,'#0a0c12',BD);
+/* cluster 1 - duplicates */
+T(s,180,295,'簇1 (重复组)',AC,10,'middle');
+var dup1=[{t:'原文A',c:AC},{t:'转载B (cos0.98)',c:INFO},{t:'洗稿C (cos0.96)',c:PUR},{t:'翻译D (cos0.95)',c:WARN}];
+for(var i in dup1){B(s,100+i*110,305,100,30,i===0?'rgba(0,212,170,0.15)':BG,dup1[i].c);T(s,150+i*110,324,dup1[i].t,dup1[i].c,8,'middle');}
+B(s,100,340,420,22,'rgba(0,212,170,0.1)',AC);
+T(s,310,355,'保留原文A，去重B/C/D (省3篇)',AC,9,'middle');
+/* cluster 2 - unique */
+T(s,680,295,'簇2 (独立)',ERR,10,'middle');
+B(s,580,305,220,30,BG,ERR);
+T(s,690,324,'独立文章E (cos0.42)',ERR,9,'middle');
+B(s,580,340,220,22,'rgba(239,68,68,0.1)',ERR);
+T(s,690,355,'保留 (无重复)',ERR,9,'middle');
+/* stats */
+T(s,460,425,'去重效果统计',PUR,12,'middle');
+B(s,80,435,760,55,BG,BD);
+T(s,100,455,'输入: 10亿文档 | 检出重复簇: 2.3亿 | 去重后: 5.4亿 (压缩46%)',PUR,10);
+T(s,100,472,'速度: HNSW检索 ~2ms/文档 | 总耗时: ~56小时 (vs 暴力O(N²)需数年)',AC,10);
+T(s,100,489,'应用: 新闻去重/版权检测/数据清洗/爬虫去重',WARN,10);
+T(s,460,510,'向量去重用ANN将O(N²)暴力降为O(N·logN)，工业级可行',ROSE,11,'middle');
+lg.textContent='[去重匹配] 10亿文档向量化→聚类→cos>0.95判重。簇1:原文A/转载B(0.98)/洗稿C(0.96)/翻译D(0.95)保留A。去重5.4亿(压缩46%)。HNSW使O(N²)→O(NlogN)，56h可行。';
+return;
+}
+}
+
+/* init */
+drawM1('all');
+drawM2('cosine');
+drawM3('hier');
+drawM4('kmeans');
+drawM5('split');
+drawM6('ivfpq');
+drawM7('recall');
+drawM8('semantic');
+</script>
+</body>
+</html>

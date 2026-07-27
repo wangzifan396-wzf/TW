@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 286 个零依赖交互式可视化项目 + 30 个配套工具，2288+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 291 个零依赖交互式可视化项目 + 30 个配套工具，2328+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-286-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2288+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-291-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2328+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 286 |
-| 可视化模块 | 2288+ |
+| 项目总数 | 291 |
+| 可视化模块 | 2328+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -360,6 +360,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 284 | 混合深度架构可视化实验室 | MoD全景/动态深度/路由机制/MoD vs MoE/计算节省/训练策略/性能分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/mixture-of-depths-viz-lab/) |
 | 285 | 推理结构范式可视化实验室 | 推理全景/思维链CoT/思维树ToT/思维图GoT/自我修正/多路径推理/范式对比/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/reasoning-structures-viz-lab/) |
 | 286 | AI内容检测与水印可视化实验室 | 检测全景/文本检测/图像检测/水印技术/对抗攻击/深度伪造检测/溯源技术/评估与挑战等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-content-detection-viz-lab/) |
+| 287 | 稀疏自编码器与叠加态可视化实验室 | SAE全景/叠加原理/SAE训练/单义特征/特征电路/SAE变体/评估指标/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/sparse-autoencoder-viz-lab/) |
+| 288 | 过程奖励模型与步骤验证可视化实验室 | PRM全景/ORM vs PRM/PRM训练/Best-of-N/树搜索/步骤验证/评估分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/process-reward-models-viz-lab/) |
+| 289 | KV缓存与内存优化可视化实验室 | KV缓存全景/缓存机制/PagedAttention/量化压缩/驱逐策略/共享前缀/内存分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/kv-cache-optimization-viz-lab/) |
+| 290 | 向量搜索与近似最近邻可视化实验室 | 向量搜索全景/相似度度量/HNSW/IVF/PQ量化/混合索引/性能分析/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/vector-search-ann-viz-lab/) |
+| 291 | 分词器与词表工程可视化实验室 | 分词全景/BPE算法/WordPiece & SentencePiece/Tokenizer对比/词表设计/Token压缩/多语言分词/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/tokenizer-engineering-viz-lab/) |
 
 ## 技术栈
 
@@ -377,7 +382,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 ## 使用方式
 
-1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 286 个项目
+1. **在线访问** — 打开 [TW Hub](https://wangzifan396-wzf.github.io/TW/) 浏览全部 291 个项目
 2. **搜索筛选** — 在 Hub 页面使用搜索框和分类标签快速定位
 3. **随机探索** — 点击 "🎲 随机探索" 按钮发现新项目
 4. **本地运行** — 下载任意项目的 `index.html`，双击即可在浏览器中打开
