@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Next-State Prediction与世界模型范式 - 可视化实验室</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0b0f;
+    --bg-panel: #12141c;
+    --bg-card: #181b25;
+    --border: #232838;
+    --teal: #00d4aa;
+    --teal-dim: #008f72;
+    --teal-glow: rgba(0, 212, 170, 0.15);
+    --text: #e6e8ee;
+    --text-dim: #8b909e;
+    --text-faint: #5a5f6e;
+    --amber: #ffb454;
+    --rose: #ff6b81;
+    --violet: #9d7aff;
+    --blue: #4ea8ff;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10, 11, 15, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner {
+    max-width: 1320px; margin: 0 auto;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 15px; white-space: nowrap;
+  }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 12px var(--teal);
+  }
+  .brand .tag {
+    font-size: 10px; font-weight: 600;
+    color: var(--teal); background: var(--teal-glow);
+    padding: 2px 7px; border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  nav.modules {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto;
+  }
+  .mod-btn {
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    padding: 6px 11px; border-radius: 6px;
+    font-size: 12.5px; font-weight: 500;
+    font-family: inherit;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+  .mod-btn:hover { color: var(--text); background: var(--bg-card); }
+  .mod-btn.active {
+    color: var(--teal); background: var(--teal-glow);
+    border-color: var(--teal-dim);
+  }
+  main {
+    max-width: 1320px; margin: 0 auto;
+    padding: 28px 24px 60px;
+  }
+  .module { display: none; }
+  .module.active { display: block; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .mod-head { margin-bottom: 22px; }
+  .mod-head .crumb {
+    font-size: 11px; color: var(--teal); font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .mod-head h1 {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .mod-head p { color: var(--text-dim); font-size: 14px; max-width: 860px; }
+  .grid {
+    display: grid; gap: 18px;
+    grid-template-columns: repeat(12, 1fr);
+  }
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card h3 {
+    font-size: 14px; font-weight: 600; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h3::before {
+    content: ""; width: 4px; height: 14px; border-radius: 2px;
+    background: var(--teal);
+  }
+  .col-12 { grid-column: span 12; }
+  .col-8 { grid-column: span 8; }
+  .col-7 { grid-column: span 7; }
+  .col-6 { grid-column: span 6; }
+  .col-5 { grid-column: span 5; }
+  .col-4 { grid-column: span 4; }
+  .col-3 { grid-column: span 3; }
+  @media (max-width: 980px) {
+    .col-8, .col-7, .col-6, .col-5, .col-4, .col-3 { grid-column: span 12; }
+  }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    margin-bottom: 14px;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl label {
+    font-size: 11px; color: var(--text-dim); font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .ctrl .val {
+    font-size: 12px; color: var(--teal); font-weight: 700;
+    font-family: "Consolas", "SF Mono", monospace;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 180px; height: 5px; border-radius: 3px;
+    background: var(--bg-card); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--teal); cursor: pointer;
+    box-shadow: 0 0 8px var(--teal-glow);
+    border: 2px solid #0a0b0f;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--teal); cursor: pointer; border: 2px solid #0a0b0f;
+  }
+  .seg {
+    display: inline-flex; background: var(--bg-card);
+    border-radius: 8px; padding: 3px; gap: 2px;
+    border: 1px solid var(--border);
+  }
+  .seg button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-dim); padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 500; font-family: inherit;
+    transition: all 0.15s ease;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on {
+    background: var(--teal); color: #0a0b0f; font-weight: 600;
+  }
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .stat {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; min-width: 110px;
+  }
+  .stat .k { font-size: 10.5px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.3px; }
+  .stat .v { font-size: 18px; color: var(--teal); font-weight: 700; font-family: "Consolas","SF Mono",monospace; margin-top: 2px; }
+  .stat .v.amber { color: var(--amber); }
+  .stat .v.rose { color: var(--rose); }
+  .stat .v.violet { color: var(--violet); }
+  .stat .v.blue { color: var(--blue); }
+  svg.viz { width: 100%; display: block; border-radius: 8px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--text-dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 12px; height: 3px; border-radius: 2px; display: inline-block;
+  }
+  .note {
+    font-size: 12.5px; color: var(--text-dim); line-height: 1.7;
+    background: var(--bg-card); border-left: 3px solid var(--teal-dim);
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 12px;
+  }
+  .note b { color: var(--text); font-weight: 600; }
+  .note code {
+    font-family: "Consolas","SF Mono",monospace; font-size: 12px;
+    color: var(--teal); background: rgba(0,212,170,0.08);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px; letter-spacing: 0.4px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .badge.core { background: rgba(0,212,170,0.15); color: var(--teal); }
+  .badge.new { background: rgba(255,180,84,0.15); color: var(--amber); }
+  .badge.hot { background: rgba(255,107,129,0.15); color: var(--rose); }
+  .pillrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pill {
+    font-size: 11.5px; padding: 5px 11px; border-radius: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .pill:hover { color: var(--text); border-color: var(--teal-dim); }
+  .pill.on { color: var(--teal); border-color: var(--teal); background: var(--teal-glow); }
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.cmp th, table.cmp td {
+    text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border);
+  }
+  table.cmp th {
+    font-size: 11px; color: var(--text-dim); font-weight: 600;
+    letter-spacing: 0.3px; text-transform: uppercase;
+  }
+  table.cmp td code {
+    font-family: "Consolas","SF Mono",monospace; color: var(--teal);
+  }
+  table.cmp tr:hover td { background: var(--bg-card); }
+  .kvlist { font-size: 12.5px; line-height: 1.9; }
+  .kvlist .row { display: flex; gap: 8px; }
+  .kvlist .row .k2 { color: var(--text-dim); min-width: 86px; }
+  .kvlist .row .v2 { color: var(--text); }
+  .foot {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-faint); text-align: center;
+  }
+  .mono { font-family: "Consolas","SF Mono",monospace; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="dot"></span>
+      <span>Next-State Prediction与世界模型范式</span>
+      <span class="tag">VIZ LAB</span>
+    </div>
+    <nav class="modules" id="nav"></nav>
+  </div>
+</header>
+<main>
+  <!-- M1 -->
+  <section id="m1" class="module active"></section>
+  <!-- M2 -->
+  <section id="m2" class="module"></section>
+  <!-- M3 -->
+  <section id="m3" class="module"></section>
+  <!-- M4 -->
+  <section id="m4" class="module"></section>
+  <!-- M5 -->
+  <section id="m5" class="module"></section>
+  <!-- M6 -->
+  <section id="m6" class="module"></section>
+  <!-- M7 -->
+  <section id="m7" class="module"></section>
+  <!-- M8 -->
+  <section id="m8" class="module"></section>
+  <div class="foot">
+    Next-State Prediction与世界模型范式 · 可视化实验室 · 基于智源研究院2026十大AI趋势报告：AI从"预测下一个词"迈向"预测世界的下一个状态"
+  </div>
+</main>
+<script>
+"use strict";
+/* ============ 工具函数 ============ */
+var SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  var e = document.createElementNS(SVGNS, tag);
+  if (attrs) {
+    for (var k in attrs) {
+      if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]);
+    }
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(node, str) {
+  var t = document.createTextNode(str);
+  node.appendChild(t);
+  return node;
+}
+function tspanEl(x, y, str, parent, opts) {
+  var a = { x: x, y: y };
+  if (opts) { for (var kk in opts) { if (opts.hasOwnProperty(kk)) a[kk] = opts[kk]; } }
+  var t = el("text", a, parent);
+  txt(t, str);
+  return t;
+}
+function clearNode(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+function setStatText(node, str) { node.textContent = str; }
+
+/* ============ 模块注册 ============ */
+var MODULES = [
+  { id: "m1", name: "NTP→NSP范式转移" },
+  { id: "m2", name: "4D统一建模" },
+  { id: "m3", name: "世界模型架构" },
+  { id: "m4", name: "因果推理能力" },
+  { id: "m5", name: "物理规则学习" },
+  { id: "m6", name: "自动驾驶仿真" },
+  { id: "m7", name: "机器人训练" },
+  { id: "m8", name: "悟界与生态" }
+];
+var initialized = {};
+function switchModule(id) {
+  var secs = document.querySelectorAll(".module");
+  for (var i = 0; i < secs.length; i++) secs[i].classList.remove("active");
+  document.getElementById(id).classList.add("active");
+  var btns = document.querySelectorAll(".mod-btn");
+  for (var j = 0; j < btns.length; j++) {
+    btns[j].classList.toggle("active", btns[j].dataset.mod === id);
+  }
+  if (!initialized[id]) {
+    var num = id.substring(1);
+    var fn = window["m" + num + "Draw"];
+    if (fn) { fn(); initialized[id] = true; }
+  }
+}
+(function buildNav() {
+  var nav = document.getElementById("nav");
+  for (var i = 0; i < MODULES.length; i++) {
+    (function (m, idx) {
+      var b = document.createElement("button");
+      b.className = "mod-btn" + (idx === 0 ? " active" : "");
+      b.dataset.mod = m.id;
+      b.textContent = m.name;
+      b.addEventListener("click", function () { switchModule(m.id); });
+      nav.appendChild(b);
+    })(MODULES[i], i);
+  }
+})();
+
+/* ============ 通用绘图辅助 ============ */
+function svgCanvas(w, h, viewBox) {
+  var s = el("svg", { width: w, height: h, viewBox: viewBox || ("0 0 " + w + " " + h), class: "viz" });
+  el("rect", { x: 0, y: 0, width: w, height: h, fill: "#0e1018", rx: 8 }, s);
+  return s;
+}
+function axis(s, x1, y1, x2, y2, color) {
+  return el("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: color || "#3a3f50", "stroke-width": 1.5 }, s);
+}
+function gridlines(s, x, y, w, h, nx, ny, color) {
+  var i;
+  for (i = 1; i < nx; i++) {
+    var gx = x + (w / nx) * i;
+    el("line", { x1: gx, y1: y, x2: gx, y2: y + h, stroke: color || "#1d212e", "stroke-width": 1, "stroke-dasharray": "2 4" }, s);
+  }
+  for (i = 1; i < ny; i++) {
+    var gy = y + (h / ny) * i;
+    el("line", { x1: x, y1: gy, x2: x + w, y2: gy, stroke: color || "#1d212e", "stroke-width": 1, "stroke-dasharray": "2 4" }, s);
+  }
+}
+function arrowDef(s, id, color) {
+  var defs = s.querySelector("defs") || el("defs", {}, s);
+  var mk = el("marker", { id: id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 Z", fill: color }, mk);
+}
+
+/* ============================================================ */
+/* M1 NTP→NSP 范式转移 */
+/* ============================================================ */
+var M1 = { view: "compare" };
+function m1Draw() {
+  var sec = document.getElementById("m1");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M1 · PARADIGM SHIFT</div>' +
+    '<h1>从"预测下一个词"到"预测下一个状态"<span class="badge core">核心范式</span></h1>' +
+    '<p>智源研究院2026十大AI趋势报告指出，AI正经历从Next-Token Prediction（NTP）到Next-State Prediction（NSP）的根本性范式转移。NTP让模型在数字符号空间预测下一个离散token，而NSP让模型在连续时空物理空间预测世界的下一个状态——这意味着AI开始理解时空连续性与因果规律，从数字空间感知迈向物理世界认知与规划。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m1seg">' +
+    '<button class="on" data-v="compare">范式对比</button>' +
+    '<button data-v="timeline">演进时间线</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>范式对比可视化</h3><div id="m1viz"></div>' +
+    '<div class="legend"><span><i style="background:#4ea8ff"></i>Next-Token Prediction（符号空间）</span>' +
+    '<span><i style="background:#00d4aa"></i>Next-State Prediction（物理时空空间）</span></div></div>' +
+    '<div class="card col-8"><h3>核心差异</h3><div id="m1diff"></div></div>' +
+    '<div class="card col-4"><h3>范式意义</h3><div id="m1note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m1seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m1View(this.dataset.v);
+    });
+  }
+  m1View("compare");
+}
+function m1View(v) {
+  M1.view = v;
+  if (v === "compare") m1DrawCompare();
+  else m1DrawTimeline();
+  m1DrawDiff();
+}
+function m1DrawCompare() {
+  var host = document.getElementById("m1viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m1aBlue", "#4ea8ff");
+  arrowDef(s, "m1aTeal", "#00d4aa");
+  arrowDef(s, "m1aGray", "#5a5f6e");
+
+  /* 左半：NTP 文本token预测 */
+  el("rect", { x: 30, y: 30, width: 545, height: 380, fill: "#141926", stroke: "#2a3550", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(50, 58, "Next-Token Prediction (NTP)", s, { fill: "#4ea8ff", "font-size": 15, "font-weight": 700 });
+  tspanEl(50, 76, "数字符号空间 · 离散 token 序列", s, { fill: "#8b909e", "font-size": 11.5 });
+
+  var tokens = ["今天", "天气", "真", "好", "，", "适合", "出门"];
+  var tx = 50, ty = 130;
+  var tw = 62, gap = 8;
+  for (var i = 0; i < tokens.length; i++) {
+    var isLast = (i === tokens.length - 1);
+    var bx = tx + i * (tw + gap);
+    el("rect", { x: bx, y: ty, width: tw, height: 38, fill: isLast ? "rgba(78,168,255,0.18)" : "#1c2233", stroke: isLast ? "#4ea8ff" : "#2c3450", "stroke-width": 1.5, rx: 6 }, s);
+    tspanEl(bx + tw / 2, ty + 24, tokens[i], s, { fill: isLast ? "#4ea8ff" : "#c5c8d2", "font-size": 13, "text-anchor": "middle", "font-weight": isLast ? 700 : 400 });
+    if (i < tokens.length - 1) {
+      el("line", { x1: bx + tw + 1, y1: ty + 19, x2: bx + tw + gap - 1, y2: ty + 19, stroke: "#4ea8ff", "stroke-width": 1.5, "marker-end": "url(#m1aBlue)" }, s);
+    }
+  }
+  tspanEl(50, 196, "P(token_{t+1} | token_1 ... token_t)", s, { fill: "#4ea8ff", "font-size": 12.5, "font-family": "Consolas,monospace" });
+
+  /* 概率分布条 */
+  tspanEl(50, 230, "下一个词概率分布:", s, { fill: "#8b909e", "font-size": 11.5 });
+  var cands = [["散步", 0.42], ["运动", 0.26], ["郊游", 0.18], ["赏花", 0.14]];
+  var bx0 = 50, by0 = 244;
+  for (var ci = 0; ci < cands.length; ci++) {
+    var bw = 110, bh = cands[ci][1] * 130;
+    el("rect", { x: bx0 + ci * (bw + 12), y: by0 + (130 - bh), width: bw, height: bh, fill: "#4ea8ff", "fill-opacity": 0.25 + ci * 0.18, stroke: "#4ea8ff", rx: 3 }, s);
+    tspanEl(bx0 + ci * (bw + 12) + bw / 2, by0 + 148, cands[ci][0], s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle" });
+    tspanEl(bx0 + ci * (bw + 12) + bw / 2, by0 + 132 - bh - 4, (cands[ci][1] * 100).toFixed(0) + "%", s, { fill: "#4ea8ff", "font-size": 10, "text-anchor": "middle" });
+  }
+
+  tspanEl(50, 400, "本质：统计共现 → 符号接龙，无物理约束", s, { fill: "#5a5f6e", "font-size": 11.5, "font-style": "italic" });
+
+  /* 右半：NSP 物理状态预测 */
+  el("rect", { x: 605, y: 30, width: 545, height: 380, fill: "#0f1a18", stroke: "#1f4a40", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(625, 58, "Next-State Prediction (NSP)", s, { fill: "#00d4aa", "font-size": 15, "font-weight": 700 });
+  tspanEl(625, 76, "物理时空空间 · 连续状态序列", s, { fill: "#8b909e", "font-size": 11.5 });
+
+  /* 物理场景：小球抛物运动 t->t+1 */
+  var sx = 660, sy0 = 360, gx = 470;
+  el("line", { x1: 625, y1: sy0, x2: 1130, y2: sy0, stroke: "#3a4a44", "stroke-width": 2 }, s);
+  /* 轨迹 */
+  var trajPath = "M ";
+  for (var ti = 0; ti <= 20; ti++) {
+    var px = sx + (ti / 20) * gx;
+    var py = sy0 - (180 * (ti / 20) - 9 * (ti / 20) * (ti / 20));
+    trajPath += (ti === 0 ? "" : " L ") + px.toFixed(1) + " " + py.toFixed(1);
+  }
+  el("path", { d: trajPath, fill: "none", stroke: "#00d4aa", "stroke-width": 2, "stroke-opacity": 0.5, "stroke-dasharray": "4 3" }, s);
+  /* 状态帧 t */
+  for (var fi = 0; fi <= 3; fi++) {
+    var tnorm = fi / 3;
+    var fpx = sx + tnorm * gx;
+    var fpy = sy0 - (180 * tnorm - 9 * tnorm * tnorm);
+    el("circle", { cx: fpx, cy: fpy, r: 11, fill: "#00d4aa", "fill-opacity": 0.85, stroke: "#0e1018", "stroke-width": 2 }, s);
+    tspanEl(fpx, fpy + 30, "S(t" + fi + ")", s, { fill: "#00d4aa", "font-size": 11, "text-anchor": "middle", "font-weight": 700 });
+  }
+  /* 预测的下一状态 */
+  var ppx = sx + gx + 60;
+  var ppy = sy0 - (180 * 1.15 - 9 * 1.15 * 1.15);
+  el("circle", { cx: ppx, cy: ppy, r: 13, fill: "none", stroke: "#ffb454", "stroke-width": 2.5, "stroke-dasharray": "3 2" }, s);
+  el("circle", { cx: ppx, cy: ppy, r: 7, fill: "#ffb454", "fill-opacity": 0.7 }, s);
+  tspanEl(ppx, ppy + 30, "S(t+1) 预测", s, { fill: "#ffb454", "font-size": 11, "text-anchor": "middle", "font-weight": 700 });
+  el("line", { x1: sx + gx, y1: sy0 - (180 - 9), x2: ppx, y2: ppy, stroke: "#ffb454", "stroke-width": 1.5, "marker-end": "url(#m1aTeal)", "stroke-dasharray": "4 3" }, s);
+
+  tspanEl(625, 250, "S(t+1) = f(S(t), a(t))", s, { fill: "#00d4aa", "font-size": 12.5, "font-family": "Consolas,monospace" });
+  tspanEl(625, 272, "受重力/碰撞/刚体等物理约束", s, { fill: "#8b909e", "font-size": 11.5 });
+
+  /* 状态向量表示 */
+  tspanEl(625, 312, "状态向量 s = [位置, 速度, 形状, 关系, ...]", s, { fill: "#c5c8d2", "font-size": 11, "font-family": "Consolas,monospace" });
+  tspanEl(625, 400, "本质：建模物理动力学 → 可推演、可规划", s, { fill: "#5a5f6e", "font-size": 11.5, "font-style": "italic" });
+}
+function m1DrawTimeline() {
+  var host = document.getElementById("m1viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m1aTeal2", "#00d4aa");
+
+  tspanEl(W / 2, 40, "从NTP到NSP：范式演进时间线", s, { fill: "#e6e8ee", "font-size": 16, "font-weight": 700, "text-anchor": "middle" });
+
+  var lineY = 230;
+  el("line", { x1: 70, y1: lineY, x2: W - 50, y2: lineY, stroke: "#2c3450", "stroke-width": 3 }, s);
+  el("line", { x1: 70, y1: lineY, x2: W - 50, y2: lineY, stroke: "#00d4aa", "stroke-width": 3, "stroke-dasharray": "1 999", opacity: 0 }, s);
+
+  var nodes = [
+    { x: 110, year: "2018", t: "NTP确立", d: "GPT/BERT确立Next-Token Prediction为语言建模主流范式", c: "#4ea8ff", up: true },
+    { x: 310, year: "2020", t: "世界模型雏形", d: "Dreamer等基于RL的世界模型学习环境动力学", c: "#9d7aff", up: false },
+    { x: 510, year: "2022", t: "多模态涌现", d: "多模态大模型将感知扩展到图像/视频token", c: "#4ea8ff", up: true },
+    { x: 710, year: "2024", t: "视频生成突破", d: "Sora等视频模型学习时空连续性，逼近NSP", c: "#ffb454", up: false },
+    { x: 910, year: "2025", t: "物理世界模型", d: "悟界、Genie等物理世界模型预测连续物理状态", c: "#00d4aa", up: true },
+    { x: 1100, year: "2026+", t: "NSP范式", d: "预测世界下一状态成为AI认知与规划新范式", c: "#00d4aa", up: false }
+  ];
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    el("circle", { cx: n.x, cy: lineY, r: 8, fill: n.c, stroke: "#0e1018", "stroke-width": 3 }, s);
+    el("circle", { cx: n.x, cy: lineY, r: 14, fill: "none", stroke: n.c, "stroke-opacity": 0.4, "stroke-width": 1.5 }, s);
+    var boxY = n.up ? lineY - 120 : lineY + 40;
+    var connY1 = n.up ? lineY - 8 : lineY + 8;
+    var connY2 = n.up ? boxY + 80 : boxY;
+    el("line", { x1: n.x, y1: connY1, x2: n.x, y2: connY2, stroke: n.c, "stroke-width": 1.5, "stroke-dasharray": "3 3" }, s);
+    el("rect", { x: n.x - 85, y: boxY, width: 170, height: 80, fill: "#181b25", stroke: n.c, "stroke-width": 1.5, rx: 8 }, s);
+    tspanEl(n.x, boxY + 22, n.year, s, { fill: n.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+    tspanEl(n.x, boxY + 42, n.t, s, { fill: "#e6e8ee", "font-size": 12.5, "font-weight": 600, "text-anchor": "middle" });
+    /* 多行描述 */
+    var desc = n.d;
+    var linesArr = [];
+    if (desc.length > 16) {
+      var mid = desc.lastIndexOf("，", 16);
+      if (mid < 6) mid = 16;
+      linesArr.push(desc.substring(0, mid + 1));
+      linesArr.push(desc.substring(mid + 1));
+    } else {
+      linesArr.push(desc);
+      linesArr.push("");
+    }
+    tspanEl(n.x, boxY + 60, linesArr[0], s, { fill: "#8b909e", "font-size": 10.5, "text-anchor": "middle" });
+    if (linesArr[1]) tspanEl(n.x, boxY + 73, linesArr[1], s, { fill: "#8b909e", "font-size": 10.5, "text-anchor": "middle" });
+  }
+  /* 范式分界 */
+  el("line", { x1: 810, y1: 110, x2: 810, y2: 350, stroke: "#00d4aa", "stroke-width": 1.5, "stroke-dasharray": "6 4", opacity: 0.5 }, s);
+  tspanEl(810, 100, "范式分界", s, { fill: "#00d4aa", "font-size": 11, "text-anchor": "middle", "font-weight": 700 });
+}
+function m1DrawDiff() {
+  var diff = document.getElementById("m1diff");
+  clearNode(diff);
+  var rows = [
+    ["建模空间", "离散符号空间", "连续物理时空空间"],
+    ["预测目标", "下一个token", "下一个世界状态"],
+    ["约束来源", "训练语料统计", "物理定律与因果"],
+    ["时间表示", "无显式时间", "显式时序连续性"],
+    ["可推演性", "弱（统计接龙）", "强（可滚动预测）"],
+    ["可规划性", "无", "支持长程规划"],
+    ["典型代表", "GPT/BERT/LLaMA", "悟界/Sora/Genie"]
+  ];
+  var html = '<table class="cmp"><thead><tr><th>维度</th><th>NTP 下一词预测</th><th>NSP 下一状态预测</th></tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    html += "<tr><td>" + rows[i][0] + "</td><td>" + rows[i][1] + "</td><td><code>" + rows[i][2] + "</code></td></tr>";
+  }
+  html += "</tbody></table>";
+  diff.innerHTML = html;
+
+  var note = document.getElementById("m1note");
+  note.innerHTML = '<b>范式意义：</b>NSP让AI不再只是"会说"，而是"懂世界"。模型在预测下一状态时必须内化<code>重力、碰撞、因果关系</code>等物理规律，从而获得<b>想象未来</b>与<b>规划行动</b>的能力——这是迈向具身智能与物理世界认知的关键一步。';
+}
+
+/* ============================================================ */
+/* M2 4D统一建模 */
+/* ============================================================ */
+var M2 = { t: 0, view: "spacetime", running: true };
+function m2Draw() {
+  var sec = document.getElementById("m2");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M2 · 4D UNIFIED MODELING</div>' +
+    '<h1>时空4D统一建模与多模态融合<span class="badge new">时空连续</span></h1>' +
+    '<p>NSP范式要求模型在4D时空（3D空间+1D时间）中统一建模世界。世界模型将视觉、触觉、本体感受等多模态信号融合为统一的时空状态表示，捕捉物体在三维空间中的演化与时序连续性，从而理解物理世界的动态结构。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="ctrl"><label>时间步 t</label><span class="val" id="m2tV">0</span>' +
+    '<input type="range" id="m2t" min="0" max="100" value="0"></div>' +
+    '<div class="seg" id="m2seg">' +
+    '<button class="on" data-v="spacetime">4D时空网格</button>' +
+    '<button data-v="multimodal">多模态融合</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>4D时空可视化</h3><div id="m2viz"></div>' +
+    '<div class="legend"><span><i style="background:#00d4aa"></i>空间维度(x,y,z)</span>' +
+    '<span><i style="background:#ffb454"></i>时间维度 t</span></div></div>' +
+    '<div class="card col-4"><h3>建模要素</h3><div id="m2stats" class="stat-row"></div>' +
+    '<div class="note" id="m2note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m2t").addEventListener("input", function () {
+    M2.t = parseInt(this.value, 10);
+    var tv = document.getElementById("m2tV");
+    setStatText(tv, M2.t);
+    if (M2.view === "spacetime") m2DrawSpacetime();
+  });
+  var seg = document.getElementById("m2seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m2View(this.dataset.v);
+    });
+  }
+  m2View("spacetime");
+}
+function m2View(v) {
+  M2.view = v;
+  if (v === "spacetime") m2DrawSpacetime();
+  else m2DrawMultimodal();
+  m2DrawStats();
+}
+function m2DrawSpacetime() {
+  var host = document.getElementById("m2viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m2aAmber", "#ffb454");
+
+  tspanEl(W / 2, 30, "4D 时空网格：3D空间 × 时间", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 绘制多个时间帧的3D立方体（等距投影） */
+  var frames = 5;
+  var baseX = 80, baseY = 320;
+  var cubeSize = 60;
+  var spacing = 130;
+  var tNorm = M2.t / 100;
+
+  for (var fi = 0; fi < frames; fi++) {
+    var ft = fi / (frames - 1);
+    var ox = baseX + fi * spacing;
+    var oy = baseY - fi * 28;
+    var active = (Math.abs(ft - tNorm) < 0.12);
+    var op = active ? 1.0 : 0.4;
+    var col = active ? "#00d4aa" : "#2c3450";
+
+    /* 等距立方体 */
+    var dx = cubeSize, dy = cubeSize * 0.5, dz = cubeSize * 0.7;
+    /* 后面 */
+    el("polygon", { points: (ox + dz) + "," + (oy - dz) + " " + (ox + dx + dz) + "," + (oy - dz) + " " + (ox + dx + dz) + "," + (oy + dy - dz) + " " + (ox + dz) + "," + (oy + dy - dz), fill: "#101820", stroke: col, "stroke-width": 1.2, "stroke-opacity": op }, s);
+    /* 顶面 */
+    el("polygon", { points: ox + "," + oy + " " + (ox + dx) + "," + oy + " " + (ox + dx + dz) + "," + (oy - dz) + " " + (ox + dz) + "," + (oy - dz), fill: active ? "rgba(0,212,170,0.18)" : "#141a26", stroke: col, "stroke-width": 1.2, "stroke-opacity": op }, s);
+    /* 右面 */
+    el("polygon", { points: (ox + dx) + "," + oy + " " + (ox + dx + dz) + "," + (oy - dz) + " " + (ox + dx + dz) + "," + (oy + dy - dz) + " " + (ox + dx) + "," + (oy + dy), fill: active ? "rgba(0,212,170,0.1)" : "#101218", stroke: col, "stroke-width": 1.2, "stroke-opacity": op }, s);
+    /* 前面 */
+    el("polygon", { points: ox + "," + oy + " " + (ox + dx) + "," + oy + " " + (ox + dx) + "," + (oy + dy) + " " + ox + "," + (oy + dy), fill: "none", stroke: col, "stroke-width": 1.2, "stroke-opacity": op }, s);
+
+    /* 网格点（3D采样点） */
+    var pts3d = [[0.25,0.25],[0.5,0.25],[0.75,0.25],[0.25,0.5],[0.5,0.5],[0.75,0.5],[0.25,0.75],[0.5,0.75],[0.75,0.75]];
+    for (var pi = 0; pi < pts3d.length; pi++) {
+      var px = ox + pts3d[pi][0] * dx;
+      var py = oy + pts3d[pi][1] * dy;
+      el("circle", { cx: px, cy: py, r: active ? 2.5 : 1.5, fill: col, "fill-opacity": op }, s);
+    }
+
+    /* 移动物体：在帧内位置随时间变化 */
+    var objT = (ft + tNorm) % 1;
+    var objX = ox + objT * dx;
+    var objY = oy + (0.2 + 0.3 * Math.sin(objT * Math.PI * 2)) * dy;
+    el("circle", { cx: objX, cy: objY, r: active ? 5 : 3, fill: "#ffb454", "fill-opacity": op }, s);
+
+    tspanEl(ox + dx / 2, oy + dy + 18, "t=" + fi, s, { fill: active ? "#00d4aa" : "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-weight": active ? 700 : 400 });
+  }
+
+  /* 时间轴箭头 */
+  el("line", { x1: 60, y1: 410, x2: W - 60, y2: 410, stroke: "#ffb454", "stroke-width": 2, "marker-end": "url(#m2aAmber)" }, s);
+  tspanEl(W / 2, 430, "时间维度 →", s, { fill: "#ffb454", "font-size": 12, "text-anchor": "middle", "font-weight": 600 });
+
+  /* 当前时间指示 */
+  var curX = baseX + tNorm * (frames - 1) * spacing;
+  var curY = baseY - tNorm * (frames - 1) * 28;
+  el("line", { x1: curX + 30, y1: curY + 30, x2: curX + 30, y2: 408, stroke: "#00d4aa", "stroke-width": 1.5, "stroke-dasharray": "3 3", opacity: 0.7 }, s);
+}
+function m2DrawMultimodal() {
+  var host = document.getElementById("m2viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m2aTeal", "#00d4aa");
+
+  tspanEl(W / 2, 30, "多模态融合 → 统一时空状态表示", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var mods = [
+    { x: 60, y: 90, t: "视觉", d: "RGB/深度/光流", c: "#4ea8ff", icon: "eye" },
+    { x: 60, y: 200, t: "触觉", d: "力/压力/纹理", c: "#ffb454", icon: "hand" },
+    { x: 60, y: 310, t: "本体感受", d: "关节角/速度", c: "#9d7aff", icon: "robot" }
+  ];
+  for (var i = 0; i < mods.length; i++) {
+    var m = mods[i];
+    el("rect", { x: m.x, y: m.y, width: 150, height: 80, fill: "#181b25", stroke: m.c, "stroke-width": 1.5, rx: 10 }, s);
+    el("rect", { x: m.x, y: m.y, width: 150, height: 24, fill: m.c, "fill-opacity": 0.15, rx: 10 }, s);
+    tspanEl(m.x + 75, m.y + 17, m.t, s, { fill: m.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+    tspanEl(m.x + 75, m.y + 48, m.d, s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle" });
+    /* 编码特征流 */
+    el("line", { x1: m.x + 150, y1: m.y + 40, x2: 300, y2: 220, stroke: m.c, "stroke-width": 1.5, "stroke-opacity": 0.6, "marker-end": "url(#m2aTeal)" }, s);
+    /* 特征向量小条 */
+    for (var bi = 0; bi < 4; bi++) {
+      el("rect", { x: m.x + 200, y: m.y + 20 + bi * 12, width: 20 + Math.random() * 60, height: 6, fill: m.c, "fill-opacity": 0.4, rx: 2 }, s);
+    }
+  }
+
+  /* 融合核心 */
+  var cx = 360, cy = 220;
+  el("circle", { cx: cx, cy: cy, r: 60, fill: "rgba(0,212,170,0.1)", stroke: "#00d4aa", "stroke-width": 2 }, s);
+  el("circle", { cx: cx, cy: cy, r: 45, fill: "rgba(0,212,170,0.06)", stroke: "#00d4aa", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, s);
+  tspanEl(cx, cy - 6, "时空状态", s, { fill: "#00d4aa", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(cx, cy + 14, "s(x,y,z,t)", s, { fill: "#00d4aa", "font-size": 11, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 输出：4D状态张量 */
+  el("line", { x1: cx + 60, y1: cy, x2: 520, y2: cy, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m2aTeal)" }, s);
+  el("rect", { x: 540, y: 150, width: 180, height: 140, fill: "#0f1a18", stroke: "#00d4aa", "stroke-width": 1.5, rx: 8 }, s);
+  tspanEl(630, 172, "4D 状态张量", s, { fill: "#00d4aa", "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+  /* 张量网格 */
+  for (var gi = 0; gi < 4; gi++) {
+    for (var gj = 0; gj < 4; gj++) {
+      for (var gk = 0; gk < 3; gk++) {
+        var op2 = 0.2 + Math.random() * 0.6;
+        el("rect", { x: 555 + gi * 14 + gk * 4, y: 190 + gj * 14 + gk * 4, width: 10, height: 10, fill: "#00d4aa", "fill-opacity": op2, rx: 2 }, s);
+      }
+    }
+  }
+  tspanEl(630, 318, "[B, T, H, W, D]", s, { fill: "#8b909e", "font-size": 10.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  tspanEl(W / 2, 410, "多模态编码器对齐到统一时空坐标系，实现跨模态因果推理", s, { fill: "#5a5f6e", "font-size": 11.5, "text-anchor": "middle", "font-style": "italic" });
+}
+function m2DrawStats() {
+  var stats = document.getElementById("m2stats");
+  clearNode(stats);
+  var items = [
+    { k: "空间维度", v: "3D", c: "" },
+    { k: "时间维度", v: "1D", c: "amber" },
+    { k: "模态数", v: "3+", c: "violet" },
+    { k: "状态连续", v: "是", c: "blue" }
+  ];
+  for (var i = 0; i < items.length; i++) {
+    var d = document.createElement("div");
+    d.className = "stat";
+    d.innerHTML = '<div class="k">' + items[i].k + '</div><div class="v ' + items[i].c + '">' + items[i].v + '</div>';
+    stats.appendChild(d);
+  }
+  var note = document.getElementById("m2note");
+  note.innerHTML = '<b>4D统一建模：</b>世界模型将<code>(x,y,z,t)</code>作为基本坐标，所有感知信号被编码为统一张量。视觉提供外观与几何，触觉提供接触力学，本体感受提供自体运动——三者融合后模型可在<b>同一时空框架</b>下推演物理演化。';
+}
+
+/* ============================================================ */
+/* M3 世界模型架构 */
+/* ============================================================ */
+var M3 = { view: "arch" };
+function m3Draw() {
+  var sec = document.getElementById("m3");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M3 · WORLD MODEL ARCHITECTURE</div>' +
+    '<h1>世界模型内部架构与数据流<span class="badge core">核心架构</span></h1>' +
+    '<p>世界模型是一个可"想象"未来的内部仿真器。其核心由感知编码器（将观测压缩为潜在状态）、状态转移模块（预测下一状态）、奖励预测器（评估状态价值）与动作解码器（输出动作）组成，构成一个闭环的"感知-预测-规划-行动"系统。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m3seg">' +
+    '<button class="on" data-v="arch">架构流程图</button>' +
+    '<button data-v="dataflow">数据流细节</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>世界模型架构</h3><div id="m3viz"></div></div>' +
+    '<div class="card col-7"><h3>模块职责</h3><div id="m3comp"></div></div>' +
+    '<div class="card col-5"><h3>设计要点</h3><div id="m3note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m3seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m3View(this.dataset.v);
+    });
+  }
+  m3View("arch");
+}
+function m3View(v) {
+  M3.view = v;
+  if (v === "arch") m3DrawArch();
+  else m3DrawDataflow();
+  m3DrawComp();
+}
+function m3DrawArch() {
+  var host = document.getElementById("m3viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m3aTeal", "#00d4aa");
+  arrowDef(s, "m3aBlue", "#4ea8ff");
+  arrowDef(s, "m3aAmber", "#ffb454");
+  arrowDef(s, "m3aRose", "#ff6b81");
+
+  tspanEl(W / 2, 32, "世界模型闭环架构", s, { fill: "#e6e8ee", "font-size": 15, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 输入观测 */
+  el("rect", { x: 40, y: 170, width: 110, height: 90, fill: "#181b25", stroke: "#4ea8ff", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(95, 200, "观测 o_t", s, { fill: "#4ea8ff", "font-size": 12.5, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(95, 222, "视觉/触觉/", s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+  tspanEl(95, 236, "本体感受", s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+
+  /* 感知编码器 */
+  var enc = { x: 200, y: 170, w: 130, h: 90, t: "感知编码器", c: "#4ea8ff", d: "Encoder" };
+  el("rect", { x: enc.x, y: enc.y, width: enc.w, height: enc.h, fill: "#141926", stroke: enc.c, "stroke-width": 1.8, rx: 10 }, s);
+  tspanEl(enc.x + enc.w / 2, enc.y + 28, enc.t, s, { fill: enc.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(enc.x + enc.w / 2, enc.y + 48, enc.d, s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+  tspanEl(enc.x + enc.w / 2, enc.y + 70, "o_t → z_t", s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 潜在状态 */
+  el("circle", { cx: 420, cy: 215, r: 42, fill: "rgba(0,212,170,0.1)", stroke: "#00d4aa", "stroke-width": 2, "stroke-dasharray": "4 3" }, s);
+  tspanEl(420, 210, "潜在状态", s, { fill: "#00d4aa", "font-size": 11.5, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(420, 228, "z_t", s, { fill: "#00d4aa", "font-size": 12, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 状态转移 */
+  var trans = { x: 510, y: 170, w: 130, h: 90, t: "状态转移", c: "#00d4aa", d: "Transition" };
+  el("rect", { x: trans.x, y: trans.y, width: trans.w, height: trans.h, fill: "#0f1a18", stroke: trans.c, "stroke-width": 1.8, rx: 10 }, s);
+  tspanEl(trans.x + trans.w / 2, trans.y + 28, trans.t, s, { fill: trans.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(trans.x + trans.w / 2, trans.y + 48, trans.d, s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+  tspanEl(trans.x + trans.w / 2, trans.y + 70, "z_t,a_t→z_{t+1}", s, { fill: "#5a5f6e", "font-size": 9.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 奖励预测 */
+  var rew = { x: 510, y: 50, w: 130, h: 70, t: "奖励预测", c: "#ffb454", d: "Reward" };
+  el("rect", { x: rew.x, y: rew.y, width: rew.w, height: rew.h, fill: "#1a1610", stroke: rew.c, "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(rew.x + rew.w / 2, rew.y + 28, rew.t, s, { fill: rew.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(rew.x + rew.w / 2, rew.y + 50, "z_t → r_t", s, { fill: "#c5c8d2", "font-size": 10.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 动作解码 */
+  var act = { x: 710, y: 170, w: 130, h: 90, t: "动作解码", c: "#ff6b81", d: "Action Decoder" };
+  el("rect", { x: act.x, y: act.y, width: act.w, height: act.h, fill: "#1a1014", stroke: act.c, "stroke-width": 1.8, rx: 10 }, s);
+  tspanEl(act.x + act.w / 2, act.y + 28, act.t, s, { fill: act.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(act.x + act.w / 2, act.y + 48, act.d, s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+  tspanEl(act.x + act.w / 2, act.y + 70, "z_t → a_t", s, { fill: "#5a5f6e", "font-size": 10.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 想象轨迹 */
+  el("rect", { x: 900, y: 170, width: 230, height: 90, fill: "#0f1a18", stroke: "#9d7aff", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(1015, 198, "想象轨迹 Rollout", s, { fill: "#9d7aff", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  for (var ri = 0; ri < 5; ri++) {
+    el("circle", { cx: 930 + ri * 45, cy: 230, r: 6, fill: "#9d7aff", "fill-opacity": 0.3 + ri * 0.15 }, s);
+    if (ri < 4) el("line", { x1: 936 + ri * 45, y1: 230, x2: 924 + (ri + 1) * 45, y2: 230, stroke: "#9d7aff", "stroke-width": 1, "stroke-opacity": 0.5 }, s);
+  }
+  tspanEl(1015, 250, "z_{t+1}...z_{t+k}", s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+
+  /* 环境反馈 */
+  el("rect", { x: 40, y: 320, width: 1090, height: 50, fill: "#12141c", stroke: "#3a3f50", "stroke-width": 1, rx: 8 }, s);
+  tspanEl(585, 350, "物理环境 / 仿真器  ——  真实状态演化与反馈", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", "font-style": "italic" });
+
+  /* 连接箭头 */
+  el("line", { x1: 150, y1: 215, x2: 198, y2: 215, stroke: "#4ea8ff", "stroke-width": 2, "marker-end": "url(#m3aBlue)" }, s);
+  el("line", { x1: 330, y1: 215, x2: 378, y2: 215, stroke: "#4ea8ff", "stroke-width": 2, "marker-end": "url(#m3aTeal)" }, s);
+  el("line", { x1: 462, y1: 215, x2: 508, y2: 215, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m3aTeal)" }, s);
+  el("line", { x1: 575, y1: 170, x2: 575, y2: 122, stroke: "#ffb454", "stroke-width": 1.5, "marker-end": "url(#m3aAmber)" }, s);
+  el("line", { x1: 640, y1: 215, x2: 708, y2: 215, stroke: "#ff6b81", "stroke-width": 2, "marker-end": "url(#m3aRose)" }, s);
+  el("line", { x1: 840, y1: 215, x2: 898, y2: 215, stroke: "#9d7aff", "stroke-width": 2, "marker-end": "url(#m3aTeal)" }, s);
+  /* 反馈回路 */
+  el("path", { d: "M 775 260 Q 775 320 585 320 L 95 320 Q 95 280 95 262", fill: "none", stroke: "#5a5f6e", "stroke-width": 1.5, "stroke-dasharray": "4 4", "marker-end": "url(#m3aTeal)" }, s);
+  tspanEl(430, 312, "动作作用于环境", s, { fill: "#5a5f6e", "font-size": 10.5 });
+}
+function m3DrawDataflow() {
+  var host = document.getElementById("m3viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m3aTeal2", "#00d4aa");
+
+  tspanEl(W / 2, 32, "数据流：从观测到想象轨迹", s, { fill: "#e6e8ee", "font-size": 15, "font-weight": 700, "text-anchor": "middle" });
+
+  var steps = [
+    { x: 50, t: "1.多模态观测", d: "RGB图像 + 力觉 + 关节角", c: "#4ea8ff" },
+    { x: 250, t: "2.编码压缩", d: "编码为低维潜在向量 z_t", c: "#9d7aff" },
+    { x: 450, t: "3.状态转移", d: "z_{t+1}=T(z_t,a_t)", c: "#00d4aa" },
+    { x: 650, t: "4.奖励评估", d: "r_t=R(z_t,a_t)", c: "#ffb454" },
+    { x: 850, t: "5.动作规划", d: "argmax Σ r (想象搜索)", c: "#ff6b81" },
+    { x: 1020, t: "6.执行/想象", d: "输出动作或rollout", c: "#00d4aa" }
+  ];
+  for (var i = 0; i < steps.length; i++) {
+    var st = steps[i];
+    el("rect", { x: st.x, y: 90, width: 150, height: 80, fill: "#181b25", stroke: st.c, "stroke-width": 1.5, rx: 10 }, s);
+    tspanEl(st.x + 75, 116, st.t, s, { fill: st.c, "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+    /* 多行描述 */
+    var dl = st.d.split(" ");
+    var mid = Math.ceil(dl.length / 2);
+    tspanEl(st.x + 75, 138, dl.slice(0, mid).join(" "), s, { fill: "#c5c8d2", "font-size": 10, "text-anchor": "middle" });
+    tspanEl(st.x + 75, 154, dl.slice(mid).join(" "), s, { fill: "#c5c8d2", "font-size": 10, "text-anchor": "middle" });
+    if (i < steps.length - 1) {
+      el("line", { x1: st.x + 150, y1: 130, x2: st.x + 198, y2: 130, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m3aTeal2)" }, s);
+    }
+  }
+
+  /* 张量形状示意 */
+  var shapes = [
+    { x: 75, t: "[B,3,H,W]", c: "#4ea8ff" },
+    { x: 275, t: "[B,D_z]", c: "#9d7aff" },
+    { x: 475, t: "[B,D_z]", c: "#00d4aa" },
+    { x: 675, t: "[B,1]", c: "#ffb454" },
+    { x: 875, t: "[B,D_a]", c: "#ff6b81" },
+    { x: 1045, t: "[B,T,D_z]", c: "#00d4aa" }
+  ];
+  for (var si = 0; si < shapes.length; si++) {
+    tspanEl(shapes[si].x, 195, shapes[si].t, s, { fill: shapes[si].c, "font-size": 10.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+  }
+
+  /* 想象rollout展开 */
+  tspanEl(W / 2, 240, "想象轨迹展开（latent rollout）", s, { fill: "#e6e8ee", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  var rollY = 290;
+  for (var ri = 0; ri <= 6; ri++) {
+    var rx = 120 + ri * 150;
+    el("circle", { cx: rx, cy: rollY, r: 16, fill: "rgba(0,212,170,0.12)", stroke: "#00d4aa", "stroke-width": 1.5 }, s);
+    tspanEl(rx, rollY + 5, "z_{t+" + ri + "}", s, { fill: "#00d4aa", "font-size": 9.5, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+    if (ri < 6) el("line", { x1: rx + 16, y1: rollY, x2: rx + 134, y2: rollY, stroke: "#00d4aa", "stroke-width": 1.5, "stroke-dasharray": "3 3", "marker-end": "url(#m3aTeal2)" }, s);
+    /* 奖励 */
+    el("text", { x: rx, y: rollY + 40, fill: "#ffb454", "font-size": 10, "text-anchor": "middle", "font-family": "Consolas,monospace" }, s).textContent = "r=" + (0.8 - ri * 0.08).toFixed(2);
+  }
+  el("text", { x: 1110, y: rollY + 5, fill: "#ffb454", "font-size": 12, "font-weight": 700 }, s).textContent = "规划";
+}
+function m3DrawComp() {
+  var comp = document.getElementById("m3comp");
+  clearNode(comp);
+  var items = [
+    ["感知编码器", "将高维多模态观测压缩为低维潜在状态，去除冗余保留因果相关信息"],
+    ["状态转移", "核心模块：学习物理动力学，在潜在空间预测下一状态，支持长程rollout"],
+    ["奖励预测器", "从状态推断即时/长期奖励，为规划提供价值信号"],
+    ["动作解码器", "将潜在规划解码为可执行动作，连接想象与现实"],
+    ["想象rollout", "在潜在空间快速展开多条未来轨迹，无需真实环境交互"]
+  ];
+  var html = '<div class="kvlist">';
+  for (var i = 0; i < items.length; i++) {
+    html += '<div class="row"><span class="k2" style="color:#00d4aa;font-weight:600">' + items[i][0] + '</span><span class="v2">' + items[i][1] + '</span></div>';
+  }
+  html += "</div>";
+  comp.innerHTML = html;
+
+  var note = document.getElementById("m3note");
+  note.innerHTML = '<b>设计要点：</b>世界模型在<code>潜在空间</code>运行，使rollout比真实仿真快几个数量级。状态转移模块是NSP的载体——它预测的正是<code>z_{t+1}</code>即"世界的下一个状态"。奖励预测让模型能<b>在脑中评估</b>行动后果，从而实现规划。';
+}
+
+/* ============================================================ */
+/* M4 因果推理能力 */
+/* ============================================================ */
+var M4 = { view: "graph", focus: "do" };
+function m4Draw() {
+  var sec = document.getElementById("m4");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M4 · CAUSAL REASONING</div>' +
+    '<h1>NSP赋予的因果推理能力<span class="badge hot">因果理解</span></h1>' +
+    '<p>通过预测下一物理状态，世界模型被迫内化因果结构。它不仅能观察"相关"，更能理解"因果"——支持干预（do-演算）、反事实推理与因果图推断。这让AI从被动模式匹配跃升为主动的因果推理者。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m4seg">' +
+    '<button class="on" data-v="graph">因果图交互</button>' +
+    '<button data-v="intervene">干预与反事实</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>因果推理可视化</h3><div id="m4viz"></div></div>' +
+    '<div class="card col-4"><h3>推理层级</h3><div id="m4stats" class="stat-row"></div>' +
+    '<div class="note" id="m4note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m4seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m4View(this.dataset.v);
+    });
+  }
+  m4View("graph");
+}
+function m4View(v) {
+  M4.view = v;
+  if (v === "graph") m4DrawGraph();
+  else m4DrawIntervene();
+  m4DrawStats();
+}
+function m4DrawGraph() {
+  var host = document.getElementById("m4viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m4aTeal", "#00d4aa");
+  arrowDef(s, "m4aAmber", "#ffb454");
+  arrowDef(s, "m4aRose", "#ff6b81");
+
+  tspanEl(W / 2, 30, "因果有向无环图（点击节点模拟干预）", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 因果节点：洒水场景 */
+  var nodes = [
+    { id: "season", t: "季节", x: 380, y: 80, c: "#9d7aff", d: "隐变量" },
+    { id: "rain", t: "下雨", x: 220, y: 200, c: "#4ea8ff", d: "原因" },
+    { id: "sprink", t: "洒水器", x: 540, y: 200, c: "#4ea8ff", d: "原因" },
+    { id: "wet", t: "地面湿", x: 300, y: 330, c: "#00d4aa", d: "结果" },
+    { id: "slip", t: "路滑", x: 460, y: 330, c: "#ffb454", d: "结果" }
+  ];
+  var edges = [
+    ["season", "rain"], ["season", "sprink"],
+    ["rain", "wet"], ["sprink", "wet"],
+    ["wet", "slip"]
+  ];
+  var nodeMap = {};
+  for (var i = 0; i < nodes.length; i++) nodeMap[nodes[i].id] = nodes[i];
+
+  /* 边 */
+  for (var ei = 0; ei < edges.length; ei++) {
+    var a = nodeMap[edges[ei][0]], b = nodeMap[edges[ei][1]];
+    el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#3a4a55", "stroke-width": 2, "marker-end": "url(#m4aTeal)" }, s);
+  }
+
+  /* 节点 */
+  for (var ni = 0; ni < nodes.length; ni++) {
+    var n = nodes[ni];
+    var g = el("g", { class: "m4node", "data-id": n.id, cursor: "pointer" }, s);
+    el("circle", { cx: n.x, cy: n.y, r: 34, fill: "#181b25", stroke: n.c, "stroke-width": 2.5 }, g);
+    el("circle", { cx: n.x, cy: n.y, r: 40, fill: "none", stroke: n.c, "stroke-width": 1, "stroke-opacity": 0.3 }, g);
+    tspanEl(n.x, n.y + 5, n.t, s, { fill: n.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle", "pointer-events": "none" });
+    tspanEl(n.x, n.y - 48, n.d, s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle", "pointer-events": "none" });
+    /* 点击交互 */
+    (function (node) {
+      var hit = el("circle", { cx: node.x, cy: node.y, r: 38, fill: "transparent" }, s);
+      hit.addEventListener("click", function () { m4Intervene(node.id); });
+    })(n);
+  }
+
+  tspanEl(W / 2, 415, "点击任意原因节点 → 执行 do(干预) 观察下游因果效应", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+
+  M4._s = s;
+  M4._nodes = nodes;
+  M4._edges = edges;
+  M4._nodeMap = nodeMap;
+}
+function m4Intervene(id) {
+  var s = M4._s;
+  var nodeMap = M4._nodeMap;
+  /* 清除旧高亮 */
+  var olds = s.querySelectorAll(".m4hl");
+  for (var q = 0; q < olds.length; q++) olds[q].parentNode.removeChild(olds[q]);
+  /* 找下游 */
+  var downstream = {};
+  function reach(cur) {
+    for (var ei = 0; ei < M4._edges.length; ei++) {
+      if (M4._edges[ei][0] === cur && !downstream[M4._edges[ei][1]]) {
+        downstream[M4._edges[ei][1]] = true;
+        reach(M4._edges[ei][1]);
+      }
+    }
+  }
+  reach(id);
+  /* 高亮下游节点 */
+  for (var nid in downstream) {
+    if (downstream.hasOwnProperty(nid)) {
+      var n = nodeMap[nid];
+      el("circle", { cx: n.x, cy: n.y, r: 46, fill: "none", stroke: "#ff6b81", "stroke-width": 2, class: "m4hl" }, s);
+    }
+  }
+  /* 干预标签 */
+  var src = nodeMap[id];
+  el("rect", { x: src.x - 30, y: src.y - 78, width: 60, height: 20, fill: "#ff6b81", rx: 4, class: "m4hl" }, s);
+  el("text", { x: src.x, y: src.y - 64, fill: "#0a0b0f", "font-size": 11, "font-weight": 700, "text-anchor": "middle", class: "m4hl" }, s).textContent = "do()";
+}
+function m4DrawIntervene() {
+  var host = document.getElementById("m4viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m4aRose2", "#ff6b81");
+
+  tspanEl(W / 2, 30, "干预 vs 观察 vs 反事实", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var cols = [
+    { x: 130, t: "观察 P(Y|X)", c: "#4ea8ff", d: "X与Y相关\n但可能有混杂", ex: "看到洒水器开 → 地面湿" },
+    { x: 380, t: "干预 P(Y|do(X))", c: "#ff6b81", d: "切断后门路径\n得到真正因果", ex: "强制开洒水器 → 地面湿" },
+    { x: 630, t: "反事实 Y_{X=x}(u)", c: "#9d7aff", d: "假设过去不同\n会怎样", ex: "若没开洒水器 地面还会湿吗" }
+  ];
+  for (var i = 0; i < cols.length; i++) {
+    var c = cols[i];
+    el("rect", { x: c.x - 105, y: 70, width: 210, height: 320, fill: "#14141c", stroke: c.c, "stroke-width": 1.5, rx: 10 }, s);
+    el("rect", { x: c.x - 105, y: 70, width: 210, height: 40, fill: c.c, "fill-opacity": 0.15, rx: 10 }, s);
+    tspanEl(c.x, 96, c.t, s, { fill: c.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+    /* 描述 */
+    var dl = c.d.split("\n");
+    tspanEl(c.x, 134, dl[0], s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle" });
+    tspanEl(c.x, 152, dl[1], s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle" });
+    /* 概率条 */
+    var probs = [0.8, 0.85, 0.3];
+    el("rect", { x: c.x - 60, y: 180, width: 120, height: 14, fill: "#181b25", rx: 3 }, s);
+    el("rect", { x: c.x - 60, y: 180, width: 120 * probs[i], height: 14, fill: c.c, "fill-opacity": 0.7, rx: 3 }, s);
+    tspanEl(c.x, 214, "P(湿)=" + probs[i].toFixed(2), s, { fill: c.c, "font-size": 11, "text-anchor": "middle", "font-family": "Consolas,monospace" });
+    /* 例子 */
+    var el2 = c.ex.split("→");
+    tspanEl(c.x, 250, "示例:", s, { fill: "#8b909e", "font-size": 10.5, "text-anchor": "middle" });
+    tspanEl(c.x, 272, el2[0] ? el2[0].trim() : "", s, { fill: "#c5c8d2", "font-size": 10.5, "text-anchor": "middle" });
+    tspanEl(c.x, 290, "↓", s, { fill: c.c, "font-size": 12, "text-anchor": "middle" });
+    tspanEl(c.x, 312, el2[1] ? el2[1].trim() : "", s, { fill: "#c5c8d2", "font-size": 10.5, "text-anchor": "middle" });
+    tspanEl(c.x, 360, "层级 " + (i + 1), s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+    if (i < cols.length - 1) {
+      el("line", { x1: c.x + 105, y1: 230, x2: c.x + 145, y2: 230, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m4aRose2)" }, s);
+    }
+  }
+  tspanEl(W / 2, 410, "Judea Pearl因果阶梯：关联 → 干预 → 反事实，NSP世界模型可达最高层", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m4DrawStats() {
+  var stats = document.getElementById("m4stats");
+  clearNode(stats);
+  var items = [
+    { k: "L1 关联", v: "观察", c: "blue" },
+    { k: "L2 干预", v: "do()", c: "rose" },
+    { k: "L3 反事实", v: "想象", c: "violet" }
+  ];
+  for (var i = 0; i < items.length; i++) {
+    var d = document.createElement("div");
+    d.className = "stat";
+    d.innerHTML = '<div class="k">' + items[i].k + '</div><div class="v ' + items[i].c + '">' + items[i].v + '</div>';
+    stats.appendChild(d);
+  }
+  var note = document.getElementById("m4note");
+  note.innerHTML = '<b>因果推理：</b>NTP模型只能学到<code>P(Y|X)</code>的统计关联；而NSP世界模型通过模拟物理干预，能估计<code>P(Y|do(X))</code>甚至反事实。这是从"看见"到"理解为什么"的飞跃，为<b>科学发现与安全规划</b>奠基。';
+}
+
+/* ============================================================ */
+/* M5 物理规则学习 */
+/* ============================================================ */
+var M5 = { view: "gravity", t: 0 };
+function m5Draw() {
+  var sec = document.getElementById("m5");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M5 · PHYSICS RULE LEARNING</div>' +
+    '<h1>从数据中学习物理规律<span class="badge new">物理直觉</span></h1>' +
+    '<p>NSP世界模型在预测下一状态时，自发学会了重力、碰撞、流体、刚体等物理定律——无需显式编程。这些"物理直觉"让模型能像人类婴儿一样理解物体如何运动、碰撞与形变。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m5seg">' +
+    '<button class="on" data-v="gravity">重力</button>' +
+    '<button data-v="collision">碰撞</button>' +
+    '<button data-v="fluid">流体</button>' +
+    '<button data-v="rigid">刚体</button></div>' +
+    '<div class="ctrl"><label>时间步</label><span class="val" id="m5tV">0</span>' +
+    '<input type="range" id="m5t" min="0" max="100" value="0"></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-8"><h3>物理模拟可视化</h3><div id="m5viz"></div></div>' +
+    '<div class="card col-4"><h3>学到的规律</h3><div id="m5stats" class="stat-row"></div>' +
+    '<div class="note" id="m5note"></div></div>';
+  sec.appendChild(grid);
+
+  document.getElementById("m5t").addEventListener("input", function () {
+    M5.t = parseInt(this.value, 10);
+    var tv = document.getElementById("m5tV");
+    setStatText(tv, M5.t);
+    m5Redraw();
+  });
+  var seg = document.getElementById("m5seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      M5.view = this.dataset.v;
+      m5Redraw();
+      m5DrawStats();
+    });
+  }
+  m5Redraw();
+  m5DrawStats();
+}
+function m5View(v) { M5.view = v; m5Redraw(); m5DrawStats(); }
+function m5Redraw() {
+  if (M5.view === "gravity") m5DrawGravity();
+  else if (M5.view === "collision") m5DrawCollision();
+  else if (M5.view === "fluid") m5DrawFluid();
+  else m5DrawRigid();
+}
+function m5DrawGravity() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "重力：自由落体与抛体运动", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 地面 */
+  el("line", { x1: 40, y1: 400, x2: W - 40, y2: 400, stroke: "#3a4a44", "stroke-width": 2 }, s);
+  for (var gi = 0; gi < 30; gi++) {
+    el("line", { x1: 40 + gi * 23, y1: 400, x2: 30 + gi * 23, y2: 410, stroke: "#3a4a44", "stroke-width": 1 }, s);
+  }
+
+  var t = M5.t / 100;
+  /* 多个物体不同初始 */
+  var objs = [
+    { x0: 120, y0: 80, vx: 0, c: "#00d4aa", r: 14, t: "自由落体" },
+    { x0: 300, y0: 60, vx: 90, c: "#4ea8ff", r: 12, t: "平抛" },
+    { x0: 520, y0: 200, vx: -60, c: "#ffb454", r: 10, t: "斜抛" }
+  ];
+  var g = 320;
+  for (var i = 0; i < objs.length; i++) {
+    var o = objs[i];
+    /* 轨迹 */
+    var path = "M ";
+    for (var ti = 0; ti <= 30; ti++) {
+      var tn = ti / 30;
+      var px = o.x0 + o.vx * tn * 2;
+      var py = Math.min(390, o.y0 + 0.5 * g * tn * tn * 2);
+      path += (ti === 0 ? "" : " L ") + px.toFixed(1) + " " + py.toFixed(1);
+    }
+    el("path", { d: path, fill: "none", stroke: o.c, "stroke-width": 1.5, "stroke-opacity": 0.3, "stroke-dasharray": "3 3" }, s);
+    /* 当前位置 */
+    var cx = o.x0 + o.vx * t * 2;
+    var cy = Math.min(390, o.y0 + 0.5 * g * t * t * 2);
+    el("circle", { cx: cx, cy: cy, r: o.r, fill: o.c, "fill-opacity": 0.85, stroke: "#0e1018", "stroke-width": 2 }, s);
+    tspanEl(o.x0 - 8, o.y0 - 14, o.t, s, { fill: o.c, "font-size": 11, "font-weight": 600 });
+  }
+
+  /* 重力箭头 */
+  el("line", { x1: 700, y1: 70, x2: 700, y2: 130, stroke: "#ff6b81", "stroke-width": 2.5, "marker-end": "url(#m4aRose)" }, s);
+  tspanEl(715, 100, "g", s, { fill: "#ff6b81", "font-size": 14, "font-weight": 700, "font-family": "Consolas,monospace" });
+  tspanEl(700, 60, "重力", s, { fill: "#ff6b81", "font-size": 11, "text-anchor": "middle" });
+
+  /* 公式 */
+  tspanEl(60, 50, "y(t) = y₀ + ½gt²", s, { fill: "#00d4aa", "font-size": 13, "font-family": "Consolas,monospace" });
+}
+function m5DrawCollision() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "碰撞：动量守恒与弹性碰撞", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  el("line", { x1: 40, y1: 380, x2: W - 40, y2: 380, stroke: "#3a4a44", "stroke-width": 2 }, s);
+
+  var t = M5.t / 100;
+  /* 两球相向运动 */
+  var m1 = 2, m2 = 1;
+  var v1 = -80, v2 = 120;
+  var x1start = 200, x2start = 560;
+  /* 碰撞时刻 */
+  var collideT = 0.4;
+  var x1, x2, vv1, vv2;
+  if (t < collideT) {
+    x1 = x1start + v1 * t * 2;
+    x2 = x2start + v2 * t * 2;
+    vv1 = v1; vv2 = v2;
+  } else {
+    x1 = x1start + v1 * collideT * 2;
+    x2 = x2start + v2 * collideT * 2;
+    /* 弹性碰撞后速度 */
+    var nv1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+    var nv2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+    x1 = x1 + nv1 * (t - collideT) * 2;
+    x2 = x2 + nv2 * (t - collideT) * 2;
+    vv1 = nv1; vv2 = nv2;
+  }
+
+  /* 球1 */
+  el("circle", { cx: x1, cy: 330, r: 16 * m1, fill: "#00d4aa", "fill-opacity": 0.85, stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(x1, 335, "m₁", s, { fill: "#0a0b0f", "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+  /* 速度箭头 */
+  el("line", { x1: x1, y1: 330, x2: x1 + vv1 * 0.5, y2: 330, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m4aRose)" }, s);
+  /* 球2 */
+  el("circle", { cx: x2, cy: 340, r: 16 * m2, fill: "#4ea8ff", "fill-opacity": 0.85, stroke: "#0e1018", "stroke-width": 2 }, s);
+  tspanEl(x2, 345, "m₂", s, { fill: "#0a0b0f", "font-size": 11, "font-weight": 700, "text-anchor": "middle" });
+  el("line", { x1: x2, y1: 340, x2: x2 + vv2 * 0.4, y2: 340, stroke: "#4ea8ff", "stroke-width": 2, "marker-end": "url(#m4aRose)" }, s);
+
+  /* 碰撞闪光 */
+  if (Math.abs(t - collideT) < 0.06) {
+    var mid = (x1start + v1 * collideT * 2 + 16 * m1 + x2start + v2 * collideT * 2 - 16 * m2) / 2;
+    el("circle", { cx: mid, cy: 335, r: 30, fill: "none", stroke: "#ffb454", "stroke-width": 2, opacity: 0.8 }, s);
+    el("circle", { cx: mid, cy: 335, r: 20, fill: "#ffb454", "fill-opacity": 0.3 }, s);
+  }
+
+  /* 动量守恒公式 */
+  tspanEl(60, 70, "m₁v₁ + m₂v₂ = m₁v₁' + m₂v₂'", s, { fill: "#00d4aa", "font-size": 13, "font-family": "Consolas,monospace" });
+  tspanEl(60, 92, "动量守恒定律", s, { fill: "#8b909e", "font-size": 11 });
+
+  /* 数据 */
+  tspanEl(500, 70, "碰撞前: P=" + ((m1 * v1 + m2 * v2).toFixed(0)), s, { fill: "#4ea8ff", "font-size": 12, "font-family": "Consolas,monospace" });
+  tspanEl(500, 92, "碰撞后: P=" + ((m1 * vv1 + m2 * vv2).toFixed(0)), s, { fill: "#00d4aa", "font-size": 12, "font-family": "Consolas,monospace" });
+}
+function m5DrawFluid() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "流体：粒子模拟与波浪", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 容器 */
+  el("rect", { x: 80, y: 200, width: 600, height: 180, fill: "none", stroke: "#3a4a55", "stroke-width": 2, rx: 4 }, s);
+
+  var t = M5.t / 100;
+  /* 流体粒子（SPH风格） */
+  var np = 90;
+  for (var i = 0; i < np; i++) {
+    var seed = i * 0.137;
+    var baseX = 90 + (i % 15) * 38 + (seed * 10 % 8);
+    var row = Math.floor(i / 15);
+    var baseY = 360 - row * 16;
+    /* 波动 */
+    var wave = Math.sin(t * Math.PI * 4 + baseX * 0.03) * 12;
+    var px = baseX + wave * 0.4;
+    var py = baseY + wave;
+    /* 落到容器内 */
+    py = Math.min(376, Math.max(210, py));
+    var op = 0.3 + (1 - row / 6) * 0.5;
+    el("circle", { cx: px, cy: py, r: 6, fill: "#4ea8ff", "fill-opacity": op }, s);
+  }
+
+  /* 波面线 */
+  var wavePath = "M ";
+  for (var wx = 90; wx <= 670; wx += 8) {
+    var wy = 210 + Math.sin(t * Math.PI * 4 + wx * 0.03) * 8;
+    wavePath += (wx === 90 ? "" : " L ") + wx + " " + wy.toFixed(1);
+  }
+  el("path", { d: wavePath, fill: "none", stroke: "#4ea8ff", "stroke-width": 2, "stroke-opacity": 0.7 }, s);
+
+  /* 注入流 */
+  if (t < 0.4) {
+    el("rect", { x: 350, y: 60, width: 30, height: 80, fill: "#4ea8ff", "fill-opacity": 0.2 }, s);
+    for (var di = 0; di < 6; di++) {
+      var dy = 80 + di * 18 + (t * 200 % 18);
+      el("circle", { cx: 365 + Math.sin(di) * 4, cy: dy, r: 4, fill: "#4ea8ff", "fill-opacity": 0.7 }, s);
+    }
+  }
+
+  tspanEl(60, 70, "Navier-Stokes 近似（粒子法）", s, { fill: "#00d4aa", "font-size": 13, "font-family": "Consolas,monospace" });
+  tspanEl(60, 92, "模型从视频中学会不可压缩、粘性、表面张力", s, { fill: "#8b909e", "font-size": 11 });
+}
+function m5DrawRigid() {
+  var host = document.getElementById("m5viz");
+  clearNode(host);
+  var W = 760, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "刚体：旋转与稳定堆叠", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  el("line", { x1: 40, y1: 400, x2: W - 40, y2: 400, stroke: "#3a4a44", "stroke-width": 2 }, s);
+
+  var t = M5.t / 100;
+  /* 旋转的积木 */
+  var cx = 380, cy = 300;
+  var angle = t * Math.PI * 2;
+  var blocks = [
+    { w: 80, h: 40, c: "#00d4aa" },
+    { w: 60, h: 60, c: "#4ea8ff" },
+    { w: 100, h: 30, c: "#ffb454" }
+  ];
+  for (var i = 0; i < blocks.length; i++) {
+    var b = blocks[i];
+    var bx = 150 + i * 200;
+    var by = 360 - b.h;
+    var rot = (i === 0) ? angle * 30 : (i === 1 ? Math.sin(t * Math.PI * 2) * 25 : 0);
+    var g = el("g", { transform: "translate(" + (bx + b.w / 2) + " " + (by + b.h / 2) + ") rotate(" + rot + ")" }, s);
+    el("rect", { x: -b.w / 2, y: -b.h / 2, width: b.w, height: b.h, fill: b.c, "fill-opacity": 0.8, stroke: "#0e1018", "stroke-width": 2, rx: 4 }, g);
+    el("line", { x1: -b.w / 2, y1: 0, x2: b.w / 2, y2: 0, stroke: "#0e1018", "stroke-width": 1, "stroke-opacity": 0.4 }, g);
+    el("line", { x1: 0, y1: -b.h / 2, x2: 0, y2: b.h / 2, stroke: "#0e1018", "stroke-width": 1, "stroke-opacity": 0.4 }, g);
+    tspanEl(bx + b.w / 2, by + b.h / 2 + 5, "刚体" + (i + 1), s, { fill: "#0a0b0f", "font-size": 11, "font-weight": 700, "text-anchor": "middle" });
+  }
+
+  /* 堆叠塔 */
+  var tx = 600, ty = 400;
+  for (var si = 0; si < 5; si++) {
+    var sway = Math.sin(t * Math.PI * 2 + si * 0.5) * (si * 1.5);
+    el("rect", { x: tx - 25 + sway, y: ty - (si + 1) * 26, width: 50, height: 24, fill: "#9d7aff", "fill-opacity": 0.7, stroke: "#0e1018", "stroke-width": 1.5, rx: 3 }, s);
+  }
+  tspanEl(tx, ty - 5 * 26 - 16, "稳定堆叠", s, { fill: "#9d7aff", "font-size": 11, "text-anchor": "middle" });
+
+  tspanEl(60, 70, "刚体：6自由度位姿 + 转动惯量", s, { fill: "#00d4aa", "font-size": 13, "font-family": "Consolas,monospace" });
+  tspanEl(60, 92, "模型学会质心、支撑面、力矩平衡", s, { fill: "#8b909e", "font-size": 11 });
+}
+function m5DrawStats() {
+  var stats = document.getElementById("m5stats");
+  clearNode(stats);
+  var data = {
+    gravity: [["加速度", "g", ""], ["守恒量", "能量", "amber"], ["公式", "½gt²", "blue"]],
+    collision: [["守恒量", "动量", ""], ["类型", "弹性", "amber"], ["恢复系数", "e=1", "violet"]],
+    fluid: [["性质", "不可压", ""], ["方法", "SPH", "blue"], ["特征", "粘性", "amber"]],
+    rigid: [["自由度", "6DoF", ""], ["属性", "质心", "violet"], ["平衡", "力矩", "amber"]]
+  };
+  var cur = data[M5.view] || data.gravity;
+  for (var i = 0; i < cur.length; i++) {
+    var d = document.createElement("div");
+    d.className = "stat";
+    d.innerHTML = '<div class="k">' + cur[i][0] + '</div><div class="v ' + cur[i][2] + '">' + cur[i][1] + '</div>';
+    stats.appendChild(d);
+  }
+  var notes = {
+    gravity: '<b>重力学习：</b>世界模型从大量视频中观察到物体总是向下加速，无需告知<code>g=9.8</code>即可内化自由落体规律，并能预测抛体的抛物线轨迹。',
+    collision: '<b>碰撞学习：</b>模型发现"撞击后两物体速度改变但总动量不变"，自发涌现动量守恒。这超越了像素级预测，触及<code>守恒律</code>这种深层物理结构。',
+    fluid: '<b>流体学习：</b>液体粒子保持距离又互相吸引，模型学会<code>不可压缩性</code>与表面张力。Sora等模型已能生成逼真倒水、泼溅画面。',
+    rigid: '<b>刚体学习：</b>模型理解物体有固定形状，学会质心、支撑面与力矩平衡，能预测积木塔何时倒塌——这是<code>物理直觉</code>的标志。'
+  };
+  var note = document.getElementById("m5note");
+  note.innerHTML = notes[M5.view] || notes.gravity;
+}
+
+/* ============================================================ */
+/* M6 自动驾驶仿真 */
+/* ============================================================ */
+var M6 = { view: "scene" };
+function m6Draw() {
+  var sec = document.getElementById("m6");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M6 · AUTONOMOUS DRIVING SIM</div>' +
+    '<h1>NSP在自动驾驶仿真中的应用<span class="badge hot">具身落地</span></h1>' +
+    '<p>世界模型为自动驾驶提供"可想象的仿真器"：生成多样化长尾场景、预测未来风险、规划安全轨迹。相较于规则化仿真，NSP模型能合成物理合理且罕见的危险情境，大幅提升自动驾驶系统的鲁棒性。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m6seg">' +
+    '<button class="on" data-v="scene">场景生成</button>' +
+    '<button data-v="risk">风险预测</button>' +
+    '<button data-v="trajectory">轨迹规划</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>自动驾驶仿真</h3><div id="m6viz"></div></div>' +
+    '<div class="card col-7"><h3>应用要点</h3><div id="m6comp"></div></div>' +
+    '<div class="card col-5"><h3>价值</h3><div id="m6note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m6seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m6View(this.dataset.v);
+    });
+  }
+  m6View("scene");
+}
+function m6View(v) {
+  M6.view = v;
+  if (v === "scene") m6DrawScene();
+  else if (v === "risk") m6DrawRisk();
+  else m6DrawTrajectory();
+  m6DrawComp();
+}
+function m6DrawScene() {
+  var host = document.getElementById("m6viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m6aTeal", "#00d4aa");
+
+  tspanEl(W / 2, 30, "长尾场景生成：世界模型想象罕见交通情境", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 4个场景面板 */
+  var scenes = [
+    { x: 40, t: "正常行驶", c: "#00d4aa", risk: "低", items: "车流平稳" },
+    { x: 310, t: "前车急刹", c: "#ffb454", risk: "中", items: "需紧急避让" },
+    { x: 580, t: "行人横穿", c: "#ff6b81", risk: "高", items: "长尾危险" },
+    { x: 850, t: "暴雨低能见", c: "#4ea8ff", risk: "中高", items: "传感器受限" }
+  ];
+  for (var i = 0; i < scenes.length; i++) {
+    var sc = scenes[i];
+    el("rect", { x: sc.x, y: 60, width: 280, height: 240, fill: "#14141c", stroke: sc.c, "stroke-width": 1.5, rx: 10 }, s);
+    el("rect", { x: sc.x, y: 60, width: 280, height: 32, fill: sc.c, "fill-opacity": 0.15, rx: 10 }, s);
+    tspanEl(sc.x + 140, 82, sc.t, s, { fill: sc.c, "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+
+    /* 俯视道路 */
+    el("rect", { x: sc.x + 30, y: 110, width: 220, height: 160, fill: "#0e1018", rx: 4 }, s);
+    /* 车道线 */
+    for (var li = 0; li < 5; li++) {
+      el("rect", { x: sc.x + 138, y: 120 + li * 32, width: 4, height: 18, fill: "#3a3f50" }, s);
+    }
+    /* 自车 */
+    el("rect", { x: sc.x + 100, y: 230, width: 24, height: 40, fill: "#00d4aa", rx: 3 }, s);
+    /* 其他车/人 */
+    if (i === 1) {
+      el("rect", { x: sc.x + 100, y: 160, width: 24, height: 40, fill: "#ff6b81", rx: 3 }, s);
+      el("line", { x1: sc.x + 112, y1: 160, x2: sc.x + 112, y2: 130, stroke: "#ff6b81", "stroke-width": 1.5, "stroke-dasharray": "3 2" }, s);
+    } else if (i === 2) {
+      el("circle", { cx: sc.x + 150, cy: 130, r: 6, fill: "#ff6b81" }, s);
+      el("path", { d: "M " + (sc.x + 150) + " 130 L " + (sc.x + 150) + " 200", stroke: "#ff6b81", "stroke-width": 1.5, "stroke-dasharray": "3 2", fill: "none" }, s);
+    } else if (i === 3) {
+      for (var ri = 0; ri < 12; ri++) {
+        el("line", { x1: sc.x + 30 + Math.random() * 220, y1: 110, x2: sc.x + 30 + Math.random() * 220, y2: 270, stroke: "#4ea8ff", "stroke-width": 1, "stroke-opacity": 0.3 }, s);
+      }
+    }
+
+    tspanEl(sc.x + 140, 330, "风险: " + sc.risk, s, { fill: sc.c, "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+    tspanEl(sc.x + 140, 350, sc.items, s, { fill: "#8b909e", "font-size": 11, "text-anchor": "middle" });
+  }
+  el("line", { x1: 320, y1: 180, x2: 308, y2: 180, stroke: "#00d4aa", "stroke-width": 1.5, "marker-end": "url(#m6aTeal)" }, s);
+  tspanEl(W / 2, 410, "世界模型可在潜在空间批量生成无限多样长尾场景，覆盖真实路测难以遇到的危险情境", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m6DrawRisk() {
+  var host = document.getElementById("m6viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "风险预测：未来3秒碰撞概率热力图", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var pad = 60, pw = W - 2 * pad, ph = 280;
+  axis(s, pad, H - 80, W - pad, H - 80);
+  axis(s, pad, H - 80, pad, 70);
+  gridlines(s, pad, 70, pw, ph, 6, 5);
+
+  /* 风险曲线 */
+  var pathR = "M ", pathS = "M ";
+  for (var i = 0; i <= 60; i++) {
+    var fx = pad + (i / 60) * pw;
+    var risk = 100 * Math.exp(-Math.pow((i - 35) / 12, 2)) + 10;
+    var ry = (H - 80) - (risk / 110) * ph;
+    pathR += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + ry.toFixed(1);
+    var safe = 100 - risk;
+    var sy = (H - 80) - (safe / 110) * ph;
+    pathS += (i === 0 ? "" : " L ") + fx.toFixed(1) + " " + sy.toFixed(1);
+  }
+  el("path", { d: pathR, fill: "none", stroke: "#ff6b81", "stroke-width": 2.5 }, s);
+  el("path", { d: pathS, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5, "stroke-dasharray": "5 4" }, s);
+
+  /* 风险区域填充 */
+  var fillPath = pathR + " L " + (W - pad) + " " + (H - 80) + " L " + pad + " " + (H - 80) + " Z";
+  el("path", { d: fillPath, fill: "#ff6b81", "fill-opacity": 0.1 }, s);
+
+  /* 预测时刻标记 */
+  var tx = pad + (35 / 60) * pw;
+  el("line", { x1: tx, y1: 70, x2: tx, y2: H - 80, stroke: "#ff6b81", "stroke-width": 1, "stroke-dasharray": "3 3", opacity: 0.6 }, s);
+  tspanEl(tx, 65, "峰值风险 t=1.75s", s, { fill: "#ff6b81", "font-size": 11, "text-anchor": "middle", "font-weight": 700 });
+
+  tspanEl(W / 2, H - 60, "未来时间 (秒)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(22, H / 2, "概率 (%)", s, { fill: "#8b909e", "font-size": 12, "text-anchor": "middle", transform: "rotate(-90 22 " + (H / 2) + ")" });
+
+  var lg = el("g", { transform: "translate(" + (W - 200) + ",90)" }, s);
+  el("rect", { x: 0, y: 0, width: 170, height: 50, fill: "#12141c", stroke: "#232838", rx: 6 }, lg);
+  el("line", { x1: 10, y1: 18, x2: 30, y2: 18, stroke: "#ff6b81", "stroke-width": 2.5 }, lg);
+  tspanEl(36, 22, "碰撞风险", lg, { fill: "#e6e8ee", "font-size": 11 });
+  el("line", { x1: 10, y1: 38, x2: 30, y2: 38, stroke: "#00d4aa", "stroke-width": 2.5, "stroke-dasharray": "5 4" }, lg);
+  tspanEl(36, 42, "安全概率", lg, { fill: "#e6e8ee", "font-size": 11 });
+}
+function m6DrawTrajectory() {
+  var host = document.getElementById("m6viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m6aTeal2", "#00d4aa");
+  arrowDef(s, "m6aAmber", "#ffb454");
+
+  tspanEl(W / 2, 30, "轨迹规划：多候选路径评估与选择", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 俯视道路 */
+  el("rect", { x: 100, y: 60, width: 980, height: 320, fill: "#0e1018", rx: 6 }, s);
+  /* 车道分隔 */
+  for (var li = 0; li < 9; li++) {
+    el("rect", { x: 588, y: 80 + li * 36, width: 4, height: 24, fill: "#3a3f50" }, s);
+  }
+  el("line", { x1: 340, y1: 60, x2: 340, y2: 380, stroke: "#2c3450", "stroke-width": 2 }, s);
+  el("line", { x1: 840, y1: 60, x2: 840, y2: 380, stroke: "#2c3450", "stroke-width": 2 }, s);
+
+  /* 障碍车 */
+  el("rect", { x: 560, y: 120, width: 28, height: 50, fill: "#ff6b81", rx: 4 }, s);
+  tspanEl(574, 100, "障碍车", s, { fill: "#ff6b81", "font-size": 10, "text-anchor": "middle" });
+
+  /* 自车 */
+  el("rect", { x: 460, y: 300, width: 28, height: 50, fill: "#00d4aa", rx: 4 }, s);
+  tspanEl(474, 370, "自车", s, { fill: "#00d4aa", "font-size": 10, "text-anchor": "middle" });
+
+  /* 三条候选轨迹 */
+  var trajs = [
+    { d: "M 474 320 Q 474 200 474 100", c: "#ff6b81", t: "直行(碰撞)", safe: 0.1 },
+    { d: "M 474 320 Q 380 200 300 100", c: "#ffb454", t: "左变道", safe: 0.72 },
+    { d: "M 474 320 Q 568 200 660 100", c: "#00d4aa", t: "右变道(最优)", safe: 0.94 }
+  ];
+  for (var i = 0; i < trajs.length; i++) {
+    el("path", { d: trajs[i].d, fill: "none", stroke: trajs[i].c, "stroke-width": 3, "stroke-opacity": 0.8, "stroke-dasharray": "6 4", "marker-end": "url(#m6aTeal2)" }, s);
+    tspanEl(parseInt(trajs[i].d.split("Q ")[1].split(" ")[2]), parseInt(trajs[i].d.split("Q ")[1].split(" ")[3].replace(" ", "")) - 10, trajs[i].t, s, { fill: trajs[i].c, "font-size": 11, "font-weight": 600 });
+  }
+
+  /* 评分条 */
+  var sx = 920;
+  tspanEl(sx + 60, 90, "候选方案评分", s, { fill: "#e6e8ee", "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+  for (var ti = 0; ti < trajs.length; ti++) {
+    var by = 110 + ti * 40;
+    el("rect", { x: sx, y: by, width: 120, height: 12, fill: "#181b25", rx: 3 }, s);
+    el("rect", { x: sx, y: by, width: 120 * trajs[ti].safe, height: 12, fill: trajs[ti].c, "fill-opacity": 0.8, rx: 3 }, s);
+    tspanEl(sx - 8, by + 10, trajs[ti].t, s, { fill: "#c5c8d2", "font-size": 10, "text-anchor": "end" });
+    tspanEl(sx + 130, by + 10, (trajs[ti].safe * 100).toFixed(0) + "%", s, { fill: trajs[ti].c, "font-size": 10, "font-family": "Consolas,monospace" });
+  }
+  tspanEl(W / 2, 410, "世界模型在脑中rollout多条轨迹并评估风险，选择安全概率最高的路径", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m6DrawComp() {
+  var comp = document.getElementById("m6comp");
+  clearNode(comp);
+  var items = [
+    ["场景生成", "在潜在空间合成无限多样长尾危险场景，覆盖真实路测难以遇到的情境"],
+    ["风险预测", "rollout未来数秒状态，输出碰撞概率热力图，提前预警"],
+    ["轨迹规划", "并行评估多条候选轨迹的安全概率，选择最优避障路径"],
+    ["闭环训练", "策略网络在世界模型中学习，无需真车即可积累百万公里经验"]
+  ];
+  var html = '<div class="kvlist">';
+  for (var i = 0; i < items.length; i++) {
+    html += '<div class="row"><span class="k2" style="color:#00d4aa;font-weight:600">' + items[i][0] + '</span><span class="v2">' + items[i][1] + '</span></div>';
+  }
+  html += "</div>";
+  comp.innerHTML = html;
+  var note = document.getElementById("m6note");
+  note.innerHTML = '<b>核心价值：</b>世界模型把"路测"搬进<code>想象空间</code>。它可生成物理合理且罕见的危险场景，让自动驾驶系统在<b>不冒真实风险</b>的情况下学习应对，显著缩短研发周期并提升长尾安全性。';
+}
+
+/* ============================================================ */
+/* M7 机器人训练 */
+/* ============================================================ */
+var M7 = { view: "imagination" };
+function m7Draw() {
+  var sec = document.getElementById("m7");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M7 · ROBOT TRAINING</div>' +
+    '<h1>世界模型驱动的机器人训练<span class="badge new">具身智能</span></h1>' +
+    '<p>世界模型让机器人能在"脑中"反复想象训练（无需真实物理交互），再通过迁移学习把策略迁移到真实机器人，最后用sim-to-real技术弥合仿真与现实的差距。这极大降低了机器人训练的成本与风险。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m7seg">' +
+    '<button class="on" data-v="imagination">想象训练</button>' +
+    '<button data-v="transfer">迁移学习</button>' +
+    '<button data-v="sim2real">Sim-to-Real</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>机器人训练流程</h3><div id="m7viz"></div></div>' +
+    '<div class="card col-7"><h3>阶段说明</h3><div id="m7comp"></div></div>' +
+    '<div class="card col-5"><h3>关键优势</h3><div id="m7note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m7seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m7View(this.dataset.v);
+    });
+  }
+  m7View("imagination");
+}
+function m7View(v) {
+  M7.view = v;
+  if (v === "imagination") m7DrawImagination();
+  else if (v === "transfer") m7DrawTransfer();
+  else m7DrawSim2Real();
+  m7DrawComp();
+}
+function m7DrawImagination() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m7aTeal", "#00d4aa");
+  arrowDef(s, "m7aViolet", "#9d7aff");
+
+  tspanEl(W / 2, 30, "想象训练：在世界模型中反复试错（零真实成本）", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 机器人脑中世界 */
+  el("rect", { x: 60, y: 70, width: 480, height: 320, fill: "#0f1a18", stroke: "#9d7aff", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(300, 96, "想象空间（潜在世界模型）", s, { fill: "#9d7aff", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 多条想象轨迹 */
+  for (var ri = 0; ri < 5; ri++) {
+    var ry = 130 + ri * 48;
+    var path = "M 100 " + ry;
+    for (var pi = 1; pi <= 8; pi++) {
+      var px = 100 + pi * 50;
+      var py = ry + Math.sin(pi * 0.7 + ri) * 12;
+      path += " L " + px + " " + py.toFixed(1);
+    }
+    el("path", { d: path, fill: "none", stroke: "#9d7aff", "stroke-width": 1.5, "stroke-opacity": 0.4 + ri * 0.1 }, s);
+    /* 状态点 */
+    for (var si = 0; si <= 8; si++) {
+      el("circle", { cx: 100 + si * 50, cy: ry + Math.sin(si * 0.7 + ri) * 12, r: 3, fill: "#9d7aff", "fill-opacity": 0.6 }, s);
+    }
+    /* 奖励 */
+    var rew = 0.3 + ri * 0.15;
+    el("text", { x: 520, y: ry + 4, fill: "#ffb454", "font-size": 11, "font-family": "Consolas,monospace" }, s).textContent = "R=" + rew.toFixed(2);
+  }
+  tspanEl(300, 370, "×10000 次想象 rollout", s, { fill: "#8b909e", "font-size": 11, "text-anchor": "middle" });
+
+  /* 策略网络 */
+  el("rect", { x: 620, y: 180, width: 160, height: 100, fill: "#14141c", stroke: "#00d4aa", "stroke-width": 1.8, rx: 10 }, s);
+  tspanEl(700, 210, "策略网络 π", s, { fill: "#00d4aa", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(700, 232, "Actor-Critic", s, { fill: "#c5c8d2", "font-size": 11, "text-anchor": "middle" });
+  tspanEl(700, 256, "梯度回传", s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+
+  el("line", { x1: 540, y1: 230, x2: 618, y2: 230, stroke: "#9d7aff", "stroke-width": 2, "marker-end": "url(#m7aViolet)" }, s);
+  el("line", { x1: 620, y1: 250, x2: 542, y2: 250, stroke: "#00d4aa", "stroke-width": 2, "marker-end": "url(#m7aTeal)" }, s);
+
+  /* 训练曲线 */
+  el("rect", { x: 840, y: 100, width: 300, height: 240, fill: "#0e1018", rx: 6 }, s);
+  tspanEl(990, 124, "训练奖励曲线", s, { fill: "#00d4aa", "font-size": 12, "font-weight": 700, "text-anchor": "middle" });
+  var cpath = "M ";
+  for (var ci = 0; ci <= 40; ci++) {
+    var cxx = 860 + (ci / 40) * 260;
+    var reward = 100 * (1 - Math.exp(-ci / 12)) + Math.sin(ci) * 3;
+    var cyy = 320 - (reward / 100) * 180;
+    cpath += (ci === 0 ? "" : " L ") + cxx.toFixed(1) + " " + cyy.toFixed(1);
+  }
+  el("path", { d: cpath, fill: "none", stroke: "#00d4aa", "stroke-width": 2.5 }, s);
+  axis(s, 860, 320, 1120, 320, "#3a3f50");
+  axis(s, 860, 320, 860, 140, "#3a3f50");
+  tspanEl(990, 340, "想象rollout次数", s, { fill: "#5a5f6e", "font-size": 10, "text-anchor": "middle" });
+}
+function m7DrawTransfer() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m7aBlue", "#4ea8ff");
+  arrowDef(s, "m7aTeal2", "#00d4aa");
+
+  tspanEl(W / 2, 30, "迁移学习：源任务知识复用到目标任务", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var tasks = [
+    { x: 80, t: "抓取杯子", c: "#4ea8ff", skill: "抓取" },
+    { x: 80, t2: "开门", c: "#4ea8ff", skill2: "旋转" },
+    { x: 360, t: "抓取瓶子", c: "#9d7aff", skill: "抓取+" },
+    { x: 360, t2: "开抽屉", c: "#9d7aff", skill2: "拉" },
+    { x: 640, t: "操作工具", c: "#ffb454", skill: "复杂" },
+    { x: 640, t2: "组装零件", c: "#ffb454", skill2: "精细" },
+    { x: 920, t: "目标任务", c: "#00d4aa", skill: "泛化" },
+    { x: 920, t2: "真实部署", c: "#00d4aa", skill2: "落地" }
+  ];
+  /* 源任务 -> 目标任务 流 */
+  var srcY = [140, 240], tgtY = 180;
+  for (var i = 0; i < 2; i++) {
+    var sx0 = 80, tx0 = 920;
+    el("rect", { x: sx0, y: srcY[i] - 30, width: 180, height: 60, fill: "#14141c", stroke: "#4ea8ff", "stroke-width": 1.5, rx: 8 }, s);
+    tspanEl(sx0 + 90, srcY[i] - 8, tasks[i].t, s, { fill: "#4ea8ff", "font-size": 12, "font-weight": 600, "text-anchor": "middle" });
+    tspanEl(sx0 + 90, srcY[i] + 12, "技能: " + tasks[i].skill, s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+    /* 中间任务 */
+    el("rect", { x: 360, y: srcY[i] - 30, width: 180, height: 60, fill: "#14141c", stroke: "#9d7aff", "stroke-width": 1.5, rx: 8 }, s);
+    tspanEl(450, srcY[i] - 8, tasks[2 + i].t, s, { fill: "#9d7aff", "font-size": 12, "font-weight": 600, "text-anchor": "middle" });
+    tspanEl(450, srcY[i] + 12, "技能: " + tasks[2 + i].skill, s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+    el("rect", { x: 640, y: srcY[i] - 30, width: 180, height: 60, fill: "#14141c", stroke: "#ffb454", "stroke-width": 1.5, rx: 8 }, s);
+    tspanEl(730, srcY[i] - 8, tasks[4 + i].t, s, { fill: "#ffb454", "font-size": 12, "font-weight": 600, "text-anchor": "middle" });
+    tspanEl(730, srcY[i] + 12, "技能: " + tasks[4 + i].skill, s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+    el("line", { x1: 260, y1: srcY[i], x2: 358, y2: srcY[i], stroke: "#4ea8ff", "stroke-width": 1.5, "marker-end": "url(#m7aBlue)" }, s);
+    el("line", { x1: 540, y1: srcY[i], x2: 638, y2: srcY[i], stroke: "#9d7aff", "stroke-width": 1.5, "marker-end": "url(#m7aBlue)" }, s);
+  }
+  /* 目标 */
+  el("rect", { x: 920, y: 150, width: 180, height: 80, fill: "#0f1a18", stroke: "#00d4aa", "stroke-width": 2, rx: 8 }, s);
+  tspanEl(1010, 180, "目标任务", s, { fill: "#00d4aa", "font-size": 13, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(1010, 202, "真实部署", s, { fill: "#00d4aa", "font-size": 12, "text-anchor": "middle" });
+  tspanEl(1010, 218, "少量微调即可", s, { fill: "#8b909e", "font-size": 10, "text-anchor": "middle" });
+  el("line", { x1: 820, y1: 140, x2: 918, y2: 175, stroke: "#ffb454", "stroke-width": 1.5, "marker-end": "url(#m7aTeal2)" }, s);
+  el("line", { x1: 820, y1: 240, x2: 918, y2: 205, stroke: "#ffb454", "stroke-width": 1.5, "marker-end": "url(#m7aTeal2)" }, s);
+  /* 共享表征 */
+  tspanEl(540, 360, "共享潜在表征 z（世界模型提供可迁移的物理常识）", s, { fill: "#5a5f6e", "font-size": 11.5, "text-anchor": "middle", "font-style": "italic" });
+  el("rect", { x: 360, y: 330, width: 360, height: 40, fill: "rgba(0,212,170,0.06)", stroke: "#00d4aa", "stroke-dasharray": "4 3", rx: 6 }, s);
+}
+function m7DrawSim2Real() {
+  var host = document.getElementById("m7viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m7aTeal3", "#00d4aa");
+  arrowDef(s, "m7aRose", "#ff6b81");
+
+  tspanEl(W / 2, 30, "Sim-to-Real：弥合仿真与现实的鸿沟", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 仿真域 */
+  el("rect", { x: 60, y: 80, width: 460, height: 300, fill: "#0f1a18", stroke: "#9d7aff", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(290, 108, "仿真域 Simulation", s, { fill: "#9d7aff", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+  /* 仿真机器人 */
+  el("rect", { x: 200, y: 200, width: 50, height: 70, fill: "#9d7aff", "fill-opacity": 0.7, stroke: "#0e1018", "stroke-width": 2, rx: 6 }, s);
+  el("line", { x1: 225, y1: 200, x2: 225, y2: 175, stroke: "#9d7aff", "stroke-width": 4 }, s);
+  el("circle", { cx: 225, cy: 168, r: 12, fill: "#9d7aff", "fill-opacity": 0.7 }, s);
+  /* 桌面 */
+  el("line", { x1: 100, y1: 330, x2: 480, y2: 330, stroke: "#3a4a55", "stroke-width": 2 }, s);
+  tspanEl(290, 320, "理想化物理 · 无噪声", s, { fill: "#8b909e", "font-size": 11, "text-anchor": "middle" });
+
+  /* 现实域 */
+  el("rect", { x: 660, y: 80, width: 460, height: 300, fill: "#0f1a18", stroke: "#00d4aa", "stroke-width": 1.5, rx: 10 }, s);
+  tspanEl(890, 108, "现实域 Real", s, { fill: "#00d4aa", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+  el("rect", { x: 800, y: 200, width: 50, height: 70, fill: "#00d4aa", "fill-opacity": 0.7, stroke: "#0e1018", "stroke-width": 2, rx: 6 }, s);
+  el("line", { x1: 825, y1: 200, x2: 825, y2: 175, stroke: "#00d4aa", "stroke-width": 4 }, s);
+  el("circle", { cx: 825, cy: 168, r: 12, fill: "#00d4aa", "fill-opacity": 0.7 }, s);
+  el("line", { x1: 700, y1: 330, x2: 1080, y2: 330, stroke: "#3a4a55", "stroke-width": 2 }, s);
+  /* 噪声/扰动 */
+  for (var ni = 0; ni < 8; ni++) {
+    el("line", { x1: 720 + ni * 45, y1: 350, x2: 730 + ni * 45, y2: 360, stroke: "#ff6b81", "stroke-width": 1, "stroke-opacity": 0.5 }, s);
+  }
+  tspanEl(890, 320, "真实物理 · 摩擦/噪声/光照", s, { fill: "#8b909e", "font-size": 11, "text-anchor": "middle" });
+
+  /* 域适配桥 */
+  el("line", { x1: 520, y1: 230, x2: 658, y2: 230, stroke: "#ff6b81", "stroke-width": 2.5, "marker-end": "url(#m7aRose)" }, s);
+  el("rect", { x: 530, y: 245, width: 120, height: 24, fill: "#1a1014", stroke: "#ff6b81", rx: 4 }, s);
+  tspanEl(590, 261, "域随机化", s, { fill: "#ff6b81", "font-size": 10.5, "text-anchor": "middle", "font-weight": 600 });
+
+  /* 差距指标 */
+  var metrs = [["摩擦系数", "差异 18%"], ["光照", "差异 32%"], ["传感器噪声", "差异 25%"]];
+  for (var mi = 0; mi < metrs.length; mi++) {
+    var my = 140 + mi * 26;
+    tspanEl(80, my, metrs[mi][0], s, { fill: "#8b909e", "font-size": 10.5 });
+    tspanEl(380, my, metrs[mi][1], s, { fill: "#ff6b81", "font-size": 10.5, "text-anchor": "end", "font-family": "Consolas,monospace" });
+  }
+  tspanEl(680, 140, "弥合后差距<5%", s, { fill: "#00d4aa", "font-size": 11, "font-weight": 700 });
+  tspanEl(W / 2, 410, "通过域随机化与系统辨识，世界模型让仿真训练的策略直接迁移到真实机器人", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m7DrawComp() {
+  var comp = document.getElementById("m7comp");
+  clearNode(comp);
+  var items = {
+    imagination: [
+      ["想象训练", "在潜在世界模型中反复rollout，零真实成本试错百万次"],
+      ["梯度回传", "想象轨迹的奖励通过策略网络反传，更新Actor-Critic"],
+      ["样本效率", "比真实环境采样快几个数量级，显著提升数据效率"]
+    ],
+    transfer: [
+      ["共享表征", "世界模型提供跨任务通用的物理常识潜在表示"],
+      ["渐进迁移", "源任务→中间任务→目标任务，逐步提升复杂度"],
+      ["少样本微调", "目标任务仅需少量真实数据微调即可部署"]
+    ],
+    sim2real: [
+      ["域随机化", "仿真中随机化摩擦/光照/质量，增强策略鲁棒性"],
+      ["系统辨识", "用真实数据校准世界模型，缩小现实差距"],
+      ["残差策略", "在仿真策略上学习小残差，适配真实动力学"]
+    ]
+  };
+  var cur = items[M7.view] || items.imagination;
+  var html = '<div class="kvlist">';
+  for (var i = 0; i < cur.length; i++) {
+    html += '<div class="row"><span class="k2" style="color:#00d4aa;font-weight:600">' + cur[i][0] + '</span><span class="v2">' + cur[i][1] + '</span></div>';
+  }
+  html += "</div>";
+  comp.innerHTML = html;
+  var notes = {
+    imagination: '<b>想象训练：</b>机器人不必在真实世界一次次试错。世界模型充当"梦中练习场"，策略网络在<code>潜在空间rollout</code>中快速积累经验，再带着学到的常识进入现实。',
+    transfer: '<b>迁移学习：</b>世界模型学到的<b>物理常识</b>（重力、接触、几何）是通用的。学过抓杯子的策略可迁移到抓瓶子，最终泛化到未见任务——这是走向<code>通用机器人</code>的关键。',
+    sim2real: '<b>Sim-to-Real：</b>仿真与现实的"现实差距"是机器人最大痛点。世界模型通过<code>域随机化</code>与系统辨识主动建模不确定性，让仿真训练的策略在现实中依然稳健。'
+  };
+  var note = document.getElementById("m7note");
+  note.innerHTML = notes[M7.view] || notes.imagination;
+}
+
+/* ============================================================ */
+/* M8 悟界与世界模型生态 */
+/* ============================================================ */
+var M8 = { view: "map" };
+function m8Draw() {
+  var sec = document.getElementById("m8");
+  var head = document.createElement("div");
+  head.className = "mod-head";
+  head.innerHTML = '<div class="crumb">M8 · WUJIE & ECOSYSTEM</div>' +
+    '<h1>悟界与世界模型生态<span class="badge core">生态全景</span></h1>' +
+    '<p>智源研究院"悟界"等世界模型代表正引领NSP范式落地。本模块梳理国内外世界模型布局对比、代表系统与未来方向，展示从研究到产业的完整生态地图。</p>';
+  sec.appendChild(head);
+
+  var ctrl = document.createElement("div");
+  ctrl.className = "controls";
+  ctrl.innerHTML =
+    '<div class="seg" id="m8seg">' +
+    '<button class="on" data-v="map">生态地图</button>' +
+    '<button data-v="compare">国内外对比</button>' +
+    '<button data-v="future">未来方向</button></div>';
+  sec.appendChild(ctrl);
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.innerHTML =
+    '<div class="card col-12"><h3>世界模型生态</h3><div id="m8viz"></div></div>' +
+    '<div class="card col-7"><h3>代表系统</h3><div id="m8comp"></div></div>' +
+    '<div class="card col-5"><h3>生态洞察</h3><div id="m8note" class="note"></div></div>';
+  sec.appendChild(grid);
+
+  var seg = document.getElementById("m8seg");
+  var btns = seg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function () {
+      for (var j = 0; j < btns.length; j++) btns[j].classList.remove("on");
+      this.classList.add("on");
+      m8View(this.dataset.v);
+    });
+  }
+  m8View("map");
+}
+function m8View(v) {
+  M8.view = v;
+  if (v === "map") m8DrawMap();
+  else if (v === "compare") m8DrawCompare();
+  else m8DrawFuture();
+  m8DrawComp();
+}
+function m8DrawMap() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m8aTeal", "#00d4aa");
+
+  tspanEl(W / 2, 30, "世界模型生态地图：研究 → 产业 → 应用", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 中心：世界模型范式 */
+  el("circle", { cx: W / 2, cy: H / 2, r: 50, fill: "rgba(0,212,170,0.12)", stroke: "#00d4aa", "stroke-width": 2 }, s);
+  el("circle", { cx: W / 2, cy: H / 2, r: 38, fill: "rgba(0,212,170,0.06)", stroke: "#00d4aa", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, s);
+  tspanEl(W / 2, H / 2 - 4, "NSP", s, { fill: "#00d4aa", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+  tspanEl(W / 2, H / 2 + 14, "世界模型", s, { fill: "#00d4aa", "font-size": 11, "text-anchor": "middle" });
+
+  /* 围绕的生态节点 */
+  var nodes = [
+    { ang: -90, r: 150, t: "悟界 Wujie", d: "智源", c: "#00d4aa", cat: "研究" },
+    { ang: -30, r: 150, t: "Sora", d: "OpenAI", c: "#4ea8ff", cat: "视频" },
+    { ang: 30, r: 150, t: "Genie", d: "Google", c: "#9d7aff", cat: "游戏" },
+    { ang: 90, r: 150, t: "自动驾驶", d: "Wayve等", c: "#ffb454", cat: "应用" },
+    { ang: 150, r: 150, t: "机器人", d: "Figure等", c: "#ff6b81", cat: "应用" },
+    { ang: 210, r: 150, t: "V-JEPA", d: "Meta", c: "#4ea8ff", cat: "研究" },
+    { ang: -90, r: 280, t: "DreamerV3", d: "Danijar", c: "#9d7aff", cat: "RL" },
+    { ang: 0, r: 280, t: "NVIDIA Cosmos", d: "NVIDIA", c: "#00d4aa", cat: "平台" },
+    { ang: 90, r: 280, t: "通用具身", d: "未来", c: "#ffb454", cat: "愿景" },
+    { ang: 180, r: 280, t: "物理仿真", d: "工业", c: "#ff6b81", cat: "应用" }
+  ];
+  var cx0 = W / 2, cy0 = H / 2;
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    var rad = n.ang * Math.PI / 180;
+    var nx = cx0 + Math.cos(rad) * n.r;
+    var ny = cy0 + Math.sin(rad) * n.r;
+    el("line", { x1: cx0, y1: cy0, x2: nx, y2: ny, stroke: n.c, "stroke-width": 1, "stroke-opacity": 0.4, "stroke-dasharray": "3 3" }, s);
+    el("circle", { cx: nx, cy: ny, r: 30, fill: "#181b25", stroke: n.c, "stroke-width": 1.8 }, s);
+    tspanEl(nx, ny - 2, n.t, s, { fill: n.c, "font-size": 11, "font-weight": 700, "text-anchor": "middle" });
+    tspanEl(nx, ny + 14, n.d, s, { fill: "#8b909e", "font-size": 9.5, "text-anchor": "middle" });
+    /* 类别标签 */
+    tspanEl(nx + Math.cos(rad) * 42, ny + Math.sin(rad) * 42, n.cat, s, { fill: n.c, "font-size": 9, "text-anchor": "middle", "font-weight": 600 });
+  }
+  tspanEl(W / 2, H - 16, "智源悟界处于研究核心，向视频生成/具身智能/自动驾驶/物理仿真全链路辐射", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m8DrawCompare() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+
+  tspanEl(W / 2, 30, "国内外世界模型布局对比", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  /* 国内 vs 国外 两列 */
+  el("rect", { x: 60, y: 60, width: 520, height: 350, fill: "#0f1a18", stroke: "#00d4aa", "stroke-width": 1.5, rx: 10 }, s);
+  el("rect", { x: 60, y: 60, width: 520, height: 36, fill: "rgba(0,212,170,0.15)", rx: 10 }, s);
+  tspanEl(320, 84, "国内布局", s, { fill: "#00d4aa", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  el("rect", { x: 600, y: 60, width: 520, height: 350, fill: "#0f1a18", stroke: "#4ea8ff", "stroke-width": 1.5, rx: 10 }, s);
+  el("rect", { x: 600, y: 60, width: 520, height: 36, fill: "rgba(78,168,255,0.15)", rx: 10 }, s);
+  tspanEl(860, 84, "国际布局", s, { fill: "#4ea8ff", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var domestic = [
+    ["智源研究院", "悟界 Wujie 世界模型，物理世界预测"],
+    ["阿里达摩院", "DriveDreamer 自动驾驶世界模型"],
+    ["华为", "盘古世界模型，工业与具身场景"],
+    ["腾讯", "混元视频世界模型"],
+    ["百度", "Apollo 世界模型仿真"]
+  ];
+  var intl = [
+    ["OpenAI", "Sora 视频生成世界模型"],
+    ["Google DeepMind", "Genie 可交互世界模型 / V-JEPA"],
+    ["Meta", "V-JEPA 自监督世界表征"],
+    ["NVIDIA", "Cosmos 世界基础模型平台"],
+    ["Wayve", "GAIA 自动驾驶世界模型"]
+  ];
+  for (var i = 0; i < domestic.length; i++) {
+    var dy = 116 + i * 50;
+    el("circle", { cx: 90, cy: dy, r: 4, fill: "#00d4aa" }, s);
+    tspanEl(104, dy + 4, domestic[i][0], s, { fill: "#e6e8ee", "font-size": 12.5, "font-weight": 600 });
+    tspanEl(104, dy + 22, domestic[i][1], s, { fill: "#8b909e", "font-size": 11 });
+    el("circle", { cx: 630, cy: dy, r: 4, fill: "#4ea8ff" }, s);
+    tspanEl(644, dy + 4, intl[i][0], s, { fill: "#e6e8ee", "font-size": 12.5, "font-weight": 600 });
+    tspanEl(644, dy + 22, intl[i][1], s, { fill: "#8b909e", "font-size": 11 });
+  }
+  /* 差异化标签 */
+  tspanEl(320, 390, "优势：物理仿真/具身/工业落地快", s, { fill: "#00d4aa", "font-size": 10.5, "text-anchor": "middle", "font-style": "italic" });
+  tspanEl(860, 390, "优势：规模/通用性/基础模型领先", s, { fill: "#4ea8ff", "font-size": 10.5, "text-anchor": "middle", "font-style": "italic" });
+}
+function m8DrawFuture() {
+  var host = document.getElementById("m8viz");
+  clearNode(host);
+  var W = 1180, H = 440;
+  var s = svgCanvas(W, H);
+  host.appendChild(s);
+  arrowDef(s, "m8aAmber", "#ffb454");
+
+  tspanEl(W / 2, 30, "未来方向：从世界模型到通用具身智能", s, { fill: "#e6e8ee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+
+  var dirs = [
+    { x: 40, y: 60, w: 350, h: 160, t: "统一物理基座", d: ["跨场景统一世界模型", "可迁移的物理常识表征", "开放世界长程预测"], c: "#00d4aa" },
+    { x: 410, y: 60, w: 350, h: 160, t: "因果与世界理解", d: ["显式因果图学习", "反事实规划与安全", "符号-神经融合推理"], c: "#9d7aff" },
+    { x: 780, y: 60, w: 360, h: 160, t: "具身与实时决策", d: ["低延迟在线世界模型", "闭环控制与规划", "多体协同世界仿真"], c: "#ffb454" },
+    { x: 40, y: 240, w: 350, h: 160, t: "数据与算力", d: ["物理引擎合成训练数据", "世界模型专用算力", "高效潜在空间压缩"], c: "#4ea8ff" },
+    { x: 410, y: 240, w: 350, h: 160, t: "可解释与对齐", d: ["想象过程可解释性", "世界模型价值对齐", "安全约束内化"], c: "#ff6b81" },
+    { x: 780, y: 240, w: 360, h: 160, t: "通用具身智能", d: ["跨本体通用策略", "开放任务零样本", "物理AGI路径"], c: "#00d4aa" }
+  ];
+  for (var i = 0; i < dirs.length; i++) {
+    var d = dirs[i];
+    el("rect", { x: d.x, y: d.y, width: d.w, height: d.h, fill: "#181b25", stroke: d.c, "stroke-width": 1.5, rx: 12 }, s);
+    el("rect", { x: d.x, y: d.y, width: d.w, height: 34, fill: d.c, "fill-opacity": 0.15, rx: 12 }, s);
+    tspanEl(d.x + 18, d.y + 23, d.t, s, { fill: d.c, "font-size": 14, "font-weight": 700 });
+    for (var li = 0; li < d.d.length; li++) {
+      el("circle", { cx: d.x + 22, cy: d.y + 60 + li * 32, r: 3, fill: d.c }, s);
+      tspanEl(d.x + 34, d.y + 64 + li * 32, d.d[li], s, { fill: "#c5c8d2", "font-size": 12 });
+    }
+  }
+  tspanEl(W / 2, 420, "世界模型被视为通向物理AGI的核心路径——让AI真正理解并改造物理世界", s, { fill: "#5a5f6e", "font-size": 11, "text-anchor": "middle", "font-style": "italic" });
+}
+function m8DrawComp() {
+  var comp = document.getElementById("m8comp");
+  clearNode(comp);
+  var systems = [
+    ["悟界 Wujie", "智源", "物理世界预测，开放具身任务", "#00d4aa"],
+    ["Sora", "OpenAI", "视频生成，时空连续性学习", "#4ea8ff"],
+    ["Genie 2", "Google DeepMind", "可交互3D世界生成", "#9d7aff"],
+    ["Cosmos", "NVIDIA", "世界基础模型平台，多模态", "#ffb454"],
+    ["V-JEPA 2", "Meta", "自监督视频世界表征", "#4ea8ff"],
+    ["DreamerV3", "Danijar Hafner", "RL世界模型，跨域通用", "#9d7aff"]
+  ];
+  var html = '<table class="cmp"><thead><tr><th>系统</th><th>机构</th><th>定位</th></tr></thead><tbody>';
+  for (var i = 0; i < systems.length; i++) {
+    html += "<tr><td><code>" + systems[i][0] + "</code></td><td>" + systems[i][1] + "</td><td>" + systems[i][2] + "</td></tr>";
+  }
+  html += "</tbody></table>";
+  comp.innerHTML = html;
+
+  var notes = {
+    map: '<b>生态洞察：</b>世界模型生态呈<b>研究-平台-应用</b>三层结构。智源悟界等研究系统提供物理预测能力，Cosmos等平台降低门槛，自动驾驶/机器人/视频生成等应用快速落地。NSP范式正成为贯穿全链路的<b>统一技术底座</b>。',
+    compare: '<b>格局对比：</b>国内擅长<code>物理仿真与具身落地</code>，悟界、DriveDreamer在自动驾驶/机器人场景进展迅速；国际在<code>通用规模与基础模型</code>上领先。两者正走向融合——统一世界模型基座成为共同目标。',
+    future: '<b>未来展望：</b>世界模型被视为通向<code>物理AGI</code>的核心路径。六大方向中，<b>统一物理基座</b>与<b>通用具身智能</b>最关键——一旦实现跨场景、跨本体的世界理解，AI将真正具备改造物理世界的能力。'
+  };
+  var note = document.getElementById("m8note");
+  note.innerHTML = notes[M8.view] || notes.map;
+}
+
+/* ============ 初始化 ============ */
+window.addEventListener("DOMContentLoaded", function () {
+  m1Draw();
+  initialized.m1 = true;
+});
+</script>
+</body>
+</html>
