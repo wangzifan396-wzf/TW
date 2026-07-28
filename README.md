@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 356 个零依赖交互式可视化项目 + 30 个配套工具，2848+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 361 个零依赖交互式可视化项目 + 30 个配套工具，2888+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-356-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2848+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-361-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2888+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 356 |
-| 可视化模块 | 2848+ |
+| 项目总数 | 361 |
+| 可视化模块 | 2888+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -430,6 +430,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 354 | 数字孪生城市与城市大脑3.0可视化实验室 | 数字孪生城市全景/城市大脑3.0架构/城市感知体系/城市大模型/弹性绿波与交通智能/城市多智能体协作/城市生命线监测/城市更新与可持续等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-digital-twin-city-brain-viz-lab/) |
 | 355 | AI医疗智能体与精准诊疗可视化实验室 | AI医疗全景/AI影像诊断/药物研发智能体/个性化诊疗/AI辅助手术/智能健康监测/医疗知识图谱/医疗AI伦理与合规等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-medical-agent-precision-healthcare-viz-lab/) |
 | 356 | 光计算与下一代计算架构可视化实验室 | 光计算全景/硅光互连与NPO/光子存内计算/太空算力星座/量子计算混合架构/类脑计算与神经形态/存算一体架构/异构计算未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-optical-computing-next-gen-arch-viz-lab/) |
+| 357 | 万亿参数MoE与开源大模型生态可视化实验室 | 万亿参数MoE架构全景/Kimi K3技术深度解析/开源vs闭源模型生态/MoE路由与专家负载均衡/训练基础设施/推理优化与部署/开源社区与生态/万亿参数未来演进等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/trillion-moe-open-source-llm-viz-lab/) |
+| 358 | AI Agent操作系统与智能体运行时可视化实验室 | Agent OS全景架构/智能体运行时与调度/工具调用与API编排/记忆与状态管理/多智能体协同框架/Agent安全与权限/Agent应用商店生态/未来OS范式演进等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agent-os-runtime-viz-lab/) |
+| 359 | 近存计算与3D堆叠存算一体芯片可视化实验室 | 存算一体架构全景/近存计算原理/3D堆叠与TSV互连/HBM与存内计算/AI推理加速架构/能效与功耗优化/国产存算芯片生态/下一代计算架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/near-memory-3d-stacked-chip-viz-lab/) |
+| 360 | AI合成生物学与蛋白质设计可视化实验室 | AI+合成生物学全景/蛋白质结构预测/蛋白质从头设计/基因序列AI设计/酶工程与催化设计/细胞工厂与代谢工程/AI药物靶点发现/合成生物学产业化等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-synthetic-biology-protein-viz-lab/) |
+| 361 | AI虚拟员工与数字劳动力经济可视化实验室 | 数字劳动力全景/虚拟员工架构设计/企业Agent团队编排/人机协作工作流/数字员工能力评估/行业落地场景/数字劳动力经济模型/未来工作范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-virtual-employee-digital-workforce-viz-lab/) |
 
 ## 技术栈
 
