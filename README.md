@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 346 个零依赖交互式可视化项目 + 30 个配套工具，2768+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 351 个零依赖交互式可视化项目 + 30 个配套工具，2808+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-346-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2768+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-351-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2808+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 346 |
-| 可视化模块 | 2768+ |
+| 项目总数 | 351 |
+| 可视化模块 | 2808+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -420,6 +420,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 344 | AI法律合规与全球治理可视化实验室 | 全球AI治理全景/欧盟AI法案/中国AI监管/美国AI治理/企业合规管道/AI内容标识/跨境数据治理/未来治理趋势等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-legal-compliance-governance-viz-lab/) |
 | 345 | AI工业智能体与灯塔工厂可视化实验室 | 工业AI全景/AI视觉质检/预测性维护/智能排产调度/数字孪生工厂/工业大模型/工厂操作系统/未来制造范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-industrial-agent-lighthouse-factory-viz-lab/) |
 | 346 | AI农业与智慧食品链可视化实验室 | AI农业全景/精准种植/智慧养殖/农业遥感/食品安全溯源/智能农机/农业大模型/未来农业范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agriculture-smart-food-chain-viz-lab/) |
+| 347 | 物理AI数据基座与合成数据工厂可视化实验室 | 物理AI数据全景/真机采集系统/合成数据生成/仿真重建引擎/Sim2Real域适应/数据飞轮与自进化/长尾场景覆盖/数据质量与评测等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-physical-data-foundation-viz-lab/) |
+| 348 | 智能体记忆数据库与认知基础设施可视化实验室 | 智能体记忆全景/工作记忆与上下文窗口/情节记忆与时间索引/语义记忆与知识图谱/向量检索与混合搜索/遗忘策略与记忆压缩/跨会话记忆持久化/认知数据库未来架构等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agent-memory-database-viz-lab/) |
+| 349 | A2A协议与智能体互联经济可视化实验室 | A2A协议全景/MCP与A2A协议栈/智能体身份与发现/跨组织智能体协作/智能体交易与合约/智能体市场与服务发现/网络拓扑与路由/智能体经济未来等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-a2a-protocol-agent-economy-viz-lab/) |
+| 350 | AI短剧与影视级内容智能体可视化实验室 | AI影视内容全景/剧本智能体与故事生成/分镜导演智能体/世界模型驱动视频生成/角色一致性与情感表达/多模态配音与音效/无限时长内容生成/自主内容工作室等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-cinematic-content-agent-viz-lab/) |
+| 351 | 具身智能大脑融合路线可视化实验室 | 具身智能大脑全景/LAWM世界模型路线/WAM世界模型路线/VLA与世界模型融合/物理理解与推理/Sim2Real迁移闭环/具身记忆与规划/通用具身智能路径等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-embodied-brain-convergence-viz-lab/) |
 
 ## 技术栈
 
