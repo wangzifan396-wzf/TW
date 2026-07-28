@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 336 个零依赖交互式可视化项目 + 30 个配套工具，2688+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 341 个零依赖交互式可视化项目 + 30 个配套工具，2728+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-336-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2688+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-341-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2728+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 336 |
-| 可视化模块 | 2688+ |
+| 项目总数 | 341 |
+| 可视化模块 | 2728+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -410,6 +410,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 334 | AI眼镜与可穿戴智能终端可视化实验室 | AI眼镜全景/多模态感知/显示技术/产品矩阵/实时AI助手/可穿戴生态/端云协同/未来智能终端等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-glasses-wearable-terminal-viz-lab/) |
 | 335 | VLA模型与灵巧操作可视化实验室 | VLA模型全景/灵巧手技术/端到端操作/世界模型与操作/Sim-to-Real迁移/人形机器人/数据引擎/应用场景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/vla-dexterous-manipulation-viz-lab/) |
 | 336 | 可信执行与AI安全管道可视化实验室 | 可信安全全景/内生安全通信/Agent身份体系/动态监督治理/提示注入防御/AI驱动网络攻击/OWASP智能体风险/安全执行环境等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/trusted-ai-security-pipeline-viz-lab/) |
+| 337 | AI Agent协议生态与互操作标准可视化实验室 | 协议生态全景/A2A协议架构/MCP模型上下文协议/Agent发现与注册/互操作性与跨框架协作/协议安全与信任/商业化与产业落地/未来协议演进等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agent-protocol-ecosystem-viz-lab/) |
+| 338 | AI数字人与虚拟主播生态可视化实验室 | 数字人生态全景/3D实时渲染引擎/多模态交互能力/虚拟主播商业化/AIGC形象生成/情感计算与共情/端云协同架构/未来数字人演进等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-digital-human-virtual-anchor-viz-lab/) |
+| 339 | AI蛋白质设计与合成生物学可视化实验室 | 蛋白质设计全景/AlphaFold与结构预测/从头蛋白质设计/酶工程与催化设计/合成生物学管道/蛋白质语言模型/产业化应用/未来生物设计等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-protein-design-synthetic-bio-viz-lab/) |
+| 340 | AI材料发现与计算物质科学可视化实验室 | AI材料发现全景/晶体结构预测/逆向设计与生成/材料性质预测/原子级模拟/材料数据库与知识/产业化应用/未来物质科学等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-materials-discovery-viz-lab/) |
+| 341 | AI社交网络与智能内容生态可视化实验室 | 智能内容生态全景/AI内容生成引擎/智能推荐与分发/社交图谱与网络效应/内容安全与治理/创作者经济与变现/社交智能体/未来社交范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-social-content-ecosystem-viz-lab/) |
 
 ## 技术栈
 
