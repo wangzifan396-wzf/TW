@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 341 个零依赖交互式可视化项目 + 30 个配套工具，2728+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 346 个零依赖交互式可视化项目 + 30 个配套工具，2768+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-341-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2728+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-346-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2768+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 341 |
-| 可视化模块 | 2728+ |
+| 项目总数 | 346 |
+| 可视化模块 | 2768+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -415,6 +415,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 339 | AI蛋白质设计与合成生物学可视化实验室 | 蛋白质设计全景/AlphaFold与结构预测/从头蛋白质设计/酶工程与催化设计/合成生物学管道/蛋白质语言模型/产业化应用/未来生物设计等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-protein-design-synthetic-bio-viz-lab/) |
 | 340 | AI材料发现与计算物质科学可视化实验室 | AI材料发现全景/晶体结构预测/逆向设计与生成/材料性质预测/原子级模拟/材料数据库与知识/产业化应用/未来物质科学等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-materials-discovery-viz-lab/) |
 | 341 | AI社交网络与智能内容生态可视化实验室 | 智能内容生态全景/AI内容生成引擎/智能推荐与分发/社交图谱与网络效应/内容安全与治理/创作者经济与变现/社交智能体/未来社交范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-social-content-ecosystem-viz-lab/) |
+| 342 | AI能源双向赋能与智能电网可视化实验室 | AI能源全景/新能源功率预测/电网智能调度/储能协同优化/电力大模型/算力-电力协同/虚拟电厂/未来能源范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-energy-smart-grid-viz-lab/) |
+| 343 | AI太空计算与在轨智能可视化实验室 | 太空AI全景/在轨计算架构/轨道智能预报/卫星遥感智能/星座协同调度/深空探测AI/太空数据产业/未来太空智能等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-space-computing-orbit-intelligence-viz-lab/) |
+| 344 | AI法律合规与全球治理可视化实验室 | 全球AI治理全景/欧盟AI法案/中国AI监管/美国AI治理/企业合规管道/AI内容标识/跨境数据治理/未来治理趋势等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-legal-compliance-governance-viz-lab/) |
+| 345 | AI工业智能体与灯塔工厂可视化实验室 | 工业AI全景/AI视觉质检/预测性维护/智能排产调度/数字孪生工厂/工业大模型/工厂操作系统/未来制造范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-industrial-agent-lighthouse-factory-viz-lab/) |
+| 346 | AI农业与智慧食品链可视化实验室 | AI农业全景/精准种植/智慧养殖/农业遥感/食品安全溯源/智能农机/农业大模型/未来农业范式等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-agriculture-smart-food-chain-viz-lab/) |
 
 ## 技术栈
 
