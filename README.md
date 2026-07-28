@@ -1,9 +1,9 @@
 ﻿# AI 可视化实验室集 · AI Visualization Labs
 
-> 366 个零依赖交互式可视化项目 + 30 个配套工具，2928+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
+> 371 个零依赖交互式可视化项目 + 30 个配套工具，2968+ 模块，纯 HTML/CSS/JS + SVG。从 AI 全栈到计算机系统基础到前沿计算理论到交叉学科，把黑箱拆成你能看见的零件。
 
-[![Projects](https://img.shields.io/badge/projects-366-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
-[![Modules](https://img.shields.io/badge/modules-2928+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Projects](https://img.shields.io/badge/projects-371-5e6ad2?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
+[![Modules](https://img.shields.io/badge/modules-2968+-7c5cff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-34d399?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
 [![License](https://img.shields.io/badge/license-MIT-fbbf24?style=flat-square)](LICENSE)
 [![Tech](https://img.shields.io/badge/tech-HTML%2FCSS%2FJS%2BSVG-2dd4ff?style=flat-square)](https://wangzifan396-wzf.github.io/TW/)
@@ -74,8 +74,8 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 
 | 维度 | 数量 |
 |------|------|
-| 项目总数 | 366 |
-| 可视化模块 | 2928+ |
+| 项目总数 | 371 |
+| 可视化模块 | 2968+ |
 | 外部依赖 | 0 |
 | 代码总大小 | ~14 MB |
 | 技术栈 | 纯 HTML/CSS/JS + SVG |
@@ -440,6 +440,11 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 | 364 | 端侧原生AI与智能终端革命可视化实验室 | 端侧原生AI全景/端侧大模型部署/AI手机与智能体生态/AI眼镜与可穿戴/AI PC与办公终端/端侧AI芯片与NPU/端侧AI隐私与安全/端侧AI未来演进等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/on-device-native-ai-terminal-viz-lab/) |
 | 365 | 人形机器人量产元年与产业链可视化实验室 | 量产全景/技术架构/核心零部件与供应链/成本分析与降本/量产工艺与产线/落地场景与商业模式/安全标准与监管/未来人形机器人愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/humanoid-robot-mass-production-viz-lab/) |
 | 366 | AI全球治理与安全监管框架可视化实验室 | AI全球治理全景/WAIC 2026全球治理共识/AI风险分级体系/AI安全工程技术/跨境数据与算力治理/AI伦理与公平/AI军事安全与自主武器/未来AI治理愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-global-governance-safety-viz-lab/) |
+| 367 | 深度研究智能体与自主调研编排可视化实验室 | 深度研究智能体全景/自主调研工作流架构/多步信息采集与验证/知识综合与推理链/引用追溯与事实核查/深度研究Agent技术栈/产业应用与商业模式/未来自主研究愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/deep-research-agent-viz-lab/) |
+| 368 | AI视频生成工业级新纪元可视化实验室 | AI视频生成全景/Sora 2与Veo 3技术架构/长时序物理一致性建模/工业级可控生成管线/全球视频模型对比/视频生成应用场景/商业化与产业链/未来视频生成愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-video-industrial-era-viz-lab/) |
+| 369 | VLA世界模型融合与物理AI终局可视化实验室 | VLA与世界模型全景/VLA架构演进/世界模型WAM技术架构/VLA×WAM融合架构/物理AI评测基准/具身智能ChatGPT时刻/产业链与商业化/物理AI终局愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/vla-world-model-fusion-viz-lab/) |
+| 370 | Agentic OS与智能体操作系统革新可视化实验室 | Agentic OS全景/操作系统范式演进/智能体运行时架构/Computer Use与GUI自动化/Agentic OS核心能力/终端形态革新/生态与应用模式/未来OS愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/agentic-os-paradigm-viz-lab/) |
+| 371 | AI编程舰队模式与多Agent软件工程可视化实验室 | AI编程舰队模式全景/多Agent软件工程架构/任务分解与并行编排/代码审查与质量保障/主流平台对比/开发流程重构/产业渗透与商业模式/未来AI编程愿景等 8 模块 | [Demo](https://wangzifan396-wzf.github.io/ai-coding-fleet-swe-viz-lab/) |
 
 ## 技术栈
 
