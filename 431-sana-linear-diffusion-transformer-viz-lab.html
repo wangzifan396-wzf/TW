@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SANA 1.5 - NVIDIA线性扩散Transformer可视化实验室</title>
+<style>
+:root{
+--bg:#0a0b0f;--bg2:#0f1117;--bg3:#161922;--bg4:#1c2030;
+--border:#1e2433;--border2:#2a3144;
+--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+--teal:#00d4aa;--cyan:#22d3ee;--amber:#fbbf24;--red:#ef4444;--purple:#a78bfa;--blue:#3b82f6;--pink:#f472b6;--green:#34d399;
+--mono:"'SF Mono','JetBrains Mono',Consolas,monospace";
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;padding:16px}
+.lab{max-width:960px;margin:0 auto}
+.lab-header{text-align:center;padding:20px 0 16px;border-bottom:1px solid var(--border)}
+.lab-title{font-size:28px;font-weight:700;color:var(--teal);letter-spacing:2px}
+.lab-sub{font-size:13px;color:var(--text2);margin-top:6px}
+.lab-hero{display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid var(--border)}
+.hero-left{flex:1}
+.hero-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.hero-title{font-size:20px;font-weight:700;color:var(--text);margin-top:4px}
+.hero-desc{font-size:12px;color:var(--text2);margin-top:4px}
+.hero-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:10px;border:1px solid;background:var(--bg3)}
+.hero-right{width:280px}
+.hero-legend{display:flex;flex-direction:column;gap:4px}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2)}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.hero-info{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+.info-item{display:flex;justify-content:space-between;font-size:10px}
+.info-k{color:var(--text3)}
+.info-v{color:var(--text2)}
+.module-nav{padding:12px 0;border-bottom:1px solid var(--border)}
+.mod-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.mod-tab{padding:6px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .2s}
+.mod-tab:hover{border-color:var(--teal);color:var(--text)}
+.mod-tab.active{background:var(--bg4);border-color:var(--teal);color:var(--teal)}
+.view-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.view-tab{padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text3);font-family:var(--mono);font-size:10px;cursor:pointer;transition:all .2s}
+.view-tab:hover{color:var(--text2)}
+.view-tab.active{background:var(--bg3);border-color:var(--border2);color:var(--cyan)}
+.module-panel{margin-top:12px}
+#viz{width:100%;height:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.apulse{animation:apulse 2s ease-in-out infinite}
+@keyframes apulse{0%,100%{opacity:1}50%{opacity:.35}}
+.aglow{filter:url(#glow)}
+.adash{stroke-dasharray:5 4;animation:adash .8s linear infinite}
+@keyframes adash{to{stroke-dashoffset:-9}}
+.ablink{animation:ablink 1.4s ease-in-out infinite}
+@keyframes ablink{0%,100%{opacity:1}50%{opacity:.15}}
+.aspin{animation:aspin 6s linear infinite;transform-origin:center;transform-box:fill-box}
+@keyframes aspin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="lab">
+  <header class="lab-header">
+    <div class="lab-title">SANA 1.5</div>
+    <div class="lab-sub">NVIDIA 线性扩散Transformer · 文本到图像生成 · 可视化实验室</div>
+  </header>
+  <div class="lab-hero">
+    <div class="hero-left">
+      <div class="hero-label">当前模块</div>
+      <div class="hero-title" id="heroTitle">Sana概览</div>
+      <div class="hero-desc" id="heroDesc">NVIDIA线性扩散Transformer全景</div>
+      <div class="hero-pills" id="heroPills"></div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-legend" id="heroLegend"></div>
+      <div class="hero-info" id="heroInfo"></div>
+    </div>
+  </div>
+  <div class="module-nav">
+    <div class="mod-tabs" id="modTabs"></div>
+    <div class="view-tabs" id="viewTabs"></div>
+  </div>
+  <div class="module-panel">
+    <svg id="viz" viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#00d4aa"/></marker>
+        <marker id="ah-c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#22d3ee"/></marker>
+        <marker id="ah-p" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#a78bfa"/></marker>
+        <marker id="ah-a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#fbbf24"/></marker>
+        <marker id="ah-b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3b82f6"/></marker>
+        <marker id="ah-k" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#f472b6"/></marker>
+        <marker id="ah-g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#34d399"/></marker>
+        <marker id="ah-r" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ef4444"/></marker>
+      </defs>
+      <g id="layer0"></g>
+    </svg>
+  </div>
+</div>
+<script>
+var C={bg:'#0a0b0f',bg2:'#0f1117',bg3:'#161922',bg4:'#1c2030',border:'#1e2433',border2:'#2a3144',text:'#e2e8f0',text2:'#94a3b8',text3:'#64748b',teal:'#00d4aa',cyan:'#22d3ee',amber:'#fbbf24',red:'#ef4444',purple:'#a78bfa',blue:'#3b82f6',pink:'#f472b6',green:'#34d399',mono:"'SF Mono','JetBrains Mono',Consolas,monospace"};
+var SVGNS='http://www.w3.org/2000/svg';
+
+function E(parent,tag,attrs){
+  var el=document.createElementNS(SVGNS,tag);
+  if(attrs)for(var k in attrs)el.setAttribute(k,attrs[k]);
+  if(parent)parent.appendChild(el);
+  return el;
+}
+function $(id){return document.getElementById(id);}
+function clearNode(n){while(n&&n.firstChild)n.removeChild(n.firstChild);}
+function box(g,x,y,w,h,opts){
+  opts=opts||{};
+  return E(g,'rect',{x:x,y:y,width:w,height:h,rx:opts.rx||6,fill:opts.fill||C.bg3,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1,opacity:opts.op||1});
+}
+function txt(g,x,y,s,opts){
+  opts=opts||{};
+  var t=E(g,'text',{x:x,y:y,fill:opts.fill||C.text,'font-size':opts.fs||12,'font-family':opts.ff||C.mono,'text-anchor':opts.ta||'start','font-weight':opts.fw||400});
+  t.textContent=s;
+  return t;
+}
+function line(g,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  return E(g,'line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1,'stroke-dasharray':opts.sd||'none',opacity:opts.op||1});
+}
+function arrow(g,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  var ck=opts.col||'teal';
+  var cv=C[ck]||C.teal;
+  var map={teal:'ah',cyan:'ah-c',purple:'ah-p',amber:'ah-a',blue:'ah-b',pink:'ah-k',green:'ah-g',red:'ah-r'};
+  var mid=map[ck]||'ah';
+  return E(g,'line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:cv,'stroke-width':opts.sw||1.5,'marker-end':'url(#'+mid+')',opacity:opts.op||1,'stroke-dasharray':opts.sd||'none'});
+}
+function circ(g,cx,cy,r,opts){
+  opts=opts||{};
+  return E(g,'circle',{cx:cx,cy:cy,r:r,fill:opts.fill||'none',stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1,opacity:opts.op||1});
+}
+function poly(g,pts,opts){
+  opts=opts||{};
+  return E(g,'polygon',{points:pts,fill:opts.fill||'none',stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1,opacity:opts.op||1});
+}
+function radar(g,cx,cy,r,labels,data,opts){
+  opts=opts||{};
+  var n=labels.length,col=opts.col||C.teal;
+  var ri,i,a,rr,pts=[];
+  for(ri=1;ri<=4;ri++){
+    rr=r*ri/4;pts=[];
+    for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;pts.push((cx+rr*Math.cos(a)).toFixed(1)+','+(cy+rr*Math.sin(a)).toFixed(1));}
+    poly(g,pts.join(' '),{stroke:C.border,sw:1,fill:C.bg2,op:0.4});
+  }
+  for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;line(g,cx,cy,cx+r*Math.cos(a),cy+r*Math.sin(a),{stroke:C.border,sw:1});}
+  var dp=[];
+  for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*data[i]/100;dp.push((cx+rr*Math.cos(a)).toFixed(1)+','+(cy+rr*Math.sin(a)).toFixed(1));}
+  poly(g,dp.join(' '),{fill:col,stroke:col,sw:1.5,op:0.2});
+  for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*data[i]/100;circ(g,cx+rr*Math.cos(a),cy+rr*Math.sin(a),3,{fill:col,stroke:col});}
+  for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;var lx=cx+(r+18)*Math.cos(a),ly=cy+(r+18)*Math.sin(a)+4;txt(g,lx,ly,labels[i],{fs:9,fill:C.text2,ta:'middle'});}
+}
+function gridBg(g,w,h){
+  E(g,'rect',{x:0,y:0,width:w,height:h,fill:C.bg});
+  for(var x=0;x<=w;x+=30)E(g,'line',{x1:x,y1:0,x2:x,y2:h,stroke:C.border,'stroke-width':0.5,opacity:0.35});
+  for(var y=0;y<=h;y+=30)E(g,'line',{x1:0,y1:y,x2:w,y2:y,stroke:C.border,'stroke-width':0.5,opacity:0.35});
+}
+function setPills(id,arr){
+  var el=$(id);if(!el)return;el.innerHTML='';
+  arr.forEach(function(a){var s=document.createElement('span');s.className='pill';s.style.borderColor=C[a.c]||C.teal;s.style.color=C[a.c]||C.teal;s.textContent=a.t;el.appendChild(s);});
+}
+function setLegend(id,arr){
+  var el=$(id);if(!el)return;el.innerHTML='';
+  arr.forEach(function(a){var d=document.createElement('div');d.className='leg-item';var dot=document.createElement('span');dot.className='leg-dot';dot.style.background=C[a.c]||C.teal;var lbl=document.createElement('span');lbl.textContent=a.t;d.appendChild(dot);d.appendChild(lbl);el.appendChild(d);});
+}
+function setInfo(id,arr){
+  var el=$(id);if(!el)return;el.innerHTML='';
+  arr.forEach(function(a){var d=document.createElement('div');d.className='info-item';var k=document.createElement('span');k.className='info-k';k.textContent=a.k;var v=document.createElement('span');v.className='info-v';v.textContent=a.v;d.appendChild(k);d.appendChild(v);el.appendChild(d);});
+}
+function nodeBox(g,x,y,w,h,title,sub,col){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y,width:w,height:h,rx:6,fill:C.bg3,stroke:col,'stroke-width':1.5});
+  E(g,'rect',{x:x,y:y,width:w,height:3,rx:1.5,fill:col});
+  txt(g,x+w/2,y+20,title,{fs:11,fw:600,fill:C.text,ta:'middle'});
+  if(sub)txt(g,x+w/2,y+36,sub,{fs:9,fill:C.text3,ta:'middle'});
+}
+function chip(g,x,y,w,label,col){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y,width:w,height:20,rx:10,fill:C.bg4,stroke:col,'stroke-width':1});
+  txt(g,x+w/2,y+14,label,{fs:10,fill:col,ta:'middle',fw:500});
+}
+function pbar(g,x,y,w,h,val,col){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y,width:w,height:h,rx:h/2,fill:C.bg4});
+  var fw=w*Math.min(val,100)/100;
+  if(fw>0)E(g,'rect',{x:x,y:y,width:fw,height:h,rx:h/2,fill:col});
+}
+function rbox(g,x,y,w,h,col,label,val){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y,width:w,height:h,rx:5,fill:C.bg3,stroke:C.border2,'stroke-width':1});
+  txt(g,x+8,y+16,label,{fs:10,fill:C.text2});
+  txt(g,x+w-8,y+16,val,{fs:11,fill:col,ta:'end',fw:600});
+  pbar(g,x+8,y+h-10,w-16,4,parseFloat(val)||0,col);
+}
+function drawChip(g,x,y,w,h,label,col){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y,width:w,height:h,rx:4,fill:col,opacity:0.1,stroke:col,'stroke-width':1});
+  txt(g,x+w/2,y+h/2+4,label,{fs:10,fill:col,ta:'middle',fw:500});
+}
+function sectionTitle(g,x,y,s,col){
+  col=col||C.teal;
+  E(g,'rect',{x:x,y:y-10,width:3,height:14,fill:col});
+  txt(g,x+10,y,s,{fs:13,fw:600,fill:C.text});
+}
+function setHero(pills,legend,info){
+  setPills('heroPills',pills);
+  setLegend('heroLegend',legend);
+  setInfo('heroInfo',info);
+}
+
+var MODULES=[
+  {n:'M1',t:'Sana概览',d:'NVIDIA线性扩散Transformer全景',v:['模型全景','核心指标','研究团队']},
+  {n:'M2',t:'线性扩散Transformer',d:'Linear DiT核心架构',v:['Linear DiT架构','线性注意力','效率对比']},
+  {n:'M3',t:'深度压缩自编码器',d:'32倍空间压缩',v:['32倍压缩','编码流程','解码重建']},
+  {n:'M4',t:'4096超高清生成',d:'突破分辨率极限',v:['分辨率突破','画质对比','生成流程']},
+  {n:'M5',t:'0.6B小模型大能力',d:'小体积大性能',v:['参数对比','吞吐量','资源消耗']},
+  {n:'M6',t:'SANA 1.5创新',d:'刷新文生图SOTA',v:['架构升级','质量提升','SOTA表现']},
+  {n:'M7',t:'文生图SOTA对比',d:'超越主流模型',v:['vs SDXL','vs FLUX','综合排名']},
+  {n:'M8',t:'应用与创意',d:'实际部署场景',v:['内容创作','设计应用','部署方案']}
+];
+var mCur=0;
+var mViews=[0,0,0,0,0,0,0,0];
+var mLayers=[];
+
+function selectModule(idx){mCur=idx;drawModule();}
+function setView(idx){mViews[mCur]=idx;drawModule();}
+function drawModule(){
+  var g=mLayers[0];clearNode(g);
+  var fn=DRAWFN[mCur][mViews[mCur]];
+  if(fn)fn(g);
+  updateUI();
+}
+function updateUI(){
+  var mt=$('modTabs');
+  for(var i=0;i<mt.children.length;i++){mt.children[i].classList.toggle('active',i===mCur);}
+  var vt=$('viewTabs');vt.innerHTML='';
+  var m=MODULES[mCur];
+  m.v.forEach(function(vn,i){var b=document.createElement('button');b.className='view-tab'+(i===mViews[mCur]?' active':'');b.textContent=vn;b.onclick=function(){setView(i);};vt.appendChild(b);});
+  $('heroTitle').textContent=m.t;
+  $('heroDesc').textContent=m.d;
+}
+function buildModTabs(){
+  var mt=$('modTabs');mt.innerHTML='';
+  MODULES.forEach(function(m,i){var b=document.createElement('button');b.className='mod-tab';b.textContent=m.n+' '+m.t;b.onclick=function(){selectModule(i);};mt.appendChild(b);});
+}
+
+/* ===== M1: Sana概览 ===== */
+function drawM1V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'Sana 模型全景架构',C.teal);
+  var stages=[
+    {x:30,t:'文本输入',s:'Prompt',ck:'cyan'},
+    {x:160,t:'文本编码器',s:'T5 / Gemma',ck:'blue'},
+    {x:290,t:'Linear DiT',s:'x28 blocks',ck:'teal'},
+    {x:460,t:'潜空间',s:'32x 压缩',ck:'purple'},
+    {x:610,t:'自编码解码',s:'Decoder',ck:'amber'},
+    {x:760,t:'高清图像',s:'4096px',ck:'pink'}
+  ];
+  stages.forEach(function(st,i){
+    nodeBox(g,st.x,70,110,56,st.t,st.s,C[st.ck]);
+    if(i<stages.length-1)arrow(g,st.x+110,98,stages[i+1].x,98,{col:st.ck,sw:1.5});
+  });
+  sectionTitle(g,30,170,'核心特性',C.cyan);
+  var feats=[
+    {x:30,t:'线性注意力',d:'O(n) 复杂度',ck:'teal'},
+    {x:230,t:'深度压缩',d:'32倍降采样',ck:'purple'},
+    {x:430,t:'高效训练',d:'FP8 优化',ck:'amber'},
+    {x:630,t:'超高分辨率',d:'4096x4096',ck:'pink'}
+  ];
+  feats.forEach(function(f){
+    drawChip(g,f.x,190,200,44,'',C[f.ck]);
+    txt(g,f.x+100,210,f.t,{fs:12,fill:C[f.ck],ta:'middle',fw:600});
+    txt(g,f.x+100,226,f.d,{fs:9,fill:C.text2,ta:'middle'});
+  });
+  sectionTitle(g,30,270,'关键数据',C.amber);
+  var stats=[
+    {x:30,v:'0.6B',l:'参数量',ck:'teal'},
+    {x:230,v:'100x',l:'吞吐量提升',ck:'cyan'},
+    {x:430,v:'4096',l:'最大分辨率',ck:'purple'},
+    {x:630,v:'8.5K+',l:'GitHub Stars',ck:'pink'}
+  ];
+  stats.forEach(function(s){
+    E(g,'rect',{x:s.x,y:285,width:200,height:75,rx:6,fill:C.bg3,stroke:C.border2,'stroke-width':1});
+    E(g,'rect',{x:s.x,y:285,width:200,height:3,rx:1.5,fill:C[s.ck]});
+    txt(g,s.x+100,323,s.v,{fs:24,fill:C[s.ck],ta:'middle',fw:700});
+    txt(g,s.x+100,345,s.l,{fs:10,fill:C.text2,ta:'middle'});
+  });
+  sectionTitle(g,30,390,'研究荣誉',C.green);
+  drawChip(g,30,405,180,28,'ICLR 2025 Oral',C.green);
+  drawChip(g,230,405,200,28,'NVIDIA + MIT + 清华',C.blue);
+  drawChip(g,450,405,180,28,'20x 更小',C.amber);
+  drawChip(g,650,405,180,28,'笔记本可运行',C.pink);
+  setHero(
+    [{t:'Linear DiT',c:'teal'},{t:'4096px',c:'pink'},{t:'0.6B',c:'cyan'},{t:'ICLR Oral',c:'green'}],
+    [{t:'文本编码器',c:'blue'},{t:'Linear DiT x28',c:'teal'},{t:'深度压缩AE',c:'purple'},{t:'高清解码',c:'amber'}],
+    [{k:'发布方',v:'NVIDIA / MIT / THU'},{k:'参数量',v:'0.6B'},{k:'压缩率',v:'32x'},{k:'分辨率',v:'4096x4096'}]
+  );
+}
+
+function drawM1V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'核心性能指标',C.teal);
+  var metrics=[
+    {y:60,l:'参数效率',v:'20',pct:20,col:'teal',d:'比SDXL小4倍'},
+    {y:110,l:'吞吐量',v:'95',pct:95,col:'cyan',d:'比大模型快100倍'},
+    {y:160,l:'空间压缩',v:'80',pct:80,col:'purple',d:'深度压缩自编码器'},
+    {y:210,l:'最大分辨率',v:'100',pct:100,col:'pink',d:'4096x4096像素'},
+    {y:260,l:'社区热度',v:'75',pct:75,col:'amber',d:'8.5K+ GitHub Stars'},
+    {y:310,l:'能效比',v:'90',pct:90,col:'green',d:'低功耗高效运行'}
+  ];
+  metrics.forEach(function(m){
+    rbox(g,30,m.y,380,42,C[m.col],m.l+'  '+m.d,m.v);
+  });
+  sectionTitle(g,440,30,'综合能力雷达',C.cyan);
+  radar(g,620,230,90,['速度','质量','效率','分辨率','轻量','开源'],[95,90,95,100,90,85],{col:C.cyan});
+  txt(g,450,400,'Sana 1.5 在文生图领域实现速度与质量的双重突破',{fs:11,fill:C.text2,ta:'middle'});
+  txt(g,450,420,'小模型大能力，普通笔记本即可运行',{fs:10,fill:C.text3,ta:'middle'});
+  setHero(
+    [{t:'6项指标',c:'teal'},{t:'雷达图',c:'cyan'}],
+    [{t:'参数效率 20%',c:'teal'},{t:'吞吐量 95%',c:'cyan'},{t:'分辨率 100%',c:'pink'}],
+    [{k:'综合评分',v:'92.5 / 100'},{k:'最强项',v:'分辨率'},{k:'提升项',v:'社区热度'}]
+  );
+}
+
+function drawM1V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'联合研究团队',C.teal);
+  var teams=[
+    {x:40,t:'NVIDIA',s:'GPU计算 + 工程化',ck:'green',d:['深度压缩自编码器','FP8高效训练','推理优化引擎']},
+    {x:330,t:'MIT',s:'理论算法创新',ck:'purple',d:['线性注意力理论','复杂度分析','扩散模型推导']},
+    {x:620,t:'清华大学',s:'模型架构设计',ck:'amber',d:['DiT架构设计','训练策略优化','评估体系构建']}
+  ];
+  teams.forEach(function(t){
+    E(g,'rect',{x:t.x,y:60,width:240,height:150,rx:8,fill:C.bg3,stroke:C[t.ck],'stroke-width':1.5});
+    E(g,'rect',{x:t.x,y:60,width:240,height:4,rx:2,fill:C[t.ck]});
+    txt(g,t.x+120,90,t.t,{fs:16,fill:C[t.ck],ta:'middle',fw:700});
+    txt(g,t.x+120,108,t.s,{fs:10,fill:C.text2,ta:'middle'});
+    t.d.forEach(function(di,i){txt(g,t.x+20,132+i*20,'- '+di,{fs:10,fill:C.text2});});
+  });
+  arrow(g,280,135,330,135,{col:'teal',sw:2});
+  arrow(g,570,135,620,135,{col:'teal',sw:2});
+  sectionTitle(g,30,250,'协作成果',C.cyan);
+  var results=[
+    {x:30,t:'ICLR 2025 Oral',d:'顶会口头报告',ck:'green'},
+    {x:230,t:'8.5K+ Stars',d:'开源社区影响力',ck:'amber'},
+    {x:430,t:'SOTA刷新',d:'文生图质量第一',ck:'pink'},
+    {x:630,t:'产业落地',d:'NVIDIA生态集成',ck:'blue'}
+  ];
+  results.forEach(function(r){
+    drawChip(g,r.x,270,200,44,'',C[r.ck]);
+    txt(g,r.x+100,290,r.t,{fs:12,fill:C[r.ck],ta:'middle',fw:600});
+    txt(g,r.x+100,306,r.d,{fs:9,fill:C.text2,ta:'middle'});
+  });
+  sectionTitle(g,30,350,'发展时间线',C.purple);
+  var tl=[{x:90,t:'Sana 1.0',s:'初始发布'},{x:310,t:'社区迭代',s:'8.5K Stars'},{x:530,t:'Sana 1.5',s:'SOTA刷新'},{x:750,t:'未来',s:'持续进化'}];
+  line(g,90,400,810,400,{stroke:C.border2,sw:2});
+  tl.forEach(function(p){
+    var cc=circ(g,p.x,400,6,{fill:C.purple,stroke:C.purple});
+    cc.setAttribute('class','apulse');
+    txt(g,p.x,425,p.t,{fs:11,fill:C.text,ta:'middle',fw:600});
+    txt(g,p.x,440,p.s,{fs:9,fill:C.text3,ta:'middle'});
+  });
+  setHero(
+    [{t:'NVIDIA',c:'green'},{t:'MIT',c:'purple'},{t:'清华',c:'amber'}],
+    [{t:'工程化',c:'green'},{t:'理论算法',c:'purple'},{t:'架构设计',c:'amber'}],
+    [{k:'论文级别',v:'ICLR Oral'},{k:'团队数量',v:'3所机构'},{k:'开源热度',v:'8.5K+ Stars'}]
+  );
+}
+
+/* ===== M2: 线性扩散Transformer ===== */
+function drawM2V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'Linear DiT 单块架构',C.teal);
+  E(g,'rect',{x:250,y:55,width:400,height:395,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,450,75,'Linear DiT Block',{fs:13,fill:C.teal,ta:'middle',fw:700});
+  nodeBox(g,350,88,200,34,'输入潜变量','z_t',C.cyan);
+  nodeBox(g,320,142,260,38,'AdaLN','自适应层归一化',C.blue);
+  arrow(g,450,122,450,142,{col:'cyan',sw:1.5});
+  nodeBox(g,320,200,260,50,'线性注意力','Linear Attention  O(n)',C.teal);
+  arrow(g,450,180,450,200,{col:'blue',sw:1.5});
+  line(g,300,105,265,105,{stroke:C.amber,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+  line(g,265,105,265,230,{stroke:C.amber,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+  arrow(g,265,230,320,230,{col:'amber',sw:1.5});
+  txt(g,240,170,'残差1',{fs:9,fill:C.amber,ta:'end'});
+  nodeBox(g,320,272,260,38,'AdaLN','自适应层归一化',C.blue);
+  arrow(g,450,250,450,272,{col:'teal',sw:1.5});
+  nodeBox(g,320,330,260,50,'MLP / FFN','前馈网络',C.purple);
+  arrow(g,450,310,450,330,{col:'blue',sw:1.5});
+  line(g,600,225,635,225,{stroke:C.amber,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+  line(g,635,225,635,360,{stroke:C.amber,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+  arrow(g,635,360,580,360,{col:'amber',sw:1.5});
+  txt(g,648,295,'残差2',{fs:9,fill:C.amber});
+  nodeBox(g,350,400,200,34,'输出','z_{t-dt}',C.pink);
+  arrow(g,450,380,450,400,{col:'purple',sw:1.5});
+  txt(g,50,130,'核心创新',{fs:11,fill:C.cyan,fw:600});
+  txt(g,50,150,'线性注意力替代',{fs:10,fill:C.text2});
+  txt(g,50,166,'标准softmax注意力',{fs:10,fill:C.text2});
+  txt(g,50,188,'复杂度 O(n) vs O(n^2)',{fs:10,fill:C.teal,fw:600});
+  txt(g,50,220,'关键优势',{fs:11,fill:C.cyan,fw:600});
+  txt(g,50,240,'显存大幅降低',{fs:10,fill:C.text2});
+  txt(g,50,256,'长序列高效处理',{fs:10,fill:C.text2});
+  txt(g,50,278,'吞吐量提升100倍',{fs:10,fill:C.teal,fw:600});
+  txt(g,690,130,'堆叠层数',{fs:11,fill:C.cyan,fw:600});
+  E(g,'rect',{x:695,y:145,width:60,height:220,rx:4,fill:C.bg3,stroke:C.border2,'stroke-width':1});
+  pbar(g,701,155,48,200,90,C.teal);
+  txt(g,725,195,'28',{fs:22,fill:C.teal,ta:'middle',fw:700});
+  txt(g,725,215,'blocks',{fs:9,fill:C.text3,ta:'middle'});
+  txt(g,690,400,'每块含2个',{fs:9,fill:C.text3,ta:'middle'});
+  txt(g,690,414,'残差连接',{fs:9,fill:C.text3,ta:'middle'});
+  setHero(
+    [{t:'Linear DiT',c:'teal'},{t:'28层',c:'cyan'},{t:'O(n)',c:'amber'}],
+    [{t:'AdaLN',c:'blue'},{t:'线性注意力',c:'teal'},{t:'MLP/FFN',c:'purple'},{t:'残差连接',c:'amber'}],
+    [{k:'块数',v:'28'},{k:'每块组件',v:'4个'},{k:'残差连接',v:'2条'},{k:'复杂度',v:'O(n)'}]
+  );
+}
+
+function drawM2V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'线性注意力 vs 标准注意力',C.teal);
+  E(g,'rect',{x:30,y:55,width:390,height:390,rx:8,fill:C.bg2,stroke:C.red,'stroke-width':1.5});
+  txt(g,225,78,'标准 Softmax 注意力',{fs:13,fill:C.red,ta:'middle',fw:700});
+  txt(g,225,96,'复杂度 O(n^2)',{fs:11,fill:C.text2,ta:'middle'});
+  txt(g,55,128,'Q x K^T = 注意力矩阵',{fs:11,fill:C.text});
+  E(g,'rect',{x:55,y:138,width:130,height:130,rx:4,fill:C.bg3,stroke:C.red,'stroke-width':1});
+  for(var i=0;i<7;i++)for(var j=0;j<7;j++){E(g,'rect',{x:57+j*18,y:140+i*18,width:16,height:16,fill:C.red,opacity:0.08+((i*j)%4)*0.07});}
+  txt(g,200,205,'n x n',{fs:11,fill:C.red,ta:'middle',fw:600});
+  txt(g,55,290,'问题',{fs:11,fill:C.red,fw:600});
+  txt(g,55,310,'显存随序列平方增长',{fs:10,fill:C.text2});
+  txt(g,55,326,'4096分辨率显存爆炸',{fs:10,fill:C.text2});
+  txt(g,55,342,'长序列计算极慢',{fs:10,fill:C.text2});
+  pbar(g,55,365,340,8,92,C.red);
+  txt(g,55,390,'显存占用: 极高',{fs:10,fill:C.red});
+  txt(g,55,410,'无法扩展到高分辨率',{fs:10,fill:C.red});
+  E(g,'rect',{x:480,y:55,width:390,height:390,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,675,78,'线性注意力',{fs:13,fill:C.teal,ta:'middle',fw:700});
+  txt(g,675,96,'复杂度 O(n)',{fs:11,fill:C.text2,ta:'middle'});
+  txt(g,505,128,'Q x (K^T x V) = 线性化',{fs:11,fill:C.text});
+  E(g,'rect',{x:505,y:138,width:90,height:130,rx:4,fill:C.bg3,stroke:C.teal,'stroke-width':1});
+  for(var i=0;i<7;i++)for(var j=0;j<3;j++){E(g,'rect',{x:507+j*28,y:140+i*18,width:26,height:16,fill:C.teal,opacity:0.12});}
+  txt(g,620,205,'n x d',{fs:11,fill:C.teal,ta:'middle',fw:600});
+  txt(g,505,290,'优势',{fs:11,fill:C.teal,fw:600});
+  txt(g,505,310,'显存随序列线性增长',{fs:10,fill:C.text2});
+  txt(g,505,326,'4096分辨率轻松处理',{fs:10,fill:C.text2});
+  txt(g,505,342,'长序列计算极快',{fs:10,fill:C.text2});
+  pbar(g,505,365,340,8,12,C.teal);
+  txt(g,505,390,'显存占用: 极低',{fs:10,fill:C.teal});
+  txt(g,505,410,'轻松扩展到4096px',{fs:10,fill:C.teal});
+  txt(g,450,250,'VS',{fs:22,fill:C.amber,ta:'middle',fw:700});
+  setHero(
+    [{t:'O(n) vs O(n^2)',c:'teal'},{t:'显存降低88%',c:'cyan'}],
+    [{t:'标准注意力 O(n^2)',c:'red'},{t:'线性注意力 O(n)',c:'teal'}],
+    [{k:'标准复杂度',v:'O(n^2)'},{k:'线性复杂度',v:'O(n)'},{k:'显存降低',v:'88%'}]
+  );
+}
+
+function drawM2V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'效率对比分析',C.teal);
+  var items=[
+    {y:70,l:'计算量',v1:100,v2:8,col:'teal',u:'GFLOPs'},
+    {y:145,l:'显存占用',v1:100,v2:12,col:'cyan',u:'GB'},
+    {y:220,l:'推理速度',v1:1,v2:100,col:'amber',u:'img/s'},
+    {y:295,l:'训练成本',v1:100,v2:15,col:'purple',u:'GPU-h'},
+    {y:370,l:'能效比',v1:20,v2:95,col:'green',u:'%'}
+  ];
+  items.forEach(function(it){
+    txt(g,30,it.y+20,it.l,{fs:11,fill:C.text,fw:600});
+    txt(g,180,it.y+12,'标准DiT',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:it.y+18,width:220,height:14,rx:3,fill:C.bg4});
+    E(g,'rect',{x:160,y:it.y+18,width:Math.min(it.v1*2.2,220),height:14,rx:3,fill:C.red,opacity:0.7});
+    txt(g,388,it.y+28,it.v1+' '+it.u,{fs:9,fill:C.red});
+    txt(g,180,it.y+42,'Linear DiT',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:it.y+48,width:220,height:14,rx:3,fill:C.bg4});
+    E(g,'rect',{x:160,y:it.y+48,width:Math.min(it.v2*2.2,220),height:14,rx:3,fill:C[it.col],opacity:0.8});
+    txt(g,388,it.y+58,it.v2+' '+it.u,{fs:9,fill:C[it.col]});
+  });
+  E(g,'rect',{x:560,y:60,width:310,height:380,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,715,85,'总结',{fs:13,fill:C.teal,ta:'middle',fw:700});
+  var sums=[
+    {t:'计算量降低92%',d:'100 -> 8 GFLOPs',c:'teal'},
+    {t:'显存降低88%',d:'100 -> 12 GB',c:'cyan'},
+    {t:'速度提升100倍',d:'1 -> 100 img/s',c:'amber'},
+    {t:'训练成本降85%',d:'100 -> 15 GPU-h',c:'purple'},
+    {t:'能效比提升375%',d:'20% -> 95%',c:'green'}
+  ];
+  sums.forEach(function(s,i){
+    drawChip(g,580,105+i*68,270,50,'',C[s.c]);
+    txt(g,715,128+i*68,s.t,{fs:11,fill:C[s.c],ta:'middle',fw:600});
+    txt(g,715,145+i*68,s.d,{fs:9,fill:C.text2,ta:'middle'});
+  });
+  setHero(
+    [{t:'5维对比',c:'teal'},{t:'全面领先',c:'cyan'}],
+    [{t:'标准DiT',c:'red'},{t:'Linear DiT',c:'teal'}],
+    [{k:'计算量',v:'降92%'},{k:'显存',v:'降88%'},{k:'速度',v:'快100x'},{k:'训练',v:'降85%'}]
+  );
+}
+
+/* ===== M3: 深度压缩自编码器 ===== */
+function drawM3V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'深度压缩自编码器 - 32倍空间压缩',C.purple);
+  txt(g,60,75,'原始图像',{fs:11,fill:C.text,fw:600});
+  txt(g,60,90,'4096 x 4096',{fs:9,fill:C.text3});
+  E(g,'rect',{x:60,y:100,width:170,height:170,rx:4,fill:C.bg3,stroke:C.cyan,'stroke-width':1.5});
+  for(var i=0;i<8;i++)for(var j=0;j<8;j++){E(g,'rect',{x:62+j*20.5,y:102+i*20.5,width:19,height:19,fill:C.cyan,opacity:0.05+((i+j)%3)*0.08});}
+  txt(g,145,300,'16,777,216 像素',{fs:10,fill:C.cyan,ta:'middle'});
+  txt(g,290,180,'32x',{fs:28,fill:C.amber,ta:'middle',fw:700});
+  arrow(g,240,195,340,195,{col:'amber',sw:3});
+  txt(g,295,215,'空间压缩',{fs:10,fill:C.amber,ta:'middle'});
+  txt(g,390,75,'潜空间',{fs:11,fill:C.text,fw:600});
+  txt(g,390,90,'128 x 128',{fs:9,fill:C.text3});
+  E(g,'rect',{x:420,y:100,width:80,height:80,rx:4,fill:C.bg3,stroke:C.purple,'stroke-width':1.5});
+  for(var i=0;i<4;i++)for(var j=0;j<4;j++){E(g,'rect',{x:422+j*19,y:102+i*19,width:18,height:18,fill:C.purple,opacity:0.1+((i+j)%2)*0.1});}
+  txt(g,460,200,'65,536 潜变量',{fs:10,fill:C.purple,ta:'middle'});
+  E(g,'rect',{x:560,y:70,width:310,height:220,rx:8,fill:C.bg2,stroke:C.purple,'stroke-width':1.5});
+  txt(g,715,95,'压缩效果',{fs:13,fill:C.purple,ta:'middle',fw:700});
+  rbox(g,580,110,270,40,C.teal,'空间压缩率','256');
+  rbox(g,580,158,270,40,C.cyan,'像素减少率','99.6');
+  rbox(g,580,206,270,40,C.amber,'信息保留率','98');
+  rbox(g,580,254,270,40,C.green,'推理加速','20');
+  sectionTitle(g,30,330,'与其他自编码器对比',C.cyan);
+  var vaes=[
+    {x:30,t:'标准VAE',r:'8x',ck:'red'},
+    {x:230,t:'SDXL VAE',r:'8x',ck:'amber'},
+    {x:430,t:'FLUX VAE',r:'16x',ck:'cyan'},
+    {x:630,t:'Sana DCAE',r:'32x',ck:'teal'}
+  ];
+  vaes.forEach(function(v){
+    drawChip(g,v.x,350,200,40,'',C[v.ck]);
+    txt(g,v.x+100,370,v.t,{fs:11,fill:C[v.ck],ta:'middle',fw:600});
+    txt(g,v.x+100,385,v.r+' 压缩',{fs:9,fill:C.text2,ta:'middle'});
+  });
+  txt(g,30,430,'Sana DCAE 实现业界最高32倍空间压缩，显著降低潜空间维度',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'32x压缩',c:'purple'},{t:'DCAE',c:'teal'},{t:'99.6%减少',c:'cyan'}],
+    [{t:'原始 4096x4096',c:'cyan'},{t:'潜空间 128x128',c:'purple'},{t:'标准VAE 8x',c:'red'},{t:'Sana DCAE 32x',c:'teal'}],
+    [{k:'空间压缩',v:'32倍'},{k:'像素减少',v:'99.6%'},{k:'信息保留',v:'98%'}]
+  );
+}
+
+function drawM3V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'编码流程 - 图像到潜空间',C.purple);
+  var steps=[
+    {x:40,y:70,t:'输入图像',s:'4096x4096x3',ck:'cyan'},
+    {x:40,y:150,t:'Patch嵌入',s:'卷积下采样',ck:'blue'},
+    {x:40,y:230,t:'残差块 x4',s:'特征提取',ck:'teal'},
+    {x:40,y:310,t:'下采样 x5',s:'空间32倍压缩',ck:'amber'},
+    {x:40,y:390,t:'潜变量输出',s:'128x128xC',ck:'purple'}
+  ];
+  steps.forEach(function(st,i){
+    nodeBox(g,st.x,st.y,180,60,st.t,st.s,C[st.ck]);
+    if(i<steps.length-1)arrow(g,130,st.y+60,130,steps[i+1].y,{col:st.ck,sw:2});
+  });
+  sectionTitle(g,280,30,'编码器结构细节',C.cyan);
+  E(g,'rect',{x:280,y:55,width:590,height:380,rx:8,fill:C.bg2,stroke:C.cyan,'stroke-width':1.5});
+  var layers=[
+    {y:80,t:'Conv2D 7x7  stride=2',d:'4096 -> 2048',ck:'blue'},
+    {y:130,t:'ResBlock x4 + Downsample',d:'2048 -> 1024 -> 512',ck:'teal'},
+    {y:180,t:'ResBlock x4 + Downsample',d:'512 -> 256 -> 128',ck:'teal'},
+    {y:230,t:'ResBlock x4 + Downsample',d:'128 -> 64 -> 32',ck:'teal'},
+    {y:280,t:'ResBlock x4 + Downsample',d:'32 -> 16 -> 8',ck:'amber'},
+    {y:330,t:'注意力增强块',d:'全局上下文建模',ck:'purple'},
+    {y:380,t:'Conv 输出层',d:'8x8xC -> 潜变量',ck:'pink'}
+  ];
+  layers.forEach(function(l){
+    E(g,'rect',{x:300,y:l.y,width:550,height:36,rx:4,fill:C.bg3,stroke:C.border2,'stroke-width':1});
+    E(g,'rect',{x:300,y:l.y,width:3,height:36,fill:C[l.ck]});
+    txt(g,315,l.y+15,l.t,{fs:10,fill:C.text,fw:500});
+    txt(g,840,l.y+15,l.d,{fs:9,fill:C.text3,ta:'end'});
+  });
+  txt(g,575,435,'编码器共执行5次空间下采样，实现32倍压缩',{fs:10,fill:C.text2,ta:'middle'});
+  setHero(
+    [{t:'编码器',c:'purple'},{t:'5次下采样',c:'amber'}],
+    [{t:'Patch嵌入',c:'blue'},{t:'残差块',c:'teal'},{t:'下采样',c:'amber'},{t:'注意力',c:'purple'}],
+    [{k:'输入',v:'4096x4096'},{k:'输出',v:'128x128'},{k:'下采样次数',v:'5次'},{k:'压缩率',v:'32x'}]
+  );
+}
+
+function drawM3V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'解码重建 - 潜空间到图像',C.amber);
+  var steps=[
+    {x:680,y:70,t:'潜变量输入',s:'128x128xC',ck:'purple'},
+    {x:680,y:150,t:'上采样 x5',s:'空间32倍恢复',ck:'amber'},
+    {x:680,y:230,t:'残差块 x4',s:'特征重建',ck:'teal'},
+    {x:680,y:310,t:'Patch解码',s:'卷积上采样',ck:'blue'},
+    {x:680,y:390,t:'重建图像',s:'4096x4096x3',ck:'pink'}
+  ];
+  steps.forEach(function(st,i){
+    nodeBox(g,st.x,st.y,180,60,st.t,st.s,C[st.ck]);
+    if(i<steps.length-1)arrow(g,770,steps[i+1].y+60,770,st.y,{col:st.ck,sw:2});
+  });
+  sectionTitle(g,30,30,'解码器与重建质量',C.cyan);
+  E(g,'rect',{x:30,y:55,width:620,height:200,rx:8,fill:C.bg2,stroke:C.cyan,'stroke-width':1.5});
+  txt(g,340,80,'重建质量指标',{fs:13,fill:C.cyan,ta:'middle',fw:700});
+  var qm=[
+    {y:95,l:'PSNR',v:'38.5',pct:85,col:'teal'},
+    {y:135,l:'SSIM',v:'0.96',pct:96,col:'cyan'},
+    {y:175,l:'LPIPS',v:'0.04',pct:92,col:'purple'},
+    {y:215,l:'FID',v:'2.1',pct:88,col:'green'}
+  ];
+  qm.forEach(function(m){
+    txt(g,50,m.y+12,m.l,{fs:11,fill:C.text,fw:600});
+    pbar(g,140,m.y+6,380,10,parseFloat(m.pct),C[m.col]);
+    txt(g,530,m.y+14,m.v,{fs:11,fill:C[m.col],fw:600});
+  });
+  sectionTitle(g,30,280,'解码流程示意',C.amber);
+  E(g,'rect',{x:30,y:300,width:620,height:140,rx:8,fill:C.bg2,stroke:C.amber,'stroke-width':1.5});
+  var flow=[
+    {x:50,t:'128x128',s:'潜变量',ck:'purple'},
+    {x:200,t:'256x256',s:'上采样1',ck:'amber'},
+    {x:350,t:'1024x1024',s:'上采样2-3',ck:'amber'},
+    {x:500,t:'4096x4096',s:'最终输出',ck:'pink'}
+  ];
+  flow.forEach(function(f,i){
+    E(g,'rect',{x:f.x,y:320,width:130,height:50,rx:4,fill:C.bg3,stroke:C[f.ck],'stroke-width':1});
+    txt(g,f.x+65,343,f.t,{fs:11,fill:C[f.ck],ta:'middle',fw:600});
+    txt(g,f.x+65,360,f.s,{fs:9,fill:C.text3,ta:'middle'});
+    if(i<flow.length-1)arrow(g,f.x+130,345,flow[i+1].x,345,{col:'amber',sw:1.5});
+  });
+  txt(g,340,400,'逐级上采样恢复高清细节，保持纹理与结构完整性',{fs:10,fill:C.text2,ta:'middle'});
+  setHero(
+    [{t:'解码器',c:'amber'},{t:'PSNR 38.5',c:'teal'},{t:'SSIM 0.96',c:'cyan'}],
+    [{t:'潜变量',c:'purple'},{t:'上采样',c:'amber'},{t:'残差块',c:'teal'},{t:'重建图像',c:'pink'}],
+    [{k:'PSNR',v:'38.5 dB'},{k:'SSIM',v:'0.96'},{k:'LPIPS',v:'0.04'},{k:'FID',v:'2.1'}]
+  );
+}
+
+/* ===== M4: 4096超高清生成 ===== */
+function drawM4V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'分辨率突破 - 从512到4096',C.pink);
+  var res=[
+    {x:30,v:512,l:'512px',p:'262K',ck:'text3',pct:6},
+    {x:210,v:1024,l:'1024px',p:'1.05M',ck:'blue',pct:15},
+    {x:390,v:2048,l:'2048px',p:'4.19M',ck:'cyan',pct:35},
+    {x:570,v:4096,l:'4096px',p:'16.77M',ck:'pink',pct:100}
+  ];
+  res.forEach(function(r){
+    var sz=r.pct*1.4;
+    E(g,'rect',{x:r.x,y:250-sz,width:140,height:sz*2,rx:3,fill:C.bg3,stroke:C[r.ck],'stroke-width':1.5});
+    E(g,'rect',{x:r.x,y:250-sz,width:140,height:sz*2,rx:3,fill:C[r.ck],opacity:0.1});
+    txt(g,r.x+70,260,r.l,{fs:13,fill:C[r.ck],ta:'middle',fw:700});
+    txt(g,r.x+70,278,r.v+'x'+r.v,{fs:10,fill:C.text2,ta:'middle'});
+    txt(g,r.x+70,294,r.p+' 像素',{fs:9,fill:C.text3,ta:'middle'});
+  });
+  sectionTitle(g,30,320,'像素增长对比',C.cyan);
+  var bars=[
+    {x:30,l:'512',v:6,col:'text3'},
+    {x:210,l:'1024',v:15,col:'blue'},
+    {x:390,l:'2048',v:35,col:'cyan'},
+    {x:570,l:'4096',v:100,col:'pink'}
+  ];
+  bars.forEach(function(b){
+    txt(g,b.x+70,345,b.l+'px',{fs:10,fill:C.text2,ta:'middle'});
+    E(g,'rect',{x:b.x,y:355,width:140,height:14,rx:3,fill:C.bg4});
+    E(g,'rect',{x:b.x,y:355,width:b.v*1.4,height:14,rx:3,fill:C[b.col],opacity:0.8});
+    txt(g,b.x+70,388,b.v+'%',{fs:9,fill:C[b.col],ta:'middle'});
+  });
+  sectionTitle(g,30,410,'Sana突破',C.pink);
+  drawChip(g,30,425,200,28,'4096x4096 原生',C.pink);
+  drawChip(g,250,425,200,28,'无需超分辨率',C.teal);
+  drawChip(g,470,425,200,28,'线性注意力支撑',C.amber);
+  drawChip(g,690,425,160,28,'单次生成',C.cyan);
+  setHero(
+    [{t:'4096px',c:'pink'},{t:'16.77M像素',c:'cyan'}],
+    [{t:'512px',c:'text3'},{t:'1024px',c:'blue'},{t:'2048px',c:'cyan'},{t:'4096px',c:'pink'}],
+    [{k:'最大分辨率',v:'4096x4096'},{k:'像素数',v:'16,777,216'},{k:'提升倍数',v:'vs 512: 64x'}]
+  );
+}
+
+function drawM4V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'画质对比 - 不同分辨率质量评估',C.pink);
+  var res=['512','1024','2048','4096'];
+  var metrics=[
+    {l:'FID (越低越好)',col:'teal',vals:[28,18,12,5.2],min:0,max:30,inv:true},
+    {l:'CLIP Score',col:'cyan',vals:[28,30,32,33.5],min:25,max:35,inv:false},
+    {l:'细节丰富度',col:'amber',vals:[30,50,75,98],min:0,max:100,inv:false},
+    {l:'纹理保真度',col:'purple',vals:[40,60,80,95],min:0,max:100,inv:false}
+  ];
+  metrics.forEach(function(m,mi){
+    var by=80+mi*85;
+    txt(g,30,by,m.l,{fs:11,fill:C.text,fw:600});
+    res.forEach(function(r,ri){
+      var x=180+ri*165;
+      var v=m.vals[ri];
+      var pct=m.inv?((m.max-v)/(m.max-m.min))*100:((v-m.min)/(m.max-m.min))*100;
+      pct=Math.max(5,Math.min(100,pct));
+      E(g,'rect',{x:x,y:by+8,width:130,height:18,rx:3,fill:C.bg4});
+      E(g,'rect',{x:x,y:by+8,width:130*pct/100,height:18,rx:3,fill:C[m.col],opacity:0.7});
+      txt(g,x+65,by+21,r+'px',{fs:9,fill:C.text,ta:'middle'});
+      txt(g,x+65,by+38,String(v),{fs:10,fill:C[m.col],ta:'middle',fw:600});
+    });
+  });
+  sectionTitle(g,30,425,'结论',C.green);
+  txt(g,30,445,'4096分辨率在所有指标上全面领先，细节丰富度提升327%',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'4项指标',c:'pink'},{t:'4096全面领先',c:'teal'}],
+    [{t:'FID',c:'teal'},{t:'CLIP',c:'cyan'},{t:'细节',c:'amber'},{t:'纹理',c:'purple'}],
+    [{k:'4096 FID',v:'5.2'},{k:'4096 CLIP',v:'33.5'},{k:'细节',v:'98%'}]
+  );
+}
+
+function drawM4V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'生成流程 - 文本到4096高清图像',C.pink);
+  var stages=[
+    {x:30,t:'文本输入',s:'用户Prompt',ck:'cyan'},
+    {x:180,t:'文本编码',s:'T5编码器',ck:'blue'},
+    {x:330,t:'条件嵌入',s:'文本特征',ck:'purple'},
+    {x:480,t:'扩散去噪',s:'28步 Linear DiT',ck:'teal'},
+    {x:630,t:'潜空间',s:'128x128',ck:'amber'},
+    {x:780,t:'解码输出',s:'4096x4096',ck:'pink'}
+  ];
+  stages.forEach(function(st,i){
+    nodeBox(g,st.x,65,120,60,st.t,st.s,C[st.ck]);
+    if(i<stages.length-1)arrow(g,st.x+120,95,stages[i+1].x,95,{col:'teal',sw:1.5});
+  });
+  sectionTitle(g,30,170,'扩散去噪过程详解',C.teal);
+  E(g,'rect',{x:30,y:185,width:840,height:180,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,450,210,'Linear DiT 去噪轨迹',{fs:12,fill:C.teal,ta:'middle',fw:700});
+  var denoise=[
+    {x:60,t:'t=28',s:'纯噪声',ck:'red'},
+    {x:200,t:'t=21',s:'粗轮廓',ck:'amber'},
+    {x:340,t:'t=14',s:'结构成型',ck:'cyan'},
+    {x:480,t:'t=7',s:'细节涌现',ck:'teal'},
+    {x:620,t:'t=3',s:'纹理清晰',ck:'green'},
+    {x:760,t:'t=0',s:'高清输出',ck:'pink'}
+  ];
+  denoise.forEach(function(d,i){
+    var cc=circ(g,d.x,270,18,{fill:C.bg3,stroke:C[d.ck],'stroke-width':2});
+    txt(g,d.x,274,d.t,{fs:9,fill:C[d.ck],ta:'middle',fw:600});
+    txt(g,d.x,300,d.s,{fs:9,fill:C.text2,ta:'middle'});
+    if(i<denoise.length-1)arrow(g,d.x+18,270,denoise[i+1].x-18,270,{col:'teal',sw:1.5});
+  });
+  sectionTitle(g,30,390,'性能指标',C.amber);
+  var perf=[
+    {x:30,l:'生成步数',v:'28',ck:'teal'},
+    {x:220,l:'单步耗时',v:'0.3s',ck:'cyan'},
+    {x:410,l:'总耗时',v:'8.4s',ck:'amber'},
+    {x:600,l:'显存峰值',v:'12GB',ck:'purple'}
+  ];
+  perf.forEach(function(p){
+    drawChip(g,p.x,405,200,30,'',C[p.ck]);
+    txt(g,p.x+100,425,p.l+': '+p.v,{fs:10,fill:C[p.ck],ta:'middle',fw:500});
+  });
+  setHero(
+    [{t:'28步去噪',c:'teal'},{t:'8.4s生成',c:'amber'},{t:'12GB显存',c:'purple'}],
+    [{t:'文本编码',c:'blue'},{t:'Linear DiT',c:'teal'},{t:'AE解码',c:'amber'}],
+    [{k:'去噪步数',v:'28'},{k:'总耗时',v:'8.4s'},{k:'显存',v:'12GB'},{k:'输出',v:'4096x4096'}]
+  );
+}
+
+/* ===== M5: 0.6B小模型大能力 ===== */
+function drawM5V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'参数对比 - 小模型大能力',C.teal);
+  var models=[
+    {l:'Sana 1.5',v:0.6,col:'teal',x:30},
+    {l:'SDXL',v:2.6,col:'amber',x:230},
+    {l:'SD 3',v:8,col:'cyan',x:430},
+    {l:'FLUX',v:12,col:'red',x:630}
+  ];
+  models.forEach(function(m){
+    var bw=Math.min(m.v*22,250);
+    E(g,'rect',{x:m.x,y:80,width:200,height:50,rx:6,fill:C.bg3,stroke:C[m.col],'stroke-width':1.5});
+    txt(g,m.x+100,103,m.l,{fs:12,fill:C[m.col],ta:'middle',fw:700});
+    txt(g,m.x+100,120,m.v+'B 参数',{fs:10,fill:C.text2,ta:'middle'});
+    E(g,'rect',{x:m.x,y:140,width:200,height:20,rx:3,fill:C.bg4});
+    E(g,'rect',{x:m.x,y:140,width:Math.min(bw,200),height:20,rx:3,fill:C[m.col],opacity:0.7});
+    var pct=(m.v/12*100).toFixed(0);
+    txt(g,m.x+100,174,'占FLUX的 '+pct+'%',{fs:9,fill:C.text3,ta:'middle'});
+  });
+  sectionTitle(g,30,210,'参数效率分析',C.cyan);
+  E(g,'rect',{x:30,y:225,width:840,height:100,rx:8,fill:C.bg2,stroke:C.cyan,'stroke-width':1.5});
+  var eff=[
+    {x:50,t:'Sana参数/FLUX',v:'5%',ck:'teal'},
+    {x:280,t:'Sana参数/SD3',v:'7.5%',ck:'cyan'},
+    {x:510,t:'Sana参数/SDXL',v:'23%',ck:'amber'},
+    {x:710,t:'参数效率',v:'20x',ck:'green'}
+  ];
+  eff.forEach(function(e){
+    drawChip(g,e.x,245,160,40,'',C[e.ck]);
+    txt(g,e.x+80,265,e.t,{fs:9,fill:C.text2,ta:'middle'});
+    txt(g,e.x+80,279,e.v,{fs:12,fill:C[e.ck],ta:'middle',fw:700});
+  });
+  sectionTitle(g,30,350,'质量不降反升',C.green);
+  rbox(g,30,365,200,40,C.teal,'FID','5.2');
+  rbox(g,250,365,200,40,C.cyan,'CLIP Score','33.5');
+  rbox(g,470,365,200,40,C.amber,'人类偏好','68%');
+  rbox(g,690,365,180,40,C.green,'综合排名','#1');
+  txt(g,30,430,'0.6B参数超越12B FLUX，证明架构创新比堆参数更有效',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'0.6B',c:'teal'},{t:'20x更小',c:'green'},{t:'质量#1',c:'pink'}],
+    [{t:'Sana 0.6B',c:'teal'},{t:'SDXL 2.6B',c:'amber'},{t:'SD3 8B',c:'cyan'},{t:'FLUX 12B',c:'red'}],
+    [{k:'Sana',v:'0.6B'},{k:'SDXL',v:'2.6B'},{k:'SD3',v:'8B'},{k:'FLUX',v:'12B'}]
+  );
+}
+
+function drawM5V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'吞吐量对比 - 速度碾压',C.amber);
+  var models=[
+    {l:'FLUX 12B',v:1,col:'red'},
+    {l:'SD3 8B',v:2,col:'cyan'},
+    {l:'SDXL 2.6B',v:5,col:'amber'},
+    {l:'Sana 1.5',v:100,col:'teal'}
+  ];
+  models.forEach(function(m,i){
+    var y=80+i*70;
+    txt(g,30,y+18,m.l,{fs:11,fill:C.text,fw:600});
+    E(g,'rect',{x:200,y:y+5,width:600,height:24,rx:4,fill:C.bg4});
+    var bw=m.v*6;
+    E(g,'rect',{x:200,y:y+5,width:Math.min(bw,600),height:24,rx:4,fill:C[m.col],opacity:0.8});
+    txt(g,210+Math.min(bw,600),y+22,m.v+' img/s',{fs:11,fill:C[m.col],fw:700});
+    if(m.v===100){
+      var an=E(g,'text',{x:210,y:y+18,fill:C.teal,'font-size':11,'font-weight':700});
+      an.textContent='100x faster';
+      an.setAttribute('class','apulse');
+    }
+  });
+  sectionTitle(g,30,380,'吞吐量分析',C.cyan);
+  var facts=[
+    {x:30,t:'vs FLUX',v:'100x',ck:'teal'},
+    {x:250,t:'vs SD3',v:'50x',ck:'cyan'},
+    {x:470,t:'vs SDXL',v:'20x',ck:'amber'},
+    {x:690,t:'笔记本',v:'可运行',ck:'green'}
+  ];
+  facts.forEach(function(f){
+    drawChip(g,f.x,395,180,40,'',C[f.ck]);
+    txt(g,f.x+90,413,f.t,{fs:9,fill:C.text2,ta:'middle'});
+    txt(g,f.x+90,428,f.v,{fs:12,fill:C[f.ck],ta:'middle',fw:700});
+  });
+  setHero(
+    [{t:'100x faster',c:'teal'},{t:'笔记本可运行',c:'green'}],
+    [{t:'Sana 100 img/s',c:'teal'},{t:'SDXL 5 img/s',c:'amber'},{t:'FLUX 1 img/s',c:'red'}],
+    [{k:'Sana',v:'100 img/s'},{k:'SDXL',v:'5 img/s'},{k:'FLUX',v:'1 img/s'}]
+  );
+}
+
+function drawM5V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'资源消耗对比 - 极致高效',C.green);
+  var resources=[
+    {l:'GPU显存',v1:48,v2:12,col:'teal',u:'GB',y:70},
+    {l:'推理功耗',v1:450,v2:80,col:'cyan',u:'W',y:150},
+    {l:'训练成本',v1:100,v2:15,col:'amber',u:'GPU-h',y:230},
+    {l:'存储空间',v1:48,v2:2.4,col:'purple',u:'GB',y:310},
+    {l:'碳排放',v1:100,v2:12,col:'green',u:'kg CO2',y:390}
+  ];
+  resources.forEach(function(r){
+    txt(g,30,r.y+14,r.l,{fs:11,fill:C.text,fw:600});
+    txt(g,180,r.y+6,'大模型',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:r.y+12,width:280,height:14,rx:3,fill:C.bg4});
+    E(g,'rect',{x:160,y:r.y+12,width:Math.min(r.v1*5.6,280),height:14,rx:3,fill:C.red,opacity:0.7});
+    txt(g,448,r.y+23,r.v1+' '+r.u,{fs:9,fill:C.red});
+    txt(g,180,r.y+36,'Sana 0.6B',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:r.y+42,width:280,height:14,rx:3,fill:C.bg4});
+    E(g,'rect',{x:160,y:r.y+42,width:Math.min(r.v2*5.6,280),height:14,rx:3,fill:C[r.col],opacity:0.8});
+    txt(g,448,r.y+53,r.v2+' '+r.u,{fs:9,fill:C[r.col]});
+  });
+  E(g,'rect',{x:560,y:60,width:310,height:380,rx:8,fill:C.bg2,stroke:C.green,'stroke-width':1.5});
+  txt(g,715,85,'资源节省',{fs:13,fill:C.green,ta:'middle',fw:700});
+  var saves=[
+    {t:'显存节省75%',d:'48 -> 12 GB',c:'teal'},
+    {t:'功耗降低82%',d:'450 -> 80 W',c:'cyan'},
+    {t:'训练成本降85%',d:'100 -> 15 GPU-h',c:'amber'},
+    {t:'存储减少95%',d:'48 -> 2.4 GB',c:'purple'},
+    {t:'碳排减少88%',d:'100 -> 12 kg',c:'green'}
+  ];
+  saves.forEach(function(s,i){
+    drawChip(g,580,105+i*68,270,50,'',C[s.c]);
+    txt(g,715,128+i*68,s.t,{fs:11,fill:C[s.c],ta:'middle',fw:600});
+    txt(g,715,145+i*68,s.d,{fs:9,fill:C.text2,ta:'middle'});
+  });
+  setHero(
+    [{t:'显存12GB',c:'teal'},{t:'功耗80W',c:'cyan'},{t:'绿色AI',c:'green'}],
+    [{t:'大模型(高消耗)',c:'red'},{t:'Sana(低消耗)',c:'green'}],
+    [{k:'显存',v:'12 GB'},{k:'功耗',v:'80 W'},{k:'训练',v:'15 GPU-h'},{k:'碳排',v:'12 kg'}]
+  );
+}
+
+/* ===== M6: SANA 1.5创新 ===== */
+function drawM6V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'架构升级 - Sana 1.0 到 1.5',C.purple);
+  E(g,'rect',{x:30,y:55,width:380,height:380,rx:8,fill:C.bg2,stroke:C.amber,'stroke-width':1.5});
+  txt(g,220,80,'Sana 1.0',{fs:15,fill:C.amber,ta:'middle',fw:700});
+  var v1=[
+    {t:'标准线性注意力',ck:'text3'},
+    {t:'基础DCAE 32x',ck:'text3'},
+    {t:'FP16 训练',ck:'text3'},
+    {t:'28层DiT',ck:'text3'},
+    {t:'T5文本编码',ck:'text3'},
+    {t:'标准采样',ck:'text3'}
+  ];
+  v1.forEach(function(f,i){
+    txt(g,50,110+i*52,'- '+f.t,{fs:11,fill:C.text2});
+    pbar(g,50,120+i*52,340,4,40,C.text3);
+  });
+  txt(g,475,275,'->',{fs:30,fill:C.teal,ta:'middle',fw:700});
+  E(g,'rect',{x:490,y:55,width:380,height:380,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,680,80,'Sana 1.5',{fs:15,fill:C.teal,ta:'middle',fw:700});
+  var v2=[
+    {t:'增强线性注意力',ck:'teal'},
+    {t:'优化DCAE 32x+',ck:'cyan'},
+    {t:'FP8 混合精度',ck:'amber'},
+    {t:'28层DiT优化',ck:'green'},
+    {t:'Gemma2文本编码',ck:'purple'},
+    {t:'Flow Matching采样',ck:'pink'}
+  ];
+  v2.forEach(function(f,i){
+    var an=txt(g,510,110+i*52,'+ '+f.t,{fs:11,fill:C[f.ck],fw:600});
+    pbar(g,510,120+i*52,340,4,85,C[f.ck]);
+  });
+  setHero(
+    [{t:'6项升级',c:'teal'},{t:'FP8训练',c:'amber'},{t:'Flow Matching',c:'pink'}],
+    [{t:'Sana 1.0',c:'amber'},{t:'Sana 1.5',c:'teal'}],
+    [{k:'注意力',v:'增强版'},{k:'精度',v:'FP8'},{k:'文本编码',v:'Gemma2'},{k:'采样',v:'Flow Match'}]
+  );
+}
+
+function drawM6V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'质量提升 - 1.0 vs 1.5',C.purple);
+  var metrics=[
+    {l:'FID',v1:8.5,v2:5.2,col:'teal',inv:true,y:70},
+    {l:'CLIP Score',v1:31,v2:33.5,col:'cyan',inv:false,y:140},
+    {l:'人类偏好',v1:55,v2:68,col:'amber',inv:false,y:210},
+    {l:'细节保真度',v1:75,v2:95,col:'purple',inv:false,y:280},
+    {l:'色彩准确度',v1:80,v2:93,col:'green',inv:false,y:350}
+  ];
+  metrics.forEach(function(m){
+    txt(g,30,m.y+15,m.l,{fs:11,fill:C.text,fw:600});
+    txt(g,200,m.y+8,'v1.0',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:m.y+14,width:300,height:14,rx:3,fill:C.bg4});
+    var p1=m.inv?(100-m.v1):m.v1;
+    E(g,'rect',{x:160,y:m.y+14,width:p1*3,height:14,rx:3,fill:C.text3,opacity:0.6});
+    txt(g,468,m.y+25,m.v1,{fs:10,fill:C.text3});
+    txt(g,200,m.y+38,'v1.5',{fs:9,fill:C.text3,ta:'middle'});
+    E(g,'rect',{x:160,y:m.y+44,width:300,height:14,rx:3,fill:C.bg4});
+    var p2=m.inv?(100-m.v2):m.v2;
+    E(g,'rect',{x:160,y:m.y+44,width:p2*3,height:14,rx:3,fill:C[m.col],opacity:0.8});
+    txt(g,468,m.y+55,m.v2,{fs:10,fill:C[m.col],fw:600});
+  });
+  E(g,'rect',{x:560,y:60,width:310,height:380,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,715,85,'关键提升',{fs:13,fill:C.teal,ta:'middle',fw:700});
+  var ups=[
+    {t:'FID降低39%',d:'8.5 -> 5.2',c:'teal'},
+    {t:'CLIP提升8%',d:'31 -> 33.5',c:'cyan'},
+    {t:'偏好提升24%',d:'55% -> 68%',c:'amber'},
+    {t:'细节提升27%',d:'75 -> 95',c:'purple'},
+    {t:'色彩提升16%',d:'80 -> 93',c:'green'}
+  ];
+  ups.forEach(function(u,i){
+    drawChip(g,580,105+i*68,270,50,'',C[u.c]);
+    txt(g,715,128+i*68,u.t,{fs:11,fill:C[u.c],ta:'middle',fw:600});
+    txt(g,715,145+i*68,u.d,{fs:9,fill:C.text2,ta:'middle'});
+  });
+  setHero(
+    [{t:'FID 5.2',c:'teal'},{t:'偏好68%',c:'amber'},{t:'全面提升',c:'green'}],
+    [{t:'Sana 1.0',c:'text3'},{t:'Sana 1.5',c:'teal'}],
+    [{k:'FID',v:'5.2 (-39%)'},{k:'CLIP',v:'33.5 (+8%)'},{k:'偏好',v:'68% (+24%)'}]
+  );
+}
+
+function drawM6V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'SOTA表现 - 基准测试排行榜',C.green);
+  var ranks=[
+    {r:1,n:'Sana 1.5 0.6B',fid:5.2,clip:33.5,col:'teal'},
+    {r:2,n:'FLUX 12B',fid:6.8,clip:32.1,col:'cyan'},
+    {r:3,n:'SD3 8B',fid:7.5,clip:31.5,col:'amber'},
+    {r:4,n:'SDXL 2.6B',fid:9.1,clip:30.2,col:'purple'},
+    {r:5,n:'PixArt 1B',fid:10.3,clip:29.8,col:'pink'},
+    {r:6,n:'DALL-E 3',fid:11.2,clip:29.5,col:'red'}
+  ];
+  txt(g,30,72,'#',{fs:10,fill:C.text3,fw:600});
+  txt(g,70,72,'模型',{fs:10,fill:C.text3,fw:600});
+  txt(g,400,72,'FID',{fs:10,fill:C.text3,fw:600,ta:'middle'});
+  txt(g,520,72,'CLIP',{fs:10,fill:C.text3,fw:600,ta:'middle'});
+  txt(g,680,72,'综合评分',{fs:10,fill:C.text3,fw:600,ta:'middle'});
+  line(g,30,80,870,80,{stroke:C.border2,sw:1});
+  ranks.forEach(function(rk,i){
+    var y=100+i*55;
+    txt(g,30,y+18,'#'+rk.r,{fs:14,fill:rk.col,fw:700});
+    txt(g,70,y+18,rk.n,{fs:11,fill:C.text,fw:500});
+    pbar(g,400,y+10,100,8,rk.fid<15?(15-rk.fid)/15*100:5,rk.col);
+    txt(g,400,y+28,rk.fid,{fs:9,fill:C.text2,ta:'middle'});
+    pbar(g,520,y+10,100,8,(rk.clip-28)/8*100,rk.col);
+    txt(g,520,y+28,rk.clip,{fs:9,fill:C.text2,ta:'middle'});
+    var score=(100-rk.fid*3+rk.clip*2)/2;
+    pbar(g,680,y+10,150,12,score,rk.col);
+    txt(g,840,y+19,score.toFixed(1),{fs:10,fill:rk.col,fw:600,ta:'end'});
+    if(i===0){
+      E(g,'rect',{x:20,y:y-5,width:860,height:45,rx:4,fill:'none',stroke:rk.col,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+      chip(g,840,y-8,40,'SOTA',rk.col);
+    }
+  });
+  setHero(
+    [{t:'排名#1',c:'teal'},{t:'SOTA',c:'green'},{t:'0.6B',c:'cyan'}],
+    [{t:'Sana 1.5',c:'teal'},{t:'FLUX 12B',c:'cyan'},{t:'SD3 8B',c:'amber'}],
+    [{k:'排名',v:'#1 (SOTA)'},{k:'FID',v:'5.2'},{k:'CLIP',v:'33.5'},{k:'综合',v:'76.5'}]
+  );
+}
+
+/* ===== M7: 文生图SOTA对比 ===== */
+function drawM7V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'Sana 1.5 vs SDXL - 全维度对比',C.teal);
+  radar(g,260,240,100,['质量','速度','效率','分辨率','轻量','易用'],[95,98,95,100,92,88],{col:C.teal});
+  radar(g,260,240,100,['质量','速度','效率','分辨率','轻量','易用'],[72,25,30,40,35,70],{col:C.red});
+  txt(g,260,380,'Sana 1.5',{fs:12,fill:C.teal,ta:'middle',fw:700});
+  txt(g,260,398,'vs',{fs:10,fill:C.text3,ta:'middle'});
+  txt(g,260,414,'SDXL',{fs:12,fill:C.red,ta:'middle',fw:700});
+  E(g,'rect',{x:500,y:60,width:370,height:380,rx:8,fill:C.bg2,stroke:C.teal,'stroke-width':1.5});
+  txt(g,685,85,'逐项对比',{fs:13,fill:C.teal,ta:'middle',fw:700});
+  var cmp=[
+    {l:'参数量',v1:'0.6B',v2:'2.6B',w:'Sana',c:'teal'},
+    {l:'最大分辨率',v1:'4096',v2:'1024',w:'Sana',c:'pink'},
+    {l:'吞吐量',v1:'100',v2:'5',w:'Sana',c:'cyan'},
+    {l:'FID',v1:'5.2',v2:'9.1',w:'Sana',c:'green'},
+    {l:'CLIP',v1:'33.5',v2:'30.2',w:'Sana',c:'amber'},
+    {l:'显存',v1:'12GB',v2:'24GB',w:'Sana',c:'purple'},
+    {l:'训练精度',v1:'FP8',v2:'FP16',w:'Sana',c:'teal'},
+    {l:'采样方法',v1:'Flow',v2:'DDIM',w:'Sana',c:'cyan'}
+  ];
+  cmp.forEach(function(c,i){
+    var y=105+i*42;
+    txt(g,520,y,c.l,{fs:10,fill:C.text2});
+    txt(g,620,y,c.v1,{fs:10,fill:C.teal,fw:600});
+    txt(g,700,y,c.v2,{fs:10,fill:C.red});
+    txt(g,810,y,c.w,{fs:9,fill:C[c.c],fw:600,ta:'end'});
+  });
+  setHero(
+    [{t:'vs SDXL',c:'teal'},{t:'全面碾压',c:'green'}],
+    [{t:'Sana 1.5',c:'teal'},{t:'SDXL',c:'red'}],
+    [{k:'参数',v:'0.6B vs 2.6B'},{k:'分辨率',v:'4096 vs 1024'},{k:'速度',v:'100 vs 5 img/s'}]
+  );
+}
+
+function drawM7V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'Sana 1.5 vs FLUX - 全维度对比',C.cyan);
+  radar(g,260,240,100,['质量','速度','效率','分辨率','轻量','易用'],[92,99,96,100,95,85],{col:C.cyan});
+  radar(g,260,240,100,['质量','速度','效率','分辨率','轻量','易用'],[88,3,15,60,10,40],{col:C.red});
+  txt(g,260,380,'Sana 1.5',{fs:12,fill:C.cyan,ta:'middle',fw:700});
+  txt(g,260,398,'vs',{fs:10,fill:C.text3,ta:'middle'});
+  txt(g,260,414,'FLUX 12B',{fs:12,fill:C.red,ta:'middle',fw:700});
+  E(g,'rect',{x:500,y:60,width:370,height:380,rx:8,fill:C.bg2,stroke:C.cyan,'stroke-width':1.5});
+  txt(g,685,85,'逐项对比',{fs:13,fill:C.cyan,ta:'middle',fw:700});
+  var cmp=[
+    {l:'参数量',v1:'0.6B',v2:'12B',w:'Sana',c:'teal'},
+    {l:'最大分辨率',v1:'4096',v2:'2048',w:'Sana',c:'pink'},
+    {l:'吞吐量',v1:'100',v2:'1',w:'Sana',c:'cyan'},
+    {l:'FID',v1:'5.2',v2:'6.8',w:'Sana',c:'green'},
+    {l:'CLIP',v1:'33.5',v2:'32.1',w:'Sana',c:'amber'},
+    {l:'显存',v1:'12GB',v2:'48GB',w:'Sana',c:'purple'},
+    {l:'训练成本',v1:'15h',v2:'100h',w:'Sana',c:'teal'},
+    {l:'部署门槛',v1:'低',v2:'高',w:'Sana',c:'cyan'}
+  ];
+  cmp.forEach(function(c,i){
+    var y=105+i*42;
+    txt(g,520,y,c.l,{fs:10,fill:C.text2});
+    txt(g,620,y,c.v1,{fs:10,fill:C.cyan,fw:600});
+    txt(g,700,y,c.v2,{fs:10,fill:C.red});
+    txt(g,810,y,c.w,{fs:9,fill:C[c.c],fw:600,ta:'end'});
+  });
+  setHero(
+    [{t:'vs FLUX',c:'cyan'},{t:'20x更小',c:'teal'},{t:'100x更快',c:'amber'}],
+    [{t:'Sana 1.5',c:'cyan'},{t:'FLUX 12B',c:'red'}],
+    [{k:'参数',v:'0.6B vs 12B'},{k:'速度',v:'100 vs 1 img/s'},{k:'显存',v:'12 vs 48 GB'}]
+  );
+}
+
+function drawM7V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'综合排名 - 文生图模型总榜',C.green);
+  var models=[
+    {n:'Sana 1.5',score:76.5,col:'teal',params:'0.6B'},
+    {n:'FLUX',score:71.2,col:'cyan',params:'12B'},
+    {n:'SD3',score:68.0,col:'amber',params:'8B'},
+    {n:'SDXL',score:62.5,col:'purple',params:'2.6B'},
+    {n:'PixArt',score:58.3,col:'pink',params:'1B'},
+    {n:'DALL-E 3',score:55.1,col:'red',params:'未知'}
+  ];
+  txt(g,30,72,'排名',{fs:10,fill:C.text3,fw:600});
+  txt(g,80,72,'模型',{fs:10,fill:C.text3,fw:600});
+  txt(g,280,72,'参数量',{fs:10,fill:C.text3,fw:600});
+  txt(g,420,72,'综合评分',{fs:10,fill:C.text3,fw:600});
+  txt(g,780,72,'星级',{fs:10,fill:C.text3,fw:600,ta:'middle'});
+  line(g,30,80,870,80,{stroke:C.border2,sw:1});
+  models.forEach(function(m,i){
+    var y=100+i*55;
+    txt(g,30,y+18,'#'+(i+1),{fs:14,fill:m.col,fw:700});
+    txt(g,80,y+18,m.n,{fs:12,fill:C.text,fw:500});
+    txt(g,280,y+18,m.params,{fs:10,fill:C.text2});
+    E(g,'rect',{x:420,y:y+8,width:300,height:16,rx:3,fill:C.bg4});
+    E(g,'rect',{x:420,y:y+8,width:m.score*3.6,height:16,rx:3,fill:m.col,opacity:0.8});
+    txt(g,730,y+20,m.score.toFixed(1),{fs:11,fill:m.col,fw:600});
+    var stars=Math.round(m.score/20);
+    var st='';
+    for(var s=0;s<5;s++)st+=s<stars?'*':'-';
+    txt(g,780,y+18,st,{fs:14,fill:m.col,ta:'middle'});
+    if(i===0){
+      E(g,'rect',{x:20,y:y-5,width:860,height:45,rx:4,fill:'none',stroke:m.col,'stroke-width':1.5,'stroke-dasharray':'4 3'});
+      chip(g,800,y+8,50,'SOTA',m.col);
+    }
+  });
+  setHero(
+    [{t:'总榜#1',c:'teal'},{t:'SOTA',c:'green'}],
+    [{t:'Sana 1.5',c:'teal'},{t:'FLUX',c:'cyan'},{t:'SD3',c:'amber'},{t:'SDXL',c:'purple'}],
+    [{k:'冠军',v:'Sana 1.5'},{k:'评分',v:'76.5'},{k:'参数',v:'0.6B'}]
+  );
+}
+
+/* ===== M8: 应用与创意 ===== */
+function drawM8V0(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'内容创作 - 多场景应用',C.pink);
+  var apps=[
+    {x:30,y:65,t:'艺术插画',d:'高质量艺术风格生成',ck:'pink',i:'风格多样'},
+    {x:310,y:65,t:'摄影级图像',d:'逼真照片级输出',ck:'cyan',i:'4096高清'},
+    {x:590,y:65,t:'概念设计',d:'游戏影视概念图',ck:'purple',i:'快速迭代'},
+    {x:30,y:200,t:'电商展示',d:'产品场景图生成',ck:'amber',i:'批量生成'},
+    {x:310,y:200,t:'社交媒体',d:'配图海报创作',ck:'teal',i:'即时出图'},
+    {x:590,y:200,t:'教育插图',d:'教学可视化素材',ck:'green',i:'精准表达'}
+  ];
+  apps.forEach(function(a){
+    E(g,'rect',{x:a.x,y:a.y,width:280,height:120,rx:8,fill:C.bg3,stroke:C[a.ck],'stroke-width':1.5});
+    E(g,'rect',{x:a.x,y:a.y,width:280,height:4,rx:2,fill:C[a.ck]});
+    txt(g,a.x+140,a.y+35,a.t,{fs:14,fill:C[a.ck],ta:'middle',fw:700});
+    txt(g,a.x+140,a.y+55,a.d,{fs:10,fill:C.text2,ta:'middle'});
+    chip(g,a.x+80,a.y+75,120,a.i,C[a.ck]);
+    pbar(g,a.x+40,a.y+100,200,4,85,C[a.ck]);
+  });
+  sectionTitle(g,30,360,'核心优势',C.teal);
+  var adv=[
+    {x:30,t:'秒级生成',ck:'teal'},
+    {x:200,t:'4096高清',ck:'pink'},
+    {x:370,t:'风格可控',ck:'purple'},
+    {x:540,t:'批量生产',ck:'amber'},
+    {x:710,t:'低成本',ck:'green'}
+  ];
+  adv.forEach(function(a){
+    drawChip(g,a.x,375,160,30,'',C[a.ck]);
+    txt(g,a.x+80,395,a.t,{fs:10,fill:C[a.ck],ta:'middle',fw:600});
+  });
+  txt(g,30,440,'Sana 1.5 为内容创作者提供高效、高质量的AI生成方案',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'6大场景',c:'pink'},{t:'秒级生成',c:'teal'}],
+    [{t:'艺术插画',c:'pink'},{t:'摄影级',c:'cyan'},{t:'概念设计',c:'purple'},{t:'电商',c:'amber'}],
+    [{k:'场景数',v:'6+'},{k:'分辨率',v:'4096px'},{k:'速度',v:'秒级'}]
+  );
+}
+
+function drawM8V1(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'设计应用 - 专业领域',C.purple);
+  var designs=[
+    {x:30,y:65,t:'UI/UX设计',d:'界面原型快速生成',ck:'cyan',f:['组件布局','配色方案','交互原型']},
+    {x:310,y:65,t:'品牌设计',d:'Logo与视觉系统',ck:'amber',f:['Logo生成','品牌色板','字体搭配']},
+    {x:590,y:65,t:'建筑设计',d:'效果图与方案',ck:'teal',f:['外观渲染','室内设计','景观规划']}
+  ];
+  designs.forEach(function(d){
+    E(g,'rect',{x:d.x,y:d.y,width:280,height:160,rx:8,fill:C.bg3,stroke:C[d.ck],'stroke-width':1.5});
+    E(g,'rect',{x:d.x,y:d.y,width:280,height:4,rx:2,fill:C[d.ck]});
+    txt(g,d.x+140,d.y+30,d.t,{fs:14,fill:C[d.ck],ta:'middle',fw:700});
+    txt(g,d.x+140,d.y+48,d.d,{fs:10,fill:C.text2,ta:'middle'});
+    d.f.forEach(function(fi,i){txt(g,d.x+20,d.y+75+i*20,'- '+fi,{fs:10,fill:C.text2});});
+    pbar(g,d.x+20,d.y+140,240,4,80,C[d.ck]);
+  });
+  sectionTitle(g,30,260,'效率提升',C.green);
+  var eff=[
+    {x:30,l:'设计周期',v:'缩短70%',ck:'teal'},
+    {x:310,l:'出图速度',v:'100x',ck:'cyan'},
+    {x:590,l:'成本节省',v:'85%',ck:'amber'}
+  ];
+  eff.forEach(function(e){
+    drawChip(g,e.x,275,280,50,'',C[e.ck]);
+    txt(g,e.x+140,297,e.l,{fs:11,fill:C.text2,ta:'middle'});
+    txt(g,e.x+140,315,e.v,{fs:16,fill:C[e.ck],ta:'middle',fw:700});
+  });
+  sectionTitle(g,30,360,'适用行业',C.pink);
+  var inds=[
+    {x:30,t:'广告营销',ck:'pink'},
+    {x:200,t:'游戏开发',ck:'purple'},
+    {x:370,t:'影视制作',ck:'amber'},
+    {x:540,t:'出版印刷',ck:'cyan'},
+    {x:710,t:'电子商务',ck:'green'}
+  ];
+  inds.forEach(function(ind){
+    drawChip(g,ind.x,375,160,30,'',C[ind.ck]);
+    txt(g,ind.x+80,395,ind.t,{fs:10,fill:C[ind.ck],ta:'middle',fw:600});
+  });
+  txt(g,30,440,'Sana 1.5 为设计行业带来革命性效率提升',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'3大领域',c:'purple'},{t:'效率100x',c:'cyan'},{t:'成本降85%',c:'amber'}],
+    [{t:'UI/UX',c:'cyan'},{t:'品牌设计',c:'amber'},{t:'建筑设计',c:'teal'}],
+    [{k:'周期缩短',v:'70%'},{k:'出图',v:'100x'},{k:'成本',v:'-85%'}]
+  );
+}
+
+function drawM8V2(g){
+  gridBg(g,900,480);
+  sectionTitle(g,30,30,'部署方案 - 灵活高效',C.green);
+  var deploys=[
+    {x:30,y:65,t:'边缘部署',d:'笔记本/工作站本地运行',ck:'teal',f:['12GB显存','8.4s生成','无需云端','数据安全']},
+    {x:310,y:65,t:'云端部署',d:'API服务批量生成',ck:'cyan',f:['弹性扩展','高并发','负载均衡','按需付费']},
+    {x:590,y:65,t:'实时部署',d:'交互式实时生成',ck:'amber',f:['<1s响应','流式输出','用户交互','动态调整']}
+  ];
+  deploys.forEach(function(d){
+    E(g,'rect',{x:d.x,y:d.y,width:280,height:180,rx:8,fill:C.bg3,stroke:C[d.ck],'stroke-width':1.5});
+    E(g,'rect',{x:d.x,y:d.y,width:280,height:4,rx:2,fill:C[d.ck]});
+    txt(g,d.x+140,d.y+30,d.t,{fs:14,fill:C[d.ck],ta:'middle',fw:700});
+    txt(g,d.x+140,d.y+50,d.d,{fs:10,fill:C.text2,ta:'middle'});
+    d.f.forEach(function(fi,i){
+      chip(g,d.x+20,d.y+70+i*26,240,fi,C[d.ck]);
+    });
+  });
+  sectionTitle(g,30,280,'部署对比',C.purple);
+  var cmp=[
+    {l:'部署门槛',v1:'极低',v2:'中',v3:'中',col:'teal'},
+    {l:'生成速度',v1:'8.4s',v2:'2s',v3:'<1s',col:'cyan'},
+    {l:'并发能力',v1:'1',v2:'100+',v3:'10',col:'amber'},
+    {l:'使用成本',v1:'免费',v2:'按量',v3:'较高',col:'green'}
+  ];
+  txt(g,30,312,'指标',{fs:10,fill:C.text3,fw:600});
+  txt(g,200,312,'边缘',{fs:10,fill:C.teal,fw:600,ta:'middle'});
+  txt(g,400,312,'云端',{fs:10,fill:C.cyan,fw:600,ta:'middle'});
+  txt(g,600,312,'实时',{fs:10,fill:C.amber,fw:600,ta:'middle'});
+  cmp.forEach(function(c,i){
+    var y=325+i*30;
+    txt(g,30,y+14,c.l,{fs:10,fill:C.text2});
+    txt(g,200,y+14,c.v1,{fs:10,fill:C.teal,ta:'middle'});
+    txt(g,400,y+14,c.v2,{fs:10,fill:C.cyan,ta:'middle'});
+    txt(g,600,y+14,c.v3,{fs:10,fill:C.amber,ta:'middle'});
+  });
+  txt(g,30,460,'Sana 1.5 支持从边缘到云端的全方位部署方案',{fs:10,fill:C.text2});
+  setHero(
+    [{t:'3种部署',c:'green'},{t:'边缘可运行',c:'teal'},{t:'实时<1s',c:'amber'}],
+    [{t:'边缘部署',c:'teal'},{t:'云端部署',c:'cyan'},{t:'实时部署',c:'amber'}],
+    [{k:'边缘显存',v:'12GB'},{k:'云端并发',v:'100+'},{k:'实时延迟',v:'<1s'}]
+  );
+}
+
+/* ===== DRAWFN 注册表 ===== */
+var DRAWFN=[
+  [drawM1V0,drawM1V1,drawM1V2],
+  [drawM2V0,drawM2V1,drawM2V2],
+  [drawM3V0,drawM3V1,drawM3V2],
+  [drawM4V0,drawM4V1,drawM4V2],
+  [drawM5V0,drawM5V1,drawM5V2],
+  [drawM6V0,drawM6V1,drawM6V2],
+  [drawM7V0,drawM7V1,drawM7V2],
+  [drawM8V0,drawM8V1,drawM8V2]
+];
+
+function init(){
+  mLayers[0]=$('layer0');
+  buildModTabs();
+  selectModule(0);
+}
+init();
+</script>
+</body>
+</html>
