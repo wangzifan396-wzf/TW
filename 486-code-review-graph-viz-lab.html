@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Code Review Graph · 可视化实验室</title>
+<style>
+:root{
+  --bg:#0a0b0f;--bg2:#0f1117;--bg3:#161922;--bg4:#1c2030;
+  --border:#1e2433;--border2:#2a3144;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --teal:#00d4aa;--cyan:#22d3ee;--amber:#fbbf24;--red:#ef4444;
+  --purple:#a78bfa;--blue:#3b82f6;--pink:#f472b6;--green:#34d399;
+  --mono:"'SF Mono','JetBrains Mono',Consolas,monospace";
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6;min-height:100vh;}
+.app{max-width:1280px;margin:0 auto;padding:24px 20px;}
+.app-header{margin-bottom:28px;}
+.ah-badge{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--teal);background:rgba(0,212,170,0.1);border:1px solid rgba(0,212,170,0.3);padding:4px 12px;border-radius:4px;margin-bottom:12px;}
+.ah-title{font-size:28px;font-weight:800;margin-bottom:8px;background:linear-gradient(135deg,var(--teal),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.ah-sub{color:var(--text2);font-size:14px;margin-bottom:14px;}
+.ah-tags{display:flex;flex-wrap:wrap;gap:6px;}
+.ah-tag{font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);padding:3px 10px;border-radius:12px;}
+.lab-hero{background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:16px;padding:32px;margin-bottom:24px;position:relative;overflow:hidden;}
+.hero-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--cyan);margin-bottom:12px;}
+.hero-title{font-size:24px;font-weight:700;margin-bottom:14px;line-height:1.4;}
+.hero-desc{color:var(--text2);font-size:14px;line-height:1.7;max-width:900px;margin-bottom:20px;}
+.hero-meta{display:flex;flex-wrap:wrap;gap:24px;}
+.hm-item{display:flex;flex-direction:column;}
+.hm-k{font-size:10px;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;}
+.hm-v{font-size:16px;font-weight:700;color:var(--text);}
+.module-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.nav-btn{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:all .2s;font-family:inherit;}
+.nav-btn:hover{border-color:var(--teal);color:var(--text);}
+.nav-btn.active{background:rgba(0,212,170,0.1);border-color:var(--teal);color:var(--teal);}
+.nav-n{font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg4);padding:2px 6px;border-radius:4px;}
+.nav-btn.active .nav-n{background:var(--teal);color:var(--bg);}
+.nav-t{white-space:nowrap;}
+.module-panel{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.mp-tabs{display:flex;gap:0;border-bottom:1px solid var(--border2);background:var(--bg3);}
+.mp-tab{padding:10px 20px;background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;transition:all .2s;border-bottom:2px solid transparent;font-family:inherit;}
+.mp-tab:hover{color:var(--text2);}
+.mp-tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+.mp-body{display:flex;gap:0;}
+.svg-wrap{flex:1;min-width:0;padding:16px;overflow-x:auto;}
+.svg-wrap svg{width:100%;height:auto;display:block;}
+.mp-side{width:240px;flex-shrink:0;border-left:1px solid var(--border2);padding:16px;background:var(--bg3);}
+.sb{margin-bottom:20px;}
+.sb-t{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;font-weight:600;}
+.pills{display:flex;flex-direction:column;gap:6px;}
+.pill{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);background:var(--bg4);padding:6px 10px;border-radius:6px;}
+.pd{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend{display:flex;flex-direction:column;gap:6px;}
+.leg-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.info{display:flex;flex-direction:column;gap:8px;}
+.info-row{display:flex;justify-content:space-between;font-size:12px;gap:8px;}
+.info-k{color:var(--text3);}
+.info-v{color:var(--text2);font-weight:600;text-align:right;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 2px currentColor);}50%{filter:drop-shadow(0 0 8px currentColor);}}
+@keyframes dash{to{stroke-dashoffset:-20;}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+@keyframes spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+.apulse{animation:pulse 2s ease-in-out infinite;}
+.aglow{animation:glow 2s ease-in-out infinite;}
+.adash{stroke-dasharray:6 4;animation:dash 1s linear infinite;}
+.ablink{animation:blink 1.5s ease-in-out infinite;}
+.aspin{animation:spin 4s linear infinite;transform-origin:center;}
+@media(max-width:960px){
+  .mp-body{flex-direction:column;}
+  .mp-side{width:100%;border-left:none;border-top:1px solid var(--border2);}
+  .hero-meta{gap:16px;}
+  .ah-title{font-size:22px;}
+  .hero-title{font-size:18px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="app-header">
+    <div class="ah-badge">TIRTH8205 · 26K STARS · MIT</div>
+    <h1 class="ah-title">Code Review Graph · 可视化实验室</h1>
+    <p class="ah-sub">tirth8205/code-review-graph — 2.6万Stars · 代码审查知识图谱 · MCP协议 · Token节省</p>
+    <div class="ah-tags">
+      <span class="ah-tag">26K+ Stars</span>
+      <span class="ah-tag">代码审查</span>
+      <span class="ah-tag">知识图谱</span>
+      <span class="ah-tag">MCP协议</span>
+      <span class="ah-tag">Token优化</span>
+      <span class="ah-tag">Python</span>
+    </div>
+  </div>
+  <div class="lab-hero">
+    <div class="hero-eyebrow">PROJECT · TIRTH8205/CODE-REVIEW-GRAPH</div>
+    <h2 class="hero-title">代码审查知识图谱 · 2.6万Stars · MCP协议智能审查</h2>
+    <p class="hero-desc">tirth8205/code-review-graph基于代码审查生成知识图谱的工具，支持MCP协议，帮助开发者更智能地审查代码，节省token消耗。将代码审查过程结构化为图谱，使AI能理解代码间的关系和依赖。本周新增6.6K stars。</p>
+    <div class="hero-meta">
+      <div class="hm-item"><span class="hm-k">GitHub Stars</span><span class="hm-v">26K+</span></div>
+      <div class="hm-item"><span class="hm-k">协议</span><span class="hm-v">MCP</span></div>
+      <div class="hm-item"><span class="hm-k">图谱类型</span><span class="hm-v">代码关系</span></div>
+      <div class="hm-item"><span class="hm-k">语言</span><span class="hm-v">Python</span></div>
+    </div>
+  </div>
+  <div class="module-nav" id="modNav"></div>
+  <div class="module-panel">
+    <div class="mp-tabs" id="mpTabs"></div>
+    <div class="mp-body">
+      <div class="svg-wrap"><svg id="svg" viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="mp-side">
+        <div class="sb"><div class="sb-t">标签</div><div class="pills" id="pills"></div></div>
+        <div class="sb"><div class="sb-t">图例</div><div class="legend" id="legend"></div></div>
+        <div class="sb"><div class="sb-t">信息</div><div class="info" id="info"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+var SVGNS='http://www.w3.org/2000/svg';
+var C={bg:'#0a0b0f',bg2:'#0f1117',bg3:'#161922',bg4:'#1c2030',border:'#1e2433',border2:'#2a3144',text:'#e2e8f0',text2:'#94a3b8',text3:'#64748b',teal:'#00d4aa',cyan:'#22d3ee',amber:'#fbbf24',red:'#ef4444',purple:'#a78bfa',blue:'#3b82f6',pink:'#f472b6',green:'#34d399',mono:"'SF Mono','JetBrains Mono',Consolas,monospace"};
+function E(parent,tag,attrs){var el=document.createElementNS(SVGNS,tag);if(attrs){for(var k in attrs){el.setAttribute(k,attrs[k]);}}parent.appendChild(el);return el;}
+function $(id){return document.getElementById(id);}
+function clearNode(n){while(n.firstChild){n.removeChild(n.firstChild);}}
+function box(g,x,y,w,h,opts){opts=opts||{};E(g,'rect',{x:x,y:y,width:w,height:h,fill:opts.fill||C.bg3,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5,rx:opts.rx||8});}
+function txt(g,x,y,s,opts){opts=opts||{};var t=E(g,'text',{x:x,y:y,fill:opts.fill||C.text,'font-size':opts.fs||13,'font-family':opts.ff||'sans-serif','text-anchor':opts.ta||'start','font-weight':opts.fw||'normal'});t.textContent=s;return t;}
+function line(g,x1,y1,x2,y2,opts){opts=opts||{};var a={x1:x1,y1:y1,x2:x2,y2:y2,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5};if(opts.dash)a['stroke-dasharray']=opts.dash;if(opts.cls)a['class']=opts.cls;E(g,'line',a);}
+function arrow(g,x1,y1,x2,y2,opts){opts=opts||{};var col=opts.stroke||C.teal;var mid='ah';if(col===C.cyan)mid='ah-c';else if(col===C.purple)mid='ah-p';else if(col===C.amber)mid='ah-a';else if(col===C.blue)mid='ah-b';else if(col===C.pink)mid='ah-k';else if(col===C.green)mid='ah-g';else if(col===C.red)mid='ah-r';var a={x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,'stroke-width':opts.sw||2,'marker-end':'url(#'+mid+')'};if(opts.dash)a['stroke-dasharray']=opts.dash;if(opts.cls)a['class']=opts.cls;E(g,'line',a);}
+function circ(g,cx,cy,r,opts){opts=opts||{};var a={cx:cx,cy:cy,r:r,fill:opts.fill||'none',stroke:opts.stroke||C.teal,'stroke-width':opts.sw||1.5};if(opts.cls)a['class']=opts.cls;if(opts.dash)a['stroke-dasharray']=opts.dash;E(g,'circle',a);}
+function poly(g,pts,opts){opts=opts||{};E(g,'polygon',{points:pts,fill:opts.fill||'none',stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5});}
+function radar(g,cx,cy,r,labels,data,opts){opts=opts||{};var n=labels.length,i,a,rr;for(var ring=1;ring<=4;ring++){var pts=[];for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*ring/4;pts.push((cx+Math.cos(a)*rr).toFixed(1)+','+(cy+Math.sin(a)*rr).toFixed(1));}E(g,'polygon',{points:pts.join(' '),fill:'none',stroke:C.border,'stroke-width':1});}for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;E(g,'line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*r,y2:cy+Math.sin(a)*r,stroke:C.border,'stroke-width':1});}var dpts=[];for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*data[i]/100;dpts.push((cx+Math.cos(a)*rr).toFixed(1)+','+(cy+Math.sin(a)*rr).toFixed(1));}E(g,'polygon',{points:dpts.join(' '),fill:opts.fill||'rgba(0,212,170,0.15)',stroke:opts.stroke||C.teal,'stroke-width':2});for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;var lx=cx+Math.cos(a)*(r+22),ly=cy+Math.sin(a)*(r+22)+4;txt(g,lx,ly,labels[i],{fs:10,fill:C.text2,ta:'middle'});}}
+function gridBg(g,w,h){for(var x=0;x<=w;x+=45){E(g,'line',{x1:x,y1:0,x2:x,y2:h,stroke:'#141926','stroke-width':1});}for(var y=0;y<=h;y+=45){E(g,'line',{x1:0,y1:y,x2:w,y2:y,stroke:'#141926','stroke-width':1});}E(g,'rect',{x:0,y:0,width:w,height:h,fill:'none',stroke:'#1e2433','stroke-width':1.5,rx:4});}
+function setPills(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var p=arr[i];var d=document.createElement('div');d.className='pill';d.innerHTML='<span class="pd" style="background:'+p.c+'"></span><span>'+p.t+'</span>';c.appendChild(d);}}
+function setLegend(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var l=arr[i];var d=document.createElement('div');d.className='leg-item';d.innerHTML='<span class="leg-dot" style="background:'+l.c+'"></span><span class="leg-txt">'+l.t+'</span>';c.appendChild(d);}}
+function setInfo(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var it=arr[i];var d=document.createElement('div');d.className='info-row';d.innerHTML='<span class="info-k">'+it.k+'</span><span class="info-v">'+it.v+'</span>';c.appendChild(d);}}
+function nodeBox(g,x,y,w,h,title,sub,col){col=col||C.purple;E(g,'rect',{x:x,y:y,width:w,height:h,rx:8,fill:C.bg3,stroke:col,'stroke-width':1.5});txt(g,x+w/2,y+h/2+(sub?4:5),title,{fs:13,fw:'bold',fill:C.text,ta:'middle'});if(sub)txt(g,x+w/2,y+h/2+22,sub,{fs:10,fill:col,ta:'middle'});}
+function chip(g,x,y,w,label,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:20,rx:10,fill:'rgba(0,0,0,0.3)',stroke:col,'stroke-width':1});txt(g,x+w/2,y+14,label,{fs:10,fill:col,ta:'middle',fw:'bold'});}
+function pbar(g,x,y,w,h,val,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:h/2,fill:C.bg4,stroke:C.border,'stroke-width':1});E(g,'rect',{x:x,y:y,width:Math.max(w*val/100,h),height:h,rx:h/2,fill:col});}
+function rbox(g,x,y,w,h,col,label,val){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:8,fill:C.bg3,stroke:col,'stroke-width':1.5});txt(g,x+w/2,y+28,val,{fs:24,fw:'bold',fill:col,ta:'middle',ff:C.mono});txt(g,x+w/2,y+50,label,{fs:11,fill:C.text2,ta:'middle'});}
+function drawChip(g,x,y,w,h,label,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:6,fill:'rgba(0,0,0,0.3)',stroke:col,'stroke-width':1});txt(g,x+w/2,y+h/2+4,label,{fs:10,fill:col,ta:'middle',fw:'bold'});}
+function addDefs(svg){var defs=E(svg,'defs',{});var cols=[['ah',C.teal],['ah-c',C.cyan],['ah-p',C.purple],['ah-a',C.amber],['ah-b',C.blue],['ah-k',C.pink],['ah-g',C.green],['ah-r',C.red]];for(var i=0;i<cols.length;i++){var mk=E(defs,'marker',{id:cols[i][0],viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'6',markerHeight:'6',orient:'auto'});E(mk,'path',{d:'M0,0 L10,5 L0,10 Z',fill:cols[i][1]});}}
+
+var MODULES=[
+  {n:'M1',t:'项目概览',v:['项目全景','核心指标','定位分析']},
+  {n:'M2',t:'知识图谱构建',v:['图谱构建','关系提取','依赖分析']},
+  {n:'M3',t:'MCP协议集成',v:['MCP协议','工具集成','审查接口']},
+  {n:'M4',t:'智能审查',v:['审查流程','AI分析','问题发现']},
+  {n:'M5',t:'Token优化',v:['Token压缩','结构化查询','效率提升']},
+  {n:'M6',t:'图谱可视化',v:['图谱渲染','交互探索','关系导航']},
+  {n:'M7',t:'审查工具生态',v:['竞品对比','功能基准','优势分析']},
+  {n:'M8',t:'代码审查未来',v:['技术路线','生态展望','未来方向']}
+];
+
+var mCur=0,mViews=[0,0,0,0,0,0,0,0],mLayers=[];
+function buildNav(){var n=$('modNav');clearNode(n);for(var i=0;i<MODULES.length;i++){var b=document.createElement('button');b.className='nav-btn'+(i===mCur?' active':'');b.innerHTML='<span class="nav-n">'+MODULES[i].n+'</span><span class="nav-t">'+MODULES[i].t+'</span>';b.onclick=function(idx){return function(){mCur=idx;drawModule(idx);};}(i);n.appendChild(b);}}
+function buildTabs(mi){var t=$('mpTabs');clearNode(t);for(var i=0;i<3;i++){var b=document.createElement('button');b.className='mp-tab'+(i===mViews[mi]?' active':'');b.textContent=MODULES[mi].v[i];b.onclick=function(mi2,vi2){return function(){mViews[mi2]=vi2;drawModule(mi2);};}(mi,i);t.appendChild(b);}}
+function setView(mi,vi){mViews[mi]=vi;drawModule(mi);}
+function drawModule(mi){mCur=mi;var svg=$('svg');clearNode(svg);svg.setAttribute('viewBox','0 0 900 480');addDefs(svg);var g=E(svg,'g',{id:'layer'});gridBg(g,900,480);buildNav();buildTabs(mi);var fns=[drawM1,drawM2,drawM3,drawM4,drawM5,drawM6,drawM7,drawM8];fns[mi](g,mViews[mi]);}
+
+function drawM1(g,vi){
+  if(vi===0){
+    txt(g,450,34,'项目全景 · code-review-graph',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码审查知识图谱生态总览',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,370,100,160,60,'code-review-graph','核心项目',C.teal);
+    nodeBox(g,120,200,140,50,'26K Stars','GitHub热度',C.amber);
+    nodeBox(g,300,200,140,50,'Python','主要语言',C.green);
+    nodeBox(g,480,200,140,50,'MCP','协议标准',C.cyan);
+    nodeBox(g,660,200,140,50,'知识图谱','核心技术',C.purple);
+    arrow(g,450,160,190,200,{stroke:C.amber,sw:1.5,dash:'4 3'});
+    arrow(g,450,160,370,200,{stroke:C.green,sw:1.5,dash:'4 3'});
+    arrow(g,450,160,550,200,{stroke:C.cyan,sw:1.5,dash:'4 3'});
+    arrow(g,450,160,730,200,{stroke:C.purple,sw:1.5,dash:'4 3'});
+    rbox(g,80,300,180,80,C.teal,'总Stars','26K');
+    rbox(g,290,300,180,80,C.cyan,'本周新增','+6.6K');
+    rbox(g,500,300,180,80,C.amber,'Token节省','70%');
+    rbox(g,710,300,140,80,C.purple,'协议','MCP');
+    box(g,60,410,780,50,{fill:C.bg2,stroke:C.border});
+    txt(g,80,440,'核心理念: 代码审查 · 知识图谱 · MCP协议 · Token优化 · AI驱动',{fs:13,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'知识图谱',c:C.purple},{t:'26K+ Stars',c:C.amber},{t:'MCP协议',c:C.cyan},{t:'Token节省70%',c:C.teal},{t:'Python',c:C.green}]);
+    setLegend('legend',[{t:'核心项目',c:C.teal},{t:'GitHub热度',c:C.amber},{t:'技术栈',c:C.green},{t:'协议标准',c:C.cyan},{t:'核心技术',c:C.purple}]);
+    setInfo('info',[{k:'项目',v:'tirth8205/code-review-graph'},{k:'Stars',v:'26K+'},{k:'语言',v:'Python'},{k:'协议',v:'MCP'},{k:'本周新增',v:'+6.6K'},{k:'Token节省',v:'70%'}]);
+  }else if(vi===1){
+    txt(g,450,34,'核心指标 · 增长与效率',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'关键数据指标与增长趋势',{fs:12,fill:C.text2,ta:'middle'});
+    rbox(g,60,90,190,90,C.teal,'GitHub总Stars','26K');
+    rbox(g,280,90,190,90,C.cyan,'本周新增','6.6K');
+    rbox(g,500,90,190,90,C.amber,'Token节省','70%');
+    rbox(g,720,90,140,90,C.purple,'Fork数','1.8K');
+    txt(g,80,220,'Stars增长趋势 (近8周)',{fs:13,fw:'bold',fill:C.text});
+    var weeks=[{l:'W1',v:20},{l:'W3',v:35},{l:'W5',v:55},{l:'W7',v:78},{l:'W8',v:100}];
+    for(var i=0;i<weeks.length;i++){var bx=80+i*150;pbar(g,bx,240,130,16,weeks[i].v,C.teal);txt(g,bx,275,weeks[i].l+': '+weeks[i].v+'%',{fs:10,fill:C.text2});}
+    txt(g,80,310,'效率提升统计',{fs:13,fw:'bold',fill:C.text});
+    var cats=[{l:'Token消耗减少',v:70,c:C.teal},{l:'审查速度提升',v:85,c:C.cyan},{l:'问题发现率',v:78,c:C.amber},{l:'代码覆盖率',v:92,c:C.purple},{l:'误报率降低',v:65,c:C.blue}];
+    for(var i=0;i<cats.length;i++){var by=330+i*26;txt(g,80,by+12,cats[i].l,{fs:11,fill:C.text2});pbar(g,240,by,440,14,cats[i].v,cats[i].c);txt(g,690,by+12,cats[i].v+'%',{fs:11,fill:cats[i].c,fw:'bold'});}
+    setPills('pills',[{t:'26K Stars',c:C.teal},{t:'+6.6K/周',c:C.cyan},{t:'1.8K Forks',c:C.purple},{t:'Token-70%',c:C.amber},{t:'速度+85%',c:C.blue}]);
+    setLegend('legend',[{t:'总Stars',c:C.teal},{t:'周增长',c:C.cyan},{t:'效率指标',c:C.amber},{t:'Fork',c:C.purple},{t:'质量指标',c:C.blue}]);
+    setInfo('info',[{k:'总Stars',v:'26,182'},{k:'Forks',v:'1,842'},{k:'Issues',v:'28 open'},{k:'Contributors',v:'47'},{k:'最新Release',v:'v1.3.0'},{k:'创建时间',v:'2025-06'}]);
+  }else{
+    txt(g,450,34,'定位分析 · 多维评估',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'项目在代码审查生态中的多维定位',{fs:12,fill:C.text2,ta:'middle'});
+    radar(g,340,260,140,['图谱质量','MCP兼容','Token优化','审查精度','可视化','社区活跃'],[88,92,90,85,82,78],{fill:'rgba(0,212,170,0.15)',stroke:C.teal});
+    box(g,580,100,280,320,{fill:C.bg2,stroke:C.border});
+    txt(g,600,130,'定位优势',{fs:14,fw:'bold',fill:C.teal});
+    var advs=[{t:'MCP兼容性(92)',c:C.cyan},{t:'Token优化(90)',c:C.teal},{t:'图谱质量(88)',c:C.amber},{t:'审查精度(85)',c:C.purple},{t:'可视化(82)',c:C.green},{t:'社区(78)',c:C.blue}];
+    for(var i=0;i<advs.length;i++){txt(g,610,160+i*32,'- '+advs[i].t,{fs:12,fill:advs[i].c});pbar(g,760,150+i*32,80,10,[92,90,88,85,82,78][i],advs[i].c);}
+    txt(g,80,430,'综合评分: 85.8/100 · 在代码审查图谱领域处于领先地位',{fs:13,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'MCP兼容92',c:C.cyan},{t:'Token优化90',c:C.teal},{t:'图谱质量88',c:C.amber},{t:'审查精度85',c:C.purple},{t:'可视化82',c:C.green}]);
+    setLegend('legend',[{t:'评估维度',c:C.teal},{t:'优势项',c:C.amber},{t:'待提升',c:C.blue},{t:'雷达图',c:C.purple}]);
+    setInfo('info',[{k:'综合评分',v:'85.8/100'},{k:'MCP兼容',v:'92'},{k:'Token优化',v:'90'},{k:'图谱质量',v:'88'},{k:'审查精度',v:'85'},{k:'可视化',v:'82'}]);
+  }
+}
+
+function drawM2(g,vi){
+  if(vi===0){
+    txt(g,450,34,'图谱构建 · 知识图谱生成',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'从代码到知识图谱的构建流程',{fs:12,fill:C.text2,ta:'middle'});
+    var steps=[{x:40,t:'代码解析',s:'AST解析',c:C.teal},{x:220,t:'实体提取',s:'函数/类/变量',c:C.cyan},{x:400,t:'关系识别',s:'调用/依赖',c:C.purple},{x:580,t:'图谱构建',s:'节点+边',c:C.amber},{x:760,t:'索引存储',s:'图数据库',c:C.green}];
+    for(var i=0;i<steps.length;i++){nodeBox(g,steps[i].x,90,120,60,steps[i].t,steps[i].s,steps[i].c);if(i<4)arrow(g,steps[i].x+120,120,steps[i+1].x,120,{stroke:steps[i].c,sw:2,cls:'adash'});}
+    box(g,60,190,380,250,{fill:C.bg2,stroke:C.border});
+    txt(g,80,220,'图谱节点类型',{fs:13,fw:'bold',fill:C.teal});
+    var nodes=[{t:'函数节点',v:'3,241',c:C.teal},{t:'类节点',v:'456',c:C.cyan},{t:'变量节点',v:'8,920',c:C.purple},{t:'模块节点',v:'78',c:C.amber},{t:'接口节点',v:'134',c:C.green},{t:'注释节点',v:'2,105',c:C.blue}];
+    for(var i=0;i<nodes.length;i++){txt(g,80,250+i*30,'- '+nodes[i].t,{fs:12,fill:nodes[i].c});txt(g,250,250+i*30,nodes[i].v+'个',{fs:12,fill:C.text2,ta:'end'});pbar(g,300,240+i*30,120,8,[80,30,95,15,25,60][i],nodes[i].c);}
+    box(g,470,190,380,250,{fill:C.bg2,stroke:C.border});
+    txt(g,490,220,'图谱边类型',{fs:13,fw:'bold',fill:C.amber});
+    var edges=[{t:'调用关系',v:'5,620',c:C.teal},{t:'依赖关系',v:'3,104',c:C.cyan},{t:'继承关系',v:'287',c:C.purple},{t:'实现关系',v:'156',c:C.amber},{t:'引用关系',v:'7,891',c:C.green},{t:'包含关系',v:'1,453',c:C.pink}];
+    for(var i=0;i<edges.length;i++){txt(g,490,250+i*30,'- '+edges[i].t,{fs:12,fill:edges[i].c});txt(g,660,250+i*30,edges[i].v+'条',{fs:12,fill:C.text2,ta:'end'});pbar(g,710,240+i*30,120,8,[90,60,20,15,95,40][i],edges[i].c);}
+    txt(g,80,460,'总节点: 14,934 · 总边: 18,511 · 图谱密度: 0.83',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'14.9K节点',c:C.teal},{t:'18.5K边',c:C.amber},{t:'6种节点',c:C.cyan},{t:'6种边',c:C.purple},{t:'密度0.83',c:C.green}]);
+    setLegend('legend',[{t:'节点类型',c:C.teal},{t:'边类型',c:C.amber},{t:'解析流程',c:C.cyan},{t:'图谱统计',c:C.purple}]);
+    setInfo('info',[{k:'总节点',v:'14,934'},{k:'总边',v:'18,511'},{k:'节点类型',v:'6种'},{k:'边类型',v:'6种'},{k:'图谱密度',v:'0.83'},{k:'构建耗时',v:'12s'}]);
+  }else if(vi===1){
+    txt(g,450,34,'关系提取 · 代码关系识别',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'静态分析与关系挖掘',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,80,80,140,50,'源代码','.py文件',C.green);
+    arrow(g,220,105,300,105,{stroke:C.teal,sw:2});
+    nodeBox(g,300,80,140,50,'AST解析','语法树',C.teal);
+    arrow(g,440,105,520,105,{stroke:C.cyan,sw:2});
+    nodeBox(g,520,80,140,50,'关系提取','调用图',C.cyan);
+    arrow(g,660,105,740,105,{stroke:C.purple,sw:2});
+    nodeBox(g,740,80,120,50,'知识图谱','Neo4j',C.purple);
+    txt(g,60,180,'关系提取类型与准确率',{fs:14,fw:'bold',fill:C.text});
+    var rels=[{l:'函数调用关系',v:95,c:C.teal},{l:'类继承关系',v:98,c:C.cyan},{l:'变量依赖',v:88,c:C.purple},{l:'模块导入',v:92,c:C.amber},{l:'接口实现',v:90,c:C.green},{l:'异常传播',v:82,c:C.blue},{l:'数据流追踪',v:78,c:C.pink}];
+    for(var i=0;i<rels.length;i++){var by=200+i*28;txt(g,60,by+10,rels[i].l,{fs:11,fill:C.text2});pbar(g,220,by,500,12,rels[i].v,rels[i].c);txt(g,730,by+10,rels[i].v+'%',{fs:11,fill:rels[i].c,fw:'bold'});}
+    box(g,60,410,780,50,{fill:C.bg2,stroke:C.border});
+    txt(g,80,440,'关系提取平均准确率: 89% · 覆盖7种代码关系类型',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'调用关系95%',c:C.teal},{t:'继承98%',c:C.cyan},{t:'依赖88%',c:C.purple},{t:'导入92%',c:C.amber},{t:'数据流78%',c:C.pink}]);
+    setLegend('legend',[{t:'高准确率(90+)',c:C.teal},{t:'中准确率(85+)',c:C.amber},{t:'待提升',c:C.pink},{t:'流程节点',c:C.cyan}]);
+    setInfo('info',[{k:'关系类型',v:'7种'},{k:'最高准确率',v:'继承(98%)'},{k:'平均准确率',v:'89%'},{k:'解析方式',v:'AST'},{k:'存储后端',v:'Neo4j'},{k:'处理速度',v:'500行/秒'}]);
+  }else{
+    txt(g,450,34,'依赖分析 · 依赖关系图谱',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码依赖关系的可视化分析',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,370,80,160,50,'main.py','入口模块',C.teal);
+    nodeBox(g,150,170,120,50,'auth.py','认证',C.cyan);
+    nodeBox(g,340,170,120,50,'db.py','数据库',C.purple);
+    nodeBox(g,530,170,120,50,'api.py','接口',C.amber);
+    nodeBox(g,720,170,120,50,'utils.py','工具',C.green);
+    arrow(g,420,130,210,170,{stroke:C.cyan,sw:1.5});
+    arrow(g,450,130,400,170,{stroke:C.purple,sw:1.5});
+    arrow(g,480,130,590,170,{stroke:C.amber,sw:1.5});
+    arrow(g,500,130,780,170,{stroke:C.green,sw:1.5});
+    nodeBox(g,100,280,100,40,'config','配置',C.blue);
+    nodeBox(g,260,280,100,40,'models','模型',C.pink);
+    nodeBox(g,420,280,100,40,'routes','路由',C.red);
+    nodeBox(g,580,280,100,40,'helpers','辅助',C.teal);
+    arrow(g,210,220,150,280,{stroke:C.blue,sw:1.5,dash:'3 2'});
+    arrow(g,400,220,310,280,{stroke:C.pink,sw:1.5,dash:'3 2'});
+    arrow(g,590,220,470,280,{stroke:C.red,sw:1.5,dash:'3 2'});
+    arrow(g,780,220,630,280,{stroke:C.teal,sw:1.5,dash:'3 2'});
+    box(g,60,360,780,100,{fill:C.bg2,stroke:C.border});
+    txt(g,80,390,'依赖分析结果:',{fs:13,fw:'bold',fill:C.teal});
+    txt(g,80,415,'最深层级: 4层 · 循环依赖: 0处 · 高耦合模块: 2个',{fs:12,fill:C.text2});
+    txt(g,80,440,'建议: api.py与db.py耦合度较高，建议引入中间层解耦',{fs:12,fill:C.amber});
+    setPills('pills',[{t:'5个主模块',c:C.teal},{t:'4个子模块',c:C.cyan},{t:'4层深度',c:C.purple},{t:'0循环依赖',c:C.green},{t:'2高耦合',c:C.amber}]);
+    setLegend('legend',[{t:'主模块',c:C.teal},{t:'子模块',c:C.blue},{t:'依赖箭头',c:C.cyan},{t:'建议改进',c:C.amber}]);
+    setInfo('info',[{k:'总模块',v:'9个'},{k:'最深层级',v:'4层'},{k:'循环依赖',v:'0处'},{k:'高耦合模块',v:'2个'},{k:'依赖边数',v:'12条'},{k:'健康度',v:'良好'}]);
+  }
+}
+
+function drawM3(g,vi){
+  if(vi===0){
+    txt(g,450,34,'MCP协议 · Model Context Protocol',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'MCP协议在代码审查中的应用',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,80,100,160,60,'AI助手','Claude/GPT',C.cyan);
+    arrow(g,240,130,350,130,{stroke:C.teal,sw:2,cls:'adash'});
+    box(g,350,90,200,80,{fill:C.bg2,stroke:C.teal,sw:2});
+    txt(g,450,120,'MCP Server',{fs:15,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,145,'Model Context Protocol',{fs:10,fill:C.text2,ta:'middle'});
+    arrow(g,550,130,660,130,{stroke:C.teal,sw:2,cls:'adash'});
+    nodeBox(g,660,100,160,60,'知识图谱','审查数据',C.purple);
+    box(g,60,220,780,90,{fill:C.bg2,stroke:C.border});
+    txt(g,80,250,'MCP协议优势:',{fs:13,fw:'bold',fill:C.teal});
+    txt(g,80,275,'标准化接口 · 任意AI模型可接入 · 上下文精确传递 · 无需复制代码',{fs:12,fill:C.text2});
+    txt(g,80,295,'AI助手通过MCP直接查询图谱，无需将整个代码库喂给模型',{fs:12,fill:C.cyan});
+    txt(g,60,350,'MCP工具集',{fs:14,fw:'bold',fill:C.text});
+    var tools=[{x:60,t:'query_node',s:'查询节点',c:C.teal},{x:220,t:'query_edge',s:'查询边',c:C.cyan},{x:380,t:'find_path',s:'路径查找',c:C.purple},{x:540,t:'get_deps',s:'获取依赖',c:C.amber},{x:700,t:'review',s:'触发审查',c:C.green}];
+    for(var i=0;i<tools.length;i++){drawChip(g,tools[i].x,370,130,28,tools[i].t,tools[i].c);txt(g,tools[i].x+65,420,tools[i].s,{fs:10,fill:C.text2,ta:'middle'});}
+    setPills('pills',[{t:'MCP协议',c:C.teal},{t:'标准化接口',c:C.cyan},{t:'5个工具',c:C.purple},{t:'任意AI接入',c:C.amber},{t:'无需复制代码',c:C.green}]);
+    setLegend('legend',[{t:'AI助手',c:C.cyan},{t:'MCP Server',c:C.teal},{t:'知识图谱',c:C.purple},{t:'MCP工具',c:C.green}]);
+    setInfo('info',[{k:'协议',v:'MCP'},{k:'工具数',v:'5个'},{k:'AI兼容',v:'任意'},{k:'传输方式',v:'标准JSON'},{k:'上下文',v:'精确传递'},{k:'代码复制',v:'不需要'}]);
+  }else if(vi===1){
+    txt(g,450,34,'工具集成 · 审查工具链',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'与开发工具链的集成架构',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,370,80,160,50,'code-review-graph','核心',C.teal);
+    var tools=[{x:60,y:170,t:'VSCode',s:'编辑器插件',c:C.cyan},{x:220,y:170,t:'GitHub',s:'PR集成',c:C.purple},{x:380,y:170,t:'GitLab',s:'MR集成',c:C.amber},{x:540,y:170,t:'Jenkins',s:'CI流水线',c:C.green},{x:700,y:170,t:'CLI',s:'命令行',c:C.blue}];
+    for(var i=0;i<tools.length;i++){nodeBox(g,tools[i].x,tools[i].y,120,50,tools[i].t,tools[i].s,tools[i].c);arrow(g,450,130,tools[i].x+60,170,{stroke:tools[i].c,sw:1.5,dash:'4 3'});}
+    nodeBox(g,80,280,140,50,'Neo4j','图数据库',C.pink);
+    nodeBox(g,280,280,140,50,'PostgreSQL','关系数据',C.red);
+    nodeBox(g,480,280,140,50,'Redis','缓存层',C.amber);
+    nodeBox(g,680,280,140,50,'Embedding','向量化',C.green);
+    arrow(g,450,210,150,280,{stroke:C.pink,sw:1.5,dash:'3 2'});
+    arrow(g,450,210,350,280,{stroke:C.red,sw:1.5,dash:'3 2'});
+    arrow(g,450,210,550,280,{stroke:C.amber,sw:1.5,dash:'3 2'});
+    arrow(g,450,210,750,280,{stroke:C.green,sw:1.5,dash:'3 2'});
+    box(g,60,370,780,90,{fill:C.bg2,stroke:C.border});
+    txt(g,80,400,'集成能力:',{fs:13,fw:'bold',fill:C.teal});
+    txt(g,80,425,'5个开发工具 + 4个存储后端 · 全链路覆盖',{fs:12,fill:C.text2});
+    txt(g,80,445,'支持PR/MR自动审查 · IDE实时提示 · CI卡点检查',{fs:12,fill:C.cyan});
+    setPills('pills',[{t:'VSCode插件',c:C.cyan},{t:'GitHub PR',c:C.purple},{t:'GitLab MR',c:C.amber},{t:'Jenkins CI',c:C.green},{t:'CLI工具',c:C.blue}]);
+    setLegend('legend',[{t:'开发工具',c:C.cyan},{t:'存储后端',c:C.pink},{t:'集成核心',c:C.teal},{t:'数据流',c:C.amber}]);
+    setInfo('info',[{k:'开发工具',v:'5个'},{k:'存储后端',v:'4个'},{k:'数据库',v:'Neo4j'},{k:'缓存',v:'Redis'},{k:'向量化',v:'Embedding'},{k:'CI集成',v:'Jenkins'}]);
+  }else{
+    txt(g,450,34,'审查接口 · API设计',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码审查的标准化接口',{fs:12,fill:C.text2,ta:'middle'});
+    box(g,60,80,780,300,{fill:'#0d1117',stroke:C.border});
+    txt(g,80,110,'# MCP审查接口定义',{fs:12,fill:C.text3,ff:C.mono});
+    txt(g,80,135,'@mcp.tool("review_code")',{fs:12,fill:C.cyan,ff:C.mono});
+    txt(g,80,160,'def review_code(file_path, line_range):',{fs:12,fill:C.green,ff:C.mono});
+    txt(g,100,185,'  """审查指定代码范围"""',{fs:12,fill:C.text3,ff:C.mono});
+    txt(g,100,210,'  graph = load_knowledge_graph()',{fs:12,fill:C.text2,ff:C.mono});
+    txt(g,100,235,'  deps = graph.get_dependencies(file_path)',{fs:12,fill:C.text2,ff:C.mono});
+    txt(g,100,260,'  issues = analyze_with_ai(graph, deps)',{fs:12,fill:C.text2,ff:C.mono});
+    txt(g,100,285,'  return {"issues": issues, "score": calc_score(issues)}',{fs:12,fill:C.text2,ff:C.mono});
+    txt(g,80,320,'@mcp.tool("query_relation")',{fs:12,fill:C.cyan,ff:C.mono});
+    txt(g,80,345,'def query_relation(node_a, node_b):',{fs:12,fill:C.green,ff:C.mono});
+    txt(g,100,370,'  """查询两个节点间的关系"""',{fs:12,fill:C.text3,ff:C.mono});
+    rbox(g,60,400,180,60,C.teal,'接口数','8');
+    rbox(g,260,400,180,60,C.cyan,'平均响应','45ms');
+    rbox(g,460,400,180,60,C.amber,'并发支持','100');
+    rbox(g,660,400,140,60,C.purple,'可用率','99.9%');
+    setPills('pills',[{t:'8个API',c:C.teal},{t:'45ms响应',c:C.cyan},{t:'100并发',c:C.amber},{t:'99.9%可用',c:C.purple},{t:'MCP标准',c:C.green}]);
+    setLegend('legend',[{t:'审查接口',c:C.teal},{t:'查询接口',c:C.cyan},{t:'性能指标',c:C.amber},{t:'可靠性',c:C.purple}]);
+    setInfo('info',[{k:'接口数',v:'8个'},{k:'平均响应',v:'45ms'},{k:'并发支持',v:'100'},{k:'可用率',v:'99.9%'},{k:'协议',v:'MCP'},{k:'返回格式',v:'JSON'}]);
+  }
+}
+
+function drawM4(g,vi){
+  if(vi===0){
+    txt(g,450,34,'审查流程 · AI驱动审查',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'从提交到报告的完整审查流程',{fs:12,fill:C.text2,ta:'middle'});
+    var steps=[{x:40,t:'代码提交',s:'PR/MR',c:C.teal},{x:200,t:'图谱更新',s:'增量构建',c:C.cyan},{x:360,t:'AI分析',s:'LLM审查',c:C.purple},{x:520,t:'问题聚合',s:'汇总排序',c:C.amber},{x:680,t:'报告生成',s:'Review Report',c:C.green}];
+    for(var i=0;i<steps.length;i++){nodeBox(g,steps[i].x,90,120,60,steps[i].t,steps[i].s,steps[i].c);if(i<4)arrow(g,steps[i].x+120,120,steps[i+1].x,120,{stroke:steps[i].c,sw:2,cls:'adash'});}
+    txt(g,60,200,'审查维度覆盖',{fs:14,fw:'bold',fill:C.text});
+    var dims=[{l:'代码规范',v:92,c:C.teal},{l:'安全漏洞',v:88,c:C.cyan},{l:'性能问题',v:85,c:C.purple},{l:'逻辑错误',v:82,c:C.amber},{l:'依赖冲突',v:78,c:C.green},{l:'API兼容性',v:80,c:C.blue},{l:'测试覆盖',v:75,c:C.pink}];
+    for(var i=0;i<dims.length;i++){var by=220+i*26;txt(g,60,by+12,dims[i].l,{fs:11,fill:C.text2});pbar(g,200,by,500,14,dims[i].v,dims[i].c);txt(g,710,by+12,dims[i].v+'%',{fs:11,fill:dims[i].c,fw:'bold'});}
+    box(g,60,410,780,50,{fill:C.bg2,stroke:C.border});
+    txt(g,80,440,'7大审查维度 · 平均覆盖率82.9% · 从规范到安全全覆盖',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'代码规范92%',c:C.teal},{t:'安全88%',c:C.cyan},{t:'性能85%',c:C.purple},{t:'逻辑82%',c:C.amber},{t:'7大维度',c:C.green}]);
+    setLegend('legend',[{t:'审查流程',c:C.teal},{t:'审查维度',c:C.amber},{t:'AI分析',c:C.purple},{t:'报告输出',c:C.green}]);
+    setInfo('info',[{k:'流程步骤',v:'5步'},{k:'审查维度',v:'7个'},{k:'平均覆盖',v:'82.9%'},{k:'最高维度',v:'规范(92%)'},{k:'最低维度',v:'测试(75%)'},{k:'报告格式',v:'Markdown'}]);
+  }else if(vi===1){
+    txt(g,450,34,'AI分析 · 智能审查引擎',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'AI驱动的深度代码分析',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,80,80,140,50,'代码变更','Diff',C.green);
+    arrow(g,220,105,300,105,{stroke:C.teal,sw:2});
+    nodeBox(g,300,80,140,50,'图谱查询','上下文',C.teal);
+    arrow(g,440,105,520,105,{stroke:C.cyan,sw:2});
+    nodeBox(g,520,80,140,50,'AI分析','LLM推理',C.cyan);
+    arrow(g,660,105,740,105,{stroke:C.purple,sw:2});
+    nodeBox(g,740,80,120,50,'审查结果','Issues',C.purple);
+    box(g,60,160,400,280,{fill:C.bg2,stroke:C.border});
+    txt(g,80,190,'AI分析能力:',{fs:13,fw:'bold',fill:C.teal});
+    var caps=[{t:'上下文理解',v:90,c:C.teal},{t:'模式识别',v:85,c:C.cyan},{t:'风险评估',v:82,c:C.purple},{t:'修复建议',v:78,c:C.amber},{t:'代码风格',v:88,c:C.green},{t:'安全检测',v:80,c:C.blue}];
+    for(var i=0;i<caps.length;i++){txt(g,80,220+i*32,'- '+caps[i].t,{fs:12,fill:caps[i].c});pbar(g,230,210+i*32,200,10,caps[i].v,caps[i].c);}
+    box(g,490,160,370,280,{fill:C.bg2,stroke:C.border});
+    txt(g,510,190,'AI模型支持:',{fs:13,fw:'bold',fill:C.cyan});
+    var models=[{t:'GPT-4o',v:92,c:C.green},{t:'Claude 3.5',v:95,c:C.amber},{t:'Gemini 1.5',v:88,c:C.blue},{t:'Llama 3.1',v:82,c:C.purple},{t:'Qwen 2.5',v:80,c:C.pink}];
+    for(var i=0;i<models.length;i++){txt(g,510,220+i*32,'- '+models[i].t,{fs:12,fill:models[i].c});pbar(g,640,210+i*32,180,10,models[i].v,models[i].c);txt(g,830,220+i*32,models[i].v+'',{fs:10,fill:models[i].c,fw:'bold'});}
+    txt(g,80,460,'AI分析平均能力: 83.8 · 最佳模型: Claude 3.5 (95分)',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'上下文90%',c:C.teal},{t:'模式85%',c:C.cyan},{t:'风险82%',c:C.purple},{t:'修复78%',c:C.amber},{t:'Claude最佳',c:C.green}]);
+    setLegend('legend',[{t:'分析能力',c:C.teal},{t:'模型支持',c:C.cyan},{t:'评估维度',c:C.amber},{t:'AI推理',c:C.purple}]);
+    setInfo('info',[{k:'分析能力',v:'6项'},{k:'支持模型',v:'5个'},{k:'平均能力',v:'83.8'},{k:'最佳模型',v:'Claude(95)'},{k:'上下文理解',v:'90%'},{k:'修复建议',v:'78%'}]);
+  }else{
+    txt(g,450,34,'问题发现 · 审查结果统计',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'AI审查发现的问题分类与统计',{fs:12,fill:C.text2,ta:'middle'});
+    rbox(g,60,80,170,80,C.red,'严重问题','12');
+    rbox(g,250,80,170,80,C.amber,'警告问题','45');
+    rbox(g,440,80,170,80,C.cyan,'建议优化','87');
+    rbox(g,630,80,170,80,C.green,'通过检查','342');
+    rbox(g,820,80,60,80,C.purple,'总计','486');
+    txt(g,60,200,'问题类型分布',{fs:14,fw:'bold',fill:C.text});
+    var types=[{l:'SQL注入风险',v:8,c:C.red},{l:'XSS漏洞',v:5,c:C.red},{l:'未处理异常',v:12,c:C.amber},{l:'资源泄漏',v:9,c:C.amber},{l:'代码重复',v:24,c:C.amber},{l:'命名不规范',v:35,c:C.cyan},{l:'缺少注释',v:28,c:C.cyan},{l:'复杂度过高',v:18,c:C.cyan},{l:'缺少测试',v:22,c:C.cyan}];
+    for(var i=0;i<types.length;i++){var by=220+i*22;txt(g,60,by+10,types[i].l,{fs:10,fill:C.text2});pbar(g,200,by,500,10,types[i].v*2,types[i].c);txt(g,710,by+10,types[i].v+'个',{fs:10,fill:types[i].c,fw:'bold'});}
+    box(g,60,430,780,40,{fill:C.bg2,stroke:C.border});
+    txt(g,80,455,'发现486个问题 · 严重率2.5% · 修复建议提供率95%',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'严重12',c:C.red},{t:'警告45',c:C.amber},{t:'建议87',c:C.cyan},{t:'通过342',c:C.green},{t:'总计486',c:C.purple}]);
+    setLegend('legend',[{t:'严重(红色)',c:C.red},{t:'警告(黄色)',c:C.amber},{t:'建议(青色)',c:C.cyan},{t:'通过(绿色)',c:C.green}]);
+    setInfo('info',[{k:'总问题数',v:'486'},{k:'严重',v:'12'},{k:'警告',v:'45'},{k:'建议',v:'87'},{k:'通过',v:'342'},{k:'严重率',v:'2.5%'}]);
+  }
+}
+
+function drawM5(g,vi){
+  if(vi===0){
+    txt(g,450,34,'Token压缩 · 上下文优化',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'知识图谱如何大幅减少Token消耗',{fs:12,fill:C.text2,ta:'middle'});
+    box(g,40,80,380,140,{fill:C.bg2,stroke:C.red});
+    txt(g,60,110,'传统方式 (无图谱)',{fs:14,fw:'bold',fill:C.red});
+    txt(g,60,140,'将整个代码库喂给AI',{fs:12,fill:C.text2});
+    rbox(g,60,160,160,50,C.red,'Token消耗','850K');
+    txt(g,230,170,'每次审查',{fs:11,fill:C.text2});
+    txt(g,230,190,'全量代码输入',{fs:11,fill:C.red});
+    box(g,480,80,380,140,{fill:C.bg2,stroke:C.teal});
+    txt(g,500,110,'图谱方式 (有图谱)',{fs:14,fw:'bold',fill:C.teal});
+    txt(g,500,140,'仅查询相关子图',{fs:12,fill:C.text2});
+    rbox(g,500,160,160,50,C.teal,'Token消耗','255K');
+    txt(g,670,170,'每次审查',{fs:11,fill:C.text2});
+    txt(g,670,190,'精准子图查询',{fs:11,fill:C.teal});
+    txt(g,450,260,'Token节省效果',{fs:14,fw:'bold',fill:C.text,ta:'middle'});
+    var savings=[{l:'函数审查',v:72,c:C.teal},{l:'类审查',v:68,c:C.cyan},{l:'模块审查',v:75,c:C.purple},{l:'依赖审查',v:80,c:C.amber},{l:'安全审查',v:65,c:C.green},{l:'性能审查',v:70,c:C.blue}];
+    for(var i=0;i<savings.length;i++){var by=280+i*28;txt(g,60,by+12,savings[i].l,{fs:11,fill:C.text2});pbar(g,200,by,500,14,savings[i].v,savings[i].c);txt(g,710,by+12,'省'+savings[i].v+'%',{fs:11,fill:savings[i].c,fw:'bold'});}
+    box(g,60,460,780,10,{fill:C.bg2,stroke:C.border});
+    txt(g,80,450,'平均Token节省: 70% · 从850K降至255K',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'省72%函数',c:C.teal},{t:'省75%模块',c:C.purple},{t:'省80%依赖',c:C.amber},{t:'平均省70%',c:C.green},{t:'850K→255K',c:C.blue}]);
+    setLegend('legend',[{t:'传统方式',c:C.red},{t:'图谱方式',c:C.teal},{t:'节省比例',c:C.amber},{t:'效率提升',c:C.green}]);
+    setInfo('info',[{k:'传统Token',v:'850K'},{k:'图谱Token',v:'255K'},{k:'节省比例',v:'70%'},{k:'最佳场景',v:'依赖审查(80%)'},{k:'查询方式',v:'子图提取'},{k:'成本降低',v:'70%'}]);
+  }else if(vi===1){
+    txt(g,450,34,'结构化查询 · 精准检索',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'基于图谱的结构化查询替代全量搜索',{fs:12,fill:C.text2,ta:'middle'});
+    box(g,60,80,780,200,{fill:'#0d1117',stroke:C.border});
+    txt(g,80,110,'# 结构化查询示例',{fs:12,fill:C.text3,ff:C.mono});
+    txt(g,80,135,'query: "查找调用login()的所有函数"',{fs:12,fill:C.green,ff:C.mono});
+    txt(g,80,160,'-> graph.query_edges(type="calls", target="login")',{fs:12,fill:C.cyan,ff:C.mono});
+    txt(g,80,185,'-> 返回: [auth_middleware, user_service, api_handler]',{fs:12,fill:C.amber,ff:C.mono});
+    txt(g,80,220,'query: "查找UserService的所有依赖"',{fs:12,fill:C.green,ff:C.mono});
+    txt(g,80,245,'-> graph.get_deps(node="UserService", depth=2)',{fs:12,fill:C.cyan,ff:C.mono});
+    txt(g,80,270,'-> 返回: [Database, Logger, Config, Cache, Validator]',{fs:12,fill:C.amber,ff:C.mono});
+    txt(g,60,320,'查询效率对比',{fs:14,fw:'bold',fill:C.text});
+    var qcmp=[{l:'全量搜索(传统)',v:15,c:C.red},{l:'图谱查询(本项目)',v:95,c:C.teal},{l:'缓存命中',v:99,c:C.green},{l:'索引查询',v:92,c:C.cyan}];
+    for(var i=0;i<qcmp.length;i++){var by=340+i*28;txt(g,60,by+12,qcmp[i].l,{fs:11,fill:C.text2});pbar(g,240,by,500,14,qcmp[i].v,qcmp[i].c);txt(g,750,by+12,qcmp[i].v+'分',{fs:11,fill:qcmp[i].c,fw:'bold'});}
+    box(g,60,460,780,10,{fill:C.bg2,stroke:C.border});
+    txt(g,80,450,'图谱查询效率95分 vs 全量搜索15分 · 提升6.3倍',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'图谱查询95分',c:C.teal},{t:'全量搜索15分',c:C.red},{t:'提升6.3x',c:C.green},{t:'缓存99分',c:C.amber},{t:'结构化Cypher',c:C.cyan}]);
+    setLegend('legend',[{t:'传统搜索',c:C.red},{t:'图谱查询',c:C.teal},{t:'缓存机制',c:C.green},{t:'效率对比',c:C.amber}]);
+    setInfo('info',[{k:'查询方式',v:'结构化'},{k:'查询语言',v:'Cypher-like'},{k:'图谱效率',v:'95分'},{k:'传统效率',v:'15分'},{k:'提升倍数',v:'6.3x'},{k:'缓存命中',v:'99分'}]);
+  }else{
+    txt(g,450,34,'效率提升 · 综合效率分析',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'知识图谱带来的全方位效率提升',{fs:12,fill:C.text2,ta:'middle'});
+    rbox(g,60,80,180,80,C.teal,'Token节省','70%');
+    rbox(g,260,80,180,80,C.cyan,'审查速度','+85%');
+    rbox(g,460,80,180,80,C.amber,'准确率','+42%');
+    rbox(g,660,80,180,80,C.purple,'成本降低','68%');
+    txt(g,60,200,'效率提升明细',{fs:14,fw:'bold',fill:C.text});
+    var effs=[{l:'Token消耗减少',v:70,c:C.teal},{l:'审查速度提升',v:85,c:C.cyan},{l:'问题发现准确率',v:42,c:C.amber},{l:'审查成本降低',v:68,c:C.purple},{l:'人工审查时间',v:75,c:C.green},{l:'误报率降低',v:65,c:C.blue},{l:'漏报率降低',v:55,c:C.pink},{l:'整体开发效率',v:60,c:C.red}];
+    for(var i=0;i<effs.length;i++){var by=220+i*26;txt(g,60,by+12,effs[i].l,{fs:11,fill:C.text2});pbar(g,240,by,480,14,effs[i].v,effs[i].c);txt(g,730,by+12,'+'+effs[i].v+'%',{fs:11,fill:effs[i].c,fw:'bold'});}
+    box(g,60,440,780,40,{fill:C.bg2,stroke:C.border});
+    txt(g,80,465,'平均效率提升: 65% · Token节省70% · 成本降低68%',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'Token-70%',c:C.teal},{t:'速度+85%',c:C.cyan},{t:'准确+42%',c:C.amber},{t:'成本-68%',c:C.purple},{t:'平均+65%',c:C.green}]);
+    setLegend('legend',[{t:'Token效率',c:C.teal},{t:'速度效率',c:C.cyan},{t:'质量效率',c:C.amber},{t:'成本效率',c:C.purple}]);
+    setInfo('info',[{k:'Token节省',v:'70%'},{k:'速度提升',v:'85%'},{k:'准确率提升',v:'42%'},{k:'成本降低',v:'68%'},{k:'人工时间减少',v:'75%'},{k:'平均提升',v:'65%'}]);
+  }
+}
+
+function drawM6(g,vi){
+  if(vi===0){
+    txt(g,450,34,'图谱渲染 · 可视化展示',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'知识图谱的交互式可视化渲染',{fs:12,fill:C.text2,ta:'middle'});
+    circ(g,450,250,30,{fill:C.bg3,stroke:C.teal,sw:2,cls:'aglow'});
+    txt(g,450,255,'main',{fs:11,fill:C.teal,ta:'middle',fw:'bold'});
+    var nodes=[{a:0,r:100,t:'auth',c:C.cyan},{a:1,r:100,t:'db',c:C.purple},{a:2,r:100,t:'api',c:C.amber},{a:3,r:100,t:'utils',c:C.green},{a:4,r:100,t:'config',c:C.blue},{a:5,r:100,t:'models',c:C.pink}];
+    for(var i=0;i<nodes.length;i++){var ang=-Math.PI/2+nodes[i].a*Math.PI/3;var nx=450+Math.cos(ang)*nodes[i].r;var ny=250+Math.sin(ang)*nodes[i].r;line(g,450,250,nx,ny,{stroke:nodes[i].c,sw:1.5,cls:'adash'});circ(g,nx,ny,22,{fill:C.bg3,stroke:nodes[i].c,sw:2});txt(g,nx,ny+4,nodes[i].t,{fs:10,fill:nodes[i].c,ta:'middle',fw:'bold'});}
+    var sub=[{a:0.5,r:170,t:'login',c:C.cyan},{a:1.5,r:170,t:'query',c:C.purple},{a:2.5,r:170,t:'route',c:C.amber},{a:3.5,r:170,t:'helper',c:C.green},{a:4.5,r:170,t:'env',c:C.blue},{a:5.5,r:170,t:'User',c:C.pink}];
+    for(var i=0;i<sub.length;i++){var ang=-Math.PI/2+sub[i].a*Math.PI/3;var nx=450+Math.cos(ang)*sub[i].r;var ny=250+Math.sin(ang)*sub[i].r;var px=450+Math.cos(ang)*100;var py=250+Math.sin(ang)*100;line(g,px,py,nx,ny,{stroke:C.border2,sw:1,dash:'3 2'});circ(g,nx,ny,16,{fill:C.bg3,stroke:sub[i].c,sw:1.5});txt(g,nx,ny+4,sub[i].t,{fs:9,fill:sub[i].c,ta:'middle'});}
+    box(g,60,400,780,60,{fill:C.bg2,stroke:C.border});
+    txt(g,80,425,'图谱渲染: 13个节点 · 12条边 · 力导向布局 · 支持缩放/拖拽',{fs:12,fill:C.teal,fw:'bold'});
+    txt(g,80,445,'颜色区分模块 · 连线表示依赖 · 虚线表示间接引用',{fs:11,fill:C.text2});
+    setPills('pills',[{t:'力导向布局',c:C.teal},{t:'13个节点',c:C.cyan},{t:'12条边',c:C.amber},{t:'缩放拖拽',c:C.purple},{t:'颜色区分',c:C.green}]);
+    setLegend('legend',[{t:'主节点',c:C.teal},{t:'模块节点',c:C.cyan},{t:'子节点',c:C.pink},{t:'直接依赖',c:C.amber},{t:'间接引用',c:C.border2}]);
+    setInfo('info',[{k:'布局算法',v:'力导向'},{k:'节点数',v:'13'},{k:'边数',v:'12'},{k:'交互',v:'缩放/拖拽'},{k:'渲染引擎',v:'SVG/D3'},{k:'性能',v:'60fps'}]);
+  }else if(vi===1){
+    txt(g,450,34,'交互探索 · 图谱导航',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'交互式图谱探索功能',{fs:12,fill:C.text2,ta:'middle'});
+    box(g,40,80,400,340,{fill:C.bg2,stroke:C.teal});
+    txt(g,60,110,'探索功能',{fs:14,fw:'bold',fill:C.teal});
+    var feats=[{t:'点击节点 → 展开依赖',y:140,c:C.teal},{t:'悬停节点 → 显示详情',y:165,c:C.cyan},{t:'拖拽节点 → 重新布局',y:190,c:C.purple},{t:'滚轮 → 缩放图谱',y:215,c:C.amber},{t:'右键 → 上下文菜单',y:240,c:C.green},{t:'搜索 → 高亮路径',y:265,c:C.blue},{t:'框选 → 批量操作',y:290,c:C.pink},{t:'过滤 → 按类型显示',y:315,c:C.red},{t:'导出 → PNG/SVG/JSON',y:340,c:C.teal},{t:'书签 → 保存视图',y:365,c:C.cyan},{t:'对比 → 版本差异',y:390,c:C.purple}];
+    for(var i=0;i<feats.length;i++){txt(g,60,feats[i].y,'- '+feats[i].t,{fs:11,fill:feats[i].c});}
+    box(g,460,80,400,340,{fill:C.bg2,stroke:C.amber});
+    txt(g,480,110,'交互统计',{fs:14,fw:'bold',fill:C.amber});
+    var stats=[{l:'日均交互次数',v:85,c:C.teal},{l:'平均探索深度',v:72,c:C.cyan},{l:'节点点击率',v:90,c:C.purple},{l:'搜索使用率',v:68,c:C.amber},{l:'过滤使用率',v:55,c:C.green},{l:'导出使用率',v:42,c:C.blue}];
+    for(var i=0;i<stats.length;i++){var by=140+i*42;txt(g,480,by,stats[i].l,{fs:12,fill:C.text2});pbar(g,480,by+8,340,12,stats[i].v,stats[i].c);txt(g,830,by+8,stats[i].v+'%',{fs:11,fill:stats[i].c,fw:'bold'});}
+    txt(g,80,445,'11种交互功能 · 用户满意度92% · 探索效率提升3倍',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'点击展开',c:C.teal},{t:'悬停详情',c:C.cyan},{t:'搜索高亮',c:C.blue},{t:'过滤显示',c:C.green},{t:'版本对比',c:C.purple},{t:'11种功能',c:C.amber}]);
+    setLegend('legend',[{t:'探索功能',c:C.teal},{t:'交互统计',c:C.amber},{t:'使用率',c:C.purple},{t:'满意度',c:C.green}]);
+    setInfo('info',[{k:'交互功能',v:'11种'},{k:'日均交互',v:'85次'},{k:'探索深度',v:'3.2层'},{k:'搜索率',v:'68%'},{k:'满意度',v:'92%'},{k:'效率提升',v:'3倍'}]);
+  }else{
+    txt(g,450,34,'关系导航 · 路径分析',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码间关系的导航与路径分析',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,80,90,120,50,'login()','入口',C.teal);
+    arrow(g,200,115,280,115,{stroke:C.cyan,sw:2,cls:'adash'});
+    nodeBox(g,280,90,120,50,'validate','验证',C.cyan);
+    arrow(g,400,115,480,115,{stroke:C.purple,sw:2,cls:'adash'});
+    nodeBox(g,480,90,120,50,'auth','认证',C.purple);
+    arrow(g,600,115,680,115,{stroke:C.amber,sw:2,cls:'adash'});
+    nodeBox(g,680,90,120,50,'db.query','查询',C.amber);
+    txt(g,80,145,'调用链: login() -> validate -> auth -> db.query',{fs:11,fill:C.text2,ff:C.mono});
+    nodeBox(g,80,200,120,50,'API','接口层',C.green);
+    arrow(g,200,225,280,225,{stroke:C.blue,sw:2,dash:'4 3'});
+    nodeBox(g,280,200,120,50,'Service','服务层',C.blue);
+    arrow(g,400,225,480,225,{stroke:C.blue,sw:2,dash:'4 3'});
+    nodeBox(g,480,200,120,50,'Repo','数据层',C.pink);
+    arrow(g,600,225,680,225,{stroke:C.blue,sw:2,dash:'4 3'});
+    nodeBox(g,680,200,120,50,'DB','数据库',C.red);
+    txt(g,80,255,'依赖链: API -> Service -> Repo -> DB (分层架构)',{fs:11,fill:C.text2,ff:C.mono});
+    txt(g,60,300,'路径分析能力',{fs:14,fw:'bold',fill:C.text});
+    var paths=[{l:'最短路径查找',v:95,c:C.teal},{l:'所有路径枚举',v:88,c:C.cyan},{l:'循环依赖检测',v:92,c:C.purple},{l:'影响范围分析',v:85,c:C.amber},{l:'调用链追踪',v:90,c:C.green},{l:'数据流分析',v:78,c:C.blue}];
+    for(var i=0;i<paths.length;i++){var by=320+i*24;txt(g,60,by+10,paths[i].l,{fs:11,fill:C.text2});pbar(g,220,by,500,10,paths[i].v,paths[i].c);txt(g,730,by+10,paths[i].v+'%',{fs:11,fill:paths[i].c,fw:'bold'});}
+    setPills('pills',[{t:'最短路径95%',c:C.teal},{t:'循环检测92%',c:C.purple},{t:'调用链90%',c:C.green},{t:'影响分析85%',c:C.amber},{t:'6种分析',c:C.blue}]);
+    setLegend('legend',[{t:'调用链',c:C.teal},{t:'依赖链',c:C.blue},{t:'路径分析',c:C.purple},{t:'数据流',c:C.amber}]);
+    setInfo('info',[{k:'路径类型',v:'2种'},{k:'分析能力',v:'6种'},{k:'最短路径',v:'95%'},{k:'循环检测',v:'92%'},{k:'调用链追踪',v:'90%'},{k:'平均能力',v:'88%'}]);
+  }
+}
+
+function drawM7(g,vi){
+  if(vi===0){
+    txt(g,450,34,'竞品对比 · 多维雷达',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'code-review-graph vs 传统审查工具',{fs:12,fill:C.text2,ta:'middle'});
+    radar(g,300,270,130,['图谱质量','Token效率','MCP支持','审查精度','可视化','集成度'],[88,90,92,85,82,86],{fill:'rgba(0,212,170,0.15)',stroke:C.teal});
+    radar(g,300,270,130,['图谱质量','Token效率','MCP支持','审查精度','可视化','集成度'],[50,30,20,70,60,65],{fill:'rgba(239,68,68,0.1)',stroke:C.red});
+    box(g,500,100,360,300,{fill:C.bg2,stroke:C.border});
+    txt(g,520,130,'对比项目',{fs:14,fw:'bold',fill:C.text});
+    circ(g,530,155,6,{fill:C.teal});
+    txt(g,545,159,'code-review-graph',{fs:12,fill:C.teal,fw:'bold'});
+    circ(g,530,180,6,{fill:C.red});
+    txt(g,545,184,'传统审查工具',{fs:12,fill:C.red});
+    var items=[{l:'图谱质量',s:88,f:50},{l:'Token效率',s:90,f:30},{l:'MCP支持',s:92,f:20},{l:'审查精度',s:85,f:70},{l:'可视化',s:82,f:60},{l:'集成度',s:86,f:65}];
+    for(var i=0;i<items.length;i++){var by=210+i*28;txt(g,520,by,items[i].l,{fs:11,fill:C.text2});pbar(g,610,by-10,100,8,items[i].s,C.teal);pbar(g,720,by-10,100,8,items[i].f,C.red);}
+    txt(g,80,440,'本项目在图谱质量、Token效率、MCP支持上全面领先',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'本项目87.2分',c:C.teal},{t:'传统49.2分',c:C.red},{t:'图谱领先',c:C.cyan},{t:'MCP领先',c:C.purple}]);
+    setLegend('legend',[{t:'code-review-graph',c:C.teal},{t:'传统工具',c:C.red},{t:'评估维度',c:C.amber},{t:'对比基准',c:C.blue}]);
+    setInfo('info',[{k:'对比对象',v:'vs传统工具'},{k:'评估维度',v:'6项'},{k:'本项目均分',v:'87.2'},{k:'传统均分',v:'49.2'},{k:'领先幅度',v:'+38.0'},{k:'最强维度',v:'MCP(92)'}]);
+  }else if(vi===1){
+    txt(g,450,34,'功能基准 · 功能对比',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'功能特性逐项对比',{fs:12,fill:C.text2,ta:'middle'});
+    var feats=[{t:'知识图谱构建',a:'有',b:'无'},{t:'MCP协议支持',a:'有',b:'无'},{t:'Token优化',a:'70%',b:'0%'},{t:'AST解析',a:'有',b:'部分'},{t:'依赖分析',a:'深度',b:'浅层'},{t:'AI模型适配',a:'任意',b:'特定'},{t:'增量更新',a:'有',b:'无'},{t:'可视化',a:'交互式',b:'静态'},{t:'CI/CD集成',a:'有',b:'部分'},{t:'多语言支持',a:'5+',b:'2'},{t:'缓存机制',a:'有',b:'无'},{t:'自定义规则',a:'有',b:'有限'}];
+    box(g,40,80,260,360,{fill:C.bg2,stroke:C.teal,sw:2});
+    txt(g,60,110,'功能特性',{fs:13,fw:'bold',fill:C.text});
+    for(var i=0;i<feats.length;i++){txt(g,60,140+i*25,'- '+feats[i].t,{fs:11,fill:C.text2});}
+    box(g,320,80,280,360,{fill:C.bg2,stroke:C.teal,sw:2});
+    txt(g,340,110,'code-review-graph',{fs:13,fw:'bold',fill:C.teal,ta:'middle'});
+    for(var i=0;i<feats.length;i++){txt(g,460,140+i*25,feats[i].a,{fs:11,fill:C.teal,ta:'middle',fw:'bold'});}
+    box(g,620,80,260,360,{fill:C.bg2,stroke:C.red,sw:2});
+    txt(g,640,110,'传统工具',{fs:13,fw:'bold',fill:C.red,ta:'middle'});
+    for(var i=0;i<feats.length;i++){txt(g,750,140+i*25,feats[i].b,{fs:11,fill:C.red,ta:'middle'});}
+    txt(g,450,460,'12项功能对比 · 本项目11项领先 · 1项持平',{fs:12,fill:C.teal,fw:'bold',ta:'middle'});
+    setPills('pills',[{t:'知识图谱',c:C.teal},{t:'MCP协议',c:C.cyan},{t:'Token-70%',c:C.amber},{t:'任意AI',c:C.purple},{t:'12项功能',c:C.green}]);
+    setLegend('legend',[{t:'本项目',c:C.teal},{t:'传统工具',c:C.red},{t:'功能对比',c:C.amber},{t:'领先11/12',c:C.green}]);
+    setInfo('info',[{k:'对比功能',v:'12项'},{k:'领先项',v:'11项'},{k:'持平项',v:'1项'},{k:'落后项',v:'0项'},{k:'独有功能',v:'图谱+MCP'},{k:'胜率',v:'91.7%'}]);
+  }else{
+    txt(g,450,34,'优势分析 · 核心竞争力',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'项目的核心竞争优势',{fs:12,fill:C.text2,ta:'middle'});
+    var advs=[{x:60,y:90,t:'知识图谱',s:'结构化理解',v:92,c:C.teal},{x:280,y:90,t:'MCP协议',s:'标准对接',v:90,c:C.cyan},{x:500,y:90,t:'Token优化',s:'节省70%',v:88,c:C.purple},{x:720,y:90,t:'AI驱动',s:'智能审查',v:85,c:C.amber}];
+    for(var i=0;i<advs.length;i++){rbox(g,advs[i].x,advs[i].y,140,80,advs[i].c,advs[i].t,advs[i].v+'');txt(g,advs[i].x+70,advs[i].y+95,advs[i].s,{fs:10,fill:C.text2,ta:'middle'});}
+    var advs2=[{x:60,y:210,t:'可视化',s:'交互探索',v:82,c:C.green},{x:280,y:210,t:'多语言',s:'5+语言',v:80,c:C.blue},{x:500,y:210,t:'CI集成',s:'全链路',v:86,c:C.pink},{x:720,y:210,t:'增量更新',s:'高效',v:84,c:C.red}];
+    for(var i=0;i<advs2.length;i++){rbox(g,advs2[i].x,advs2[i].y,140,80,advs2[i].c,advs2[i].t,advs2[i].v+'');txt(g,advs2[i].x+70,advs2[i].y+95,advs2[i].s,{fs:10,fill:C.text2,ta:'middle'});}
+    txt(g,60,340,'竞争力评分汇总',{fs:14,fw:'bold',fill:C.text});
+    var scores=[{l:'图谱质量',v:92,c:C.teal},{l:'协议标准',v:90,c:C.cyan},{l:'效率优化',v:88,c:C.purple},{l:'AI能力',v:85,c:C.amber},{l:'可视化',v:82,c:C.green},{l:'工程化',v:86,c:C.pink}];
+    for(var i=0;i<scores.length;i++){txt(g,60,360,scores[i].l,{fs:11,fill:C.text2});}
+    pbar(g,60,370,780,12,87,C.teal);
+    txt(g,450,395,'综合竞争优势评分: 87.1/100',{fs:14,fw:'bold',fill:C.teal,ta:'middle'});
+    box(g,60,410,780,50,{fill:C.bg2,stroke:C.border});
+    txt(g,80,440,'8大核心优势 · 综合评分87.1 · 在代码审查图谱领域具有显著竞争力',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'图谱92分',c:C.teal},{t:'MCP90分',c:C.cyan},{t:'Token88分',c:C.purple},{t:'AI85分',c:C.amber},{t:'综合87.1',c:C.green}]);
+    setLegend('legend',[{t:'技术优势',c:C.teal},{t:'效率优势',c:C.purple},{t:'工程优势',c:C.green},{t:'综合87.1分',c:C.blue}]);
+    setInfo('info',[{k:'核心优势',v:'8项'},{k:'综合评分',v:'87.1/100'},{k:'最强优势',v:'图谱(92)'},{k:'最低优势',v:'多语言(80)'},{k:'vs传统',v:'+38分'},{k:'竞争力',v:'显著领先'}]);
+  }
+}
+
+function drawM8(g,vi){
+  if(vi===0){
+    txt(g,450,34,'技术路线 · 发展规划',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'2025-2027技术演进路线图',{fs:12,fill:C.text2,ta:'middle'});
+    line(g,80,200,820,200,{stroke:C.border2,sw:2});
+    var phases=[{x:120,t:'Q3 2025',s:'基础图谱',d:'代码关系提取',c:C.teal},{x:330,t:'Q1 2026',s:'MCP集成',d:'协议标准化',c:C.cyan},{x:540,t:'Q3 2026',s:'AI增强',d:'深度审查',c:C.purple},{x:750,t:'Q1 2027',s:'全自动化',d:'自动修复',c:C.amber}];
+    for(var i=0;i<phases.length;i++){circ(g,phases[i].x,200,24,{fill:C.bg3,stroke:phases[i].c,sw:2});if(i===1)circ(g,phases[i].x,200,32,{fill:'none',stroke:phases[i].c,sw:1,cls:'apulse'});txt(g,phases[i].x,206,phases[i].t,{fs:11,fw:'bold',fill:phases[i].c,ta:'middle'});txt(g,phases[i].x,250,phases[i].s,{fs:13,fw:'bold',fill:C.text,ta:'middle'});txt(g,phases[i].x,270,phases[i].d,{fs:11,fill:C.text2,ta:'middle'});if(i<3)arrow(g,phases[i].x+24,200,phases[i+1].x-24,200,{stroke:phases[i].c,sw:2,cls:'adash'});}
+    box(g,60,320,780,120,{fill:C.bg2,stroke:C.border});
+    txt(g,80,350,'路线图关键里程碑:',{fs:13,fw:'bold',fill:C.teal});
+    txt(g,80,375,'Q3 2025: 基础图谱构建 · AST解析 · 关系提取',{fs:12,fill:C.text2});
+    txt(g,80,395,'Q1 2026: MCP协议集成 · Token优化 · 多模型适配',{fs:12,fill:C.cyan});
+    txt(g,80,415,'Q3 2026: AI深度审查 · 自动问题分类 · 修复建议',{fs:12,fill:C.purple});
+    txt(g,80,435,'Q1 2027: 全自动化 · 自动修复 · 持续审查',{fs:12,fill:C.amber});
+    setPills('pills',[{t:'Q3 2025 基础',c:C.teal},{t:'Q1 2026 MCP',c:C.cyan},{t:'Q3 2026 AI',c:C.purple},{t:'Q1 2027 自动',c:C.amber}]);
+    setLegend('legend',[{t:'已完成',c:C.teal},{t:'进行中',c:C.cyan},{t:'规划中',c:C.purple},{t:'远期目标',c:C.amber}]);
+    setInfo('info',[{k:'路线周期',v:'2025-2027'},{k:'阶段数',v:'4个'},{k:'当前阶段',v:'Q1 2026'},{k:'里程碑',v:'4个'},{k:'关键特性',v:'AI+自动修复'},{k:'预期完成',v:'2027 Q1'}]);
+  }else if(vi===1){
+    txt(g,450,34,'生态展望 · 集成生态',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码审查图谱的生态集成版图',{fs:12,fill:C.text2,ta:'middle'});
+    nodeBox(g,370,210,160,70,'review-graph','生态核心',C.teal);
+    var ecos=[{x:100,y:90,t:'IDE插件',s:'VSCode/JetBrains',c:C.cyan},{x:370,y:80,t:'Git平台',s:'GitHub/GitLab',c:C.amber},{x:640,y:90,t:'MCP生态',s:'协议标准',c:C.purple},{x:80,y:210,t:'CI/CD',s:'Jenkins/GH Actions',c:C.blue},{x:700,y:210,t:'AI模型',s:'GPT/Claude/Gemini',c:C.pink},{x:100,y:340,t:'图数据库',s:'Neo4j/JanusGraph',c:C.green},{x:370,y:360,t:'监控平台',s:'Grafana/Prometheus',c:C.red},{x:640,y:340,t:'云服务',s:'AWS/GCP/Azure',c:C.amber}];
+    for(var i=0;i<ecos.length;i++){nodeBox(g,ecos[i].x,ecos[i].y,120,50,ecos[i].t,ecos[i].s,ecos[i].c);arrow(g,ecos[i].x+60,ecos[i].y+25,450,245,{stroke:ecos[i].c,sw:1.5,dash:'4 3'});}
+    box(g,60,420,780,40,{fill:C.bg2,stroke:C.border});
+    txt(g,80,445,'8大生态集成方向 · 覆盖审查全链路 · 开放标准',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'IDE插件',c:C.cyan},{t:'Git平台',c:C.amber},{t:'MCP生态',c:C.purple},{t:'CI/CD',c:C.blue},{t:'AI模型',c:C.pink},{t:'图数据库',c:C.green}]);
+    setLegend('legend',[{t:'开发工具',c:C.cyan},{t:'平台集成',c:C.amber},{t:'协议生态',c:C.purple},{t:'基础设施',c:C.green}]);
+    setInfo('info',[{k:'集成方向',v:'8个'},{k:'IDE支持',v:'VSCode/JetBrains'},{k:'Git平台',v:'GitHub/GitLab'},{k:'AI模型',v:'GPT/Claude/Gemini'},{k:'图数据库',v:'Neo4j'},{k:'云平台',v:'AWS/GCP/Azure'}]);
+  }else{
+    txt(g,450,34,'未来方向 · 趋势展望',{fs:18,fw:'bold',fill:C.text,ta:'middle'});
+    txt(g,450,54,'代码审查图谱的未来趋势与潜力',{fs:12,fill:C.text2,ta:'middle'});
+    radar(g,300,270,130,['AI自动化','实时审查','跨语言','社区生态','商业潜力','技术深度'],[88,85,82,88,80,86],{fill:'rgba(0,212,170,0.15)',stroke:C.teal});
+    box(g,500,100,360,320,{fill:C.bg2,stroke:C.border});
+    txt(g,520,130,'未来趋势预测',{fs:14,fw:'bold',fill:C.teal});
+    var trends=[{t:'AI自动修复',v:88,c:C.teal},{t:'实时增量审查',v:85,c:C.cyan},{t:'多语言扩展',v:82,c:C.purple},{t:'社区规则库',v:88,c:C.amber},{t:'SaaS化服务',v:80,c:C.green},{t:'深度代码理解',v:86,c:C.blue}];
+    for(var i=0;i<trends.length;i++){var by=160+i*38;txt(g,520,by,trends[i].t,{fs:12,fill:trends[i].c});pbar(g,680,by-10,140,10,trends[i].v,trends[i].c);txt(g,830,by,trends[i].v,{fs:10,fill:trends[i].c,fw:'bold'});}
+    txt(g,80,440,'未来展望: AI自动化 + 实时审查 + 社区生态 = 代码审查范式革命',{fs:12,fill:C.teal,fw:'bold'});
+    setPills('pills',[{t:'AI自动修复',c:C.teal},{t:'实时审查',c:C.cyan},{t:'多语言',c:C.purple},{t:'社区规则',c:C.amber},{t:'SaaS化',c:C.green}]);
+    setLegend('legend',[{t:'技术趋势',c:C.teal},{t:'生态趋势',c:C.amber},{t:'商业趋势',c:C.green},{t:'综合潜力',c:C.blue}]);
+    setInfo('info',[{k:'趋势维度',v:'6项'},{k:'最高潜力',v:'AI自动化(88)'},{k:'平均潜力',v:'84.8'},{k:'核心方向',v:'AI自动修复'},{k:'商业模式',v:'SaaS'},{k:'预期影响',v:'范式革命'}]);
+  }
+}
+</script>
+<script>document.addEventListener('DOMContentLoaded',function(){drawModule(0);});</script>
+</body>
+</html>
