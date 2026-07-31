@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hyprland · Wayland动态平铺合成器 · 可视化实验室</title>
+<style>
+:root{
+--bg:#0a0b0f;--bg2:#0f1117;--bg3:#161922;--bg4:#1c2030;
+--border:#1e2433;--border2:#2a3144;
+--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+--teal:#00d4aa;--cyan:#22d3ee;--amber:#fbbf24;--red:#ef4444;--purple:#a78bfa;--blue:#3b82f6;--pink:#f472b6;--green:#34d399;
+--mono:"'SF Mono','JetBrains Mono',Consolas,monospace";
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;line-height:1.6;min-height:100vh}
+.app{max-width:1240px;margin:0 auto;padding:20px 16px 64px}
+.app-header{text-align:center;padding:30px 16px 22px;border-bottom:1px solid var(--border)}
+.ah-badge{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);border:1px solid var(--teal);padding:4px 14px;border-radius:20px;letter-spacing:1.5px;margin-bottom:16px;background:rgba(0,212,170,.06)}
+.ah-title{font-size:34px;font-weight:800;letter-spacing:2px;background:linear-gradient(135deg,var(--teal),var(--cyan),var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.ah-sub{font-size:15px;color:var(--text2)}
+.ah-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.ah-tag{font-size:12px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);padding:4px 12px;border-radius:6px}
+.lab-hero{padding:26px 22px;background:linear-gradient(135deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:16px;margin-top:22px}
+.hero-eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;margin-bottom:10px}
+.hero-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:10px;line-height:1.5}
+.hero-desc{font-size:14px;color:var(--text2);max-width:900px;line-height:1.8}
+.hero-meta{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+.hm-item{flex:1;min-width:130px;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px}
+.hm-k{font-size:11px;color:var(--text3);margin-bottom:5px}
+.hm-v{font-size:17px;font-weight:700;color:var(--teal);font-family:var(--mono)}
+.module-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.nav-btn{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:all .2s;font-family:inherit}
+.nav-btn:hover{border-color:var(--teal);color:var(--text)}
+.nav-btn.active{background:rgba(0,212,170,.1);border-color:var(--teal);color:var(--teal)}
+.nav-n{font-family:var(--mono);font-size:11px;background:var(--bg4);border:1px solid var(--border2);border-radius:4px;padding:1px 6px}
+.nav-btn.active .nav-n{background:var(--teal);color:var(--bg);border-color:var(--teal)}
+.nav-t{font-weight:600}
+.module-panel{margin-top:18px;background:var(--bg2);border:1px solid var(--border2);border-radius:16px;overflow:hidden}
+.mp-tabs{display:flex;gap:4px;padding:12px 16px 0;border-bottom:1px solid var(--border);background:var(--bg3);flex-wrap:wrap}
+.mp-tab{padding:8px 18px;font-size:13px;color:var(--text2);cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;transition:all .2s;font-family:inherit;background:transparent}
+.mp-tab:hover{color:var(--text)}
+.mp-tab.active{background:var(--bg2);color:var(--teal);border-color:var(--border2)}
+.mp-body{display:flex;gap:16px;padding:16px}
+.svg-wrap{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:12px;padding:8px;overflow:hidden;min-width:0}
+#svg{width:100%;height:auto;display:block}
+.mp-side{width:248px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.sb{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:12px}
+.sb-t{font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;font-family:var(--mono)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);background:var(--bg4);border:1px solid var(--border2);padding:3px 8px;border-radius:12px}
+.pd{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.legend{display:flex;flex-direction:column;gap:7px}
+.leg-item{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2)}
+.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.info{display:flex;flex-direction:column;gap:8px}
+.info-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;border-bottom:1px dashed var(--border);padding-bottom:6px}
+.info-k{color:var(--text3)}
+.info-v{color:var(--teal);font-family:var(--mono);font-weight:600;text-align:right}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 2px currentColor)}50%{filter:drop-shadow(0 0 8px currentColor)}}
+@keyframes dash{to{stroke-dashoffset:-40}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.apulse{animation:pulse 2.2s ease-in-out infinite}
+.aglow{animation:glow 2.5s ease-in-out infinite}
+.adash{stroke-dasharray:6 4;animation:dash 1s linear infinite}
+.ablink{animation:blink 1.5s ease-in-out infinite}
+.aspin{transform-origin:center;animation:spin 8s linear infinite;transform-box:fill-box}
+@media(max-width:960px){.mp-body{flex-direction:column}.mp-side{width:100%}.ah-title{font-size:26px}.hero-title{font-size:17px}.hero-meta{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="app-header">
+<span class="ah-badge">HYPRLAND · 37.4K+ STARS · BSD</span>
+<h1 class="ah-title">Hyprland · Wayland动态平铺合成器 · 可视化实验室</h1>
+<p class="ah-sub">hyprwm/Hyprland — 37.4K+Stars · C++编写 · 基于Wayland的动态平铺合成器 · 高性能渲染 · 可定制动画 · 多显示器 · HiDPI · 现代Wayland桌面</p>
+<div class="ah-tags">
+<span class="ah-tag">C++</span>
+<span class="ah-tag">Wayland</span>
+<span class="ah-tag">动态平铺</span>
+<span class="ah-tag">动画系统</span>
+<span class="ah-tag">多显示器</span>
+<span class="ah-tag">HiDPI</span>
+<span class="ah-tag">可定制</span>
+<span class="ah-tag">现代桌面</span>
+</div>
+</div>
+<div class="lab-hero">
+<div class="hero-eyebrow">PROJECT · HYPRLAND · 37.4K+ STARS · BSD LICENSE</div>
+<div class="hero-title">Wayland动态平铺合成器 · 高性能渲染 · 可定制动画 · 多显示器HiDPI · 现代桌面体验</div>
+<div class="hero-desc">Hyprland 是基于 Wayland 的动态平铺合成器，使用 C++ 编写，提供高性能渲染、流畅动画系统、贝塞尔曲线过渡、灵活的配置文件、多显示器与 HiDPI 支持，打造现代可定制的 Wayland 桌面环境。</div>
+<div class="hero-meta">
+<div class="hm-item"><div class="hm-k">Stars</div><div class="hm-v">37.4K+</div></div>
+<div class="hm-item"><div class="hm-k">语言</div><div class="hm-v">C++</div></div>
+<div class="hm-item"><div class="hm-k">许可证</div><div class="hm-v">BSD</div></div>
+<div class="hm-item"><div class="hm-k">定位</div><div class="hm-v">Wayland合成器</div></div>
+</div>
+</div>
+<div class="module-nav" id="modNav"></div>
+<div class="module-panel">
+<div class="mp-tabs" id="mpTabs"></div>
+<div class="mp-body">
+<div class="svg-wrap"><svg id="svg" viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<div class="mp-side">
+<div class="sb"><div class="sb-t">模块标签</div><div class="pills" id="pills"></div></div>
+<div class="sb"><div class="sb-t">图例说明</div><div class="legend" id="legend"></div></div>
+<div class="sb"><div class="sb-t">关键信息</div><div class="info" id="info"></div></div>
+</div>
+</div>
+</div>
+<script>
+var SVGNS='http://www.w3.org/2000/svg';
+var C={bg:'#0a0b0f',bg2:'#0f1117',bg3:'#161922',bg4:'#1c2030',border:'#1e2433',border2:'#2a3144',text:'#e2e8f0',text2:'#94a3b8',text3:'#64748b',teal:'#00d4aa',cyan:'#22d3ee',amber:'#fbbf24',red:'#ef4444',purple:'#a78bfa',blue:'#3b82f6',pink:'#f472b6',green:'#34d399',mono:"'SF Mono','JetBrains Mono',Consolas,monospace"};
+function E(parent,tag,attrs){var el=document.createElementNS(SVGNS,tag);if(attrs){for(var k in attrs){el.setAttribute(k,attrs[k]);}}parent.appendChild(el);return el;}
+function $(id){return document.getElementById(id);}
+function clearNode(n){while(n.firstChild){n.removeChild(n.firstChild);}}
+function box(g,x,y,w,h,opts){opts=opts||{};E(g,'rect',{x:x,y:y,width:w,height:h,fill:opts.fill||C.bg3,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5,rx:opts.rx||8});}
+function txt(g,x,y,s,opts){opts=opts||{};var t=E(g,'text',{x:x,y:y,fill:opts.fill||C.text,'font-size':opts.fs||13,'font-family':opts.ff||'sans-serif','text-anchor':opts.ta||'start','font-weight':opts.fw||'normal'});t.textContent=s;return t;}
+function line(g,x1,y1,x2,y2,opts){opts=opts||{};var a={x1:x1,y1:y1,x2:x2,y2:y2,stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5};if(opts.dash)a['stroke-dasharray']=opts.dash;if(opts.cls)a['class']=opts.cls;E(g,'line',a);}
+function arrow(g,x1,y1,x2,y2,opts){opts=opts||{};var col=opts.stroke||C.teal;var mid='ah';if(col===C.cyan)mid='ah-c';else if(col===C.purple)mid='ah-p';else if(col===C.amber)mid='ah-a';else if(col===C.blue)mid='ah-b';else if(col===C.pink)mid='ah-k';else if(col===C.green)mid='ah-g';else if(col===C.red)mid='ah-r';var a={x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,'stroke-width':opts.sw||2,'marker-end':'url(#'+mid+')'};if(opts.dash)a['stroke-dasharray']=opts.dash;if(opts.cls)a['class']=opts.cls;E(g,'line',a);}
+function circ(g,cx,cy,r,opts){opts=opts||{};var a={cx:cx,cy:cy,r:r,fill:opts.fill||'none',stroke:opts.stroke||C.teal,'stroke-width':opts.sw||1.5};if(opts.cls)a['class']=opts.cls;if(opts.dash)a['stroke-dasharray']=opts.dash;E(g,'circle',a);}
+function poly(g,pts,opts){opts=opts||{};E(g,'polygon',{points:pts,fill:opts.fill||'none',stroke:opts.stroke||C.border2,'stroke-width':opts.sw||1.5});}
+function radar(g,cx,cy,r,labels,data,opts){opts=opts||{};var n=labels.length,i,a,rr;for(var ring=1;ring<=4;ring++){var pts=[];for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*ring/4;pts.push((cx+Math.cos(a)*rr).toFixed(1)+','+(cy+Math.sin(a)*rr).toFixed(1));}E(g,'polygon',{points:pts.join(' '),fill:'none',stroke:C.border,'stroke-width':1});}for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;E(g,'line',{x1:cx,y1:cy,x2:cx+Math.cos(a)*r,y2:cy+Math.sin(a)*r,stroke:C.border,'stroke-width':1});}var dpts=[];for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;rr=r*data[i]/100;dpts.push((cx+Math.cos(a)*rr).toFixed(1)+','+(cy+Math.sin(a)*rr).toFixed(1));}E(g,'polygon',{points:dpts.join(' '),fill:opts.fill||'rgba(0,212,170,0.15)',stroke:opts.stroke||C.teal,'stroke-width':2});for(i=0;i<n;i++){a=-Math.PI/2+i*2*Math.PI/n;var lx=cx+Math.cos(a)*(r+22),ly=cy+Math.sin(a)*(r+22)+4;txt(g,lx,ly,labels[i],{fs:10,fill:C.text2,ta:'middle'});}}
+function gridBg(g,w,h){for(var x=0;x<=w;x+=45){E(g,'line',{x1:x,y1:0,x2:x,y2:h,stroke:'#141926','stroke-width':1});}for(var y=0;y<=h;y+=45){E(g,'line',{x1:0,y1:y,x2:w,y2:y,stroke:'#141926','stroke-width':1});}E(g,'rect',{x:0,y:0,width:w,height:h,fill:'none',stroke:'#1e2433','stroke-width':1.5,rx:4});}
+function setPills(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var p=arr[i];var d=document.createElement('div');d.className='pill';d.innerHTML='<span class="pd" style="background:'+p.c+'"></span><span>'+p.t+'</span>';c.appendChild(d);}}
+function setLegend(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var l=arr[i];var d=document.createElement('div');d.className='leg-item';d.innerHTML='<span class="leg-dot" style="background:'+l.c+'"></span><span class="leg-txt">'+l.t+'</span>';c.appendChild(d);}}
+function setInfo(id,arr){var c=$(id);if(!c)return;clearNode(c);for(var i=0;i<arr.length;i++){var it=arr[i];var d=document.createElement('div');d.className='info-row';d.innerHTML='<span class="info-k">'+it.k+'</span><span class="info-v">'+it.v+'</span>';c.appendChild(d);}}
+function nodeBox(g,x,y,w,h,title,sub,col){col=col||C.purple;E(g,'rect',{x:x,y:y,width:w,height:h,rx:8,fill:C.bg3,stroke:col,'stroke-width':1.5});txt(g,x+w/2,y+h/2+(sub?4:5),title,{fs:13,fw:'bold',fill:C.text,ta:'middle'});if(sub)txt(g,x+w/2,y+h/2+22,sub,{fs:10,fill:col,ta:'middle'});}
+function chip(g,x,y,w,label,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:20,rx:10,fill:'rgba(0,0,0,0.3)',stroke:col,'stroke-width':1});txt(g,x+w/2,y+14,label,{fs:10,fill:col,ta:'middle',fw:'bold'});}
+function pbar(g,x,y,w,h,val,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:h/2,fill:C.bg4,stroke:C.border,'stroke-width':1});E(g,'rect',{x:x,y:y,width:Math.max(w*val/100,h),height:h,rx:h/2,fill:col});}
+function rbox(g,x,y,w,h,col,label,val){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:8,fill:C.bg3,stroke:col,'stroke-width':1.5});txt(g,x+w/2,y+28,val,{fs:24,fw:'bold',fill:col,ta:'middle',ff:C.mono});txt(g,x+w/2,y+50,label,{fs:11,fill:C.text2,ta:'middle'});}
+function drawChip(g,x,y,w,h,label,col){col=col||C.teal;E(g,'rect',{x:x,y:y,width:w,height:h,rx:6,fill:'rgba(0,0,0,0.3)',stroke:col,'stroke-width':1});txt(g,x+w/2,y+h/2+4,label,{fs:10,fill:col,ta:'middle',fw:'bold'});}
+function addDefs(svg){var defs=E(svg,'defs',{});var cols=[['ah',C.teal],['ah-c',C.cyan],['ah-p',C.purple],['ah-a',C.amber],['ah-b',C.blue],['ah-k',C.pink],['ah-g',C.green],['ah-r',C.red]];for(var i=0;i<cols.length;i++){var mk=E(defs,'marker',{id:cols[i][0],viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'6',markerHeight:'6',orient:'auto'});E(mk,'path',{d:'M0,0 L10,5 L0,10 Z',fill:cols[i][1]});}}
+
+var MODULES=[
+{n:'M1',t:'项目概览',d:'项目全景与核心指标',v:['项目全景','核心指标','定位分析']},
+{n:'M2',t:'Wayland合成器',d:'协议与合成器架构',v:['Wayland协议','合成器架构','渲染管线']},
+{n:'M3',t:'动态平铺',d:'平铺算法与窗口管理',v:['平铺算法','窗口管理','工作空间']},
+{n:'M4',t:'动画系统',d:'窗口动画与贝塞尔曲线',v:['窗口动画','过渡效果','贝塞尔曲线']},
+{n:'M5',t:'配置系统',d:'配置文件与主题定制',v:['配置文件','按键绑定','主题定制']},
+{n:'M6',t:'多显示器支持',d:'多屏布局与HiDPI',v:['多屏布局','分辨率管理','HiDPI']},
+{n:'M7',t:'桌面环境生态',d:'竞品对比与优势',v:['竞品对比','功能覆盖','优势分析']},
+{n:'M8',t:'Wayland未来',d:'技术路线与未来方向',v:['技术路线','生态展望','未来方向']}
+];
+var mCur=0,mViews=[0,0,0,0,0,0,0,0],mLayers=[];
+function buildNav(){var n=$('modNav');clearNode(n);for(var i=0;i<MODULES.length;i++){var b=document.createElement('button');b.className='nav-btn'+(i===mCur?' active':'');b.innerHTML='<span class="nav-n">'+MODULES[i].n+'</span><span class="nav-t">'+MODULES[i].t+'</span>';b.onclick=function(idx){return function(){mCur=idx;drawModule(idx);};}(i);n.appendChild(b);}}
+function buildTabs(mi){var t=$('mpTabs');clearNode(t);for(var i=0;i<3;i++){var b=document.createElement('button');b.className='mp-tab'+(i===mViews[mi]?' active':'');b.textContent=MODULES[mi].v[i];b.onclick=function(mi2,vi2){return function(){mViews[mi2]=vi2;drawModule(mi2);};}(mi,i);t.appendChild(b);}}
+function setView(mi,vi){mViews[mi]=vi;drawModule(mi);}
+function drawModule(mi){mCur=mi;var svg=$('svg');clearNode(svg);svg.setAttribute('viewBox','0 0 900 480');addDefs(svg);var g=E(svg,'g',{id:'layer'});gridBg(g,900,480);buildNav();buildTabs(mi);var fns=[drawM1,drawM2,drawM3,drawM4,drawM5,drawM6,drawM7,drawM8];fns[mi](g,mViews[mi]);}
+
+function drawM1(g,vi){
+  if(vi===0){
+    txt(g,450,32,'Hyprland · 项目全景',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    circ(g,450,250,58,{fill:'rgba(0,212,170,0.08)',stroke:C.teal,sw:2.5,cls:'aglow'});
+    txt(g,450,248,'Hypr',{fs:15,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,268,'land',{fs:10,fill:C.text2,ta:'middle'});
+    var sats=[{x:160,y:110,t:'Wayland合成器',s:'Compositor',c:C.cyan},{x:740,y:110,t:'动态平铺',s:'Tiling',c:C.purple},{x:100,y:330,t:'动画系统',s:'Animation',c:C.amber},{x:800,y:330,t:'多显示器',s:'Multi-Monitor',c:C.red},{x:290,y:420,t:'HiDPI',s:'HiDPI',c:C.green},{x:610,y:420,t:'配置系统',s:'Config',c:C.blue}];
+    for(var i=0;i<sats.length;i++){var s=sats[i];arrow(g,450,250,s.x,s.y,{stroke:s.c,sw:1.5,dash:'4 3',cls:'adash'});nodeBox(g,s.x-70,s.y-20,140,40,s.t,s.s,s.c);circ(g,s.x,s.y,4,{fill:s.c,stroke:'none',cls:'apulse'});}
+    chip(g,310,50,120,'37.4K+ Stars',C.teal);chip(g,440,50,120,'C++',C.cyan);
+    setPills('pills',[{c:C.teal,t:'Wayland合成器'},{c:C.cyan,t:'动态平铺'},{c:C.purple,t:'动画系统'},{c:C.amber,t:'HiDPI'},{c:C.red,t:'多显示器'},{c:C.green,t:'可定制'},{c:C.blue,t:'配置系统'}]);
+    setLegend('legend',[{c:C.teal,t:'Hyprland核心引擎'},{c:C.cyan,t:'Wayland合成器'},{c:C.purple,t:'动态平铺算法'},{c:C.amber,t:'动画系统'},{c:C.red,t:'多显示器支持'},{c:C.green,t:'HiDPI缩放'},{c:C.blue,t:'配置系统'}]);
+    setInfo('info',[{k:'项目名称',v:'hyprwm/Hyprland'},{k:'GitHub Stars',v:'37.4K+'},{k:'语言',v:'C++'},{k:'许可证',v:'BSD'},{k:'协议',v:'Wayland'},{k:'平铺模式',v:'动态'},{k:'显示器',v:'多屏+HiDPI'},{k:'动画',v:'贝塞尔曲线'},{k:'配置',v:'hyprland.conf'}]);
+  }else if(vi===1){
+    txt(g,450,32,'Hyprland · 核心指标',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    rbox(g,30,55,140,75,C.teal,'GitHub Stars','37.4K+');
+    rbox(g,185,55,140,75,C.cyan,'语言','C++');
+    rbox(g,340,55,140,75,C.amber,'许可证','BSD');
+    rbox(g,495,55,140,75,C.red,'渲染器','OpenGL');
+    rbox(g,650,55,115,75,C.green,'协议','Wayland');
+    rbox(g,780,55,90,75,C.purple,'版本','v0.45');
+    txt(g,50,170,'系统核心能力评估',{fs:12,fw:'bold',fill:C.text2});
+    var bars=[{l:'渲染性能',v:95,c:C.teal},{l:'动画流畅度',v:94,c:C.cyan},{l:'平铺灵活性',v:93,c:C.purple},{l:'多显示器支持',v:92,c:C.amber},{l:'HiDPI支持',v:90,c:C.red},{l:'配置灵活度',v:96,c:C.green},{l:'生态兼容性',v:88,c:C.blue},{l:'文档完善度',v:87,c:C.pink}];
+    for(var i=0;i<bars.length;i++){var b=bars[i];txt(g,50,200+i*32,b.l,{fs:11,fill:C.text2});pbar(g,200,190+i*32,600,14,b.v,b.c);txt(g,810,202+i*32,b.v+'%',{fs:10,fill:b.c,fw:'bold',ff:C.mono});}
+    setPills('pills',[{c:C.teal,t:'37.4K+ Stars'},{c:C.cyan,t:'C++'},{c:C.purple,t:'动画94%'},{c:C.red,t:'多屏92%'},{c:C.green,t:'配置96%'},{c:C.pink,t:'文档87%'}]);
+    setLegend('legend',[{c:C.teal,t:'渲染性能 95%'},{c:C.cyan,t:'动画流畅 94%'},{c:C.purple,t:'平铺灵活 93%'},{c:C.amber,t:'多显示器 92%'},{c:C.red,t:'HiDPI 90%'},{c:C.green,t:'配置 96%'},{c:C.blue,t:'生态 88%'},{c:C.pink,t:'文档 87%'}]);
+    setInfo('info',[{k:'GitHub Stars',v:'37.4K+'},{k:'语言',v:'C++'},{k:'许可证',v:'BSD'},{k:'渲染器',v:'OpenGL/ES'},{k:'协议',v:'Wayland'},{k:'配置灵活度',v:'96%'},{k:'动画流畅度',v:'94%'},{k:'渲染性能',v:'95%'}]);
+  }else if(vi===2){
+    txt(g,450,32,'定位分析 · 多维评估雷达',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    radar(g,240,270,120,['性能','定制性','动画','多显示器','HiDPI','生态兼容'],[95,96,94,92,90,88],{fill:'rgba(0,212,170,0.15)',stroke:C.teal});
+    txt(g,510,90,'工具对比',{fs:12,fw:'bold',fill:C.text2});
+    var cats=[{l:'渲染性能',a:95,b:65},{l:'动画系统',a:94,b:50},{l:'定制性',a:96,b:60},{l:'多显示器',a:92,b:55},{l:'HiDPI',a:90,b:45}];
+    for(var i=0;i<cats.length;i++){var c=cats[i];txt(g,510,125+i*50,c.l,{fs:11,fill:C.text2});pbar(g,610,115+i*50,140,11,c.a,C.teal);pbar(g,610,130+i*50,140,11,c.b,C.text3);txt(g,760,127+i*50,c.a+'%',{fs:9,fill:C.teal,ff:C.mono});txt(g,760,142+i*50,c.b+'%',{fs:9,fill:C.text3,ff:C.mono});}
+    circ(g,610,90+5*50,4,{fill:C.teal,stroke:'none'});txt(g,620,94+5*50,'Hyprland',{fs:10,fill:C.teal});
+    circ(g,700,90+5*50,4,{fill:C.text3,stroke:'none'});txt(g,710,94+5*50,'同类均',{fs:10,fill:C.text3});
+    setPills('pills',[{c:C.teal,t:'Wayland合成器'},{c:C.cyan,t:'性能95%'},{c:C.red,t:'HiDPI90%'},{c:C.pink,t:'生态88%'}]);
+    setLegend('legend',[{c:C.teal,t:'Hyprland定位'},{c:C.text3,t:'同类项目均值'},{c:C.purple,t:'定制性领先'},{c:C.cyan,t:'性能领先'}]);
+    setInfo('info',[{k:'定位类型',v:'Wayland合成器'},{k:'渲染性能',v:'95%'},{k:'动画系统',v:'94%'},{k:'定制性',v:'96%'},{k:'多显示器',v:'92%'},{k:'生态兼容',v:'88%'}]);
+  }
+}
+
+function drawM2(g,vi){
+  if(vi===0){
+    txt(g,450,32,'Wayland 协议 · 现代显示协议架构',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    nodeBox(g,320,55,260,44,'Wayland 协议','Display Protocol',C.teal);
+    circ(g,450,77,5,{fill:C.teal,stroke:'none',cls:'apulse'});
+    var srcs=[{x:40,y:130,t:'客户端',s:'Client',c:C.cyan},{x:280,y:130,t:'合成器',s:'Compositor',c:C.amber},{x:520,y:130,t:'内核',s:'Kernel DRM',c:C.purple},{x:760,y:130,t:'GPU驱动',s:'GPU Driver',c:C.green}];
+    for(var i=0;i<srcs.length;i++){arrow(g,450,104,srcs[i].x+60,130,{stroke:srcs[i].c,sw:2,dash:'4 3',cls:'adash'});nodeBox(g,srcs[i].x-50,130,120,44,srcs[i].t,srcs[i].s,srcs[i].c);}
+    txt(g,60,220,'协议能力',{fs:12,fw:'bold',fill:C.text2});
+    var dcap=[{l:'协议效率',v:94,c:C.cyan},{l:'直接渲染',v:93,c:C.amber},{l:'安全隔离',v:91,c:C.purple},{l:'多缓冲',v:90,c:C.green},{l:'输入处理',v:92,c:C.blue},{l:'扩展协议',v:89,c:C.pink}];
+    for(var i=0;i<dcap.length;i++){txt(g,60,250+i*28,dcap[i].l,{fs:11,fill:C.text2});pbar(g,200,240+i*28,580,14,dcap[i].v,dcap[i].c);txt(g,790,252+i*28,dcap[i].v+'%',{fs:10,fill:dcap[i].c,fw:'bold',ff:C.mono});}
+    chip(g,60,430,110,'客户端',C.cyan);chip(g,180,430,110,'合成器',C.amber);chip(g,300,430,110,'内核DRM',C.purple);chip(g,420,430,120,'GPU驱动',C.green);chip(g,550,430,120,'直接渲染',C.teal);
+    setPills('pills',[{c:C.cyan,t:'Wayland客户端'},{c:C.amber,t:'合成器'},{c:C.purple,t:'内核DRM'},{c:C.green,t:'GPU驱动'},{c:C.teal,t:'直接渲染'}]);
+    setLegend('legend',[{c:C.cyan,t:'Wayland客户端'},{c:C.amber,t:'合成器(Compositor)'},{c:C.purple,t:'内核DRM/KMS'},{c:C.green,t:'GPU驱动'},{c:C.blue,t:'输入处理'},{c:C.pink,t:'扩展协议'}]);
+    setInfo('info',[{k:'协议',v:'Wayland'},{k:'渲染',v:'直接 93%'},{k:'协议效率',v:'94%'},{k:'安全隔离',v:'91%'},{k:'多缓冲',v:'90%'},{k:'扩展协议',v:'89%'}]);
+  }else if(vi===1){
+    txt(g,450,32,'合成器架构 · Hyprland核心组件',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var comps=['事件循环','窗口管理','渲染器','输入管理','布局引擎','配置解析','动画引擎','输出管理'];
+    var compCols=[C.teal,C.cyan,C.amber,C.purple,C.green,C.blue,C.pink,C.red];
+    for(var i=0;i<8;i++){var col=i%4,row=Math.floor(i/4);var x=40+col*210,y=75+row*120;box(g,x,y,195,100,{fill:C.bg3,stroke:compCols[i],sw:1.5,rx:8});txt(g,x+98,y+35,comps[i],{fs:14,fw:'bold',fill:compCols[i],ta:'middle'});txt(g,x+98,y+60,'Component',{fs:10,fill:C.text2,ta:'middle',ff:C.mono});pbar(g,x+30,y+72,135,8,85+i*2,compCols[i]);txt(g,x+98,y+92,'负载 '+(20+i*5)+'%',{fs:9,fill:C.text3,ta:'middle'});}
+    setPills('pills',[{c:C.teal,t:'事件循环'},{c:C.cyan,t:'窗口管理'},{c:C.amber,t:'渲染器'},{c:C.purple,t:'输入管理'},{c:C.green,t:'布局引擎'},{c:C.blue,t:'动画引擎'}]);
+    setLegend('legend',[{c:C.teal,t:'事件循环(Event Loop)'},{c:C.cyan,t:'窗口管理(Window)'},{c:C.amber,t:'渲染器(Renderer)'},{c:C.purple,t:'输入管理(Input)'},{c:C.green,t:'布局引擎(Layout)'},{c:C.blue,t:'配置解析(Config)'},{c:C.pink,t:'动画引擎(Anim)'},{c:C.red,t:'输出管理(Output)'}]);
+    setInfo('info',[{k:'核心组件',v:'8 个'},{k:'架构类型',v:'事件驱动'},{k:'渲染器',v:'OpenGL/ES'},{k:'布局引擎',v:'动态平铺'},{k:'动画引擎',v:'贝塞尔曲线'},{k:'配置',v:'hyprland.conf'}]);
+  }else if(vi===2){
+    txt(g,450,32,'渲染管线 · GPU渲染流程',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var flow=[{x:10,y:150,t:'场景构建',s:'Scene',c:C.cyan},{x:160,y:150,t:'图层合成',s:'Composite',c:C.amber},{x:310,y:150,t:'变换计算',s:'Transform',c:C.purple},{x:460,y:150,t:'着色器',s:'Shader',c:C.teal},{x:610,y:150,t:'缓冲交换',s:'Swap',c:C.green},{x:760,y:150,t:'屏幕输出',s:'Display',c:C.pink}];
+    for(var i=0;i<flow.length;i++){nodeBox(g,flow[i].x,flow[i].y,130,44,flow[i].t,flow[i].s,flow[i].c);if(i<5)arrow(g,flow[i].x+130,flow[i].y+22,flow[i+1].x,flow[i+1].y+22,{stroke:flow[i+1].c,sw:2,cls:'adash'});}
+    txt(g,60,250,'渲染性能',{fs:12,fw:'bold',fill:C.text2});
+    var fcap=[{l:'帧率稳定性',v:95,c:C.cyan},{l:'GPU利用率',v:91,c:C.amber},{l:'渲染延迟',v:93,c:C.purple},{l:'合成效率',v:94,c:C.green},{l:'抗撕裂',v:92,c:C.blue},{l:'色彩准确',v:90,c:C.pink}];
+    for(var i=0;i<fcap.length;i++){txt(g,60,280+i*28,fcap[i].l,{fs:11,fill:C.text2});pbar(g,200,270+i*28,580,14,fcap[i].v,fcap[i].c);txt(g,790,282+i*28,fcap[i].v+'%',{fs:10,fill:fcap[i].c,fw:'bold',ff:C.mono});}
+    chip(g,60,430,110,'OpenGL/ES',C.amber);chip(g,180,430,110,'GPU加速',C.teal);chip(g,300,430,110,'抗撕裂',C.green);chip(g,420,430,120,'60fps+',C.cyan);chip(g,550,430,120,'色彩准确90%',C.pink);
+    setPills('pills',[{c:C.cyan,t:'场景构建'},{c:C.amber,t:'图层合成'},{c:C.purple,t:'变换'},{c:C.teal,t:'着色器'},{c:C.green,t:'缓冲交换'},{c:C.pink,t:'屏幕输出'}]);
+    setLegend('legend',[{c:C.cyan,t:'场景构建'},{c:C.amber,t:'图层合成'},{c:C.purple,t:'变换计算'},{c:C.teal,t:'着色器渲染'},{c:C.green,t:'缓冲交换'},{c:C.pink,t:'屏幕输出'}]);
+    setInfo('info',[{k:'管线步骤',v:'6步'},{k:'渲染器',v:'OpenGL/ES'},{k:'帧率',v:'60fps+'},{k:'帧率稳定',v:'95%'},{k:'合成效率',v:'94%'},{k:'渲染延迟',v:'93%'}]);
+  }
+}
+
+function drawM3(g,vi){
+  if(vi===0){
+    txt(g,450,32,'平铺算法 · 动态平铺布局',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    circ(g,450,250,50,{fill:'rgba(0,212,170,0.08)',stroke:C.teal,sw:2,cls:'aglow'});
+    txt(g,450,248,'平铺',{fs:13,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,268,'引擎',{fs:10,fill:C.text2,ta:'middle'});
+    var nodes=[{x:200,y:120,t:'Dwindle',c:C.red},{x:700,y:120,t:'Master',c:C.green},{x:150,y:280,t:'Split',c:C.amber},{x:750,y:280,t:'Fullscreen',c:C.purple},{x:250,y:400,t:'Float',c:C.cyan},{x:650,y:400,t:'Resize',c:C.blue},{x:450,y:110,t:'Workspace',c:C.pink}];
+    for(var i=0;i<nodes.length;i++){arrow(g,450,250,nodes[i].x,nodes[i].y,{stroke:nodes[i].c,sw:1.5,dash:'4 3',cls:'adash'});nodeBox(g,nodes[i].x-65,nodes[i].y-18,130,36,nodes[i].t,'',nodes[i].c);circ(g,nodes[i].x,nodes[i].y,4,{fill:nodes[i].c,stroke:'none',cls:'apulse'});}
+    for(var i=0;i<nodes.length-1;i++){line(g,nodes[i].x,nodes[i].y,nodes[i+1].x,nodes[i+1].y,{stroke:C.border2,sw:1,dash:'2 4'});}
+    chip(g,60,435,120,'7 布局模式',C.teal);chip(g,190,435,120,'动态平铺',C.cyan);chip(g,320,435,120,'实时调整',C.amber);chip(g,450,435,130,'灵活度93%',C.red);chip(g,590,435,120,'自动重排',C.green);
+    setPills('pills',[{c:C.red,t:'Dwindle'},{c:C.green,t:'Master'},{c:C.amber,t:'Split'},{c:C.purple,t:'Fullscreen'},{c:C.cyan,t:'Float'},{c:C.pink,t:'Workspace'}]);
+    setLegend('legend',[{c:C.red,t:'Dwindle螺旋平铺'},{c:C.green,t:'Master主从平铺'},{c:C.amber,t:'Split分割平铺'},{c:C.purple,t:'Fullscreen全屏'},{c:C.cyan,t:'Float浮动'},{c:C.pink,t:'Workspace工作空间'}]);
+    setInfo('info',[{k:'布局模式',v:'7 种'},{k:'平铺灵活度',v:'93%'},{k:'动态调整',v:'实时'},{k:'自动重排',v:'支持'},{k:'Dwindle',v:'螺旋'},{k:'Master',v:'主从'}]);
+  }else if(vi===1){
+    txt(g,450,32,'窗口管理 · 窗口状态流转',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var states=[{x:80,y:150,t:'平铺',s:'Tiled',c:C.cyan},{x:280,y:80,t:'全屏',s:'Fullscreen',c:C.amber},{x:480,y:80,t:'浮动',s:'Floating',c:C.purple},{x:680,y:150,t:'最小化',s:'Minimized',c:C.green},{x:480,y:240,t:'置顶',s:'Pinned',c:C.red},{x:280,y:240,t:'伪全屏',s:'Pseudo',c:C.blue}];
+    for(var i=0;i<states.length;i++){nodeBox(g,states[i].x,states[i].y,120,44,states[i].t,states[i].s,states[i].c);}
+    arrow(g,200,150,280,100,{stroke:C.amber,sw:2,cls:'adash'});arrow(g,400,80,480,80,{stroke:C.purple,sw:2,cls:'adash'});
+    arrow(g,600,100,680,150,{stroke:C.green,sw:2,cls:'adash'});arrow(g,680,194,480,240,{stroke:C.red,sw:2,cls:'adash'});
+    arrow(g,400,240,280,240,{stroke:C.blue,sw:2,cls:'adash'});arrow(g,280,194,200,150,{stroke:C.cyan,sw:2,cls:'adash'});
+    txt(g,60,330,'窗口管理能力',{fs:12,fw:'bold',fill:C.text2});
+    var wcap=[{l:'状态切换',v:94,c:C.cyan},{l:'窗口规则',v:93,c:C.amber},{l:'自动布局',v:92,c:C.purple},{l:'焦点管理',v:91,c:C.green},{l:'分组管理',v:89,c:C.blue},{l:'特殊窗口',v:90,c:C.pink}];
+    for(var i=0;i<wcap.length;i++){txt(g,60,360+i*22,wcap[i].l,{fs:10,fill:C.text2});pbar(g,180,352+i*22,560,10,wcap[i].v,wcap[i].c);txt(g,750,360+i*22,wcap[i].v+'%',{fs:9,fill:wcap[i].c,fw:'bold',ff:C.mono});}
+    setPills('pills',[{c:C.cyan,t:'平铺'},{c:C.amber,t:'全屏'},{c:C.purple,t:'浮动'},{c:C.green,t:'最小化'},{c:C.red,t:'置顶'},{c:C.blue,t:'伪全屏'}]);
+    setLegend('legend',[{c:C.cyan,t:'平铺(Tiled)'},{c:C.amber,t:'全屏(Fullscreen)'},{c:C.purple,t:'浮动(Floating)'},{c:C.green,t:'最小化(Minimized)'},{c:C.red,t:'置顶(Pinned)'},{c:C.blue,t:'伪全屏(Pseudo)'}]);
+    setInfo('info',[{k:'窗口状态',v:'6 种'},{k:'状态切换',v:'94%'},{k:'窗口规则',v:'93%'},{k:'自动布局',v:'92%'},{k:'焦点管理',v:'91%'},{k:'分组管理',v:'89%'}]);
+  }else if(vi===2){
+    txt(g,450,32,'工作空间 · 多工作空间管理',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var wss=['WS1','WS2','WS3','WS4','WS5','WS6','WS7','WS8'];
+    var wsCols=[C.teal,C.cyan,C.amber,C.purple,C.green,C.blue,C.pink,C.red];
+    for(var i=0;i<8;i++){var col=i%4,row=Math.floor(i/4);var x=40+col*210,y=75+row*120;box(g,x,y,195,100,{fill:'rgba(0,0,0,0.3)',stroke:wsCols[i],sw:1.5,rx:8});E(g,'rect',{x:x,y:y,width:195,height:4,fill:wsCols[i],rx:2});txt(g,x+98,y+30,wss[i],{fs:16,fw:'bold',fill:wsCols[i],ta:'middle',ff:C.mono});txt(g,x+98,y+55,(2+i)+' 窗口',{fs:11,fill:C.text2,ta:'middle',ff:C.mono});pbar(g,x+30,y+68,135,6,40+i*7,wsCols[i]);txt(g,x+98,y+90,'活动 '+(i<4?'是':'否'),{fs:9,fill:i<4?wsCols[i]:C.text3,ta:'middle'});}
+    txt(g,40,330,'工作空间特性',{fs:12,fw:'bold',fill:C.text2});
+    var fcap=[{l:'空间切换速度',v:95,c:C.teal},{l:'窗口分配',v:93,c:C.cyan},{l:'跨显示器',v:92,c:C.amber},{l:'持久化',v:90,c:C.purple}];
+    for(var i=0;i<fcap.length;i++){txt(g,50,360+i*26,fcap[i].l,{fs:10,fill:C.text2});pbar(g,200,352+i*26,400,12,fcap[i].v,fcap[i].c);txt(g,610,360+i*26,fcap[i].v+'%',{fs:10,fill:fcap[i].c,fw:'bold',ff:C.mono});}
+    chip(g,660,360,180,'8工作空间',C.teal);chip(g,660,385,180,'跨显示器',C.amber);chip(g,660,410,180,'快速切换',C.green);
+    setPills('pills',[{c:C.teal,t:'WS1'},{c:C.cyan,t:'WS2'},{c:C.amber,t:'WS3'},{c:C.purple,t:'WS4'},{c:C.green,t:'WS5'},{c:C.blue,t:'WS6'}]);
+    setLegend('legend',[{c:C.teal,t:'WS1 活动空间'},{c:C.cyan,t:'WS2 活动空间'},{c:C.amber,t:'WS3 活动空间'},{c:C.purple,t:'WS4 活动空间'},{c:C.green,t:'WS5 备用空间'},{c:C.blue,t:'WS6 备用空间'}]);
+    setInfo('info',[{k:'工作空间',v:'8 个'},{k:'活动空间',v:'4 个'},{k:'切换速度',v:'95%'},{k:'窗口分配',v:'93%'},{k:'跨显示器',v:'92%'},{k:'持久化',v:'90%'}]);
+  }
+}
+
+function drawM4(g,vi){
+  if(vi===0){
+    txt(g,450,32,'窗口动画 · 动画效果体系',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    circ(g,450,260,55,{fill:'rgba(0,212,170,0.08)',stroke:C.teal,sw:2,cls:'aglow'});
+    txt(g,450,258,'动画',{fs:13,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,278,'引擎',{fs:10,fill:C.text2,ta:'middle'});
+    var anims=[{x:200,y:120,t:'窗口打开',s:'Open',c:C.red},{x:700,y:120,t:'窗口关闭',s:'Close',c:C.green},{x:150,y:280,t:'移动',s:'Move',c:C.amber},{x:750,y:280,t:'缩放',s:'Resize',c:C.purple},{x:250,y:400,t:'淡入淡出',s:'Fade',c:C.cyan},{x:650,y:400,t:'滑动',s:'Slide',c:C.blue},{x:450,y:110,t:'工作空间切换',c:C.pink}];
+    for(var i=0;i<anims.length;i++){arrow(g,450,260,anims[i].x,anims[i].y,{stroke:anims[i].c,sw:1.5,dash:'4 3',cls:'adash'});nodeBox(g,anims[i].x-65,anims[i].y-18,130,36,anims[i].t,anims[i].s||'',anims[i].c);circ(g,anims[i].x,anims[i].y,4,{fill:anims[i].c,stroke:'none',cls:'apulse'});}
+    chip(g,60,435,120,'7 动画类型',C.teal);chip(g,190,435,120,'流畅94%',C.cyan);chip(g,320,435,120,'可定制',C.amber);chip(g,450,435,130,'60fps+',C.red);chip(g,590,435,120,'贝塞尔曲线',C.green);
+    setPills('pills',[{c:C.red,t:'打开'},{c:C.green,t:'关闭'},{c:C.amber,t:'移动'},{c:C.purple,t:'缩放'},{c:C.cyan,t:'淡入淡出'},{c:C.pink,t:'工作空间'}]);
+    setLegend('legend',[{c:C.red,t:'窗口打开动画'},{c:C.green,t:'窗口关闭动画'},{c:C.amber,t:'移动动画'},{c:C.purple,t:'缩放动画'},{c:C.cyan,t:'淡入淡出动画'},{c:C.pink,t:'工作空间切换'}]);
+    setInfo('info',[{k:'动画类型',v:'7 种'},{k:'流畅度',v:'94%'},{k:'帧率',v:'60fps+'},{k:'可定制',v:'完全'},{k:'曲线',v:'贝塞尔'},{k:'GPU加速',v:'支持'}]);
+  }else if(vi===1){
+    txt(g,450,32,'过渡效果 · 动画时序曲线',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    line(g,80,80,80,400,{stroke:C.border2,sw:1.5});line(g,80,400,850,400,{stroke:C.border2,sw:1.5});
+    for(var i=0;i<=5;i++){line(g,80,80+i*64,850,80+i*64,{stroke:C.border,sw:1,dash:'2 4'});txt(g,50,84+i*64,(100-i*20)+'',{fs:9,fill:C.text3,ff:C.mono,ta:'end'});}
+    txt(g,40,80,'进度',{fs:9,fill:C.text3,ff:C.mono});txt(g,850,420,'时间',{fs:9,fill:C.text3,ff:C.mono});
+    var curves=[
+      {pts:'80,400 220,400 360,250 500,130 850,80',c:C.teal,l:'线性 Linear'},
+      {pts:'80,400 280,390 450,300 620,150 850,80',c:C.cyan,l:'缓入 EaseIn'},
+      {pts:'80,400 200,300 380,150 600,90 850,80',c:C.amber,l:'缓出 EaseOut'},
+      {pts:'80,400 250,395 450,200 650,85 850,80',c:C.purple,l:'缓入缓出 EaseInOut'}
+    ];
+    for(var i=0;i<curves.length;i++){E(g,'polyline',{points:curves[i].pts,fill:'none',stroke:curves[i].c,sw:2.5,cls:'apulse'});circ(g,660,110+i*0,0,{fill:curves[i].c,stroke:'none'});}
+    txt(g,560,120,'动画曲线',{fs:11,fw:'bold',fill:C.text2});
+    for(var i=0;i<curves.length;i++){circ(g,570,145+i*22,4,{fill:curves[i].c,stroke:'none'});txt(g,580,149+i*22,curves[i].l,{fs:10,fill:curves[i].c});}
+    chip(g,60,435,110,'线性',C.teal);chip(g,180,435,110,'缓入',C.cyan);chip(g,300,435,110,'缓出',C.amber);chip(g,420,435,130,'缓入缓出',C.purple);chip(g,560,435,130,'贝塞尔可调',C.green);
+    setPills('pills',[{c:C.teal,t:'线性'},{c:C.cyan,t:'缓入'},{c:C.amber,t:'缓出'},{c:C.purple,t:'缓入缓出'},{c:C.green,t:'贝塞尔可调'}]);
+    setLegend('legend',[{c:C.teal,t:'Linear 线性曲线'},{c:C.cyan,t:'EaseIn 缓入曲线'},{c:C.amber,t:'EaseOut 缓出曲线'},{c:C.purple,t:'EaseInOut 缓入缓出'}]);
+    setInfo('info',[{k:'曲线类型',v:'4+ 种'},{k:'缓动函数',v:'贝塞尔'},{k:'可调参数',v:'控制点'},{k:'帧率',v:'60fps+'},{k:'流畅度',v:'94%'},{k:'GPU加速',v:'支持'}]);
+  }else if(vi===2){
+    txt(g,450,32,'贝塞尔曲线 · 自定义动画曲线',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    box(g,60,60,560,360,{fill:'rgba(0,0,0,0.3)',stroke:C.border2,sw:1.5,rx:4});
+    for(var x=60;x<=620;x+=56){line(g,x,60,x,420,{stroke:'#141926',sw:1});}
+    for(var y=60;y<=420;y+=36){line(g,60,y,620,y,{stroke:'#141926',sw:1});}
+    line(g,60,420,620,60,{stroke:C.border2,sw:1,dash:'3 3'});
+    var beziers=[
+      {p1:'100,400',c1:'200,400',c2:'300,80',p2:'580,80',c:C.teal,l:'default'},
+      {p1:'100,400',c1:'400,400',c2:'450,80',p2:'580,80',c:C.cyan,l:'slow start'},
+      {p1:'100,400',c1:'150,80',c2:'500,80',p2:'580,80',c:C.amber,l:'fast start'}
+    ];
+    for(var i=0;i<beziers.length;i++){E(g,'path',{d:'M '+beziers[i].p1+' C '+beziers[i].c1+' '+beziers[i].c2+' '+beziers[i].p2,fill:'none',stroke:beziers[i].c,sw:2.5,cls:'apulse'});}
+    var cp=[[100,400],[200,400],[300,80],[580,80]];
+    for(var i=0;i<cp.length;i++){circ(g,cp[i][0],cp[i][1],4,{fill:C.teal,stroke:'none'});}
+    line(g,100,400,200,400,{stroke:C.teal,sw:1,dash:'2 2'});line(g,580,80,300,80,{stroke:C.teal,sw:1,dash:'2 2'});
+    txt(g,660,80,'贝塞尔预设',{fs:11,fw:'bold',fill:C.text2});
+    for(var i=0;i<beziers.length;i++){circ(g,670,110+i*30,5,{fill:beziers[i].c,stroke:'none'});txt(g,680,114+i*30,beziers[i].l,{fs:10,fill:beziers[i].c});}
+    chip(g,660,220,200,'4控制点',C.teal);chip(g,660,245,200,'可自定义',C.cyan);chip(g,660,270,200,'实时预览',C.amber);
+    setPills('pills',[{c:C.teal,t:'default'},{c:C.cyan,t:'slow start'},{c:C.amber,t:'fast start'},{c:C.purple,t:'4控制点'}]);
+    setLegend('legend',[{c:C.teal,t:'default 默认曲线'},{c:C.cyan,t:'slow start 慢启动'},{c:C.amber,t:'fast start 快启动'},{c:C.purple,t:'4个控制点可调'}]);
+    setInfo('info',[{k:'曲线模型',v:'三次贝塞尔'},{k:'控制点',v:'4 个'},{k:'预设',v:'3+'},{k:'自定义',v:'支持'},{k:'实时预览',v:'支持'},{k:'动画帧率',v:'60fps+'}]);
+  }
+}
+
+function drawM5(g,vi){
+  if(vi===0){
+    txt(g,450,32,'配置文件 · hyprland.conf 体系',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var secs=[{x:40,y:75,t:'general',s:'通用配置',c:C.teal},{x:250,y:75,t:'input',s:'输入配置',c:C.cyan},{x:460,y:75,t:'decoration',s:'装饰配置',c:C.amber},{x:670,y:75,t:'animations',s:'动画配置',c:C.purple},{x:40,y:195,t:'dwindle',s:'平铺配置',c:C.green},{x:250,y:195,t:'master',s:'主从配置',c:C.blue},{x:460,y:195,t:'binds',s:'按键配置',c:C.pink},{x:670,y:195,t:'gestures',s:'手势配置',c:C.red}];
+    for(var i=0;i<secs.length;i++){box(g,secs[i].x,secs[i].y,190,100,{fill:C.bg3,stroke:secs[i].c,sw:1.5,rx:8});E(g,'rect',{x:secs[i].x,y:secs[i].y,width:190,height:4,fill:secs[i].c,rx:2});txt(g,secs[i].x+95,secs[i].y+35,secs[i].t,{fs:14,fw:'bold',fill:secs[i].c,ta:'middle',ff:C.mono});txt(g,secs[i].x+95,secs[i].y+60,secs[i].s,{fs:11,fill:C.text2,ta:'middle'});pbar(g,secs[i].x+30,secs[i].y+72,130,8,80+i*2,secs[i].c);txt(g,secs[i].x+95,secs[i].y+92,(8+i*3)+' 项',{fs:9,fill:C.text3,ta:'middle'});}
+    txt(g,50,330,'配置能力',{fs:12,fw:'bold',fill:C.text2});
+    var ccaps=[{l:'配置项数量',v:96,c:C.teal},{l:'热重载',v:95,c:C.cyan},{l:'语法清晰',v:94,c:C.amber},{l:'注释支持',v:93,c:C.purple}];
+    for(var i=0;i<ccaps.length;i++){txt(g,50,360+i*26,ccaps[i].l,{fs:10,fill:C.text2});pbar(g,200,352+i*26,400,12,ccaps[i].v,ccaps[i].c);txt(g,610,360+i*26,ccaps[i].v+'%',{fs:10,fill:ccaps[i].c,fw:'bold',ff:C.mono});}
+    chip(g,660,360,180,'8配置段',C.teal);chip(g,660,385,180,'热重载',C.cyan);chip(g,660,410,180,'注释支持',C.amber);
+    setPills('pills',[{c:C.teal,t:'general'},{c:C.cyan,t:'input'},{c:C.amber,t:'decoration'},{c:C.purple,t:'animations'},{c:C.green,t:'dwindle'},{c:C.blue,t:'master'},{c:C.pink,t:'binds'}]);
+    setLegend('legend',[{c:C.teal,t:'general 通用配置'},{c:C.cyan,t:'input 输入配置'},{c:C.amber,t:'decoration 装饰'},{c:C.purple,t:'animations 动画'},{c:C.green,t:'dwindle 平铺'},{c:C.blue,t:'master 主从'},{c:C.pink,t:'binds 按键'},{c:C.red,t:'gestures 手势'}]);
+    setInfo('info',[{k:'配置段',v:'8 个'},{k:'配置项',v:'80+'},{k:'热重载',v:'95%'},{k:'语法',v:'自定义'},{k:'注释支持',v:'93%'},{k:'配置灵活度',v:'96%'}]);
+  }else if(vi===1){
+    txt(g,450,32,'按键绑定 · 快捷键体系',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var binds=[{m:'SUPER',k:'Return',a:'终端',c:C.teal},{m:'SUPER',k:'Q',a:'关闭窗口',c:C.red},{m:'SUPER',k:'M',a:'退出',c:C.amber},{m:'SUPER',k:'F',a:'全屏',c:C.green},{m:'SUPER',k:'Space',a:'浮动切换',c:C.cyan},{m:'SUPER',k:'1-8',a:'工作空间',c:C.purple},{m:'SUPER+Shift',k:'1-8',a:'移至空间',c:C.blue},{m:'SUPER',k:'H/J/K/L',a:'焦点移动',c:C.pink}];
+    for(var i=0;i<binds.length;i++){var col=i%2,row=Math.floor(i/2);var x=50+col*410,y=70+row*85;box(g,x,y,390,75,{fill:'rgba(0,0,0,0.3)',stroke:binds[i].c,sw:1.5,rx:8});E(g,'rect',{x:x,y:y,width:5,height:75,fill:binds[i].c,rx:2});txt(g,x+20,y+28,binds[i].m+' + '+binds[i].k,{fs:14,fw:'bold',fill:binds[i].c,ff:C.mono});txt(g,x+20,y+55,binds[i].a,{fs:11,fill:C.text2});circ(g,x+365,y+38,5,{fill:binds[i].c,stroke:'none',cls:'apulse'});}
+    txt(g,50,430,'绑定类型:',{fs:11,fill:C.text2});chip(g,140,418,90,'普通绑定',C.teal);chip(g,240,418,90,'Shift绑定',C.cyan);chip(g,340,418,110,'鼠标绑定',C.amber);chip(g,460,418,110,'8+快捷键',C.purple);
+    setPills('pills',[{c:C.teal,t:'SUPER+Return'},{c:C.red,t:'SUPER+Q'},{c:C.green,t:'SUPER+F'},{c:C.cyan,t:'SUPER+Space'},{c:C.purple,t:'1-8空间'},{c:C.pink,t:'HJKL焦点'}]);
+    setLegend('legend',[{c:C.teal,t:'SUPER+Return 终端'},{c:C.red,t:'SUPER+Q 关闭'},{c:C.amber,t:'SUPER+M 退出'},{c:C.green,t:'SUPER+F 全屏'},{c:C.cyan,t:'SUPER+Space 浮动'},{c:C.purple,t:'1-8 工作空间'},{c:C.blue,t:'Shift+1-8 移动'},{c:C.pink,t:'HJKL 焦点'}]);
+    setInfo('info',[{k:'快捷键',v:'8+'},{k:'修饰键',v:'SUPER/SHIFT'},{k:'工作空间',v:'1-8'},{k:'焦点键',v:'HJKL'},{k:'鼠标绑定',v:'支持'},{k:'自定义',v:'完全'}]);
+  }else if(vi===2){
+    txt(g,450,32,'主题定制 · 视觉样式系统',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var themes=[{t:'边框颜色',s:'Border',c:C.teal,v:95},{t:'圆角半径',s:'Round',c:C.cyan,v:93},{t:'阴影模糊',s:'Shadow',c:C.amber,v:90},{t:'透明度',s:'Opacity',c:C.purple,v:92},{t:'模糊效果',s:'Blur',c:C.green,v:91},{t:'渐变边框',s:'Gradient',c:C.blue,v:89}];
+    for(var i=0;i<themes.length;i++){var col=i%3,row=Math.floor(i/3);var x=40+col*280,y=75+row*140;box(g,x,y,260,120,{fill:C.bg3,stroke:themes[i].c,sw:1.5,rx:8});E(g,'rect',{x:x,y:y,width:260,height:4,fill:themes[i].c,rx:2});txt(g,x+130,y+35,themes[i].t,{fs:14,fw:'bold',fill:themes[i].c,ta:'middle'});txt(g,x+130,y+58,themes[i].s,{fs:10,fill:C.text2,ta:'middle',ff:C.mono});pbar(g,x+30,y+72,200,10,themes[i].v,themes[i].c);txt(g,x+130,y+100,'可调 '+themes[i].v+'%',{fs:9,fill:C.text3,ta:'middle'});}
+    txt(g,50,370,'主题能力',{fs:12,fw:'bold',fill:C.text2});
+    var tcaps=[{l:'颜色定制',v:96,c:C.teal},{l:'圆角调节',v:93,c:C.cyan},{l:'模糊强度',v:91,c:C.amber},{l:'渐变支持',v:89,c:C.purple}];
+    for(var i=0;i<tcaps.length;i++){txt(g,50,400+i*22,tcaps[i].l,{fs:10,fill:C.text2});pbar(g,180,392+i*22,560,10,tcaps[i].v,tcaps[i].c);txt(g,750,400+i*22,tcaps[i].v+'%',{fs:9,fill:tcaps[i].c,fw:'bold',ff:C.mono});}
+    setPills('pills',[{c:C.teal,t:'边框'},{c:C.cyan,t:'圆角'},{c:C.amber,t:'阴影'},{c:C.purple,t:'透明度'},{c:C.green,t:'模糊'},{c:C.blue,t:'渐变'}]);
+    setLegend('legend',[{c:C.teal,t:'边框颜色 95%'},{c:C.cyan,t:'圆角半径 93%'},{c:C.amber,t:'阴影模糊 90%'},{c:C.purple,t:'透明度 92%'},{c:C.green,t:'模糊效果 91%'},{c:C.blue,t:'渐变边框 89%'}]);
+    setInfo('info',[{k:'主题项',v:'6 类'},{k:'颜色定制',v:'96%'},{k:'圆角调节',v:'93%'},{k:'模糊支持',v:'91%'},{k:'渐变边框',v:'89%'},{k:'透明度',v:'92%'}]);
+  }
+}
+
+function drawM6(g,vi){
+  if(vi===0){
+    txt(g,450,32,'多屏布局 · 多显示器管理',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    box(g,40,70,820,300,{fill:'rgba(0,0,0,0.3)',stroke:C.border2,sw:1.5,rx:8});
+    var monitors=[{x:80,y:120,w:280,h:200,t:'显示器 1',s:'DP-1 · 2560×1440',c:C.teal},{x:380,y:100,w:340,h:240,t:'显示器 2 (主)',s:'HDMI-1 · 3840×2160',c:C.cyan},{x:740,y:140,w:100,h:160,t:'显示器 3',s:'USB-C · 1080×1920',c:C.amber}];
+    for(var i=0;i<monitors.length;i++){box(g,monitors[i].x,monitors[i].y,monitors[i].w,monitors[i].h,{fill:'rgba(0,0,0,0.4)',stroke:monitors[i].c,sw:2,rx:4});E(g,'rect',{x:monitors[i].x,y:monitors[i].y,width:monitors[i].w,height:4,fill:monitors[i].c,rx:2});txt(g,monitors[i].x+monitors[i].w/2,monitors[i].y+25,monitors[i].t,{fs:13,fw:'bold',fill:monitors[i].c,ta:'middle'});txt(g,monitors[i].x+monitors[i].w/2,monitors[i].y+45,monitors[i].s,{fs:10,fill:C.text2,ta:'middle',ff:C.mono});circ(g,monitors[i].x+15,monitors[i].y+15,4,{fill:monitors[i].c,stroke:'none',cls:'apulse'});}
+    txt(g,50,400,'多屏特性',{fs:12,fw:'bold',fill:C.text2});
+    var mcaps=[{l:'热插拔',v:94,c:C.teal},{l:'独立工作空间',v:93,c:C.cyan},{l:'布局灵活',v:92,c:C.amber},{l:'主屏切换',v:91,c:C.purple},{l:'跨屏移动',v:90,c:C.green}];
+    for(var i=0;i<mcaps.length;i++){txt(g,50,425+i*0,mcaps[i].l,{fs:9,fill:C.text2});}
+    chip(g,50,420,100,'3显示器',C.teal);chip(g,160,420,100,'热插拔',C.cyan);chip(g,270,420,110,'独立空间',C.amber);chip(g,390,420,110,'主屏切换',C.purple);chip(g,510,420,110,'跨屏移动',C.green);chip(g,630,420,110,'自动布局',C.blue);
+    setPills('pills',[{c:C.teal,t:'DP-1'},{c:C.cyan,t:'HDMI-1'},{c:C.amber,t:'USB-C'},{c:C.purple,t:'热插拔'},{c:C.green,t:'独立空间'}]);
+    setLegend('legend',[{c:C.teal,t:'DP-1 2560×1440'},{c:C.cyan,t:'HDMI-1 3840×2160 (主)'},{c:C.amber,t:'USB-C 1080×1920'},{c:C.purple,t:'热插拔支持'},{c:C.green,t:'独立工作空间'}]);
+    setInfo('info',[{k:'显示器',v:'3 个'},{k:'热插拔',v:'94%'},{k:'独立空间',v:'93%'},{k:'主屏切换',v:'91%'},{k:'跨屏移动',v:'90%'},{k:'自动布局',v:'92%'}]);
+  }else if(vi===1){
+    txt(g,450,32,'分辨率管理 · 多分辨率适配',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var resos=[{r:'3840×2160',l:'4K UHD',c:C.teal,v:95},{r:'2560×1440',l:'2K QHD',c:C.cyan,v:93},{r:'1920×1080',l:'FHD',c:C.amber,v:96},{r:'1680×1050',l:'WSXGA+',c:C.purple,v:90},{r:'1366×768',l:'HD',c:C.green,v:88},{r:'3440×1440',l:'带鱼屏',c:C.blue,v:92},{r:'5120×2880',l:'5K',c:C.pink,v:89},{r:'1080×1920',l:'竖屏',c:C.red,v:91}];
+    for(var i=0;i<resos.length;i++){var col=i%4,row=Math.floor(i/4);var x=40+col*210,y=75+row*120;box(g,x,y,195,100,{fill:'rgba(0,0,0,0.3)',stroke:resos[i].c,sw:1.5,rx:8});E(g,'rect',{x:x,y:y,width:195,height:4,fill:resos[i].c,rx:2});txt(g,x+98,y+35,resos[i].r,{fs:13,fw:'bold',fill:resos[i].c,ta:'middle',ff:C.mono});txt(g,x+98,y+58,resos[i].l,{fs:11,fill:C.text2,ta:'middle'});pbar(g,x+30,y+70,135,8,resos[i].v,resos[i].c);txt(g,x+98,y+92,'适配 '+resos[i].v+'%',{fs:9,fill:C.text3,ta:'middle'});}
+    txt(g,50,340,'分辨率能力',{fs:12,fw:'bold',fill:C.text2});
+    var rcaps=[{l:'分辨率适配',v:95,c:C.teal},{l:'刷新率支持',v:93,c:C.cyan},{l:'缩放控制',v:92,c:C.amber},{l:'方向旋转',v:90,c:C.purple}];
+    for(var i=0;i<rcaps.length;i++){txt(g,50,370+i*26,rcaps[i].l,{fs:10,fill:C.text2});pbar(g,200,362+i*26,400,12,rcaps[i].v,rcaps[i].c);txt(g,610,370+i*26,rcaps[i].v+'%',{fs:10,fill:rcaps[i].c,fw:'bold',ff:C.mono});}
+    chip(g,660,370,180,'8+分辨率',C.teal);chip(g,660,395,180,'旋转支持',C.cyan);chip(g,660,420,180,'刷新率',C.amber);
+    setPills('pills',[{c:C.teal,t:'4K UHD'},{c:C.cyan,t:'2K QHD'},{c:C.amber,t:'FHD'},{c:C.purple,t:'WSXGA+'},{c:C.green,t:'HD'},{c:C.blue,t:'带鱼屏'}]);
+    setLegend('legend',[{c:C.teal,t:'3840×2160 4K'},{c:C.cyan,t:'2560×1440 2K'},{c:C.amber,t:'1920×1080 FHD'},{c:C.purple,t:'1680×1050 WSXGA+'},{c:C.green,t:'1366×768 HD'},{c:C.blue,t:'3440×1440 带鱼屏'},{c:C.pink,t:'5120×2880 5K'},{c:C.red,t:'1080×1920 竖屏'}]);
+    setInfo('info',[{k:'分辨率',v:'8+'},{k:'4K适配',v:'95%'},{k:'刷新率',v:'93%'},{k:'缩放控制',v:'92%'},{k:'方向旋转',v:'90%'},{k:'带鱼屏',v:'92%'}]);
+  }else if(vi===2){
+    txt(g,450,32,'HiDPI · 高分屏缩放支持',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    box(g,60,60,420,360,{fill:'rgba(0,0,0,0.3)',stroke:C.teal,sw:1.5,rx:8});
+    txt(g,270,90,'HiDPI 缩放对比',{fs:13,fw:'bold',fill:C.teal,ta:'middle'});
+    box(g,90,120,160,140,{fill:'rgba(0,0,0,0.4)',stroke:C.cyan,sw:1.5,rx:4});txt(g,170,145,'1.0x',{fs:18,fw:'bold',fill:C.cyan,ta:'middle',ff:C.mono});txt(g,170,175,'标准',{fs:11,fill:C.text2,ta:'middle'});for(var i=0;i<3;i++){E(g,'rect',{x:105,y:195+i*18,width:130,height:12,fill:C.cyan,opacity:0.3+i*0.2,rx:2});}
+    box(g,290,100,160,180,{fill:'rgba(0,0,0,0.4)',stroke:C.amber,sw:1.5,rx:4});txt(g,370,130,'2.0x',{fs:22,fw:'bold',fill:C.amber,ta:'middle',ff:C.mono});txt(g,370,165,'HiDPI',{fs:11,fill:C.text2,ta:'middle'});for(var i=0;i<3;i++){E(g,'rect',{x:305,y:185+i*24,width:130,height:16,fill:C.amber,opacity:0.3+i*0.2,rx:2});}
+    txt(g,90,290,'标准1.0x · 96 DPI',{fs:10,fill:C.cyan,ff:C.mono});txt(g,290,310,'HiDPI 2.0x · 192 DPI',{fs:10,fill:C.amber,ff:C.mono});
+    txt(g,90,330,'缩放清晰',{fs:9,fill:C.text3});txt(g,290,345,'分数缩放',{fs:9,fill:C.text3});txt(g,290,365,'XWayland支持',{fs:9,fill:C.text3});
+    txt(g,510,80,'HiDPI 能力',{fs:12,fw:'bold',fill:C.text2});
+    var hcaps=[{l:'整数缩放',v:95,c:C.teal},{l:'分数缩放',v:93,c:C.cyan},{l:'XWayland',v:91,c:C.amber},{l:'光标缩放',v:92,c:C.purple},{l:'字体清晰',v:94,c:C.green},{l:'跨屏DPI',v:90,c:C.blue}];
+    for(var i=0;i<hcaps.length;i++){txt(g,510,115+i*40,hcaps[i].l,{fs:11,fill:C.text2});pbar(g,620,105+i*40,180,12,hcaps[i].v,hcaps[i].c);txt(g,810,115+i*40,hcaps[i].v+'%',{fs:10,fill:hcaps[i].c,fw:'bold',ff:C.mono});}
+    chip(g,510,380,150,'1.0x-2.0x',C.teal);chip(g,670,380,150,'分数缩放',C.cyan);chip(g,510,405,150,'XWayland',C.amber);chip(g,670,405,150,'跨屏DPI',C.purple);
+    setPills('pills',[{c:C.teal,t:'整数缩放'},{c:C.cyan,t:'分数缩放'},{c:C.amber,t:'XWayland'},{c:C.purple,t:'光标缩放'},{c:C.green,t:'字体清晰'}]);
+    setLegend('legend',[{c:C.teal,t:'整数缩放 95%'},{c:C.cyan,t:'分数缩放 93%'},{c:C.amber,t:'XWayland 91%'},{c:C.purple,t:'光标缩放 92%'},{c:C.green,t:'字体清晰 94%'},{c:C.blue,t:'跨屏DPI 90%'}]);
+    setInfo('info',[{k:'缩放范围',v:'1.0x-2.0x'},{k:'整数缩放',v:'95%'},{k:'分数缩放',v:'93%'},{k:'XWayland',v:'91%'},{k:'字体清晰',v:'94%'},{k:'跨屏DPI',v:'90%'}]);
+  }
+}
+
+function drawM7(g,vi){
+  if(vi===0){
+    txt(g,450,32,'竞品对比 · 桌面环境横向评测',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var tools=['Hyprland','Sway','GNOME','i3wm'];
+    var tcols=[C.teal,C.cyan,C.amber,C.purple];
+    var features=[{n:'渲染性能',v:[95,80,70,75]},{n:'动画系统',v:[94,40,65,30]},{n:'动态平铺',v:[93,88,50,90]},{n:'多显示器',v:[92,90,85,80]},{n:'HiDPI',v:[90,85,92,70]},{n:'配置灵活',v:[96,85,60,90]},{n:'Wayland',v:[98,98,95,30]},{n:'生态兼容',v:[88,90,98,75]}];
+    var colX=[60,260,410,560,710];
+    for(var i=0;i<tools.length;i++){txt(g,colX[i+1]+60,70,tools[i],{fs:11,fw:'bold',fill:tcols[i],ta:'middle'});box(g,colX[i+1],75,120,30,{fill:'rgba(0,0,0,0.2)',stroke:tcols[i],sw:1,rx:4});}
+    txt(g,colX[0]+50,70,'能力',{fs:11,fw:'bold',fill:C.text2,ta:'middle'});
+    for(var i=0;i<features.length;i++){var y=115+i*40;box(g,60,y,780,35,{fill:i%2?'rgba(0,0,0,0.15)':'rgba(0,0,0,0.05)',stroke:C.border,sw:0.5,rx:4});txt(g,colX[0]+10,y+22,features[i].n,{fs:11,fill:C.text2});for(var j=0;j<4;j++){pbar(g,colX[j+1]+15,y+12,90,10,features[i].v[j],tcols[j]);txt(g,colX[j+1]+60,y+30,features[i].v[j]+'',{fs:9,fill:tcols[j],ta:'middle',ff:C.mono});}}
+    chip(g,60,450,130,'Hyprland领先',C.teal);chip(g,200,450,130,'8维度对比',C.cyan);chip(g,340,450,130,'动画突出',C.amber);chip(g,480,450,130,'配置灵活',C.purple);chip(g,620,450,130,'Wayland原生',C.blue);
+    setPills('pills',[{c:C.teal,t:'Hyprland'},{c:C.cyan,t:'Sway'},{c:C.amber,t:'GNOME'},{c:C.purple,t:'i3wm'}]);
+    setLegend('legend',[{c:C.teal,t:'Hyprland 综合最优'},{c:C.cyan,t:'Sway Wayland原生'},{c:C.amber,t:'GNOME 生态丰富'},{c:C.purple,t:'i3wm 经典平铺'}]);
+    setInfo('info',[{k:'对比工具',v:'4 款'},{k:'评估维度',v:'8 个'},{k:'综合领先',v:'Hyprland'},{k:'渲染性能',v:'95% 领先'},{k:'动画系统',v:'94% 领先'},{k:'配置灵活',v:'96% 领先'}]);
+  }else if(vi===1){
+    txt(g,450,32,'功能覆盖 · 能力矩阵分析',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var tools=['Hyprland','Sway','GNOME','i3wm'];
+    var tcols=[C.teal,C.cyan,C.amber,C.purple];
+    var feats=['Wayland原生','动态平铺','动画系统','贝塞尔曲线','多显示器','HiDPI分数缩放','热重载配置','XWayland','多工作空间','手势支持','模糊效果','主题定制'];
+    var matrix=[[1,1,1,0],[1,1,0,1],[1,0,1,0],[1,0,0,0],[1,1,1,1],[1,1,1,0],[1,1,0,1],[1,1,1,0],[1,1,1,1],[1,0,1,0],[1,0,1,0],[1,0,1,0]];
+    var colX=[280,430,560,700];
+    for(var i=0;i<tools.length;i++){txt(g,colX[i]+50,70,tools[i],{fs:11,fw:'bold',fill:tcols[i],ta:'middle'});}
+    for(var i=0;i<feats.length;i++){var y=90+i*30;txt(g,60,y+5,feats[i],{fs:10,fill:C.text2});for(var j=0;j<4;j++){var v=matrix[i][j];var col=v?C.green:C.red;circ(g,colX[j]+50,y,7,{fill:v?col:'none',stroke:col,sw:1.5});if(v){txt(g,colX[j]+50,y+4,'✓',{fs:9,fill:C.bg,ta:'middle',fw:'bold'});}}}
+    txt(g,790,90,'覆盖率',{fs:10,fw:'bold',fill:C.text2,ta:'middle'});
+    for(var i=0;i<4;i++){var cnt=0;for(var j=0;j<feats.length;j++){if(matrix[j][i])cnt++;}var pct=Math.round(cnt/feats.length*100);txt(g,820,95+i*30,pct+'%',{fs:11,fw:'bold',fill:tcols[i],ff:C.mono});}
+    chip(g,60,460,130,'12项功能',C.teal);chip(g,200,460,150,'Hyprland 100%',C.green);chip(g,360,460,130,'全面覆盖',C.cyan);chip(g,500,460,130,'4款对比',C.amber);chip(g,640,460,130,'领先优势',C.purple);
+    setPills('pills',[{c:C.teal,t:'12项功能'},{c:C.green,t:'全覆盖'},{c:C.cyan,t:'4款对比'},{c:C.purple,t:'领先'}]);
+    setLegend('legend',[{c:C.green,t:'支持该功能'},{c:C.red,t:'不支持'},{c:C.teal,t:'Hyprland 100%覆盖'}]);
+    setInfo('info',[{k:'功能项',v:'12 项'},{k:'对比工具',v:'4 款'},{k:'Hyprland',v:'100%'},{k:'Sway',v:'67%'},{k:'GNOME',v:'58%'},{k:'i3wm',v:'33%'}]);
+  }else if(vi===2){
+    txt(g,450,32,'优势分析 · 双雷达对比',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    var labels=['性能','动画','定制性','多显示器','HiDPI','生态兼容'];
+    radar(g,240,270,110,labels,[95,94,96,92,90,88],{fill:'rgba(0,212,170,0.15)',stroke:C.teal});
+    var d2=[80,45,70,85,80,72];
+    var dpts2=[];
+    for(var j=0;j<labels.length;j++){var a=-Math.PI/2+j*2*Math.PI/labels.length;var rr=110*d2[j]/100;dpts2.push((240+Math.cos(a)*rr).toFixed(1)+','+(270+Math.sin(a)*rr).toFixed(1));}
+    E(g,'polygon',{points:dpts2.join(' '),fill:'rgba(168,139,250,0.1)',stroke:C.purple,sw:2});
+    txt(g,240,120,'Hyprland',{fs:11,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,240,400,'竞品均值',{fs:11,fw:'bold',fill:C.purple,ta:'middle'});
+    txt(g,510,90,'优势对比',{fs:12,fw:'bold',fill:C.text2});
+    var cats=[{l:'性能',a:95,b:80},{l:'动画',a:94,b:45},{l:'定制性',a:96,b:70},{l:'多显示器',a:92,b:85},{l:'HiDPI',a:90,b:80},{l:'生态兼容',a:88,b:72}];
+    for(var i=0;i<cats.length;i++){var c=cats[i];txt(g,510,125+i*48,c.l,{fs:11,fill:C.text2});pbar(g,610,115+i*48,140,11,c.a,C.teal);pbar(g,610,130+i*48,140,11,c.b,C.purple);txt(g,760,127+i*48,c.a+'%',{fs:9,fill:C.teal,ff:C.mono});txt(g,760,142+i*48,c.b+'%',{fs:9,fill:C.purple,ff:C.mono});}
+    circ(g,620,90+6*48,4,{fill:C.teal,stroke:'none'});txt(g,630,94+6*48,'Hyprland',{fs:10,fill:C.teal});
+    circ(g,720,90+6*48,4,{fill:C.purple,stroke:'none'});txt(g,730,94+6*48,'竞品均',{fs:10,fill:C.purple});
+    setPills('pills',[{c:C.teal,t:'Hyprland'},{c:C.purple,t:'竞品均值'},{c:C.cyan,t:'性能95%'},{c:C.amber,t:'定制96%'}]);
+    setLegend('legend',[{c:C.teal,t:'Hyprland 定位'},{c:C.purple,t:'竞品均值'},{c:C.green,t:'动画大幅领先'}]);
+    setInfo('info',[{k:'对比维度',v:'6 个'},{k:'性能',v:'95% vs 80%'},{k:'动画',v:'94% vs 45%'},{k:'定制性',v:'96% vs 70%'},{k:'多显示器',v:'92% vs 85%'},{k:'生态兼容',v:'88% vs 72%'}]);
+  }
+}
+
+function drawM8(g,vi){
+  if(vi===0){
+    txt(g,450,32,'技术路线 · 发展规划时间线',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    line(g,60,240,840,240,{stroke:C.border2,sw:2});
+    var ms=[{x:100,t:'v0.1',d:'基础合成器',c:C.cyan,y:180},{x:260,t:'v0.2',d:'动画系统',c:C.teal,y:300},{x:420,t:'v0.3',d:'多显示器',c:C.purple,y:180},{x:580,t:'v0.4',d:'HiDPI优化',c:C.green,y:300},{x:740,t:'v0.45',d:'稳定版',c:C.blue,y:180}];
+    for(var i=0;i<ms.length;i++){circ(g,ms[i].x,240,10,{fill:C.bg2,stroke:ms[i].c,sw:2.5,cls:'apulse'});circ(g,ms[i].x,240,4,{fill:ms[i].c,stroke:'none'});box(g,ms[i].x-60,ms[i].y-20,120,50,{fill:C.bg3,stroke:ms[i].c,sw:1.5,rx:6});txt(g,ms[i].x,ms[i].y,ms[i].t,{fs:13,fw:'bold',fill:ms[i].c,ta:'middle',ff:C.mono});txt(g,ms[i].x,ms[i].y+18,ms[i].d,{fs:10,fill:C.text2,ta:'middle'});line(g,ms[i].x,240,ms[i].x,ms[i].y>240?ms[i].y-20:ms[i].y+30,{stroke:ms[i].c,sw:1,dash:'3 2'});}
+    txt(g,100,130,'NOW',{fs:11,fw:'bold',fill:C.cyan,ff:C.mono,ta:'middle'});txt(g,420,130,'NEXT',{fs:11,fw:'bold',fill:C.purple,ff:C.mono,ta:'middle'});txt(g,740,130,'FUTURE',{fs:11,fw:'bold',fill:C.blue,ff:C.mono,ta:'middle'});
+    var phases=[{x:60,y:360,t:'当前阶段',s:'稳定版 · 动画 · 多显示器 · HiDPI',c:C.cyan},{x:320,y:360,t:'下一阶段',s:'QML支持 · 新渲染器 · 插件系统',c:C.purple},{x:620,y:360,t:'未来阶段',s:'Wayland协议扩展 · AI布局 · 生态完善',c:C.blue}];
+    for(var i=0;i<phases.length;i++){box(g,phases[i].x,phases[i].y,260,50,{fill:C.bg3,stroke:phases[i].c,sw:1.5,rx:6});txt(g,phases[i].x+130,phases[i].y+20,phases[i].t,{fs:12,fw:'bold',fill:phases[i].c,ta:'middle'});txt(g,phases[i].x+130,phases[i].y+38,phases[i].s,{fs:9,fill:C.text2,ta:'middle'});}
+    setPills('pills',[{c:C.cyan,t:'v0.1 基础'},{c:C.teal,t:'v0.2 动画'},{c:C.purple,t:'v0.3 多屏'},{c:C.green,t:'v0.4 HiDPI'},{c:C.blue,t:'v0.45 稳定'}]);
+    setLegend('legend',[{c:C.cyan,t:'NOW 当前阶段'},{c:C.purple,t:'NEXT 下一阶段'},{c:C.blue,t:'FUTURE 未来阶段'}]);
+    setInfo('info',[{k:'版本',v:'v0.1-v0.45'},{k:'当前阶段',v:'稳定版'},{k:'下一阶段',v:'QML支持'},{k:'未来阶段',v:'协议扩展'},{k:'路线节点',v:'5 个'},{k:'时间跨度',v:'3 阶段'}]);
+  }else if(vi===1){
+    txt(g,450,32,'生态展望 · Wayland生态全景',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    circ(g,450,250,55,{fill:'rgba(0,212,170,0.08)',stroke:C.teal,sw:2.5,cls:'aglow'});
+    txt(g,450,248,'Hypr',{fs:14,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,268,'land',{fs:10,fill:C.text2,ta:'middle'});
+    var ecos=[{x:150,y:110,t:'开发者',s:'Dev',c:C.cyan},{x:750,y:110,t:'主题作者',s:'Themer',c:C.amber},{x:100,y:280,t:'插件作者',s:'Plugin',c:C.purple},{x:800,y:280,t:'发行版',s:'Distro',c:C.green},{x:250,y:410,t:'终端用户',s:'User',c:C.pink},{x:650,y:410,t:'贡献者',s:'Contrib',c:C.blue}];
+    for(var i=0;i<ecos.length;i++){arrow(g,450,250,ecos[i].x,ecos[i].y,{stroke:ecos[i].c,sw:1.5,dash:'4 3',cls:'adash'});nodeBox(g,ecos[i].x-70,ecos[i].y-20,140,40,ecos[i].t,ecos[i].s,ecos[i].c);circ(g,ecos[i].x,ecos[i].y,4,{fill:ecos[i].c,stroke:'none',cls:'apulse'});}
+    chip(g,310,50,120,'37.4K+ Stars',C.teal);chip(g,440,50,120,'BSD 开源',C.green);
+    setPills('pills',[{c:C.cyan,t:'开发者'},{c:C.amber,t:'主题作者'},{c:C.purple,t:'插件作者'},{c:C.green,t:'发行版'},{c:C.pink,t:'终端用户'},{c:C.blue,t:'贡献者'}]);
+    setLegend('legend',[{c:C.cyan,t:'开发者生态'},{c:C.amber,t:'主题作者'},{c:C.purple,t:'插件作者'},{c:C.green,t:'发行版集成'},{c:C.pink,t:'终端用户'},{c:C.blue,t:'开源贡献者'}]);
+    setInfo('info',[{k:'生态成员',v:'6 类'},{k:'Stars',v:'37.4K+'},{k:'许可证',v:'BSD'},{k:'发行版',v:'多款集成'},{k:'插件系统',v:'开发中'},{k:'主题社区',v:'活跃'}]);
+  }else{
+    txt(g,450,32,'未来方向 · Wayland合成器演进',{fs:17,fw:'bold',fill:C.text,ta:'middle'});
+    circ(g,450,250,50,{fill:'rgba(0,212,170,0.08)',stroke:C.teal,sw:2.5,cls:'aglow'});
+    txt(g,450,248,'未来',{fs:14,fw:'bold',fill:C.teal,ta:'middle'});
+    txt(g,450,268,'方向',{fs:10,fill:C.text2,ta:'middle'});
+    var dirs=[{x:150,y:100,t:'QML支持',s:'QML UI',c:C.cyan},{x:750,y:100,t:'新渲染器',s:'Renderer',c:C.amber},{x:100,y:250,t:'插件系统',s:'Plugin',c:C.purple},{x:800,y:250,t:'AI布局',s:'AI Layout',c:C.green},{x:200,y:400,t:'协议扩展',s:'Protocol',c:C.pink},{x:700,y:400,t:'跨平台',s:'Cross-Plat',c:C.blue}];
+    for(var i=0;i<dirs.length;i++){arrow(g,450,250,dirs[i].x,dirs[i].y,{stroke:dirs[i].c,sw:2,dash:'4 3',cls:'adash'});nodeBox(g,dirs[i].x-70,dirs[i].y-20,140,40,dirs[i].t,dirs[i].s,dirs[i].c);circ(g,dirs[i].x,dirs[i].y,4,{fill:dirs[i].c,stroke:'none',cls:'apulse'});}
+    var fcaps=[{l:'QML支持',v:85,c:C.cyan},{l:'新渲染器',v:82,c:C.amber},{l:'插件系统',v:78,c:C.purple},{l:'AI布局',v:72,c:C.green},{l:'协议扩展',v:88,c:C.pink},{l:'跨平台',v:75,c:C.blue}];
+    for(var i=0;i<fcaps.length;i++){txt(g,50,100+i*25,fcaps[i].l,{fs:9,fill:C.text2});pbar(g,130,90+i*25,100,8,fcaps[i].v,fcaps[i].c);}
+    chip(g,310,50,120,'37.4K+ Stars',C.teal);chip(g,440,50,120,'BSD 开源',C.green);
+    setPills('pills',[{c:C.cyan,t:'QML'},{c:C.amber,t:'新渲染器'},{c:C.purple,t:'插件'},{c:C.green,t:'AI布局'},{c:C.pink,t:'协议扩展'},{c:C.blue,t:'跨平台'}]);
+    setLegend('legend',[{c:C.cyan,t:'QML支持 85%'},{c:C.amber,t:'新渲染器 82%'},{c:C.purple,t:'插件系统 78%'},{c:C.green,t:'AI布局 72%'},{c:C.pink,t:'协议扩展 88%'},{c:C.blue,t:'跨平台 75%'}]);
+    setInfo('info',[{k:'方向数',v:'6 个'},{k:'QML支持',v:'85%'},{k:'新渲染器',v:'82%'},{k:'插件系统',v:'78%'},{k:'AI布局',v:'72%'},{k:'协议扩展',v:'88%'}]);
+  }
+}
+
+function init(){drawModule(0);}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</div>
+</body>
+</html>
