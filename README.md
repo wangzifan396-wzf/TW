@@ -153,11 +153,7 @@ TW Hub 内置丰富的交互体验，所有状态通过 localStorage 本地持�
 2. **搜索筛选** — 在 Hub 页面使用搜索框和分类标签快速定位
 3. **随机探索** — 点击骰子按钮或按 `R` 键发现新项目
 4. **本地运行** — 下载任意 HTML 文件，双击即可在浏览器中打开
-5. **独立部署** — 每个项目也可在独立的 GitHub Pages 仓库中访问
-
-## 独立仓库
-
-部分项目已部署到独立的 GitHub Pages 仓库，访问格式：`https://wangzifan396-wzf.github.io/<repo-name>/`
+5. **直接分享** — 每个项目可通过直链分享：`https://wangzifan396-wzf.github.io/TW/<filename>.html`
 
 ## License
 
